@@ -1,0 +1,231 @@
+{
+ "calls": 35,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 179927.06322669983,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 188.2
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && ls -la",
+   "hit": null,
+   "lat_ms": 161.2
+  },
+  {
+   "cmd": "find / -maxdepth 3 -name \"rolling.py\" -path \"*xarray*\" 2>/dev/null; find / -maxdepth 3 -type d -name \"xarray*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 129.1
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 && git status --short | head && git diff HEAD --stat | head",
+   "hit": null,
+   "lat_ms": 171.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"__iter__\" xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 174.1
+  },
+  {
+   "cmd": "cd /testbed && cat xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"rolling_window\" xarray/core/variable.py xarray/core/dataarray.py xarray/core/dataset.py | head -20",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n 2200,2320p xarray/core/variable.py",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /testbed && git log -8 --format=\"%h %ad %s\" --date=short | cat",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cd /testbed && ls xarray/tests/ | grep -i roll; grep -n \"def test.*iter\" xarray/tests/test_rolling.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1,80p xarray/tests/test_rolling.py",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport xarray as xr\nimport numpy as np\nprint(xr.__version__, xr.__file__)\n\nmy_data = xr.DataArray(np.arange(1,10), dims='x')\n\nresult1 = my_data.rolling(x=3, center=True).mean().values\nprint('option1:', result1)\n\nmy_data_rolling = my_data.rolling(x=3, center=True)\nresult2 = [window.mean().values.item() for label, window in my_data_rolling]\nprint('option2:', result2)\n\"",
+   "hit": null,
+   "lat_ms": 2571.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\npath = \"xarray/core/rolling.py\"\nsrc = open(path).read()\n\nold = '''    def __iter__(self) -> Iterator[tuple[RollingKey, DataArray]]:\n        if self.ndim > 1:\n            raise ValueError(\"__iter__ is only supported for 1d-rolling\")\n        stops = np.arange(1, len(self.window_labels) + 1)\n        starts = stops - int(self.window[0])\n        starts[: int(self.window[0])] = 0\n        for (label, start, stop) in zip(self.window_labels, starts, stops):\n            window = self.obj.isel({self.dim[0]: slice(start, stop)})\n\n            counts = window.count(dim=self.dim[0])\n            window = window.where(counts >= self.min_periods)\n\n            yield (label, window)\n'''\n\nnew = '''    def __iter__(self) -> Iterator[tuple[RollingKey, DataArray]]:\n        if self.ndim > 1:\n            raise ValueError(\"__iter__ is only supported for 1d-rolling\")\n        dim = self.dim[0]\n        n = len(self.window_labels)\n        w = int(self.window[0])\n        if self.center[0]:\n            # window is centered on the label, i.e. padded by w // 2\n            # elements at the start, consistent with Variable.rolling_window\n            starts = np.arange(-w // 2, n - w // 2)\n        else:\n            # window ends at the label\n            starts = np.arange(1 - w, n - w + 1)\n        stops = starts + w\n        starts = np.clip(starts, 0, n)\n        stops = np.clip(stops, 0, n)\n        for label, start, stop in zip(self.window_labels, starts, stops):\n            window = self.obj.isel({dim: slice(int(start), int(stop))})\n\n            counts = window.count(dim=dim)\n            window = window.where(counts >= self.min_periods)\n\n            yield (label, window)\n'''\n\nassert old in src, \"pattern not found\"\nsrc = src.replace(old, new)\nopen(path, \"w\").write(src)\nprint(\"patched OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport numpy as np\nimport xarray as xr\n\nmy_data = xr.DataArray(np.arange(1, 10), dims=\"x\")\n\n# Issue reproduction\nresult1 = my_data.rolling(x=3, center=True).mean().values\nr = my_data.rolling(x=3, center=True)\nresult2 = [window.mean().values.item() for label, window in r]\nprint(\"center=True  w=3: iter =\", result2)\nprint(\"center=True  w=3: mean =\", result1)\nassert np.allclose(result2, result1, equal_nan=True), \"MISMATCH\"\n\n# center=False must be unchanged\nresult1f = my_data.rolling(x=3, center=False).mean().values\nresult2f = [window.mean().values.item() for label, window in my_data.rolling(x=3)]\nprint(\"center=False w=3: iter =\", result2f)\nprint(\"center=False w=3: mean =\", result1f)\nassert np.allclose(result2f, result1f, equal_nan=True), \"MISMATCH center=False\"\n\n# even window, centered\nresult1e = my_data.rolling(x=4, center=True).mean().values\nresult2e = [window.mean().values.item() for label, window in my_data.rolling(x=4, center=True)]\nprint(\"center=True  w=4: iter =\", result2e)\nprint(\"center=True  w=4: mean =\", result1e)\nassert np.allclose(result2e, result1e, equal_nan=True), \"MISMATCH even window\"\n\n# even window, not centered\nresult1ef = my_data.rolling(x=4).mean().values\nresult2ef = [window.mean().values.item() for label, window in my_data.rolling(x=4)]\nassert np.allclose(result2ef, result1ef, equal_nan=True), \"MISMATCH even noncenter\"\nprint(\"center=False w=4: OK\")\n\n# min_periods=1, centered\nresult1m = my_data.rolling(x=3, center=True, min_periods=1).mean().values\nresult2m = [window.mean().values.item() for label, window in my_data.rolling(x=3, center=True, min_periods=1)]\nprint(\"center=True  w=3 minp=1: iter =\", result2m)\nprint(\"center=True  w=3 minp=1: mean =\", result1m)\nassert np.allclose(result2m, result1m, equal_nan=True), \"MISMATCH min_periods\"\n\n# min_periods=1, non-centered\nresult1mf = my_data.rolling(x=3, min_periods=1).mean().values\nresult2mf = [window.mean().values.item() for label, window in my_data.rolling(x=3, min_periods=1)]\nassert np.allclose(result2mf, result1mf, equal_nan=True), \"MISMATCH min_periods noncenter\"\nprint(\"center=False w=3 minp=1: OK\")\n\n# single-element window\nresult1s = my_data.rolling(x=1, center=True).mean().values\nresult2s = [window.mean().values.item() for label, window in my_data.rolling(x=1, center=True)]\nassert np.allclose(result2s, result1s, equal_nan=True), \"MISMATCH w=1\"\nprint(\"center=True  w=1: OK\")\n\n# window larger than dim, centered\ndata2 = xr.DataArray(np.arange(1, 6), dims=\"x\")\nresult1b = data2.rolling(x=7, center=True).mean().values\nresult2b = [window.mean().values.item() for label, window in data2.rolling(x=7, center=True)]\nprint(\"w=7>dim5 center=True: iter =\", result2b)\nprint(\"w=7>dim5 center=True: mean =\", result1b)\nassert np.allclose(result2b, result1b, equal_nan=True), \"MISMATCH window>dim\"\nresult1bf = data2.rolling(x=7).mean().values\nresult2bf = [window.mean().values.item() for label, window in data2.rolling(x=7)]\nassert np.allclose(result2bf, result1bf, equal_nan=True), \"MISMATCH window>dim noncenter\"\nprint(\"w=7>dim5 center=False: OK\")\n\n# window size == dim, centered\nresult1c = my_data.rolling(x=9, center=True).mean().values\nresult2c = [window.mean().values.item() for label, window in my_data.rolling(x=9, center=True)]\nassert np.allclose(result2c, result1c, equal_nan=True), \"MISMATCH w==dim\"\nprint(\"w==dim center=True: OK\")\n\nprint(\"\\nALL CHECKS PASSED\")\nEOF",
+   "hit": null,
+   "lat_ms": 2371.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n 265,295p xarray/core/rolling.py && git diff --stat",
+   "hit": null,
+   "lat_ms": 69.6
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport numpy as np\nimport xarray as xr\nprint(\"xarray file:\", xr.__file__)\nimport xarray.core.rolling as roll\nprint(\"rolling module:\", roll.__file__)\nprint(inspect := __import__(\"inspect\").getsource(roll.DataArrayRolling.__iter__))\nEOF",
+   "hit": null,
+   "lat_ms": 2173.7
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport numpy as np\nimport xarray as xr\n\nmy_data = xr.DataArray(np.arange(1, 10), dims=\"x\")\nr = my_data.rolling(x=3, center=True)\nprint(\"center list:\", r.center, \"window:\", r.window, \"dim:\", r.dim)\nfor label, window in r:\n    print(label, \"->\", window.values)\nEOF",
+   "hit": null,
+   "lat_ms": 2172.0
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport inspect\nimport numpy as np\nimport xarray as xr\n\nmy_data = xr.DataArray(np.arange(1, 10), dims=\"x\")\nr = my_data.rolling(x=3, center=True)\nprint(\"type:\", type(r))\nprint(\"mro:\", [c.__module__ + \".\" + c.__name__ for c in type(r).__mro__])\nprint(\"iter def from:\", type(r).__iter__)\nprint(inspect.getsource(type(r).__iter__))\nprint(\"qualname of func:\", type(r).__iter__.__qualname__)\nimport xarray.core.rolling as roll\nprint(\"is DataArrayRolling same:\", type(r) is roll.DataArrayRolling)\nEOF",
+   "hit": null,
+   "lat_ms": 2173.7
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport numpy as np\n# standalone simulation of the new __iter__ bounds\nn, w = 9, 3\nfor center in (True, False):\n    if center:\n        starts = np.arange(-w // 2, n - w // 2)\n    else:\n        starts = np.arange(1 - w, n - w + 1)\n    stops = starts + w\n    starts = np.clip(starts, 0, n)\n    stops = np.clip(stops, 0, n)\n    print(\"center =\", center)\n    for i in range(n):\n        print(\"   i=%d: slice(%d, %d)\" % (i, starts[i], stops[i]))\nEOF\necho ---\ncd /testbed && python -c \"\nimport dis, xarray.core.rolling as roll\ndis.dis(roll.DataArrayRolling.__iter__)\n\" | head -60",
+   "hit": null,
+   "lat_ms": 2370.9
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = \"xarray/core/rolling.py\"\nsrc = open(path).read()\n\nold = '''        if self.center[0]:\n            # window is centered on the label, i.e. padded by w // 2\n            # elements at the start, consistent with Variable.rolling_window\n            starts = np.arange(-w // 2, n - w // 2)\n        else:\n            # window ends at the label\n            starts = np.arange(1 - w, n - w + 1)\n        stops = starts + w\n        starts = np.clip(starts, 0, n)\n        stops = np.clip(stops, 0, n)\n'''\n\nnew = '''        if self.center[0]:\n            # window is centered on the label, i.e. padded by w // 2\n            # elements at the start, consistent with Variable.rolling_window\n            offset = w // 2\n            starts = np.arange(-offset, n - offset)\n        else:\n            # window ends at the label\n            starts = np.arange(1 - w, n - w + 1)\n        stops = starts + w\n        starts = np.clip(starts, 0, n)\n        stops = np.clip(stops, 0, n)\n'''\n\nassert old in src\nsrc = src.replace(old, new)\nopen(path, \"w\").write(src)\nprint(\"patched OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 162.5
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport numpy as np\nimport xarray as xr\n\nmy_data = xr.DataArray(np.arange(1, 10), dims=\"x\")\n\n# Issue reproduction\nresult1 = my_data.rolling(x=3, center=True).mean().values\nresult2 = [window.mean().values.item() for label, window in my_data.rolling(x=3, center=True)]\nprint(\"center=True  w=3: iter =\", result2)\nprint(\"center=True  w=3: mean =\", result1)\nassert np.allclose(result2, result1, equal_nan=True), \"MISMATCH\"\n\n# center=False must be unchanged\nresult1f = my_data.rolling(x=3, center=False).mean().values\nresult2f = [window.mean().values.item() for label, window in my_data.rolling(x=3)]\nassert np.allclose(result2f, result1f, equal_nan=True), \"MISMATCH center=False\"\nprint(\"center=False w=3: OK\")\n\n# even window, centered\nresult1e = my_data.rolling(x=4, center=True).mean().values\nresult2e = [window.mean().values.item() for label, window in my_data.rolling(x=4, center=True)]\nassert np.allclose(result2e, result1e, equal_nan=True), \"MISMATCH even window\"\nprint(\"center=True  w=4: OK\", result2e)\n\n# even window, not centered\nresult1ef = my_data.rolling(x=4).mean().values\nresult2ef = [window.mean().values.item() for label, window in my_data.rolling(x=4)]\nassert np.allclose(result2ef, result1ef, equal_nan=True), \"MISMATCH even noncenter\"\nprint(\"center=False w=4: OK\")\n\n# min_periods=1, centered\nresult1m = my_data.rolling(x=3, center=True, min_periods=1).mean().values\nresult2m = [window.mean().values.item() for label, window in my_data.rolling(x=3, center=True, min_periods=1)]\nassert np.allclose(result2m, result1m, equal_nan=True), \"MISMATCH min_periods\"\nprint(\"center=True  w=3 minp=1: OK\", result2m)\n\n# min_periods=1, non-centered\nresult1mf = my_data.rolling(x=3, min_periods=1).mean().values\nresult2mf = [window.mean().values.item() for label, window in my_data.rolling(x=3, min_periods=1)]\nassert np.allclose(result2mf, result1mf, equal_nan=True), \"MISMATCH min_periods noncenter\"\nprint(\"center=False w=3 minp=1: OK\")\n\n# single-element window\nresult1s = my_data.rolling(x=1, center=True).mean().values\nresult2s = [window.mean().values.item() for label, window in my_data.rolling(x=1, center=True)]\nassert np.allclose(result2s, result1s, equal_nan=True), \"MISMATCH w=1\"\nprint(\"center=True  w=1: OK\")\n\n# window larger than dim, centered / not\ndata2 = xr.DataArray(np.arange(1, 6), dims=\"x\")\nfor center in (True, False):\n    r1 = data2.rolling(x=7, center=center).mean().values\n    r2 = [window.mean().values.item() for label, window in data2.rolling(x=7, center=center)]\n    assert np.allclose(r2, r1, equal_nan=True), f\"MISMATCH window>dim center={center}\"\nprint(\"w=7>dim5 center=True/False: OK\")\n\n# window size == dim, centered\nresult1c = my_data.rolling(x=9, center=True).mean().values\nresult2c = [window.mean().values.item() for label, window in my_data.rolling(x=9, center=True)]\nassert np.allclose(result2c, result1c, equal_nan=True), \"MISMATCH w==dim\"\nprint(\"w==dim center=True: OK\")\n\n# with NaN in the data, centered\ndata3 = xr.DataArray(np.array([1.0, np.nan, 3.0, 4.0, 5.0]), dims=\"x\")\nr1 = data3.rolling(x=3, center=True).mean().values\nr2 = [window.mean().values.item() for label, window in data3.rolling(x=3, center=True)]\nprint(\"NaN data center=True: iter =\", r2)\nprint(\"NaN data center=True: mean =\", r1)\nassert np.allclose(r2, r1, equal_nan=True), \"MISMATCH NaN data\"\nprint(\"NaN data: OK\")\n\n# labels still aligned with coords\nlabels = [label for label, _ in my_data.rolling(x=3, center=True)]\nassert list(labels) == list(my_data[\"x\"].values)\nprint(\"labels OK\")\n\nprint(\"\\nALL CHECKS PASSED\")\nEOF",
+   "hit": null,
+   "lat_ms": 2372.4
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -c \"\nimport numpy as np, xarray as xr\ndata2 = xr.DataArray(np.arange(1, 6), dims='x')\ntry:\n    data2.rolling(x=7, center=False).mean()\n    print('no error (center=False)')\nexcept Exception as e:\n    print('center=False .mean() error (pre-existing):', type(e).__name__, e)\ntry:\n    data2.rolling(x=7, center=True).mean()\n    print('no error (center=True)')\nexcept Exception as e:\n    print('center=True .mean() error (pre-existing):', type(e).__name__, e)\n\" ; git stash pop",
+   "hit": null,
+   "lat_ms": 2171.7
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport numpy as np\nimport xarray as xr\n\nmy_data = xr.DataArray(np.arange(1, 10), dims=\"x\")\n\n# window larger than dim, centered: .mean() works\ndata2 = xr.DataArray(np.arange(1, 6), dims=\"x\")\nr1 = data2.rolling(x=7, center=True).mean().values\nr2 = [window.mean().values.item() for label, window in data2.rolling(x=7, center=True)]\nprint(\"w=7>dim5 center=True: iter =\", r2, \"| mean =\", r1)\nassert np.allclose(r2, r1, equal_nan=True), \"MISMATCH window>dim center=True\"\n\n# window larger than dim, non-centered: compare against construct() ground truth\nc = data2.rolling(x=7).construct(\"w\").values\nr2 = [window.values if window.count() == len(window) else window.fillna(np.nan).values\n      for label, window in data2.rolling(x=7)]\nfor i, w in enumerate(r2):\n    # window i of construct: c[i, :i+1] are the actual values (rest nan)\n    assert np.array_equal(w, c[i, : len(w)]), f\"construct mismatch at {i}: {w} vs {c[i, :len(w)]}\"\nprint(\"w=7>dim5 center=False vs construct: OK\")\n\n# with NaN in the data, centered\ndata3 = xr.DataArray(np.array([1.0, np.nan, 3.0, 4.0, 5.0]), dims=\"x\")\nr1 = data3.rolling(x=3, center=True).mean().values\nr2 = [window.mean().values.item() for label, window in data3.rolling(x=3, center=True)]\nprint(\"NaN data center=True: iter =\", r2)\nprint(\"NaN data center=True: mean =\", r1)\nassert np.allclose(r2, r1, equal_nan=True), \"MISMATCH NaN data\"\nprint(\"NaN data: OK\")\n\n# labels aligned\nlabels = [label for label, _ in my_data.rolling(x=3, center=True)]\nassert list(labels) == list(my_data[\"x\"].values)\nprint(\"labels OK\")\n\n# 2d rolling still raises\nda2d = xr.DataArray(np.arange(12).reshape(3, 4), dims=(\"y\", \"x\"))\ntry:\n    iter(da2d.rolling(y=2, x=3))\n    raise AssertionError(\"should have raised\")\nexcept ValueError as e:\n    print(\"2d rolling raises:\", e)\n\n# Dataset rolling unaffected (no __iter__ there)\nds = xr.Dataset({\"a\": my_data})\nds.rolling(x=3, center=True).mean()\nprint(\"dataset rolling OK\")\n\nprint(\"\\nALL CHECKS PASSED\")\nEOF",
+   "hit": null,
+   "lat_ms": 2170.0
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport numpy as np\nimport xarray as xr\n\nmy_data = xr.DataArray(np.arange(1, 10), dims=\"x\")\ndata2 = xr.DataArray(np.arange(1, 6), dims=\"x\")\n\n# window larger than dim, non-centered: compare against construct() ground truth\nc = data2.rolling(x=7).construct(\"w\").values\nfor i, (label, window) in enumerate(data2.rolling(x=7)):\n    w = window.values\n    assert np.array_equal(w, c[i, : len(w)], equal_nan=True), f\"construct mismatch at {i}: {w} vs {c[i, :len(w)]}\"\nprint(\"w=7>dim5 center=False vs construct: OK\")\n\n# window larger than dim, centered: compare iteration windows vs construct too\nc2 = data2.rolling(x=7, center=True).construct(\"w\").values\nfor i, (label, window) in enumerate(data2.rolling(x=7, center=True)):\n    w = window.values\n    assert np.array_equal(w, c2[i, : len(w)], equal_nan=True), f\"construct mismatch at {i}: {w} vs {c2[i, :len(w)]}\"\nprint(\"w=7>dim5 center=True vs construct: OK\")\n\n# with NaN in the data, centered\ndata3 = xr.DataArray(np.array([1.0, np.nan, 3.0, 4.0, 5.0]), dims=\"x\")\nr1 = data3.rolling(x=3, center=True).mean().values\nr2 = [window.mean().values.item() for label, window in data3.rolling(x=3, center=True)]\nprint(\"NaN data center=True: iter =\", r2)\nprint(\"NaN data center=True: mean =\", r1)\nassert np.allclose(r2, r1, equal_nan=True), \"MISMATCH NaN data\"\nprint(\"NaN data: OK\")\n\n# labels aligned\nlabels = [label for label, _ in my_data.rolling(x=3, center=True)]\nassert list(labels) == list(my_data[\"x\"].values)\nprint(\"labels OK\")\n\n# 2d rolling still raises\nda2d = xr.DataArray(np.arange(12).reshape(3, 4), dims=(\"y\", \"x\"))\ntry:\n    iter(da2d.rolling(y=2, x=3))\n    raise AssertionError(\"should have raised\")\nexcept ValueError as e:\n    print(\"2d rolling raises:\", e)\n\n# Dataset rolling unaffected\nds = xr.Dataset({\"a\": my_data})\nds.rolling(x=3, center=True).mean()\nprint(\"dataset rolling OK\")\n\nprint(\"\\nALL CHECKS PASSED\")\nEOF",
+   "hit": null,
+   "lat_ms": 2170.8
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport numpy as np\nimport xarray as xr\n\nmy_data = xr.DataArray(np.arange(1, 10), dims=\"x\")\ndata2 = xr.DataArray(np.arange(1, 6), dims=\"x\")\nn = len(data2[\"x\"])\n\nfor center in (False, True):\n    w = 7\n    c = data2.rolling(x=w, center=center).construct(\"w\").values\n    roll = data2.rolling(x=w, center=center, min_periods=1)  # unmasked windows\n    for i, (label, window) in enumerate(roll):\n        wv = window.values\n        if center:\n            lo = max(0, w // 2 - i)\n            hi = min(w, w // 2 + n - i)\n        else:\n            m = min(i + 1, w)\n            lo, hi = w - m, w\n        expected = c[i, lo:hi]\n        assert np.array_equal(wv, expected, equal_nan=True), (\n            f\"center={center} i={i}: {wv} vs {expected}\"\n        )\n    print(f\"w={w}>dim={n} center={center}: windows match construct (non-NaN region): OK\")\n\n# same cross-check for w <= dim, both centerings, and even/odd w\ndata5 = xr.DataArray(np.arange(1, 11), dims=\"x\")\nn5 = 10\nfor w in (1, 2, 3, 4, 5, 9, 10):\n    for center in (False, True):\n        c = data5.rolling(x=w, center=center).construct(\"w\").values\n        roll = data5.rolling(x=w, center=center, min_periods=1)\n        for i, (label, window) in enumerate(roll):\n            wv = window.values\n            if center:\n                lo = max(0, w // 2 - i)\n                hi = min(w, w // 2 + n5 - i)\n            else:\n                m = min(i + 1, w)\n                lo, hi = w - m, w\n            assert np.array_equal(wv, c[i, lo:hi], equal_nan=True), (\n                f\"w={w} center={center} i={i}: {wv} vs {c[i, lo:hi]}\"\n            )\nprint(\"all w in 1..10, both centerings: iteration windows == construct windows: OK\")\n\nprint(\"\\nALL CHECKS PASSED\")\nEOF",
+   "hit": null,
+   "lat_ms": 2174.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest xarray/tests/test_rolling.py -x -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 59018.9
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest xarray/tests/test_rolling.py -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 58628.9
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"rolling\" xarray/tests/*.py --include=\"*.py\" -l | grep -v test_rolling",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest xarray/tests/test_variable.py xarray/tests/test_computation.py -q 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 18181.6
+  },
+  {
+   "cmd": "cd /testbed && grep -rn -A 12 \"iterate\" doc/user-guide/computation.rst | grep -B2 -A 12 -i \"rolling\" | head -40",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest xarray/tests/test_dataarray.py xarray/tests/test_dataset.py -q 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 14790.4
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport xarray as xr\nimport numpy as np\n\nmy_data = xr.DataArray(np.arange(1,10), dims=\"x\")\n\nresult1 = my_data.rolling(x=3, center=True).mean().values\nprint(\"option 1:\", result1)\n\nmy_data_rolling = my_data.rolling(x=3, center=True)\nresult2 = [window.mean().values.item() for label, window in my_data_rolling]\nprint(\"option 2:\", result2)\nassert np.allclose(result1, result2, equal_nan=True)\nprint(\"MATCH - issue resolved\")\nEOF",
+   "hit": null,
+   "lat_ms": 2176.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pydata__xarray-6744",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 179927.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,466 @@
+{
+ "calls": 82,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 60580.45744895935,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "find / -name \"*.py\" -path \"*/pytest/*\" -o -name \"conftest.py\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 569.0
+  },
+  {
+   "cmd": "find /testbed -name \"*.py\" | xargs grep -l \"def caplog\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /testbed/src/_pytest/logging.py",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /testbed && cat > test_caplog_bug.py << 'EOF'\ndef test_foo(caplog):\n    caplog.set_level(42)\n\ndef test_bar(caplog):\n    print(f\"Handler level in test_bar: {caplog.handler.level}\")\n    assert caplog.handler.level == 0, f\"Expected 0, got {caplog.handler.level}\"\nEOF\n",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest test_caplog_bug.py -v",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pip install -e . -q",
+   "hit": null,
+   "lat_ms": 8378.4
+  },
+  {
+   "cmd": "cd /testbed && python -c \"import sys; sys.path.insert(0, 'src'); import pytest; pytest.main(['-v', 'test_caplog_bug.py'])\"",
+   "hit": null,
+   "lat_ms": 163.3
+  },
+  {
+   "cmd": "cd /testbed && python -c \"import sys; print(sys.path)\"",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "pip install py 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 7975.7
+  },
+  {
+   "cmd": "ls -la /testbed/ | head -20",
+   "hit": null,
+   "lat_ms": 127.4
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pip install py 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 8178.8
+  },
+  {
+   "cmd": "python3 -c \"import pytest; print(pytest.__version__)\"",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "which pytest || which python3",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "ls /opt/miniconda3/lib/python3.11/site-packages/ | grep -i pytest",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "find /testbed/testing -name \"*log*\" -type f | head -10",
+   "hit": null,
+   "lat_ms": 140.6
+  },
+  {
+   "cmd": "find /testbed -name \"test_logging.py\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 168.5
+  },
+  {
+   "cmd": "find /testbed -path \"*/testing/*\" -name \"*.py\" | xargs grep -l \"caplog\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /testbed/testing/logging/test_fixture.py",
+   "hit": null,
+   "lat_ms": 71.4
+  },
+  {
+   "cmd": "cat > /testbed/fix_caplog.patch << 'EOF'\n--- a/src/_pytest/logging.py\n+++ b/src/_pytest/logging.py\n@@ -214,6 +214,8 @@ class LogCaptureFixture:\n     def __init__(self, item: nodes.Node) -> None:\n         \"\"\"Creates a new funcarg.\"\"\"\n         self._item = item\n+        # dict of (logger_name or None) -> (logger_level, handler_level)\n+        self._initial_levels = {}  # type: Dict[Optional[str], Tuple[int, int]]\n         # dict of log name -> log level\n         self._initial_logger_levels = {}  # type: Dict[Optional[str], int]\n \n@@ -223,9 +225,13 @@ class LogCaptureFixture:\n         This restores the log levels changed by :meth:`set_level`.\n         \"\"\"\n         # restore log levels\n-        for logger_name, level in self._initial_logger_levels.items():\n+        for logger_name, (logger_level, handler_level) in self._initial_levels.items():\n             logger = logging.getLogger(logger_name)\n-            logger.setLevel(level)\n+            logger.setLevel(logger_level)\n+            self.handler.setLevel(handler_level)\n \n     @property\n     def handler(self) -> LogCaptureHandler:\n@@ -298,10 +304,13 @@ class LogCaptureFixture:\n         .. versionchanged:: 3.4\n             The levels of the loggers changed by this function will be restored to their initial values at the\n             end of the test.\n         \"\"\"\n         logger_obj = logging.getLogger(logger)\n-        # save the original log-level to restore it during teardown\n-        self._initial_logger_levels.setdefault(logger, logger_obj.level)\n+        # save the original log-level and handler level to restore them during teardown\n+        self._initial_levels.setdefault(logger, (logger_obj.level, self.handler.level))\n         logger_obj.setLevel(level)\n         self.handler.setLevel(level)\n \n     @contextmanager\nEOF\n",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "grep -n \"_initial_logger_levels\" /testbed/src/_pytest/logging.py",
+   "hit": null,
+   "lat_ms": 249.3
+  },
+  {
+   "cmd": "sed -n '340,445p' /testbed/src/_pytest/logging.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cat > /testbed/fix.py << 'EOF'\nimport re\n\n# Read the file\nwith open('/testbed/src/_pytest/logging.py', 'r') as f:\n    content = f.read()\n\n# Fix 1: Update __init__ to also track handler levels\nold_init = '''    def __init__(self, item: nodes.Node) -> None:\n        \"\"\"Creates a new funcarg.\"\"\"\n        self._item = item\n        # dict of log name -> log level\n        self._initial_logger_levels = {}  # type: Dict[Optional[str], int]'''\n\nnew_init = '''    def __init__(self, item: nodes.Node) -> None:\n        \"\"\"Creates a new funcarg.\"\"\"\n        self._item = item\n        # dict of (logger_name or None) -> (logger_level, handler_level)\n        self._initial_levels = {}  # type: Dict[Optional[str], Tuple[int, int]]'''\n\ncontent = content.replace(old_init, new_init)\n\n# Fix 2: Update _finalize to restore both levels\nold_finalize = '''    def _finalize(self) -> None:\n        \"\"\"Finalizes the fixture.\n\n        This restores the log levels changed by :meth:`set_level`.\n        \"\"\"\n        # restore log levels\n        for logger_name, level in self._initial_logger_levels.items():\n            logger = logging.getLogger(logger_name)\n            logger.setLevel(level)'''\n\nnew_finalize = '''    def _finalize(self) -> None:\n        \"\"\"Finalizes the fixture.\n\n        This restores the log levels changed by :meth:`set_level`.\n        \"\"\"\n        # restore log levels and handler levels\n        for logger_name, (logger_level, handler_level) in self._initial_levels.items():\n            logger = logging.getLogger(logger_name)\n            logger.setLevel(logger_level)\n            self.handler.setLevel(handler_level)'''\n\ncontent = content.replace(old_finalize, new_finalize)\n\n# Fix 3: Update set_level to save both levels\nold_set_level = '''        logger_obj = logging.getLogger(logger)\n        # save the original log-level to restore it during teardown\n        self._initial_logger_levels.setdefault(logger, logger_obj.level)\n        logger_obj.setLevel(level)\n        self.handler.setLevel(level)'''\n\nnew_set_level = '''        logger_obj = logging.getLogger(logger)\n        # save the original log-level and handler level to restore them during teardown\n        self._initial_levels.setdefault(logger, (logger_obj.level, self.handler.level))\n        logger_obj.setLevel(level)\n        self.handler.setLevel(level)'''\n\ncontent = content.replace(old_set_level, new_set_level)\n\n# Write the fixed content\nwith open('/testbed/src/_pytest/logging.py', 'w') as f:\n    f.write(content)\n\nprint(\"File patched successfully!\")\nEOF\npython /testbed/fix.py\n",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "sed -n '340,445p' /testbed/src/_pytest/logging.py",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "ls /testbed/*.txt /testbed/setup.* 2>/dev/null",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "cat /testbed/setup.py",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cat /testbed/setup.cfg | head -40",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "ls /testbed/*.toml /testbed/requirements*.txt 2>/dev/null || find /testbed -name \"requirements*.txt\" -o -name \"pyproject.toml\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cat /testbed/pyproject.toml",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "pip3 list 2>/dev/null | grep -i pytest",
+   "hit": null,
+   "lat_ms": 569.2
+  },
+  {
+   "cmd": "python3 -c \"import sys; sys.path.insert(0, '/testbed/src'); from _pytest.logging import LogCaptureFixture; print('Import successful')\"",
+   "hit": null,
+   "lat_ms": 165.0
+  },
+  {
+   "cmd": "ls /testbed/scripts/ 2>/dev/null || ls /testbed/*.sh 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "ls /testbed/conftest.py 2>/dev/null && head -30 /testbed/conftest.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat > /testbed/test_fix.py << 'EOF'\n#!/usr/bin/env python3\n\"\"\"Test script to verify the caplog fix\"\"\"\nimport sys\nimport os\n\n# Add the source to path\nsys.path.insert(0, '/testbed/src')\n\n# Mock missing dependencies\nclass MockPy:\n    pass\n\nsys.modules['py'] = MockPy()\nsys.modules['py.code'] = MockPy()\nsys.modules['py.io'] = MockPy()\nsys.modules['py.path'] = MockPy()\n\n# Now let's test the actual logic\nimport logging\nfrom io import StringIO\n\n# Test the fix by simulating what happens in the code\ndef test_caplog_handler_level_restoration():\n    \"\"\"Test that handler level is restored after set_level\"\"\"\n    \n    # Simulate the fix\n    class MockHandler:\n        def __init__(self):\n            self.level = 0\n    \n    class MockLogger:\n        def __init__(self, name):\n            self.name = name\n            self.level = 0\n    \n    # Track initial states\n    initial_levels = {}\n    \n    # Simulate set_level behavior BEFORE the fix\n    def set_level_broken(logger_obj, handler, level):\n        # This is the OLD buggy behavior\n        initial_levels.setdefault(logger_obj.name, logger_obj.level)  # Only saves logger level!\n        logger_obj.setLevel(level)\n        handler.setLevel(level)  # Handler level changed but NOT saved\n    \n    # Simulate _finalize behavior BEFORE the fix  \n    def finalize_broken():\n        for logger_name, level in initial_levels.items():\n            logger = logging.getLogger(logger_name)\n            logger.setLevel(level)\n        # Handler level is NOT restored!\n    \n    # Simulate set_level behavior AFTER the fix\n    def set_level_fixed(logger_obj, handler, level, initial_levels_dict):\n        # This is the NEW fixed behavior\n        initial_levels_dict.setdefault(logger_obj.name, (logger_obj.level, handler.level))  # Saves both!\n        logger_obj.setLevel(level)\n        handler.setLevel(level)\n    \n    def finalize_fixed(initial_levels_dict, handler):\n        for logger_name, (logger_level, handler_level) in initial_levels_dict.items():\n            logger = logging.getLogger(logger_name)\n            logger.setLevel(logger_level)\n            handler.setLevel(handler_level)  # Handler level IS restored!\n    \n    print(\"Testing BROKEN behavior (before fix):\")\n    print(\"-\" * 50)\n    \n    handler1 = MockHandler()\n    handler1.level = 0\n    print(f\"Initial handler level: {handler1.level}\")\n    \n    # Set level to 42\n    set_level_broken(logging.getLogger(), handler1, 42)\n    print(f\"After set_level(42): handler level = {handler1.level}\")\n    \n    # Finalize\n    finalize_broken()\n    print(f\"After finalize: handler level = {handler1.level}\")\n    print(f\"BUG: Handler level should be 0 but is {handler1.level}\")\n    \n    print(\"\\nTesting FIXED behavior (after fix):\")\n    print(\"-\" * 50)\n    \n    handler2 = MockHandler()\n    handler2.level = 0\n    print(f\"Initial handler level: {handler2.level}\")\n    \n    initial_levels_fixed = {}\n    \n    # Set level to 42\n    set_level_fixed(logging.getLogger(), handler2, 42, initial_levels_fixed)\n    print(f\"After set_level(42): handler level = {handler2.level}\")\n    \n    # Finalize\n    finalize_fixed(initial_levels_fixed, handler2)\n    print(f\"After finalize: handler level = {handler2.level}\")\n    \n    if handler2.level == 0:\n        print(\"SUCCESS: Handler level correctly restored to 0!\")\n    else:\n        print(f\"FAILURE: Handler level should be 0 but is {handler2.level}\")\n        return False\n    \n    return True\n\nif __name__ == '__main__':\n    success = test_caplog_handler_level_restoration()\n    sys.exit(0 if success else 1)\nEOF\npython3 /testbed/test_fix.py\n",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cat > /testbed/test_fix.py << 'EOF'\n#!/usr/bin/env python3\n\"\"\"Test script to verify the caplog fix\"\"\"\nimport sys\nimport os\n\n# Test the fix by simulating the logic\ndef test_caplog_handler_level_restoration():\n    \"\"\"Test that handler level is restored after set_level\"\"\"\n    \n    # Simulate the fix\n    class MockHandler:\n        def __init__(self):\n            self.level = 0\n        def setLevel(self, level):\n            self.level = level\n    \n    class MockLogger:\n        def __init__(self, name):\n            self.name = name\n            self.level = 0\n        def setLevel(self, level):\n            self.level = level\n    \n    # Track initial states\n    initial_levels = {}\n    \n    # Simulate set_level behavior BEFORE the fix\n    def set_level_broken(logger_obj, handler, level):\n        # This is the OLD buggy behavior\n        initial_levels.setdefault(logger_obj.name, logger_obj.level)  # Only saves logger level!\n        logger_obj.setLevel(level)\n        handler.setLevel(level)  # Handler level changed but NOT saved\n    \n    # Simulate _finalize behavior BEFORE the fix  \n    def finalize_broken():\n        for logger_name, level in initial_levels.items():\n            logger = MockLogger(logger_name)\n            logger.setLevel(level)\n        # Handler level is NOT restored!\n    \n    # Simulate set_level behavior AFTER the fix\n    def set_level_fixed(logger_obj, handler, level, initial_levels_dict):\n        # This is the NEW fixed behavior\n        initial_levels_dict.setdefault(logger_obj.name, (logger_obj.level, handler.level))  # Saves both!\n        logger_obj.setLevel(level)\n        handler.setLevel(level)\n    \n    def finalize_fixed(initial_levels_dict, handler):\n        for logger_name, (logger_level, handler_level) in initial_levels_dict.items():\n            logger = MockLogger(logger_name)\n            logger.setLevel(logger_level)\n            handler.setLevel(handler_level)  # Handler level IS restored!\n    \n    print(\"Testing BROKEN behavior (before fix):\")\n    print(\"-\" * 50)\n    \n    handler1 = MockHandler()\n    handler1.level = 0\n    print(f\"Initial handler level: {handler1.level}\")\n    \n    # Set level to 42\n    set_level_broken(MockLogger(\"root\"), handler1, 42)\n    print(f\"After set_level(42): handler level = {handler1.level}\")\n    \n    # Finalize\n    finalize_broken()\n    print(f\"After finalize: handler level = {handler1.level}\")\n    print(f\"BUG: Handler level should be 0 but is {handler1.level}\")\n    \n    print(\"\\nTesting FIXED behavior (after fix):\")\n    print(\"-\" * 50)\n    \n    handler2 = MockHandler()\n    handler2.level = 0\n    print(f\"Initial handler level: {handler2.level}\")\n    \n    initial_levels_fixed = {}\n    \n    # Set level to 42\n    set_level_fixed(MockLogger(\"root\"), handler2, 42, initial_levels_fixed)\n    print(f\"After set_level(42): handler level = {handler2.level}\")\n    \n    # Finalize\n    finalize_fixed(initial_levels_fixed, handler2)\n    print(f\"After finalize: handler level = {handler2.level}\")\n    \n    if handler2.level == 0:\n        print(\"SUCCESS: Handler level correctly restored to 0!\")\n    else:\n        print(f\"FAILURE: Handler level should be 0 but is {handler2.level}\")\n        return False\n    \n    return True\n\nif __name__ == '__main__':\n    success = test_caplog_handler_level_restoration()\n    sys.exit(0 if success else 1)\nEOF\npython3 /testbed/test_fix.py\n",
+   "hit": null,
+   "lat_ms": 120.9
+  },
+  {
+   "cmd": "grep -n \"_initial_levels\" /testbed/src/_pytest/logging.py",
+   "hit": null,
+   "lat_ms": 89.4
+  },
+  {
+   "cmd": "head -60 /testbed/testing/logging/test_fixture.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cat > /testbed/test_handler_level_restore.py << 'EOF'\n\"\"\"Test to verify handler level is restored after caplog.set_level()\"\"\"\nimport logging\n\ndef test_handler_level_restored_after_set_level(caplog):\n    \"\"\"\n    Test that caplog.set_level() restores the handler level at the end of the test.\n    \n    This is a regression test for: https://github.com/pytest-dev/pytest/issues/XXXX\n    The caplog fixture was not restoring the handler level, only the logger level.\n    \"\"\"\n    # Set a custom level\n    caplog.set_level(42)\n    \n    # Verify the level was set\n    assert caplog.handler.level == 42\n    \n    # The test ends here - after this, _finalize() should be called\n    # and the handler level should be restored to 0 (NOTSET)\n\n\ndef test_handler_level_is_zero_in_next_test(caplog):\n    \"\"\"\n    This test verifies that the handler level was restored to 0\n    after test_handler_level_restored_after_set_level finished.\n    \"\"\"\n    # This should be 0 (NOTSET), not 42 from the previous test\n    handler_level = caplog.handler.level\n    print(f\"Handler level in test_handler_level_is_zero_in_next_test: {handler_level}\")\n    \n    # This assertion should pass with the fix\n    assert handler_level == 0, f\"Expected handler level to be 0, but got {handler_level}\"\nEOF\ncat /testbed/test_handler_level_restore.py\n",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /testbed && python3 setup.py --help 2>&1 | head -10",
+   "hit": null,
+   "lat_ms": 8181.3
+  },
+  {
+   "cmd": "grep -A 50 \"install_requires\" /testbed/setup.cfg 2>/dev/null || grep -A 50 \"dependencies\" /testbed/setup.cfg 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "pip3 install attrs iniconfig more-itertools packaging pluggy toml 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 8173.5
+  },
+  {
+   "cmd": "find /opt -name \"pytest*\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 163.1
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest --version",
+   "hit": null,
+   "lat_ms": 376.5
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest /testbed/test_handler_level_restore.py -v 2>&1",
+   "hit": null,
+   "lat_ms": 376.9
+  },
+  {
+   "cmd": "sed -n '340,445p' /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/logging.py",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "find /opt/miniconda3/envs/testbed -name \"logging.py\" -path \"*/_pytest/*\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "ls /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/ | grep pytest",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest --version && python -c \"import pytest; print(pytest.__file__)\"",
+   "hit": null,
+   "lat_ms": 379.1
+  },
+  {
+   "cmd": "cat /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/__editable__.pytest-6.0.0rc2.dev85+g422685d0b.pth",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "grep -A 2 \"def _finalize\" /testbed/src/_pytest/logging.py | head -10",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "sed -n '351,365p' /testbed/src/_pytest/logging.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cat > /testbed/revert_fix.py << 'EOF'\nimport re\n\n# Read the file\nwith open('/testbed/src/_pytest/logging.py', 'r') as f:\n    content = f.read()\n\n# Revert to the buggy version\nold_init = '''    def __init__(self, item: nodes.Node) -> None:\n        \"\"\"Creates a new funcarg.\"\"\"\n        self._item = item\n        # dict of (logger_name or None) -> (logger_level, handler_level)\n        self._initial_levels = {}  # type: Dict[Optional[str], Tuple[int, int]]'''\n\nnew_init = '''    def __init__(self, item: nodes.Node) -> None:\n        \"\"\"Creates a new funcarg.\"\"\"\n        self._item = item\n        # dict of log name -> log level\n        self._initial_logger_levels = {}  # type: Dict[Optional[str], int]'''\n\ncontent = content.replace(old_init, new_init)\n\nold_finalize = '''    def _finalize(self) -> None:\n        \"\"\"Finalizes the fixture.\n\n        This restores the log levels changed by :meth:`set_level`.\n        \"\"\"\n        # restore log levels and handler levels\n        for logger_name, (logger_level, handler_level) in self._initial_levels.items():\n            logger = logging.getLogger(logger_name)\n            logger.setLevel(logger_level)\n            self.handler.setLevel(handler_level)'''\n\nnew_finalize = '''    def _finalize(self) -> None:\n        \"\"\"Finalizes the fixture.\n\n        This restores the log levels changed by :meth:`set_level`.\n        \"\"\"\n        # restore log levels\n        for logger_name, level in self._initial_logger_levels.items():\n            logger = logging.getLogger(logger_name)\n            logger.setLevel(level)'''\n\ncontent = content.replace(old_finalize, new_finalize)\n\nold_set_level = '''        logger_obj = logging.getLogger(logger)\n        # save the original log-level and handler level to restore them during teardown\n        self._initial_levels.setdefault(logger, (logger_obj.level, self.handler.level))\n        logger_obj.setLevel(level)\n        self.handler.setLevel(level)'''\n\nnew_set_level = '''        logger_obj = logging.getLogger(logger)\n        # save the original log-level to restore it during teardown\n        self._initial_logger_levels.setdefault(logger, logger_obj.level)\n        logger_obj.setLevel(level)\n        self.handler.setLevel(level)'''\n\ncontent = content.replace(old_set_level, new_set_level)\n\n# Write the reverted content\nwith open('/testbed/src/_pytest/logging.py', 'w') as f:\n    f.write(content)\n\nprint(\"File reverted successfully!\")\nEOF\npython /testbed/revert_fix.py\n",
+   "hit": null,
+   "lat_ms": 119.2
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest /testbed/test_handler_level_restore.py -v 2>&1",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "python /testbed/fix.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest /testbed/test_handler_level_restore.py -v 2>&1",
+   "hit": null,
+   "lat_ms": 250.0
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest /testbed/testing/logging/test_fixture.py -v 2>&1",
+   "hit": null,
+   "lat_ms": 568.8
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest /testbed/testing/logging/ -v 2>&1",
+   "hit": null,
+   "lat_ms": 1576.5
+  },
+  {
+   "cmd": "sed -n '340,440p' /testbed/src/_pytest/logging.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cat > /testbed/test_comprehensive_handler_restore.py << 'EOF'\n\"\"\"Comprehensive test for handler level restoration in caplog\"\"\"\nimport logging\n\nlogger1 = logging.getLogger(\"test_logger_1\")\nlogger2 = logging.getLogger(\"test_logger_2\")\n\n\ndef test_multiple_loggers_levels_restored(caplog):\n    \"\"\"Test that levels for multiple loggers are restored.\"\"\"\n    # Set levels for different loggers\n    caplog.set_level(42)  # root logger\n    caplog.set_level(50, logger=\"test_logger_1\")  # CRITICAL\n    caplog.set_level(30, logger=\"test_logger_2\")  # WARNING\n    \n    # Verify they're set\n    assert caplog.handler.level == 42\n    \n    # The test ends here - levels should be restored after\n\n\ndef test_handler_level_restored_after_multiple_set_levels(caplog):\n    \"\"\"Verify handler level is restored after multiple set_level calls.\"\"\"\n    # Check initial state\n    initial_level = caplog.handler.level\n    \n    # Set various levels\n    caplog.set_level(10)\n    assert caplog.handler.level == 10\n    \n    caplog.set_level(20)\n    assert caplog.handler.level == 20\n    \n    caplog.set_level(50)\n    assert caplog.handler.level == 50\n    \n    # Test ends - level should be restored\n\n\ndef test_handler_level_is_initial_in_next_test(caplog):\n    \"\"\"Verify handler level is back to initial in next test.\"\"\"\n    initial_level = caplog.handler.level\n    \n    # The initial level should be 0 (NOTSET) since nothing has set it yet\n    # and no logging configuration was done\n    print(f\"Handler level at start of test: {initial_level}\")\n    assert initial_level == 0, f\"Expected handler level 0, got {initial_level}\"\n\n\ndef test_set_level_then_at_level(caplog):\n    \"\"\"Test that at_level context manager works after set_level.\"\"\"\n    # Set a level\n    caplog.set_level(42)\n    assert caplog.handler.level == 42\n    \n    # Use at_level context manager\n    with caplog.at_level(logging.INFO):\n        # Handler level should be INFO (20) inside the context\n        assert caplog.handler.level == logging.INFO\n    \n    # Handler level should be restored to 42 after exiting context\n    assert caplog.handler.level == 42\n\n\ndef test_handler_level_after_at_level_context(caplog):\n    \"\"\"Test that handler level is still correct after at_level context.\"\"\"\n    # At this point, level should still be 42 from the previous test\n    # (this will fail without the fix, as it should be 0)\n    level = caplog.handler.level\n    print(f\"Handler level after at_level context: {level}\")\n    \n    # This will show 42 if the fix doesn't work\n    # After the fix, this test should show 0\n    # (Since previous test also uses caplog, the level from test_set_level_then_at_level\n    # should have been restored by _finalize, leaving it at 0)\nEOF\n/opt/miniconda3/envs/testbed/bin/pytest /testbed/test_comprehensive_handler_restore.py -v -s 2>&1\n",
+   "hit": null,
+   "lat_ms": 377.4
+  },
+  {
+   "cmd": "cat > /testbed/fix_v2.py << 'EOF'\nimport re\n\n# Read the file\nwith open('/testbed/src/_pytest/logging.py', 'r') as f:\n    content = f.read()\n\n# Fix: We need to save the handler level ONCE at the first set_level call\n# and restore it ONCE at the end\n\n# Update the __init__ to also track handler level\nold_init = '''    def __init__(self, item: nodes.Node) -> None:\n        \"\"\"Creates a new funcarg.\"\"\"\n        self._item = item\n        # dict of (logger_name or None) -> (logger_level, handler_level)\n        self._initial_levels = {}  # type: Dict[Optional[str], Tuple[int, int]]'''\n\nnew_init = '''    def __init__(self, item: nodes.Node) -> None:\n        \"\"\"Creates a new funcarg.\"\"\"\n        self._item = item\n        # dict of log name -> log level\n        self._initial_logger_levels = {}  # type: Dict[Optional[str], int]\n        # initial handler level, saved on first set_level call\n        self._initial_handler_level: Optional[int] = None'''\n\ncontent = content.replace(old_init, new_init)\n\n# Update _finalize to also restore handler level\nold_finalize = '''    def _finalize(self) -> None:\n        \"\"\"Finalizes the fixture.\n\n        This restores the log levels changed by :meth:`set_level`.\n        \"\"\"\n        # restore log levels and handler levels\n        for logger_name, (logger_level, handler_level) in self._initial_levels.items():\n            logger = logging.getLogger(logger_name)\n            logger.setLevel(logger_level)\n            self.handler.setLevel(handler_level)'''\n\nnew_finalize = '''    def _finalize(self) -> None:\n        \"\"\"Finalizes the fixture.\n\n        This restores the log levels changed by :meth:`set_level`.\n        \"\"\"\n        # restore log levels\n        for logger_name, level in self._initial_logger_levels.items():\n            logger = logging.getLogger(logger_name)\n            logger.setLevel(level)\n        # restore handler level\n        if self._initial_handler_level is not None:\n            self.handler.setLevel(self._initial_handler_level)'''\n\ncontent = content.replace(old_finalize, new_finalize)\n\n# Update set_level to save handler level on first call\nold_set_level = '''        logger_obj = logging.getLogger(logger)\n        # save the original log-level and handler level to restore them during teardown\n        self._initial_levels.setdefault(logger, (logger_obj.level, self.handler.level))\n        logger_obj.setLevel(level)\n        self.handler.setLevel(level)'''\n\nnew_set_level = '''        logger_obj = logging.getLogger(logger)\n        # save the original log-level to restore it during teardown\n        self._initial_logger_levels.setdefault(logger, logger_obj.level)\n        # save the original handler level on first set_level call\n        if self._initial_handler_level is None:\n            self._initial_handler_level = self.handler.level\n        logger_obj.setLevel(level)\n        self.handler.setLevel(level)'''\n\ncontent = content.replace(old_set_level, new_set_level)\n\n# Write the fixed content\nwith open('/testbed/src/_pytest/logging.py', 'w') as f:\n    f.write(content)\n\nprint(\"File patched successfully!\")\nEOF\npython /testbed/fix_v2.py\n",
+   "hit": null,
+   "lat_ms": 163.6
+  },
+  {
+   "cmd": "grep -n \"_initial_handler_level\" /testbed/src/_pytest/logging.py",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "sed -n '345,450p' /testbed/src/_pytest/logging.py",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest /testbed/test_handler_level_restore.py -v 2>&1",
+   "hit": null,
+   "lat_ms": 248.4
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest /testbed/test_comprehensive_handler_restore.py -v -s 2>&1",
+   "hit": null,
+   "lat_ms": 249.4
+  },
+  {
+   "cmd": "cat > /testbed/test_comprehensive_handler_restore.py << 'EOF'\n\"\"\"Comprehensive test for handler level restoration in caplog\"\"\"\nimport logging\n\nlogger1 = logging.getLogger(\"test_logger_1\")\nlogger2 = logging.getLogger(\"test_logger_2\")\n\n\ndef test_multiple_loggers_levels_restored(caplog):\n    \"\"\"Test that levels for multiple loggers are restored.\"\"\"\n    # Set levels for different loggers\n    caplog.set_level(42)  # root logger\n    caplog.set_level(50, logger=\"test_logger_1\")  # CRITICAL\n    caplog.set_level(30, logger=\"test_logger_2\")  # WARNING\n    \n    # The last set_level call changes the handler level to 30\n    # This is expected behavior - the handler has only one level\n    # At the end of the test, the handler level should be restored to initial (0)\n\n\ndef test_handler_level_restored_after_multiple_set_levels(caplog):\n    \"\"\"Verify handler level is restored after multiple set_level calls.\"\"\"\n    # Set various levels\n    caplog.set_level(10)\n    caplog.set_level(20)\n    caplog.set_level(50)\n    \n    # Test ends - level should be restored\n\n\ndef test_handler_level_is_initial_in_next_test(caplog):\n    \"\"\"Verify handler level is back to initial in next test.\"\"\"\n    initial_level = caplog.handler.level\n    \n    # The initial level should be 0 (NOTSET) since nothing has set it yet\n    print(f\"Handler level at start of test: {initial_level}\")\n    assert initial_level == 0, f\"Expected handler level 0, got {initial_level}\"\n\n\ndef test_set_level_then_at_level(caplog):\n    \"\"\"Test that at_level context manager works after set_level.\"\"\"\n    # Set a level\n    caplog.set_level(42)\n    \n    # Use at_level context manager\n    with caplog.at_level(logging.INFO):\n        # Handler level should be INFO (20) inside the context\n        assert caplog.handler.level == logging.INFO\n    \n    # Handler level should be restored to 42 after exiting context\n    # Wait, no! With the fix, after set_level the handler level should be 42\n    # but at_level saves and restores the handler level\n    # So after exiting at_level, the handler level should be what it was BEFORE at_level started\n    # which is 42 from set_level\n    \n    assert caplog.handler.level == 42\n\n\ndef test_handler_level_after_at_level_context(caplog):\n    \"\"\"Test that handler level is still correct after at_level context.\"\"\"\n    # At this point, level should still be 42 from the previous test\n    level = caplog.handler.level\n    print(f\"Handler level after at_level context: {level}\")\n    \n    # This should be 42 (the level set by test_set_level_then_at_level)\n    # and NOT 0 because _finalize was called after that test\n    assert level == 42, f\"Expected handler level 42, got {level}\"\nEOF\n/opt/miniconda3/envs/testbed/bin/pytest /testbed/test_comprehensive_handler_restore.py -v -s 2>&1\n",
+   "hit": null,
+   "lat_ms": 394.6
+  },
+  {
+   "cmd": "cat > /testbed/test_comprehensive_handler_restore.py << 'EOF'\n\"\"\"Comprehensive test for handler level restoration in caplog\"\"\"\nimport logging\n\nlogger1 = logging.getLogger(\"test_logger_1\")\nlogger2 = logging.getLogger(\"test_logger_2\")\n\n\ndef test_multiple_loggers_levels_restored(caplog):\n    \"\"\"Test that levels for multiple loggers are restored.\"\"\"\n    # Set levels for different loggers\n    caplog.set_level(42)  # root logger\n    caplog.set_level(50, logger=\"test_logger_1\")  # CRITICAL\n    caplog.set_level(30, logger=\"test_logger_2\")  # WARNING\n    \n    # The last set_level call changes the handler level to 30\n    # At the end of the test, the handler level should be restored to initial (0)\n\n\ndef test_handler_level_restored_after_multiple_set_levels(caplog):\n    \"\"\"Verify handler level is restored after multiple set_level calls.\"\"\"\n    # Set various levels\n    caplog.set_level(10)\n    caplog.set_level(20)\n    caplog.set_level(50)\n    \n    # Test ends - level should be restored\n\n\ndef test_handler_level_is_initial_in_next_test(caplog):\n    \"\"\"Verify handler level is back to initial in next test.\"\"\"\n    initial_level = caplog.handler.level\n    \n    # The initial level should be 0 (NOTSET) since nothing has set it yet\n    print(f\"Handler level at start of test: {initial_level}\")\n    assert initial_level == 0, f\"Expected handler level 0, got {initial_level}\"\n\n\ndef test_set_level_then_at_level(caplog):\n    \"\"\"Test that at_level context manager works after set_level.\"\"\"\n    # Set a level\n    caplog.set_level(42)\n    \n    # Use at_level context manager\n    with caplog.at_level(logging.INFO):\n        # Handler level should be INFO (20) inside the context\n        assert caplog.handler.level == logging.INFO\n    \n    # Handler level should be restored to 42 after exiting at_level\n    # (at_level saves the handler level before the context and restores after)\n    assert caplog.handler.level == 42\n\n\ndef test_handler_level_restored_after_test_with_at_level(caplog):\n    \"\"\"Test that handler level is restored after a test that uses at_level.\"\"\"\n    # The level at the start of this test should be 0 (restored from previous test)\n    # Now set a level\n    caplog.set_level(30)\n    \n    # The test ends here, _finalize should restore the handler level to 0\nEOF\n/opt/miniconda3/envs/testbed/bin/pytest /testbed/test_comprehensive_handler_restore.py -v -s 2>&1\n",
+   "hit": null,
+   "lat_ms": 377.4
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest /testbed/testing/logging/ -v 2>&1",
+   "hit": null,
+   "lat_ms": 1369.6
+  },
+  {
+   "cmd": "cat > /testbed/test_issue_reproduction.py << 'EOF'\n\"\"\"Test to reproduce the exact issue from the bug report\"\"\"\ndef test_foo(caplog):\n    caplog.set_level(42)\n\ndef test_bar(caplog):\n    print(caplog.handler.level)\n    # This should print 0, not 42\n    assert caplog.handler.level == 0\nEOF\n/opt/miniconda3/envs/testbed/bin/pytest /testbed/test_issue_reproduction.py -v 2>&1\n",
+   "hit": null,
+   "lat_ms": 250.7
+  },
+  {
+   "cmd": "cat > /testbed/test_logger_level_restored.py << 'EOF'\n\"\"\"Test that logger levels are also restored after set_level\"\"\"\nimport logging\n\ndef test_logger_level_restored_after_set_level(caplog):\n    \"\"\"Test that logger level is restored after set_level.\"\"\"\n    my_logger = logging.getLogger(\"test_logger\")\n    \n    # Save initial level\n    initial_level = my_logger.level\n    print(f\"Initial logger level: {initial_level}\")\n    \n    # Set a custom level\n    caplog.set_level(42, logger=\"test_logger\")\n    \n    # Verify it's set\n    assert my_logger.level == 42\n    \n    # The test ends here - level should be restored\n\n\ndef test_logger_level_is_initial_in_next_test(caplog):\n    \"\"\"Verify logger level is restored in next test.\"\"\"\n    my_logger = logging.getLogger(\"test_logger\")\n    \n    # The level should be restored to initial (NOTSET/0)\n    level = my_logger.level\n    print(f\"Logger level at start of test: {level}\")\n    \n    assert level == 0, f\"Expected logger level 0, got {level}\"\nEOF\n/opt/miniconda3/envs/testbed/bin/pytest /testbed/test_logger_level_restored.py -v -s 2>&1\n",
+   "hit": null,
+   "lat_ms": 248.9
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest /testbed/testing/test_capture.py -v 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 568.7
+  },
+  {
+   "cmd": "sed -n '340,450p' /testbed/src/_pytest/logging.py",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "rm /testbed/test_*.py /testbed/fix*.py /testbed/revert_fix.py 2>/dev/null; echo \"Cleanup done\"",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /testbed/src/_pytest/logging.py | grep -A 30 \"class LogCaptureFixture\" | head -50",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "grep -A 15 \"def set_level\" /testbed/src/_pytest/logging.py",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest /testbed/testing/logging/ -v --tb=short 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 1369.6
+  },
+  {
+   "cmd": "cat > /tmp/test_caplog_issue.py << 'EOF'\n\"\"\"Test the exact issue from the bug report\"\"\"\ndef test_foo(caplog):\n    caplog.set_level(42)\n\ndef test_bar(caplog):\n    # This should print 0, not 42\n    # In pytest<6 it printed 0, but in pytest 6.0 it was broken (printed 42)\n    assert caplog.handler.level == 0, f\"Expected 0, got {caplog.handler.level}\"\nEOF\n/opt/miniconda3/envs/testbed/bin/pytest /tmp/test_caplog_issue.py -v -s 2>&1\n",
+   "hit": null,
+   "lat_ms": 249.1
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest /testbed/testing/test_debugging.py -v --tb=short 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 2370.2
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/pytest /testbed/testing/logging/test_fixture.py::test_change_level_undo -v 2>&1",
+   "hit": null,
+   "lat_ms": 383.1
+  },
+  {
+   "cmd": "diff -u <(cat << 'EOF'\n    def __init__(self, item: nodes.Node) -> None:\n        \"\"\"Creates a new funcarg.\"\"\"\n        self._item = item\n        # dict of log name -> log level\n        self._initial_logger_levels = {}  # type: Dict[Optional[str], int]\nEOF\n) <(sed -n '343,349p' /testbed/src/_pytest/logging.py)",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /testbed && git diff src/_pytest/logging.py 2>/dev/null || echo \"Git not available, showing the changed lines\"",
+   "hit": null,
+   "lat_ms": 105.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pytest-dev__pytest-7571",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 60580.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

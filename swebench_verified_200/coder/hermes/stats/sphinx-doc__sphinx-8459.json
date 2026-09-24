@@ -1,0 +1,741 @@
+{
+ "calls": 137,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 38376.67989730835,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.py\" | grep -E \"(autodoc|typehint)\" | head -20",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "find /testbed -path \"*/sphinx/ext/autodoc*\" -type f -name \"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 127.9
+  },
+  {
+   "cmd": "cat /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 71.5
+  },
+  {
+   "cmd": "grep -n \"type_aliases\\|typehints\" /testbed/sphinx/ext/autodoc/__init__.py | head -50",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "find /testbed -path \"*/sphinx/util/typing*\" -type f -name \"*.py\"",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -n \"def signature\" /testbed/sphinx/util/inspect.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "sed -n '471,640p' /testbed/sphinx/util/inspect.py",
+   "hit": null,
+   "lat_ms": 74.4
+  },
+  {
+   "cmd": "grep -n \"def stringify_annotation\" /testbed/sphinx/util/inspect.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "grep -rn \"stringify_annotation\" /testbed/sphinx/",
+   "hit": null,
+   "lat_ms": 138.4
+  },
+  {
+   "cmd": "sed -n '1,50p' /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "grep -n \"inspect.signature\" /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "grep -n \"record_typehints\" /testbed/sphinx/ext/autodoc/*.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "grep -B5 -A5 \"type_aliases=self.config.autodoc_type_aliases\" /testbed/sphinx/ext/autodoc/__init__.py | head -60",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "grep -B10 -A10 \"autodoc-process-signature\" /testbed/sphinx/ext/autodoc/__init__.py | head -80",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "sed -n '23,40p' /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "grep -n \"app.config\" /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "sed -n '39,90p' /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat > /tmp/test_bug.py << 'EOF'\n\"\"\"Test to reproduce the bug with autodoc_type_aliases and autodoc_typehints='description'\"\"\"\n\nimport os\nimport sys\nimport tempfile\nimport shutil\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\n\n# Create types.py\ntypes_py = os.path.join(test_dir, 'types.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\n\n    Args:\n        data: Does it args.\n\n    Returns:\n        Does it work in return.\n    \"\"\"\n    return {}\n''')\n\n# Create conf.py\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'description'\nautodoc_type_aliases = {{\n    'JSONObject': 'types.JSONObject',\n}}\n''')\n\n# Create index.rst\nindex_rst = os.path.join(test_dir, 'index.rst')\nwith open(index_rst, 'w') as f:\n    f.write('''Test\n====\n\n.. autofunction:: types.sphinx_doc\n''')\n\n# Build the docs\nos.chdir(test_dir)\nfrom sphinx.application import Sphinx\n\napp = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build'),\n    doctreedir=os.path.join(test_dir, '_build', 'doctrees'),\n    buildername='html',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp.build()\n\n# Read the output\noutput_file = os.path.join(test_dir, '_build', 'index.html')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \n# Check if the type alias is used\nif 'types.JSONObject' in content:\n    print(\"SUCCESS: Type alias 'types.JSONObject' is used in the output\")\n    print(\"Found in output:\")\n    # Print the relevant part\n    import re\n    match = re.search(r'<p[^>]*>data.*?</p>', content)\n    if match:\n        print(match.group(0))\nelif 'Dict[str, Any]' in content:\n    print(\"BUG CONFIRMED: Type alias 'types.JSONObject' is NOT used, showing 'Dict[str, Any]' instead\")\n    print(\"Found in output:\")\n    import re\n    match = re.search(r'<p[^>]*>data.*?</p>', content)\n    if match:\n        print(match.group(0))\nelse:\n    print(\"Unknown output:\")\n    print(content)\n\n# Cleanup\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_bug.py",
+   "hit": null,
+   "lat_ms": 1371.5
+  },
+  {
+   "cmd": "cat > /tmp/test_bug.py << 'EOF'\n\"\"\"Test to reproduce the bug with autodoc_type_aliases and autodoc_typehints='description'\"\"\"\n\nimport os\nimport sys\nimport tempfile\nimport shutil\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\n\n    Args:\n        data: Does it args.\n\n    Returns:\n        Does it work in return.\n    \"\"\"\n    return {}\n''')\n\n# Create conf.py\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'description'\nautodoc_type_aliases = {{\n    'JSONObject': 'mytypes.JSONObject',\n}}\n''')\n\n# Create index.rst\nindex_rst = os.path.join(test_dir, 'index.rst')\nwith open(index_rst, 'w') as f:\n    f.write('''Test\n====\n\n.. autofunction:: mytypes.sphinx_doc\n''')\n\n# Build the docs\nos.chdir(test_dir)\nfrom sphinx.application import Sphinx\n\napp = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build'),\n    doctreedir=os.path.join(test_dir, '_build', 'doctrees'),\n    buildername='html',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp.build()\n\n# Read the output\noutput_file = os.path.join(test_dir, '_build', 'index.html')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \n# Check if the type alias is used\nif 'mytypes.JSONObject' in content:\n    print(\"SUCCESS: Type alias 'mytypes.JSONObject' is used in the output\")\n    print(\"Found in output:\")\n    # Print the relevant part\n    import re\n    match = re.search(r'<p[^>]*>data.*?</p>', content)\n    if match:\n        print(match.group(0))\nelif 'Dict[str, Any]' in content:\n    print(\"BUG CONFIRMED: Type alias 'mytypes.JSONObject' is NOT used, showing 'Dict[str, Any]' instead\")\n    print(\"Found in output:\")\n    import re\n    match = re.search(r'<p[^>]*>data.*?</p>', content)\n    if match:\n        print(match.group(0))\nelse:\n    print(\"Unknown output:\")\n    print(content)\n\n# Cleanup\nsys.path.remove(test_dir)\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_bug.py 2>&1 | grep -v \"WARNING:\"",
+   "hit": null,
+   "lat_ms": 772.2
+  },
+  {
+   "cmd": "cat > /tmp/test_bug2.py << 'EOF'\n\"\"\"Test to reproduce the bug with autodoc_type_aliases and autodoc_typehints='description'\"\"\"\n\nimport os\nimport sys\nimport tempfile\nimport shutil\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\n\n    Args:\n        data: Does it args.\n\n    Returns:\n        Does it work in return.\n    \"\"\"\n    return {}\n''')\n\n# Create conf.py\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'description'\nautodoc_type_aliases = {{\n    'JSONObject': 'mytypes.JSONObject',\n}}\n''')\n\n# Create index.rst\nindex_rst = os.path.join(test_dir, 'index.rst')\nwith open(index_rst, 'w') as f:\n    f.write('''Test\n====\n\n.. autofunction:: mytypes.sphinx_doc\n''')\n\n# Build the docs\nos.chdir(test_dir)\nfrom sphinx.application import Sphinx\n\napp = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build'),\n    doctreedir=os.path.join(test_dir, '_build', 'doctrees'),\n    buildername='html',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp.build()\n\n# Read the output\noutput_file = os.path.join(test_dir, '_build', 'index.html')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \nprint(\"Full HTML output (relevant parts):\")\n# Find the function signature part\nimport re\nmatch = re.search(r'<dt[^>]*id=\".*sphinx_doc\".*?</dt>', content, re.DOTALL)\nif match:\n    print(\"Signature:\")\n    print(match.group(0))\n    \nmatch = re.search(r'<dd[^>]*class=\"field-body\".*?</dd>', content, re.DOTALL)\nif match:\n    print(\"\\nDescription:\")\n    print(match.group(0))\n\n# Cleanup\nsys.path.remove(test_dir)\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_bug2.py 2>&1 | grep -v \"WARNING:\"",
+   "hit": null,
+   "lat_ms": 769.2
+  },
+  {
+   "cmd": "cat > /tmp/test_bug3.py << 'EOF'\n\"\"\"Test to reproduce the bug with autodoc_type_aliases and autodoc_typehints='description'\"\"\"\n\nimport os\nimport sys\nimport tempfile\nimport shutil\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\n\n    Args:\n        data: Does it args.\n\n    Returns:\n        Does it work in return.\n    \"\"\"\n    return {}\n''')\n\n# Create conf.py\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'description'\nautodoc_type_aliases = {{\n    'JSONObject': 'mytypes.JSONObject',\n}}\n''')\n\n# Create index.rst\nindex_rst = os.path.join(test_dir, 'index.rst')\nwith open(index_rst, 'w') as f:\n    f.write('''Test\n====\n\n.. autofunction:: mytypes.sphinx_doc\n''')\n\n# Build the docs\nos.chdir(test_dir)\nfrom sphinx.application import Sphinx\n\napp = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build'),\n    doctreedir=os.path.join(test_dir, '_build', 'doctrees'),\n    buildername='html',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp.build()\n\n# Read the output\noutput_file = os.path.join(test_dir, '_build', 'index.html')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \nprint(\"Full HTML output:\")\nimport re\n\n# Find the function section\nmatch = re.search(r'<section id=\"test\">(.*?)</section>', content, re.DOTALL)\nif match:\n    section = match.group(0)\n    print(section)\n    print(\"\\n\\n---Looking for type info---\")\n    # Look for \"Parameters\" and \"Returns\" sections\n    if 'Dict[str, Any]' in section:\n        print(\"\\nBUG CONFIRMED: Found 'Dict[str, Any]' instead of 'mytypes.JSONObject'\")\n    if 'mytypes.JSONObject' in section:\n        print(\"\\nSUCCESS: Found 'mytypes.JSONObject' as expected\")\n\n# Cleanup\nsys.path.remove(test_dir)\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_bug3.py 2>&1 | grep -v \"WARNING:\"",
+   "hit": null,
+   "lat_ms": 774.4
+  },
+  {
+   "cmd": "cat > /tmp/test_bug4.py << 'EOF'\n\"\"\"Test to reproduce the bug with autodoc_type_aliases and autodoc_typehints='description'\"\"\"\n\nimport os\nimport sys\nimport tempfile\nimport shutil\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\n\n    Args:\n        data: Does it args.\n\n    Returns:\n        Does it work in return.\n    \"\"\"\n    return {}\n''')\n\n# Test 1: autodoc_typehints = 'description'\nprint(\"=\" * 60)\nprint(\"Test 1: autodoc_typehints = 'description'\")\nprint(\"=\" * 60)\n\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'description'\nautodoc_type_aliases = {{\n    'JSONObject': 'mytypes.JSONObject',\n}}\n''')\n\nindex_rst = os.path.join(test_dir, 'index.rst')\nwith open(index_rst, 'w') as f:\n    f.write('''Test\n====\n\n.. autofunction:: mytypes.sphinx_doc\n''')\n\nos.chdir(test_dir)\nfrom sphinx.application import Sphinx\n\napp = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build1'),\n    doctreedir=os.path.join(test_dir, '_build1', 'doctrees'),\n    buildername='html',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp.build()\n\noutput_file = os.path.join(test_dir, '_build1', 'index.html')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \nif 'mytypes.JSONObject' in content:\n    print(\"SUCCESS: Type alias 'mytypes.JSONObject' is used in the output\")\nelif 'Dict[str, Any]' in content:\n    print(\"BUG: Type alias 'mytypes.JSONObject' is NOT used, showing 'Dict[str, Any]' instead\")\n\n# Test 2: autodoc_typehints = 'signature'\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Test 2: autodoc_typehints = 'signature'\")\nprint(\"=\" * 60)\n\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'signature'\nautodoc_type_aliases = {{\n    'JSONObject': 'mytypes.JSONObject',\n}}\n''')\n\napp2 = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build2'),\n    doctreedir=os.path.join(test_dir, '_build2', 'doctrees'),\n    buildername='html',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp2.build()\n\noutput_file = os.path.join(test_dir, '_build2', 'index.html')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \nif 'mytypes.JSONObject' in content:\n    print(\"SUCCESS: Type alias 'mytypes.JSONObject' is used in the output\")\nelif 'Dict[str, Any]' in content:\n    print(\"BUG: Type alias 'mytypes.JSONObject' is NOT used, showing 'Dict[str, Any]' instead\")\n\n# Cleanup\nsys.path.remove(test_dir)\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_bug4.py 2>&1 | grep -v \"WARNING:\" | grep -v \"Running Sphinx\"",
+   "hit": null,
+   "lat_ms": 771.4
+  },
+  {
+   "cmd": "cat > /tmp/test_bug5.py << 'EOF'\n\"\"\"Test to reproduce the bug with autodoc_type_aliases and autodoc_typehints='description'\"\"\"\n\nimport os\nimport sys\nimport tempfile\nimport shutil\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\n\n    Args:\n        data: Does it args.\n\n    Returns:\n        Does it work in return.\n    \"\"\"\n    return {}\n''')\n\n# Test with autodoc_typehints = 'signature'\nprint(\"=\" * 60)\nprint(\"Test: autodoc_typehints = 'signature'\")\nprint(\"=\" * 60)\n\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'signature'\nautodoc_type_aliases = {{\n    'JSONObject': 'mytypes.JSONObject',\n}}\n''')\n\nindex_rst = os.path.join(test_dir, 'index.rst')\nwith open(index_rst, 'w') as f:\n    f.write('''Test\n====\n\n.. autofunction:: mytypes.sphinx_doc\n''')\n\nos.chdir(test_dir)\nfrom sphinx.application import Sphinx\nimport logging\n\n# Set up logging\nlogging.basicConfig(level=logging.INFO)\nlogger = logging.getLogger()\n\napp = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build_sig'),\n    doctreedir=os.path.join(test_dir, '_build_sig', 'doctrees'),\n    buildername='html',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp.build()\n\noutput_file = os.path.join(test_dir, '_build_sig', 'index.html')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \nprint(\"HTML output:\")\nimport re\nmatch = re.search(r'<section id=\"test\">(.*?)</section>', content, re.DOTALL)\nif match:\n    print(match.group(0))\n    \nif 'mytypes.JSONObject' in content:\n    print(\"\\nSUCCESS: Type alias 'mytypes.JSONObject' is used\")\nelif 'Dict[str, Any]' in content:\n    print(\"\\nBUG: Type alias 'mytypes.JSONObject' is NOT used, showing 'Dict[str, Any]' instead\")\n\n# Cleanup\nsys.path.remove(test_dir)\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_bug5.py 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 770.5
+  },
+  {
+   "cmd": "grep -n \"format_args\\|signature\" /testbed/sphinx/ext/autodoc/__init__.py | head -40",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "sed -n '451,520p' /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 131.1
+  },
+  {
+   "cmd": "grep -n \"class.*FunctionDocumenter\\|def format_args\" /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "sed -n '1246,1335p' /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "sed -n '23,40p' /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 118.7
+  },
+  {
+   "cmd": "grep -B5 -A5 \"autodoc-process-signature\" /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 74.6
+  },
+  {
+   "cmd": "grep -n \"app.config\" /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "sed -n '20,50p' /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "cat > /tmp/fix.patch << 'EOF'\n--- a/sphinx/ext/autodoc/typehints.py\n+++ b/sphinx/ext/autodoc/typehints.py\n@@ -24,7 +24,7 @@ def record_typehints(app: Sphinx, objtype: str, name: str, obj: Any,\n                      options: Dict, args: str, retann: str) -> None:\n     \"\"\"Record type hints to env object.\"\"\"\n     try:\n         if callable(obj):\n             annotations = app.env.temp_data.setdefault('annotations', {})\n             annotation = annotations.setdefault(name, OrderedDict())\n-            sig = inspect.signature(obj)\n+            sig = inspect.signature(obj, type_aliases=app.config.autodoc_type_aliases)\n             for param in sig.parameters.values():\n                 if param.annotation is not param.empty:\n                     annotation[param.name] = typing.stringify(param.annotation)\nEOF\ncat /tmp/fix.patch",
+   "hit": null,
+   "lat_ms": 69.6
+  },
+  {
+   "cmd": "sed -i 's/sig = inspect.signature(obj)$/sig = inspect.signature(obj, type_aliases=app.config.autodoc_type_aliases)/' /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "sed -n '24,35p' /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 178.6
+  },
+  {
+   "cmd": "python /tmp/test_bug4.py 2>&1 | grep -v \"WARNING:\" | grep -v \"Running Sphinx\" | grep -v \"making output\" | grep -v \"building\" | grep -v \"updating\" | grep -v \"reading\" | grep -v \"looking\" | grep -v \"pickling\" | grep -v \"checking\" | grep -v \"preparing\" | grep -v \"writing\" | grep -v \"generating\" | grep -v \"copying\" | grep -v \"dumping\" | grep -v \"build succeeded\" | grep -v \"The HTML pages\" | grep -v \"^[0-9]\\+ warnings\" | grep -v \"^$\"",
+   "hit": null,
+   "lat_ms": 777.5
+  },
+  {
+   "cmd": "cat > /tmp/test_fix.py << 'EOF'\n\"\"\"Test the fix for autodoc_type_aliases with autodoc_typehints='description'\"\"\"\n\nimport os\nimport sys\nimport tempfile\nimport shutil\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\n\n    Args:\n        data: Does it args.\n\n    Returns:\n        Does it work in return.\n    \"\"\"\n    return {}\n''')\n\n# Test 1: autodoc_typehints = 'description'\nprint(\"=\" * 60)\nprint(\"Test 1: autodoc_typehints = 'description'\")\nprint(\"=\" * 60)\n\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'description'\nautodoc_type_aliases = {{\n    'JSONObject': 'mytypes.JSONObject',\n}}\n''')\n\nindex_rst = os.path.join(test_dir, 'index.rst')\nwith open(index_rst, 'w') as f:\n    f.write('''Test\n====\n\n.. autofunction:: mytypes.sphinx_doc\n''')\n\nos.chdir(test_dir)\nfrom sphinx.application import Sphinx\n\napp = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build1'),\n    doctreedir=os.path.join(test_dir, '_build1', 'doctrees'),\n    buildername='html',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp.build()\n\noutput_file = os.path.join(test_dir, '_build1', 'index.html')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \nimport re\nmatch = re.search(r'<section id=\"test\">(.*?)</section>', content, re.DOTALL)\nif match:\n    section = match.group(0)\n    if 'mytypes.JSONObject' in section:\n        print(\"\u2713 SUCCESS: Type alias 'mytypes.JSONObject' is used in the output\")\n    elif 'Dict[str, Any]' in section:\n        print(\"\u2717 BUG: Type alias 'mytypes.JSONObject' is NOT used, showing 'Dict[str, Any]' instead\")\n        print(\"Section:\", section)\n    else:\n        print(\"? Unknown: Could not find expected type info\")\n        print(\"Section:\", section)\n\n# Test 2: autodoc_typehints = 'signature'\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Test 2: autodoc_typehints = 'signature'\")\nprint(\"=\" * 60)\n\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'signature'\nautodoc_type_aliases = {{\n    'JSONObject': 'mytypes.JSONObject',\n}}\n''')\n\napp2 = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build2'),\n    doctreedir=os.path.join(test_dir, '_build2', 'doctrees'),\n    buildername='html',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp2.build()\n\noutput_file = os.path.join(test_dir, '_build2', 'index.html')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \nmatch = re.search(r'<section id=\"test\">(.*?)</section>', content, re.DOTALL)\nif match:\n    section = match.group(0)\n    # With signature mode, the type alias should appear in the signature\n    # but the full module path may or may not be shown depending on how it's resolved\n    if 'JSONObject' in section:\n        print(\"\u2713 Type alias 'JSONObject' appears in the output\")\n        # Check if it's the alias and not the underlying type\n        if 'mytypes.JSONObject' in section:\n            print(\"  (Full module path shown: mytypes.JSONObject)\")\n        elif 'Dict[str, Any]' in section:\n            print(\"  (Underlying type shown: Dict[str, Any])\")\n        else:\n            print(\"  (Just the alias name shown)\")\n    else:\n        print(\"\u2717 Type alias not found\")\n\n# Cleanup\nsys.path.remove(test_dir)\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_fix.py 2>&1 | grep -v \"^Running\" | grep -v \"^making\" | grep -v \"^building\" | grep -v \"^updating\" | grep -v \"^reading\" | grep -v \"^looking\" | grep -v \"^pickling\" | grep -v \"^checking\" ",
+   "hit": null,
+   "lat_ms": 771.6
+  },
+  {
+   "cmd": "sed -n '39,100p' /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cat > /tmp/test_signature.py << 'EOF'\n\"\"\"Test how inspect.signature handles type aliases\"\"\"\n\nfrom typing import Any, Dict, get_type_hints\nimport inspect\n\n# Define a type alias\nJSONObject = Dict[str, Any]\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Test function.\"\"\"\n    return {}\n\n# Test 1: Get signature without type_aliases\nprint(\"Test 1: Signature without type_aliases\")\nsig = inspect.signature(sphinx_doc)\nfor name, param in sig.parameters.items():\n    print(f\"  {name}: {param.annotation} -> {repr(param.annotation)}\")\nprint(f\"  return: {sig.return_annotation} -> {repr(sig.return_annotation)}\")\n\n# Test 2: Get signature with type_aliases\nprint(\"\\nTest 2: Signature with type_aliases\")\ntype_aliases = {'JSONObject': 'mytypes.JSONObject'}\ntry:\n    sig = inspect.signature(sphinx_doc, type_aliases=type_aliases)\n    for name, param in sig.parameters.items():\n        print(f\"  {name}: {param.annotation} -> {repr(param.annotation)}\")\n    print(f\"  return: {sig.return_annotation} -> {repr(sig.return_annotation)}\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\n\n# Test 3: Get type hints with type_aliases\nprint(\"\\nTest 3: get_type_hints with type_aliases\")\ntry:\n    hints = get_type_hints(sphinx_doc, localns={'mytypes.JSONObject': 'mytypes.JSONObject'})\n    print(f\"  hints: {hints}\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\n\n# Test 4: What happens when we resolve with a namespace\nprint(\"\\nTest 4: Test with proper namespace resolution\")\nnamespace = {\n    'mytypes': type('mytypes', (), {'JSONObject': Dict[str, Any]})()\n}\ntry:\n    hints = get_type_hints(sphinx_doc, localns=namespace)\n    print(f\"  hints: {hints}\")\n    for k, v in hints.items():\n        print(f\"    {k}: {v} (module: {getattr(v, '__module__', None)})\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\nEOF\npython /tmp/test_signature.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "sed -n '471,530p' /testbed/sphinx/util/inspect.py",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "sed -n '68,100p' /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "sed -n '60,80p' /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat > /tmp/test_type_aliases.py << 'EOF'\n\"\"\"Test how type_aliases work\"\"\"\n\nfrom typing import Any, Dict, get_type_hints\n\n# Define a type alias\nJSONObject = Dict[str, Any]\n\n# Define the namespace with the type alias\n# The key is the name as a string, the value is the actual type\ntype_aliases = {'JSONObject': Dict[str, Any]}\n\ndef sphinx_doc(data: 'JSONObject') -> 'JSONObject':\n    \"\"\"Test function.\"\"\"\n    return {}\n\n# Test: Get type hints with type_aliases\nprint(\"Test: get_type_hints with type_aliases\")\nprint(f\"  Original annotations: {sphinx_doc.__annotations__}\")\n\ntry:\n    hints = get_type_hints(sphinx_doc, localns=type_aliases)\n    print(f\"  Resolved hints: {hints}\")\n    for k, v in hints.items():\n        print(f\"    {k}: {v}\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\n\n# Test with forward reference\ndef sphinx_doc2(data: 'types.JSONObject') -> 'types.JSONObject':\n    \"\"\"Test function with full path.\"\"\"\n    return {}\n\ntype_aliases2 = {'types.JSONObject': Dict[str, Any]}\nprint(\"\\nTest with 'types.JSONObject' forward reference\")\nprint(f\"  Original annotations: {sphinx_doc2.__annotations__}\")\n\ntry:\n    hints = get_type_hints(sphinx_doc2, localns=type_aliases2)\n    print(f\"  Resolved hints: {hints}\")\n    for k, v in hints.items():\n        print(f\"    {k}: {v}\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\nEOF\npython /tmp/test_type_aliases.py",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "grep -rn \"autodoc_type_aliases\" /testbed/sphinx/ext/autodoc/ --include=\"*.py\" | head -30",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "sed -n '1715,1730p' /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "grep -n \"stringify_typehint\" /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "grep -B10 -A10 \"type_aliases\" /testbed/sphinx/util/typing.py | head -50",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "sed -n '272,360p' /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "grep -B5 -A20 \"def get_type_hints\" /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cat > /tmp/test_get_type_hints.py << 'EOF'\n\"\"\"Test how get_type_hints resolves ForwardRefs\"\"\"\n\nfrom typing import Dict, get_type_hints\n\n# Define the type alias\nJSONObject = Dict[str, int]\n\n# Method 1: Pass the actual type object\nlocalns1 = {'JSONObject': JSONObject}\ndef func1(data: 'JSONObject') -> 'JSONObject':\n    return {}\n\nprint(\"Method 1: Pass actual type object\")\ntry:\n    hints = get_type_hints(func1, localns=localns1)\n    print(f\"  Success: {hints}\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\n\n# Method 2: Pass a string path (what Sphinx config does)\nlocalns2 = {'JSONObject': 'types.JSONObject'}\nprint(\"\\nMethod 2: Pass string path\")\ntry:\n    hints = get_type_hints(func1, localns=localns2)\n    print(f\"  Success: {hints}\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\n\n# Method 3: Resolve the string to an actual type\nclass types:\n    JSONObject = Dict[str, float]\n\nlocalns3 = {'types': types}\nprint(\"\\nMethod 3: Pass module object\")\ntry:\n    hints = get_type_hints(func1, localns=localns3)\n    print(f\"  Success: {hints}\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\n\n# Method 4: What if ForwardRef contains full path?\ndef func2(data: 'types.JSONObject') -> 'types.JSONObject':\n    return {}\n\nprint(\"\\nMethod 4: ForwardRef with full path\")\ntry:\n    hints = get_type_hints(func2, localns=localns3)\n    print(f\"  Success: {hints}\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\nEOF\npython /tmp/test_get_type_hints.py",
+   "hit": null,
+   "lat_ms": 163.7
+  },
+  {
+   "cmd": "grep -B10 -A20 \"type_aliases\" /testbed/sphinx/ext/autodoc/__init__.py | grep -A20 \"get_type_hints\"",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "grep -rn \"autodoc_type_aliases\" /testbed/sphinx/ --include=\"*.py\" | grep -v \"test\\|\\.pyc\" | grep -v \"Binary\"",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "grep -rn \"autodoc_type_aliases\" /testbed/sphinx/ --include=\"*.py\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "find /testbed/tests -name \"*.py\" -exec grep -l \"autodoc_type_aliases\" {} \\;",
+   "hit": null,
+   "lat_ms": 573.0
+  },
+  {
+   "cmd": "grep -B5 -A20 \"autodoc_type_aliases\" /testbed/tests/test_ext_autodoc_configs.py | head -100",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "grep -B5 -A40 \"autodoc_type_aliases\" /testbed/tests/test_ext_autodoc_configs.py | head -200",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat /testbed/tests/roots/test-ext-autodoc/target/annotations.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat > /tmp/test_resolution.py << 'EOF'\n\"\"\"Test how type aliases are resolved\"\"\"\n\nfrom typing import get_type_hints\n\n# With future annotations, all annotations are strings\n# The type_aliases dict should map the string name to... what?\n\n# Test 1: Just a string in type_aliases (what the test does)\nmyint = int\ntype_aliases = {'myint': 'myint'}  # value is just a string, not the type\n\ndef func(x: 'myint', y: 'myint') -> 'myint':\n    return x + y\n\nprint(\"Test 1: type_aliases = {'myint': 'myint'}\")\ntry:\n    hints = get_type_hints(func, localns=type_aliases)\n    print(f\"  Success: {hints}\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\n\n# Test 2: The actual type\nprint(\"\\nTest 2: type_aliases = {'myint': int}\")\ntype_aliases2 = {'myint': int}\ntry:\n    hints = get_type_hints(func, localns=type_aliases2)\n    print(f\"  Success: {hints}\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\n\n# Test 3: With a module-like namespace\nclass mytypes:\n    myint = int\n\nprint(\"\\nTest 3: type_aliases = {'mytypes': mytypes}\")\ntype_aliases3 = {'mytypes': mytypes}\ntry:\n    hints = get_type_hints(func, localns=type_aliases3)\n    print(f\"  Success: {hints}\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\n\n# Test 4: ForwardRef with module path\ndef func2(x: 'mytypes.myint', y: 'mytypes.myint') -> 'mytypes.myint':\n    return x + y\n\nprint(\"\\nTest 4: ForwardRef with module path, type_aliases = {'mytypes': mytypes}\")\ntry:\n    hints = get_type_hints(func2, localns=type_aliases3)\n    print(f\"  Success: {hints}\")\nexcept Exception as e:\n    print(f\"  Error: {e}\")\nEOF\npython /tmp/test_resolution.py",
+   "hit": null,
+   "lat_ms": 132.7
+  },
+  {
+   "cmd": "grep -rn \"import_string\" /testbed/sphinx/ --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 113.3
+  },
+  {
+   "cmd": "grep -rn \"import_module\" /testbed/sphinx/ --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "sed -n '1,150p' /testbed/sphinx/ext/autodoc/importer.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -B5 -A30 \"autodoc_type_aliases\" /testbed/sphinx/ext/autodoc/__init__.py | grep -A30 \"get_type_hints\"",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "sed -n '60,90p' /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -B10 -A50 \"def get_type_hints\" /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 73.7
+  },
+  {
+   "cmd": "python -c \"\nfrom typing import get_type_hints\n\nmyint = int\n# The value in type_aliases should be a namespace where 'myint' can be found\n# Let's try passing the module's globals\nimport sys\nmodule = sys.modules[__name__]\n\ndef func(x: 'myint') -> 'myint':\n    return x\n\n# This doesn't work because 'myint' in localns is a string, not the type\nprint('Test 1 - string value:')\ntry:\n    hints = get_type_hints(func, localns={'myint': 'myint'})\n    print(f'  Result: {hints}')\nexcept Exception as e:\n    print(f'  Error: {e}')\n\n# This works because 'myint' in localns is the actual type\nprint('Test 2 - type value:')\ntry:\n    hints = get_type_hints(func, localns={'myint': int})\n    print(f'  Result: {hints}')\nexcept Exception as e:\n    print(f'  Error: {e}')\n\"\n",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_ext_autodoc_configs.py::test_autodoc_type_aliases -xvs 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 1029.8
+  },
+  {
+   "cmd": "grep -B5 -A80 \"def test_autodoc_type_aliases\" /testbed/tests/test_ext_autodoc_configs.py",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "cat > /tmp/test_autodoc_aliases.py << 'EOF'\n\"\"\"Test how autodoc_type_aliases works\"\"\"\n\nimport sys\nsys.path.insert(0, '/testbed/tests/roots/test-ext-autodoc')\n\nfrom typing import get_type_hints\n\n# Check the annotations\nfrom target import annotations\n\nprint(\"Annotations on target.annotations module:\")\nprint(f\"  variable annotation: {annotations.variable.__annotations__}\")\nprint(f\"  sum annotation: {annotations.sum.__annotations__}\")\nprint(f\"  mult annotation: {annotations.mult.__annotations__}\")\n\n# Try get_type_hints without type_aliases\nprint(\"\\nget_type_hints without type_aliases:\")\nfor name, func in [('variable', annotations), ('sum', annotations.sum), ('mult', annotations.mult)]:\n    try:\n        hints = get_type_hints(func)\n        print(f\"  {name}: {hints}\")\n    except Exception as e:\n        print(f\"  {name}: Error - {e}\")\n\n# Try get_type_hints with type_aliases = {'myint': 'myint'}\nprint(\"\\nget_type_hints with type_aliases = {'myint': 'myint'}:\")\nfor name, func in [('variable', annotations), ('sum', annotations.sum), ('mult', annotations.mult)]:\n    try:\n        hints = get_type_hints(func, localns={'myint': 'myint'})\n        print(f\"  {name}: {hints}\")\n    except Exception as e:\n        print(f\"  {name}: Error - {e}\")\n\n# Try get_type_hints with type_aliases = {'myint': int}\nprint(\"\\nget_type_hints with type_aliases = {'myint': int}:\")\nfor name, func in [('variable', annotations), ('sum', annotations.sum), ('mult', annotations.mult)]:\n    try:\n        hints = get_type_hints(func, localns={'myint': int})\n        print(f\"  {name}: {hints}\")\n    except Exception as e:\n        print(f\"  {name}: Error - {e}\")\nEOF\npython /tmp/test_autodoc_aliases.py",
+   "hit": null,
+   "lat_ms": 377.4
+  },
+  {
+   "cmd": "cat > /tmp/test_autodoc_aliases2.py << 'EOF'\n\"\"\"Test how autodoc_type_aliases works\"\"\"\n\nimport sys\nsys.path.insert(0, '/testbed/tests/roots/test-ext-autodoc')\n\nfrom typing import get_type_hints\n\n# Check the annotations\nimport target.annotations as annotations\n\nprint(\"Annotations on target.annotations module:\")\nprint(f\"  __annotations__: {annotations.__annotations__}\")\n\nprint(\"\\nFunction annotations:\")\nfor name in ['sum', 'mult']:\n    func = getattr(annotations, name)\n    print(f\"  {name}.__annotations__: {func.__annotations__}\")\n\n# Try get_type_hints without type_aliases\nprint(\"\\nget_type_hints without type_aliases:\")\nfor name in ['sum', 'mult']:\n    func = getattr(annotations, name)\n    try:\n        hints = get_type_hints(func)\n        print(f\"  {name}: {hints}\")\n    except Exception as e:\n        print(f\"  {name}: Error - {e}\")\n\n# Try get_type_hints with type_aliases = {'myint': 'myint'}\nprint(\"\\nget_type_hints with type_aliases = {'myint': 'myint'}:\")\nfor name in ['sum', 'mult']:\n    func = getattr(annotations, name)\n    try:\n        hints = get_type_hints(func, localns={'myint': 'myint'})\n        print(f\"  {name}: {hints}\")\n    except Exception as e:\n        print(f\"  {name}: Error - {e}\")\n\n# Try get_type_hints with type_aliases = {'myint': int}\nprint(\"\\nget_type_hints with type_aliases = {'myint': int}:\")\nfor name in ['sum', 'mult']:\n    func = getattr(annotations, name)\n    try:\n        hints = get_type_hints(func, localns={'myint': int})\n        print(f\"  {name}: {hints}\")\n    except Exception as e:\n        print(f\"  {name}: Error - {e}\")\nEOF\npython /tmp/test_autodoc_aliases2.py",
+   "hit": null,
+   "lat_ms": 248.9
+  },
+  {
+   "cmd": "cat > /tmp/test_stringify.py << 'EOF'\n\"\"\"Test how stringify works\"\"\"\n\nimport sys\nsys.path.insert(0, '/testbed/tests/roots/test-ext-autodoc')\n\nfrom sphinx.util.typing import stringify\n\n# Test with the actual type\nprint(\"stringify with int:\")\nprint(f\"  stringify(int) = {stringify(int)}\")\n\nprint(\"\\nstringify with ForwardRef('myint'):\")\nfrom typing import ForwardRef\nprint(f\"  stringify(ForwardRef('myint')) = {stringify(ForwardRef('myint'))}\")\nEOF\npython /tmp/test_stringify.py",
+   "hit": null,
+   "lat_ms": 257.1
+  },
+  {
+   "cmd": "cat > /tmp/test_stringify2.py << 'EOF'\n\"\"\"Test how stringify works with types from different modules\"\"\"\n\nimport sys\nsys.path.insert(0, '/testbed/tests/roots/test-ext-autodoc')\n\nfrom sphinx.util.typing import stringify\n\n# Define myint as an alias\nmyint = int\n\nprint(\"Test 1: Stringify a regular int\")\nprint(f\"  stringify(int) = {stringify(int)}\")\n\nprint(\"\\nTest 2: Stringify myint (which is int)\")\nprint(f\"  stringify(myint) = {stringify(myint)}\")\n\n# Check module\nprint(f\"\\n  myint.__module__ = {myint.__module__}\")\nprint(f\"  myint.__qualname__ = {myint.__qualname__}\")\n\n# Check if there's special handling\nimport typing\nprint(f\"\\n  typing.get_origin(int) = {typing.get_origin(int) if hasattr(typing, 'get_origin') else 'N/A'}\")\nprint(f\"  typing.get_origin(myint) = {typing.get_origin(myint) if hasattr(typing, 'get_origin') else 'N/A'}\")\nEOF\npython /tmp/test_stringify2.py",
+   "hit": null,
+   "lat_ms": 250.8
+  },
+  {
+   "cmd": "sed -n '280,320p' /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 128.8
+  },
+  {
+   "cmd": "grep -B5 -A20 \"stringify_typehint\\|stringify(\" /testbed/sphinx/ext/autodoc/__init__.py | head -80",
+   "hit": null,
+   "lat_ms": 114.2
+  },
+  {
+   "cmd": "cat > /tmp/test_stringify3.py << 'EOF'\n\"\"\"Test how stringify works with ForwardRef\"\"\"\n\nfrom sphinx.util.typing import stringify\nfrom typing import ForwardRef\n\n# Test with ForwardRef\nprint(\"Test with ForwardRef:\")\nfr = ForwardRef('myint')\nprint(f\"  stringify(ForwardRef('myint')) = '{stringify(fr)}'\")\n\nfr2 = ForwardRef('types.JSONObject')\nprint(f\"  stringify(ForwardRef('types.JSONObject')) = '{stringify(fr2)}'\")\nEOF\npython /tmp/test_stringify3.py",
+   "hit": null,
+   "lat_ms": 252.2
+  },
+  {
+   "cmd": "cat > /tmp/test_full_flow.py << 'EOF'\n\"\"\"Test the full flow of type_aliases\"\"\"\n\nimport sys\nsys.path.insert(0, '/testbed/tests/roots/test-ext-autodoc')\n\nfrom typing import get_type_hints\nfrom sphinx.util.typing import stringify\n\nimport target.annotations as annotations\n\n# The type_aliases config\ntype_aliases = {'myint': 'myint'}\n\n# Get type hints with the aliases\nprint(\"Step 1: get_type_hints with type_aliases = {'myint': 'myint'}\")\nhints = get_type_hints(annotations.sum, localns=type_aliases)\nprint(f\"  hints = {hints}\")\n\n# Stringify the hints\nprint(\"\\nStep 2: stringify the hints\")\nfor name, typ in hints.items():\n    print(f\"  {name}: {stringify(typ)}\")\n\n# Now try with the actual type\ntype_aliases2 = {'myint': int}\nprint(\"\\n\\nStep 3: get_type_hints with type_aliases = {'myint': int}\")\nhints2 = get_type_hints(annotations.sum, localns=type_aliases2)\nprint(f\"  hints = {hints2}\")\n\nprint(\"\\nStep 4: stringify the hints\")\nfor name, typ in hints2.items():\n    print(f\"  {name}: {stringify(typ)}\")\nEOF\npython /tmp/test_full_flow.py",
+   "hit": null,
+   "lat_ms": 251.1
+  },
+  {
+   "cmd": "grep -B5 -A5 \"autodoc_type_aliases\" /testbed/sphinx/ext/autodoc/__init__.py | grep -A5 \"add_config_value\"",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "find /testbed -name \"*.rst\" -exec grep -l \"autodoc_type_aliases\" {} \\;",
+   "hit": null,
+   "lat_ms": 571.4
+  },
+  {
+   "cmd": "grep -B10 -A20 \"autodoc_type_aliases\" /testbed/doc/usage/extensions/autodoc.rst",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "grep -rn \"autodoc_type_aliases\" /testbed/sphinx/ --include=\"*.py\" | grep -v test",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "grep -rn \"type_aliases\" /testbed/sphinx/ --include=\"*.py\" | grep -v test | grep -v \"\\.pyc\"",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "grep -n \"type_aliases\" /testbed/sphinx/ext/autodoc/__init__.py | head -20",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "sed -n '60,85p' /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, 'tests/roots/test-ext-autodoc')\n\n# Check what happens with the test's type_aliases\nfrom typing import get_type_hints\nfrom sphinx.util.typing import stringify\n\nimport target.annotations as annotations\n\n# Simulate the test\ntype_aliases = {'myint': 'myint'}\nprint('type_aliases:', type_aliases)\n\n# Get annotations from the function\nannotations_raw = annotations.sum.__annotations__\nprint('Raw annotations:', annotations_raw)\n\n# Try get_type_hints\ntry:\n    hints = get_type_hints(annotations.sum, localns=type_aliases)\n    print('get_type_hints succeeded:', hints)\nexcept Exception as e:\n    print('get_type_hints failed:', e)\n    # Fall back to raw annotations\n    hints = {}\n    for k, v in annotations_raw.items():\n        hints[k] = v\n    print('Using raw annotations:', hints)\n\n# Stringify\nprint('Stringified hints:')\nfor k, v in hints.items():\n    print(f'  {k}: {stringify(v)}')\n\"\n",
+   "hit": null,
+   "lat_ms": 260.1
+  },
+  {
+   "cmd": "python -c \"\nfrom typing import get_type_hints, ForwardRef\n\nmyint = int\ntype_aliases = {'myint': 'myint'}\n\ndef func(x: 'myint') -> 'myint':\n    return x\n\n# The ForwardRef 'myint' is in the annotations\n# When get_type_hints is called with localns = {'myint': 'myint'}\n# It tries to resolve 'myint' using the localns\n# But 'myint' in localns is a string 'myint', not the type int\n# So the resolution fails, and ForwardRef('myint') is returned\n\nprint('Test 1: localns with string value')\nhints = get_type_hints(func, localns=type_aliases)\nprint(f'  hints: {hints}')\n\n# To resolve the ForwardRef, we need the actual type in localns\ntype_aliases2 = {'myint': int}\nprint('Test 2: localns with type value')\nhints2 = get_type_hints(func, localns=type_aliases2)\nprint(f'  hints: {hints2}')\n\n# Now, how does Sphinx know to replace 'myint' with 'myint'?\n# Actually, I think I understand now - the ForwardRef('myint') is returned\n# and when stringify is called, it returns 'myint'\n# So the output shows 'myint' instead of 'int'\n\"\n",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cat > /tmp/test_issue.py << 'EOF'\n\"\"\"Test the issue scenario\"\"\"\n\nfrom typing import Any, Dict, get_type_hints\nfrom sphinx.util.typing import stringify\n\n# Simulate the issue\nJSONObject = Dict[str, Any]\n\ndef sphinx_doc(data: 'JSONObject') -> 'JSONObject':\n    \"\"\"Test function.\"\"\"\n    return {}\n\n# The annotations are 'JSONObject'\nprint(\"Annotations:\", sphinx_doc.__annotations__)\n\n# User config\ntype_aliases = {'JSONObject': 'mytypes.JSONObject'}\nprint(\"type_aliases:\", type_aliases)\n\n# Try get_type_hints\nhints = get_type_hints(sphinx_doc, localns=type_aliases)\nprint(\"get_type_hints result:\", hints)\n\n# Stringify\nprint(\"Stringified:\")\nfor k, v in hints.items():\n    print(f\"  {k}: {stringify(v)}\")\n\n# Now try with the actual type\ntype_aliases2 = {'JSONObject': Dict[str, Any]}\nprint(\"\\ntype_aliases with actual type:\", type_aliases2)\nhints2 = get_type_hints(sphinx_doc, localns=type_aliases2)\nprint(\"get_type_hints result:\", hints2)\n\nprint(\"Stringified:\")\nfor k, v in hints2.items():\n    print(f\"  {k}: {stringify(v)}\")\nEOF\npython /tmp/test_issue.py",
+   "hit": null,
+   "lat_ms": 256.0
+  },
+  {
+   "cmd": "grep -B10 -A20 \"autodoc_process_signature\" /testbed/sphinx/ext/autodoc/__init__.py | head -60",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "grep -B5 -A10 \"autodoc-before-process-signature\" /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "grep -rn \"autodoc-before-process-signature\" /testbed/sphinx/ --include=\"*.py\" | grep -v test",
+   "hit": null,
+   "lat_ms": 157.2
+  },
+  {
+   "cmd": "sed -n '471,530p' /testbed/sphinx/util/inspect.py",
+   "hit": null,
+   "lat_ms": 122.9
+  },
+  {
+   "cmd": "sed -n '60,90p' /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "grep -B5 -A20 \"stringify_signature\" /testbed/sphinx/util/inspect.py | head -80",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "sed -n '586,650p' /testbed/sphinx/util/inspect.py",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "grep \"stringify_annotation\" /testbed/sphinx/util/inspect.py | head -5",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "sed -n '280,350p' /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "python -c \"\nfrom typing import get_type_hints\n\nmyint = int\n\ndef func(x: 'myint') -> 'myint':\n    return x\n\n# Test 1: No type_aliases\nprint('Test 1: No type_aliases')\nhints = get_type_hints(func)\nprint(f'  hints: {hints}')\n\n# Test 2: With type_aliases\nprint('Test 2: With type_aliases = {\\\"myint\\\": \\\"myint\\\"}')\ntry:\n    hints = get_type_hints(func, localns={'myint': 'myint'})\n    print(f'  hints: {hints}')\nexcept Exception as e:\n    print(f'  Error: {e}')\n\n# Test 3: With type_aliases = {'myint': int}\nprint('Test 3: With type_aliases = {\\\"myint\\\": int}')\ntry:\n    hints = get_type_hints(func, localns={'myint': int})\n    print(f'  hints: {hints}')\nexcept Exception as e:\n    print(f'  Error: {e}')\n\"\n",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "cat > /tmp/test_realistic.py << 'EOF'\n\"\"\"Test the realistic scenario from the issue\"\"\"\n\nimport sys\nimport os\nimport tempfile\nimport shutil\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict, List\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\n\n    Args:\n        data: Does it args.\n\n    Returns:\n        Does it work in return.\n    \"\"\"\n    return {}\n''')\n\n# Test with autodoc_typehints = 'signature' (working case)\nprint(\"=\" * 60)\nprint(\"Test 1: autodoc_typehints = 'signature'\")\nprint(\"=\" * 60)\n\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'signature'\nautodoc_type_aliases = {{\n    'JSONObject': 'mytypes.JSONObject',\n}}\n''')\n\nindex_rst = os.path.join(test_dir, 'index.rst')\nwith open(index_rst, 'w') as f:\n    f.write('''Test\n====\n\n.. autofunction:: mytypes.sphinx_doc\n''')\n\nos.chdir(test_dir)\nfrom sphinx.application import Sphinx\n\napp = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build1'),\n    doctreedir=os.path.join(test_dir, '_build1', 'doctrees'),\n    buildername='text',  # Use text builder for easier parsing\n    freshenv=True,\n    warningiserror=False,\n)\n\napp.build()\n\noutput_file = os.path.join(test_dir, '_build1', 'index.txt')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \nprint(\"Output:\")\nprint(content)\n\n# Check if the type alias is used\nif 'mytypes.JSONObject' in content:\n    print(\"\\n\u2713 SUCCESS: Type alias 'mytypes.JSONObject' is used\")\nelif 'JSONObject' in content:\n    print(\"\\n? Only 'JSONObject' found (without module path)\")\nelif 'Dict[str, Any]' in content:\n    print(\"\\n\u2717 BUG: 'Dict[str, Any]' found instead of 'mytypes.JSONObject'\")\n\n# Test with autodoc_typehints = 'description' (buggy case)\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Test 2: autodoc_typehints = 'description' (buggy)\")\nprint(\"=\" * 60)\n\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'description'\nautodoc_type_aliases = {{\n    'JSONObject': 'mytypes.JSONObject',\n}}\n''')\n\napp2 = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build2'),\n    doctreedir=os.path.join(test_dir, '_build2', 'doctrees'),\n    buildername='text',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp2.build()\n\noutput_file = os.path.join(test_dir, '_build2', 'index.txt')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \nprint(\"Output:\")\nprint(content)\n\n# Check if the type alias is used\nif 'mytypes.JSONObject' in content:\n    print(\"\\n\u2713 SUCCESS: Type alias 'mytypes.JSONObject' is used\")\nelif 'JSONObject' in content:\n    print(\"\\n? Only 'JSONObject' found (without module path)\")\nelif 'Dict[str, Any]' in content:\n    print(\"\\n\u2717 BUG: 'Dict[str, Any]' found instead of 'mytypes.JSONObject'\")\n\n# Cleanup\nsys.path.remove(test_dir)\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_realistic.py 2>&1 | grep -v \"WARNING:\" | grep -v \"^Running\" | grep -v \"^making\" | grep -v \"^building\" | grep -v \"^updating\" | grep -v \"^reading\" | grep -v \"^looking\" | grep -v \"^pickling\" | grep -v \"^checking\" | grep -v \"^preparing\" | grep -v \"^writing\" | grep -v \"^generating\" | grep -v \"^copying\" | grep -v \"^dumping\" | grep -v \"^build\" | grep -v \"^The\" | grep -v \"^\\s*$\"",
+   "hit": null,
+   "lat_ms": 570.8
+  },
+  {
+   "cmd": "grep -B10 -A20 \"stringify\" /testbed/sphinx/util/typing.py | head -100",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "grep -rn \"stringify\" /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 126.1
+  },
+  {
+   "cmd": "cat > /tmp/test_signature_with_aliases.py << 'EOF'\n\"\"\"Test how inspect.signature handles type_aliases\"\"\"\n\nimport sys\nimport os\nimport tempfile\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\"\"\"\n    return {}\n''')\n\n# Test 1: Signature without type_aliases\nprint(\"=\" * 60)\nprint(\"Test 1: Signature without type_aliases\")\nprint(\"=\" * 60)\n\nfrom sphinx.util import inspect as sphinx_inspect\n\nimport mytypes\n\nsig1 = sphinx_inspect.signature(mytypes.sphinx_doc)\nprint(f\"Parameters: {list(sig1.parameters.items())}\")\nprint(f\"Return annotation: {sig1.return_annotation}\")\n\n# Test 2: Signature with type_aliases\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Test 2: Signature with type_aliases = {'JSONObject': 'mytypes.JSONObject'}\")\nprint(\"=\" * 60)\n\nsig2 = sphinx_inspect.signature(mytypes.sphinx_doc, type_aliases={'JSONObject': 'mytypes.JSONObject'})\nprint(f\"Parameters: {list(sig2.parameters.items())}\")\nprint(f\"Return annotation: {sig2.return_annotation}\")\n\n# Test 3: What happens with the actual type?\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Test 3: Signature with type_aliases = {'JSONObject': Dict[str, Any]}\")\nprint(\"=\" * 60)\n\nfrom typing import Dict, Any\nsig3 = sphinx_inspect.signature(mytypes.sphinx_doc, type_aliases={'JSONObject': Dict[str, Any]})\nprint(f\"Parameters: {list(sig3.parameters.items())}\")\nprint(f\"Return annotation: {sig3.return_annotation}\")\n\n# Cleanup\nsys.path.remove(test_dir)\nimport shutil\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_signature_with_aliases.py 2>&1 | grep -v \"WARNING:\"",
+   "hit": null,
+   "lat_ms": 249.1
+  },
+  {
+   "cmd": "cat > /tmp/test_signature_types.py << 'EOF'\n\"\"\"Test how inspect.signature handles type_aliases\"\"\"\n\nimport sys\nimport os\nimport tempfile\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\"\"\"\n    return {}\n''')\n\n# Test with type_aliases\nimport mytypes\nfrom sphinx.util import inspect as sphinx_inspect\n\nsig = sphinx_inspect.signature(mytypes.sphinx_doc, type_aliases={'JSONObject': 'mytypes.JSONObject'})\n\nfor name, param in sig.parameters.items():\n    print(f\"Parameter '{name}':\")\n    print(f\"  annotation: {param.annotation}\")\n    print(f\"  type: {type(param.annotation)}\")\n    print(f\"  repr: {repr(param.annotation)}\")\n\nprint(f\"\\nReturn annotation:\")\nprint(f\"  annotation: {sig.return_annotation}\")\nprint(f\"  type: {type(sig.return_annotation)}\")\nprint(f\"  repr: {repr(sig.return_annotation)}\")\n\n# Cleanup\nsys.path.remove(test_dir)\nimport shutil\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_signature_types.py 2>&1 | grep -v \"WARNING:\"",
+   "hit": null,
+   "lat_ms": 248.2
+  },
+  {
+   "cmd": "grep -rn \"import_object\\|eval\" /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "grep -B5 -A30 \"type_aliases=self.config.autodoc_type_aliases\" /testbed/sphinx/ext/autodoc/__init__.py | head -100",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "sed -n '505,520p' /testbed/sphinx/util/inspect.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -B10 -A10 \"from.*import\" /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "grep -B5 -A30 \"get_type_hints.*type_aliases\" /testbed/sphinx/ext/autodoc/__init__.py | head -100",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "grep \"from sphinx.util.typing import\" /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "sed -n '60,85p' /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 82.8
+  },
+  {
+   "cmd": "cat /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat > /tmp/fix_typehints.py << 'EOF'\n# The fix for record_typehints function\n\ndef record_typehints(app: Sphinx, objtype: str, name: str, obj: Any,\n                     options: Dict, args: str, retann: str) -> None:\n    \"\"\"Record type hints to env object.\"\"\"\n    try:\n        if callable(obj):\n            annotations = app.env.temp_data.setdefault('annotations', {})\n            annotation = annotations.setdefault(name, OrderedDict())\n            sig = inspect.signature(obj, type_aliases=app.config.autodoc_type_aliases)\n            \n            # Get the type_aliases config\n            type_aliases = app.config.autodoc_type_aliases\n            \n            for param in sig.parameters.values():\n                if param.annotation is not param.empty:\n                    # Get the annotation string\n                    ann_str = typing.stringify(param.annotation)\n                    # Replace with type_aliases if available\n                    # The type_aliases maps the type name to the full-qualified path\n                    # For example: {'JSONObject': 'mytypes.JSONObject'}\n                    # If ann_str is 'JSONObject', replace it with 'mytypes.JSONObject'\n                    if isinstance(param.annotation, str):\n                        # param.annotation is a ForwardRef string\n                        # Try to replace it with type_aliases\n                        if param.annotation in type_aliases:\n                            ann_str = type_aliases[param.annotation]\n                    elif hasattr(param.annotation, '__forward_arg__'):\n                        # param.annotation is a ForwardRef object\n                        # The __forward_arg__ is the string representation\n                        if param.annotation.__forward_arg__ in type_aliases:\n                            ann_str = type_aliases[param.annotation.__forward_arg__]\n                    annotation[param.name] = ann_str\n                    \n            if sig.return_annotation is not sig.empty:\n                ann_str = typing.stringify(sig.return_annotation)\n                # Same replacement logic for return annotation\n                if isinstance(sig.return_annotation, str):\n                    if sig.return_annotation in type_aliases:\n                        ann_str = type_aliases[sig.return_annotation]\n                elif hasattr(sig.return_annotation, '__forward_arg__'):\n                    if sig.return_annotation.__forward_arg__ in type_aliases:\n                        ann_str = type_aliases[sig.return_annotation.__forward_arg__]\n                annotation['return'] = ann_str\n    except (TypeError, ValueError):\n        pass\nEOF\ncat /tmp/fix_typehints.py\n",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat > /tmp/test_annotation_type.py << 'EOF'\n\"\"\"Test what type param.annotation is\"\"\"\n\nimport sys\nimport os\nimport tempfile\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\"\"\"\n    return {}\n''')\n\nimport mytypes\nfrom sphinx.util import inspect as sphinx_inspect\n\n# Test 1: Signature without type_aliases\nsig1 = sphinx_inspect.signature(mytypes.sphinx_doc)\nfor name, param in sig1.parameters.items():\n    print(f\"Test 1 (no type_aliases):\")\n    print(f\"  param.annotation: {param.annotation}\")\n    print(f\"  type: {type(param.annotation)}\")\n    print(f\"  repr: {repr(param.annotation)}\")\n\n# Test 2: Signature with type_aliases\nsig2 = sphinx_inspect.signature(mytypes.sphinx_doc, type_aliases={'JSONObject': 'mytypes.JSONObject'})\nfor name, param in sig2.parameters.items():\n    print(f\"\\nTest 2 (with type_aliases):\")\n    print(f\"  param.annotation: {param.annotation}\")\n    print(f\"  type: {type(param.annotation)}\")\n    print(f\"  repr: {repr(param.annotation)}\")\n\n# Cleanup\nsys.path.remove(test_dir)\nimport shutil\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_annotation_type.py 2>&1 | grep -v \"WARNING:\"",
+   "hit": null,
+   "lat_ms": 260.9
+  },
+  {
+   "cmd": "cat > /tmp/test_return_annotation.py << 'EOF'\n\"\"\"Test the return annotation type\"\"\"\n\nimport sys\nimport os\nimport tempfile\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\"\"\"\n    return {}\n''')\n\nimport mytypes\nfrom sphinx.util import inspect as sphinx_inspect\n\n# Test 1: Signature without type_aliases\nsig1 = sphinx_inspect.signature(mytypes.sphinx_doc)\nprint(f\"Test 1 (no type_aliases):\")\nprint(f\"  return_annotation: {sig1.return_annotation}\")\nprint(f\"  type: {type(sig1.return_annotation)}\")\nprint(f\"  repr: {repr(sig1.return_annotation)}\")\n\n# Test 2: Signature with type_aliases\nsig2 = sphinx_inspect.signature(mytypes.sphinx_doc, type_aliases={'JSONObject': 'mytypes.JSONObject'})\nprint(f\"\\nTest 2 (with type_aliases):\")\nprint(f\"  return_annotation: {sig2.return_annotation}\")\nprint(f\"  type: {type(sig2.return_annotation)}\")\nprint(f\"  repr: {repr(sig2.return_annotation)}\")\n\n# Cleanup\nsys.path.remove(test_dir)\nimport shutil\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_return_annotation.py 2>&1 | grep -v \"WARNING:\"",
+   "hit": null,
+   "lat_ms": 248.7
+  },
+  {
+   "cmd": "cat > /testbed/sphinx/ext/autodoc/typehints.py << 'EOF'\n\"\"\"\n    sphinx.ext.autodoc.typehints\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n    Generating content for autodoc using typehints\n\n    :copyright: Copyright 2007-2020 by the Sphinx team, see AUTHORS.\n    :license: BSD, see LICENSE for details.\n\"\"\"\n\nimport re\nfrom collections import OrderedDict\nfrom typing import Any, Dict, Iterable, cast\n\nfrom docutils import nodes\nfrom docutils.nodes import Element\n\nfrom sphinx import addnodes\nfrom sphinx.application import Sphinx\nfrom sphinx.util import inspect, typing\n\n\ndef record_typehints(app: Sphinx, objtype: str, name: str, obj: Any,\n                     options: Dict, args: str, retann: str) -> None:\n    \"\"\"Record type hints to env object.\"\"\"\n    try:\n        if callable(obj):\n            annotations = app.env.temp_data.setdefault('annotations', {})\n            annotation = annotations.setdefault(name, OrderedDict())\n            sig = inspect.signature(obj, type_aliases=app.config.autodoc_type_aliases)\n            \n            # Get the type_aliases config\n            type_aliases = app.config.autodoc_type_aliases\n            \n            for param in sig.parameters.values():\n                if param.annotation is not param.empty:\n                    # Get the annotation string\n                    ann_str = typing.stringify(param.annotation)\n                    # Replace with type_aliases if available\n                    # The type_aliases maps the type name to the full-qualified path\n                    # For example: {'JSONObject': 'mytypes.JSONObject'}\n                    # If ann_str is 'JSONObject', replace it with 'mytypes.JSONObject'\n                    if isinstance(param.annotation, str):\n                        # param.annotation is a ForwardRef string\n                        # Try to replace it with type_aliases\n                        if param.annotation in type_aliases:\n                            ann_str = type_aliases[param.annotation]\n                    annotation[param.name] = ann_str\n                    \n            if sig.return_annotation is not sig.empty:\n                ann_str = typing.stringify(sig.return_annotation)\n                # Same replacement logic for return annotation\n                if isinstance(sig.return_annotation, str):\n                    if sig.return_annotation in type_aliases:\n                        ann_str = type_aliases[sig.return_annotation]\n                annotation['return'] = ann_str\n    except (TypeError, ValueError):\n        pass\n\n\ndef merge_typehints(app: Sphinx, domain: str, objtype: str, contentnode: Element) -> None:\n    if domain != 'py':\n        return\n    if app.config.autodoc_typehints != 'description':\n        return\n    if objtype == 'class' and app.config.autoclass_content not in ('init', 'both'):\n        return\n\n    try:\n        signature = cast(addnodes.desc_signature, contentnode.parent[0])\n        if signature['module']:\n            fullname = '.'.join([signature['module'], signature['fullname']])\n        else:\n            fullname = signature['fullname']\n    except KeyError:\n        # signature node does not have valid context info for the target object\n        return\n\n    annotations = app.env.temp_data.get('annotations', {})\n    if annotations.get(fullname, {}):\n        field_lists = [n for n in contentnode if isinstance(n, nodes.field_list)]\n        if field_lists == []:\n            field_list = insert_field_list(contentnode)\n            field_lists.append(field_list)\n\n        for field_list in field_lists:\n            modify_field_list(field_list, annotations[fullname])\n\n\ndef insert_field_list(node: Element) -> nodes.field_list:\n    field_list = nodes.field_list()\n    desc = [n for n in node if isinstance(n, addnodes.desc)]\n    if desc:\n        # insert just before sub object descriptions (ex. methods, nested classes, etc.)\n        index = node.index(desc[0])\n        node.insert(index - 1, [field_list])\n    else:\n        node += field_list\n\n    return field_list\n\n",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "python /tmp/test_realistic.py 2>&1 | grep -v \"WARNING:\" | grep -v \"^Running\" | grep -v \"^making\" | grep -v \"^building\" | grep -v \"^updating\" | grep -v \"^reading\" | grep -v \"^looking\" | grep -v \"^pickling\" | grep -v \"^checking\" | grep -v \"^preparing\" | grep -v \"^writing\" | grep -v \"^generating\" | grep -v \"^copying\" | grep -v \"^dumping\" | grep -v \"^build\" | grep -v \"^The\" | grep -v \"^\\s*$\" | head -100",
+   "hit": null,
+   "lat_ms": 569.3
+  },
+  {
+   "cmd": "grep -n \"show_annotation\" /testbed/sphinx/ext/autodoc/__init__.py | head -20",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "sed -n '1246,1265p' /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "sed -n '580,640p' /testbed/sphinx/util/inspect.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "sed -n '505,520p' /testbed/sphinx/util/inspect.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cat > /tmp/inspect_signature_patch.py << 'EOF'\n# Patch for sphinx.util.inspect.signature function\n\n# The issue is that when type_aliases is {'JSONObject': 'mytypes.JSONObject'}\n# and the annotation is 'JSONObject' (a ForwardRef string),\n# typing.get_type_hints tries to evaluate 'mytypes.JSONObject' as code,\n# which fails with NameError.\n\n# The fix is to handle this case by replacing the ForwardRef string with\n# the value from type_aliases if the resolution fails.\n\n# Current code:\n# try:\n#     annotations = typing.get_type_hints(subject, None, type_aliases)\n#     for i, param in enumerate(parameters):\n#         if param.name in annotations:\n#             parameters[i] = param.replace(annotation=annotations[param.name])\n#     if 'return' in annotations:\n#         return_annotation = annotations['return']\n# except Exception:\n#     # ``get_type_hints()`` does not support some kind of objects like partial,\n#     # ForwardRef and so on.\n#     pass\n\n# The fix should be to catch NameError specifically and use the type_aliases\n# to replace the ForwardRef string.\nEOF\ncat /tmp/inspect_signature_patch.py\n",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "sed -n '471,530p' /testbed/sphinx/util/inspect.py",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "sed -n '60,85p' /testbed/sphinx/util/typing.py",
+   "hit": null,
+   "lat_ms": 121.8
+  },
+  {
+   "cmd": "cat > /tmp/inspect_patch.py << 'EOF'\n# Patch for sphinx/util/inspect.py\n\n# Current code (lines 505-519):\n# try:\n#     # Resolve annotations using ``get_type_hints()`` and type_aliases.\n#     annotations = typing.get_type_hints(subject, None, type_aliases)\n#     for i, param in enumerate(parameters):\n#         if param.name in annotations:\n#             parameters[i] = param.replace(annotation=annotations[param.name])\n#     if 'return' in annotations:\n#         return_annotation = annotations['return']\n# except Exception:\n#     # ``get_type_hints()`` does not support some kind of objects like partial,\n#     # ForwardRef and so on.\n#     pass\n\n# The fix is to use type_aliases to replace ForwardRef strings after get_type_hints\n# The type_aliases is a dict mapping type name to full-qualified path\n# For example: {'JSONObject': 'mytypes.JSONObject'}\n\n# After get_type_hints, the annotations dict contains the raw ForwardRef strings\n# We should replace these with the values from type_aliases\n\n# Modified code:\n# try:\n#     # Resolve annotations using ``get_type_hints()`` and type_aliases.\n#     annotations = typing.get_type_hints(subject, None, type_aliases)\n#     for i, param in enumerate(parameters):\n#         if param.name in annotations:\n#             parameters[i] = param.replace(annotation=annotations[param.name])\n#     if 'return' in annotations:\n#         return_annotation = annotations['return']\n# except Exception:\n#     # ``get_type_hints()`` does not support some kind of objects like partial,\n#     # ForwardRef and so on.\n#     pass\n\n# # Replace ForwardRef strings with type_aliases\n# if type_aliases:\n#     for i, param in enumerate(parameters):\n#         if param.annotation is not param.empty and isinstance(param.annotation, str):\n#             # param.annotation is a ForwardRef string like 'JSONObject'\n#             # Check if it's in type_aliases\n#             if param.annotation in type_aliases:\n#                 # Replace with the full-qualified path\n#                 parameters[i] = param.replace(annotation=type_aliases[param.annotation])\n#     if return_annotation is not Parameter.empty and isinstance(return_annotation, str):\n#         if return_annotation in type_aliases:\n#             return_annotation = type_aliases[return_annotation]\n\n# This should be done AFTER the try-except block, not inside it.\nEOF\ncat /tmp/inspect_patch.py\n",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "sed -n '505,525p' /testbed/sphinx/util/inspect.py",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cat > /tmp/patch_inspect.py << 'EOF'\nimport sys\n\n# Read the file\nwith open('/testbed/sphinx/util/inspect.py', 'r') as f:\n    content = f.read()\n\n# Find the section to replace\nold_code = '''    try:\n        # Resolve annotations using ``get_type_hints()`` and type_aliases.\n        annotations = typing.get_type_hints(subject, None, type_aliases)\n        for i, param in enumerate(parameters):\n            if param.name in annotations:\n                parameters[i] = param.replace(annotation=annotations[param.name])\n        if 'return' in annotations:\n            return_annotation = annotations['return']\n    except Exception:\n        # ``get_type_hints()`` does not support some kind of objects like partial,\n        # ForwardRef and so on.\n        pass\n\n    if bound_method:'''\n\nnew_code = '''    try:\n        # Resolve annotations using ``get_type_hints()`` and type_aliases.\n        annotations = typing.get_type_hints(subject, None, type_aliases)\n        for i, param in enumerate(parameters):\n            if param.name in annotations:\n                parameters[i] = param.replace(annotation=annotations[param.name])\n        if 'return' in annotations:\n            return_annotation = annotations['return']\n    except Exception:\n        # ``get_type_hints()`` does not support some kind of objects like partial,\n        # ForwardRef and so on.\n        pass\n\n    # Replace ForwardRef strings with type_aliases\n    # This handles the case where type_aliases contains string paths\n    # that couldn't be resolved by get_type_hints\n    if type_aliases:\n        for i, param in enumerate(parameters):\n            if param.annotation is not param.empty and isinstance(param.annotation, str):\n                # param.annotation is a ForwardRef string like 'JSONObject'\n                # Check if it's in type_aliases\n                if param.annotation in type_aliases:\n                    # Replace with the full-qualified path\n                    parameters[i] = param.replace(annotation=type_aliases[param.annotation])\n        if return_annotation is not Parameter.empty and isinstance(return_annotation, str):\n            if return_annotation in type_aliases:\n                return_annotation = type_aliases[return_annotation]\n\n    if bound_method:'''\n\n# Replace the code\nif old_code in content:\n    content = content.replace(old_code, new_code)\n    with open('/testbed/sphinx/util/inspect.py', 'w') as f:\n        f.write(content)\n    print(\"Successfully patched inspect.py\")\nelse:\n    print(\"Could not find the code to patch\")\n    print(\"Looking for:\")\n    print(old_code)\nEOF\npython /tmp/patch_inspect.py",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "python /tmp/test_realistic.py 2>&1 | grep -v \"WARNING:\" | grep -v \"^Running\" | grep -v \"^making\" | grep -v \"^building\" | grep -v \"^updating\" | grep -v \"^reading\" | grep -v \"^looking\" | grep -v \"^pickling\" | grep -v \"^checking\" | grep -v \"^preparing\" | grep -v \"^writing\" | grep -v \"^generating\" | grep -v \"^copying\" | grep -v \"^dumping\" | grep -v \"^build\" | grep -v \"^The\" | grep -v \"^\\s*$\" | head -100",
+   "hit": null,
+   "lat_ms": 597.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_ext_autodoc_configs.py::test_autodoc_type_aliases -xvs 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 1020.9
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_ext_autodoc_configs.py -k \"typehint\" -xvs 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 973.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_ext_autodoc.py -x --tb=short 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 3770.8
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_ext_autodoc.py::test_autodoc -xvs 2>&1 | tail -200",
+   "hit": null,
+   "lat_ms": 971.8
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_util_inspect.py -x --tb=short 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 972.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/ -k \"typehint\" -x --tb=short 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 3175.6
+  },
+  {
+   "cmd": "cat > /tmp/test_issue_fix.py << 'EOF'\n\"\"\"Test that the fix works for the issue described\"\"\"\n\nimport os\nimport sys\nimport tempfile\nimport shutil\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef sphinx_doc(data: JSONObject) -> JSONObject:\n    \"\"\"Does it work.\n\n    Args:\n        data: Does it args.\n\n    Returns:\n        Does it work in return.\n    \"\"\"\n    return {}\n''')\n\n# Create conf.py with both settings\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'description'\nautodoc_type_aliases = {{\n    'JSONObject': 'mytypes.JSONObject',\n}}\n''')\n\n# Create index.rst\nindex_rst = os.path.join(test_dir, 'index.rst')\nwith open(index_rst, 'w') as f:\n    f.write('''Test\n====\n\n.. autofunction:: mytypes.sphinx_doc\n''')\n\n# Build the docs\nos.chdir(test_dir)\nfrom sphinx.application import Sphinx\n\napp = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build'),\n    doctreedir=os.path.join(test_dir, '_build', 'doctrees'),\n    buildername='html',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp.build()\n\n# Read the output\noutput_file = os.path.join(test_dir, '_build', 'index.html')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \n# Check if the type alias is used\nimport re\nmatch = re.search(r'<section id=\"test\">(.*?)</section>', content, re.DOTALL)\nif match:\n    section = match.group(0)\n    if 'mytypes.JSONObject' in section:\n        print(\"\u2713 SUCCESS: Type alias 'mytypes.JSONObject' is used in the output\")\n        print(\"\\nThe fix works correctly!\")\n    elif 'Dict[str, Any]' in section:\n        print(\"\u2717 BUG: Type alias 'mytypes.JSONObject' is NOT used, showing 'Dict[str, Any]' instead\")\n        print(\"\\nThis is the bug that was reported in the issue!\")\n    else:\n        print(\"? Unknown: Could not find expected type info\")\n        print(\"Section:\", section)\nelse:\n    print(\"Could not find test section\")\n\n# Cleanup\nsys.path.remove(test_dir)\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_issue_fix.py 2>&1 | grep -v \"WARNING:\" | grep -v \"^Running\" | grep -v \"^making\" | grep -v \"^building\" | grep -v \"^updating\" | grep -v \"^reading\" | grep -v \"^looking\" | grep -v \"^pickling\" | grep -v \"^checking\" | grep -v \"^preparing\" | grep -v \"^writing\" | grep -v \"^generating\" | grep -v \"^copying\" | grep -v \"^dumping\" | grep -v \"^build\" | grep -v \"^The\" | grep -v \"^\\s*$\"",
+   "hit": null,
+   "lat_ms": 770.7
+  },
+  {
+   "cmd": "cat > /tmp/test_edge_cases.py << 'EOF'\n\"\"\"Test edge cases for the fix\"\"\"\n\nimport os\nimport sys\nimport tempfile\nimport shutil\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Test 1: Type alias that CAN be resolved (actual type object)\nprint(\"=\" * 60)\nprint(\"Test 1: Type alias with actual type object\")\nprint(\"=\" * 60)\n\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef func1(data: JSONObject) -> JSONObject:\n    \"\"\"Test function 1.\"\"\"\n    return {}\n''')\n\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'signature'\n# Using actual type object as value\nautodoc_type_aliases = {{\n    'JSONObject': Dict[str, Any],\n}}\n''')\n\nindex_rst = os.path.join(test_dir, 'index.rst')\nwith open(index_rst, 'w') as f:\n    f.write('''Test\n====\n\n.. autofunction:: mytypes.func1\n''')\n\nos.chdir(test_dir)\nfrom sphinx.application import Sphinx\nfrom typing import Dict, Any\n\napp = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build1'),\n    doctreedir=os.path.join(test_dir, '_build1', 'doctrees'),\n    buildername='text',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp.build()\n\noutput_file = os.path.join(test_dir, '_build1', 'index.txt')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \nprint(\"Output:\")\nprint(content)\n\n# Test 2: No type alias (should show underlying type)\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Test 2: No type alias\")\nprint(\"=\" * 60)\n\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'signature'\nautodoc_type_aliases = {{}}\n''')\n\napp2 = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build2'),\n    doctreedir=os.path.join(test_dir, '_build2', 'doctrees'),\n    buildername='text',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp2.build()\n\noutput_file = os.path.join(test_dir, '_build2', 'index.txt')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \nprint(\"Output:\")\nprint(content)\n\n# Cleanup\nsys.path.remove(test_dir)\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_edge_cases.py 2>&1 | grep -v \"WARNING:\" | grep -v \"^Running\" | grep -v \"^making\" | grep -v \"^building\" | grep -v \"^updating\" | grep -v \"^reading\" | grep -v \"^looking\" | grep -v \"^pickling\" | grep -v \"^checking\" | grep -v \"^preparing\" | grep -v \"^writing\" | grep -v \"^generating\" | grep -v \"^copying\" | grep -v \"^dumping\" | grep -v \"^build\" | grep -v \"^The\" | grep -v \"^\\s*$\" | head -80",
+   "hit": null,
+   "lat_ms": 378.5
+  },
+  {
+   "cmd": "cat > /tmp/test_edge_cases2.py << 'EOF'\n\"\"\"Test edge cases for the fix - using proper imports\"\"\"\n\nimport os\nimport sys\nimport tempfile\nimport shutil\n\n# Create a temporary directory for our test\ntest_dir = tempfile.mkdtemp()\nsys.path.insert(0, test_dir)\n\n# Create mytypes.py\ntypes_py = os.path.join(test_dir, 'mytypes.py')\nwith open(types_py, 'w') as f:\n    f.write('''from __future__ import annotations\n\nfrom typing import Any, Dict\n\nJSONObject = Dict[str, Any]\n\n\ndef func1(data: JSONObject) -> JSONObject:\n    \"\"\"Test function 1.\"\"\"\n    return {}\n''')\n\n# Test with type_aliases = {'JSONObject': 'mytypes.JSONObject'} (string path)\nprint(\"=\" * 60)\nprint(\"Test: Type alias with string path 'mytypes.JSONObject'\")\nprint(\"=\" * 60)\n\nconf_py = os.path.join(test_dir, 'conf.py')\nwith open(conf_py, 'w') as f:\n    f.write(f'''\nimport sys\nsys.path.insert(0, '{test_dir}')\n\nextensions = ['sphinx.ext.autodoc']\nautodoc_typehints = 'signature'\nautodoc_type_aliases = {{\n    'JSONObject': 'mytypes.JSONObject',\n}}\n''')\n\nindex_rst = os.path.join(test_dir, 'index.rst')\nwith open(index_rst, 'w') as f:\n    f.write('''Test\n====\n\n.. autofunction:: mytypes.func1\n''')\n\nos.chdir(test_dir)\nfrom sphinx.application import Sphinx\n\napp = Sphinx(\n    srcdir=test_dir,\n    confdir=test_dir,\n    outdir=os.path.join(test_dir, '_build'),\n    doctreedir=os.path.join(test_dir, '_build', 'doctrees'),\n    buildername='text',\n    freshenv=True,\n    warningiserror=False,\n)\n\napp.build()\n\noutput_file = os.path.join(test_dir, '_build', 'index.txt')\nwith open(output_file, 'r') as f:\n    content = f.read()\n    \nprint(\"Output:\")\nprint(content)\n\n# Check if the type alias is used\nif 'mytypes.JSONObject' in content:\n    print(\"\u2713 SUCCESS: Type alias 'mytypes.JSONObject' is used\")\nelif 'Dict[str, Any]' in content:\n    print(\"\u2717 FAIL: Underlying type 'Dict[str, Any]' is shown instead\")\nelse:\n    print(\"? Unknown output\")\n\n# Cleanup\nsys.path.remove(test_dir)\nshutil.rmtree(test_dir)\nEOF\npython /tmp/test_edge_cases2.py 2>&1 | grep -v \"WARNING:\" | grep -v \"^Running\" | grep -v \"^making\" | grep -v \"^building\" | grep -v \"^updating\" | grep -v \"^reading\" | grep -v \"^looking\" | grep -v \"^pickling\" | grep -v \"^checking\" | grep -v \"^preparing\" | grep -v \"^writing\" | grep -v \"^generating\" | grep -v \"^copying\" | grep -v \"^dumping\" | grep -v \"^build\" | grep -v \"^The\" | grep -v \"^\\s*$\"",
+   "hit": null,
+   "lat_ms": 568.9
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_ext_autodoc_configs.py -x --tb=line 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 1372.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "sphinx-doc__sphinx-8459",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 38376.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

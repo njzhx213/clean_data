@@ -1,0 +1,171 @@
+{
+ "calls": 23,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 14617.6438331604,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && echo \"---\" && python3 -c \"import django; print(django.__version__, django.__file__)\" 2>&1; python3 -c \"import flask_wtf; print(flask_wtf.__file__)\" 2>&1; pip3 list 2>/dev/null | grep -iE \"wtform|flask|django\" ",
+   "hit": null,
+   "lat_ms": 377.6
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 && git status --short | head -20 && grep -rn \"def id_for_label\" django/forms/",
+   "hit": null,
+   "lat_ms": 586.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n '200,300p' django/forms/boundfield.py",
+   "hit": null,
+   "lat_ms": 162.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '180,215p' django/forms/boundfield.py && grep -n \"subwidgets\" django/forms/boundfield.py",
+   "hit": null,
+   "lat_ms": 114.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '25,75p' django/forms/boundfield.py",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '740,790p' django/forms/widgets.py && grep -rn \"id_for_label\" django/forms/templates/django/forms/widgets/ | head",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"id_for_label\\|class ChoiceWidget\\|def subwidgets\\|def id_for_label\" django/forms/widgets.py | sed -n '1,20p' && echo --- && sed -n '600,660p' django/forms/widgets.py",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"id_for_label\" tests/forms_tests/ | head -30",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '670,740p' tests/forms_tests/tests/test_forms.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '210,230p' django/forms/widgets.py",
+   "hit": null,
+   "lat_ms": 77.3
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport re\np = 'django/forms/boundfield.py'\ns = open(p).read()\nold = \"\"\"    @property\n    def id_for_label(self):\n        return 'id_%s_%s' % (self.data['name'], self.data['index'])\"\"\"\nnew = \"\"\"    @property\n    def id_for_label(self):\n        return self.data.get('attrs', {}).get('id') or (\n            'id_%s_%s' % (self.data['name'], self.data['index'])\n        )\"\"\"\nassert old in s\ns = s.replace(old, new)\nopen(p, 'w').write(s)\nprint(\"done\")\nEOF\nsed -n '276,284p' django/forms/boundfield.py",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(USE_TZ=True)\ndjango.setup()\n\nfrom django import forms\nfrom django.forms import Form, ChoiceField, RadioSelect, CheckboxSelectMultiple\nfrom django.forms.boundfield import BoundWidget\n\nclass BeatleForm(Form):\n    name = ChoiceField(choices=[('john', 'John'), ('paul', 'Paul')])\n    beats = ChoiceField(choices=[('john', 'John'), ('paul', 'Paul')], widget=CheckboxSelectMultiple)\n\n# 1. Default auto_id -> id_name_0 (fallback still works)\nf = BeatleForm()\nfields = list(f['name'])\nassert fields[0].id_for_label == 'id_name_0', fields[0].id_for_label\nassert fields[1].id_for_label == 'id_name_1'\n\n# 2. auto_id=False -> attrs has no id -> fallback still used\nf2 = BeatleForm(auto_id=False)\nfields2 = list(f2['name'])\nassert fields2[0].id_for_label == 'id_name_0', fields2[0].id_for_label\n\n# 3. Custom auto_id format string -> now honored for subwidgets\nf3 = BeatleForm(auto_id='beatle-{}-{}')  # no %s; test format string path instead\nf3b = BeatleForm(auto_id='custom_%s')\nfields3 = list(f3b['beats'])\nprint(\"auto_id='custom_%s':\", fields3[0].id_for_label, fields3[1].id_for_label)\nassert fields3[0].id_for_label == 'custom_beats_0', fields3[0].id_for_label\nassert fields3[1].id_for_label == 'custom_beats_1'\n\n# 4. Widget attrs id set explicitly -> label id uses it\nclass AttrForm(Form):\n    beats = ChoiceField(choices=[('john', 'John'), ('paul', 'Paul')],\n                        widget=forms.CheckboxSelectMultiple(attrs={'id': 'my-checkboxes'}))\nf4 = AttrForm()\nfields4 = list(f4['beats'])\nprint(\"attrs id:\", fields4[0].id_for_label, fields4[1].id_for_label)\nassert fields4[0].id_for_label == 'my-checkboxes_0', fields4[0].id_for_label\nassert fields4[1].id_for_label == 'my-checkboxes_1'\n\n# 5. label_tag renders for= from id_for_label\nprint(str(fields4[0]))\n\n# 6. Plain (non-choice) widget subwidget: no attrs in data -> no crash\nclass PlainForm(Form):\n    txt = forms.CharField()\nf6 = PlainForm()\nfields6 = list(f6['txt'])\nprint(\"plain widget:\", repr(fields6[0].id_for_label))\nprint(\"ALL OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 570.6
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py forms_tests -v1 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 1572.3
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py forms_tests -v1 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR|SystemCheck)\" | head",
+   "hit": null,
+   "lat_ms": 1573.1
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py template_tests.views 2>/dev/null; python3 tests/runtests.py forms_tests.widget_tests views_tests -v1 2>&1 | grep -E \"^(Ran|OK|FAILED)\" | head",
+   "hit": null,
+   "lat_ms": 970.6
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py forms_tests.widget_tests views_tests -v1 2>&1 | grep -B2 -A15 \"ERROR:\" | head -40",
+   "hit": null,
+   "lat_ms": 771.7
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py tests.generic_views -v1 2>&1 | grep -E \"^(Ran|OK|FAILED)\" ; python3 tests/runtests.py tests.test_cases -v1 2>&1 | grep -E \"^(Ran|OK|FAILED)\"",
+   "hit": null,
+   "lat_ms": 778.1
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | grep -iE \"^views|^tests\" | head && python3 tests/runtests.py tests.generic_views_tests -v1 2>&1 | grep -E \"^(Ran|OK|FAILED)\"",
+   "hit": null,
+   "lat_ms": 571.8
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | grep -i view && python3 tests/runtests.py generic_views -v1 2>&1 | grep -E \"^(Ran|OK|FAILED)\"",
+   "hit": null,
+   "lat_ms": 3773.0
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py view_tests -v1 2>&1 | grep -E \"^(Ran|OK|FAILED)\"",
+   "hit": null,
+   "lat_ms": 1776.1
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-14534",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 14617.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

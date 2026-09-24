@@ -1,0 +1,146 @@
+{
+ "calls": 18,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 20753.23247909546,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cd /tmp && rm -rf django-bug-verify && mkdir django-bug-verify && cd django-bug-verify && python3 -c \"import django; print(django.__version__)\" 2>&1 | head -5",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cd /tmp/django-bug-verify && git clone --quiet --depth 1 --branch 3.1.4 https://github.com/django/django.git 2>&1 | tail -3; cd django && sed -n '40,110p' django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "pip download django==3.1.4 --no-deps -d /tmp/django314 -q 2>&1 | tail -2; ls /tmp/django314 2>/dev/null",
+   "hit": null,
+   "lat_ms": 8176.3
+  },
+  {
+   "cmd": "python3 --version; pip index versions django 2>&1 | head -5",
+   "hit": null,
+   "lat_ms": 7974.5
+  },
+  {
+   "cmd": "python3 -c \"import django, os; print(django.__version__); print(os.path.dirname(django.__file__))\"",
+   "hit": null,
+   "lat_ms": 215.7
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 2>&1 | head -5; git status 2>&1 | head -5; sed -n '1,120p' django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 621.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '120,160p' django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 115.7
+  },
+  {
+   "cmd": "cd /tmp/django-bug-verify && cat > reproduce.py <<'EOF'\nimport asyncio\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom unittest import mock\n\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True,\n    ROOT_URLCONF='__main__',\n    MIDDLEWARE=[\n        'reproduce_mod.DummyMiddleware',   # raises MiddlewareNotUsed, sync-only\n        'reproduce_mod.AsyncMiddleware',   # async middleware, outermost\n    ],\n    ALLOWED_HOSTS=['*'],\n    SESSION_FILE_PATH='/nonexistent/broken/path',\n)\nimport django\ndjango.setup()\nimport django.urls as urls\nurls.__dict__['patterns'] = []\n\nfrom django.http import HttpResponse\nfrom django.core.exceptions import MiddlewareNotUsed\n\nclass DummyMiddleware:\n    async_capable = False\n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"applied only to sync requests\")\n\nclass AsyncMiddleware:\n    async_capable = True\n    def __init__(self, get_response):\n        self.get_response = get_response\n    async def __call__(self, request):\n        return await self.get_response(request)\n\nimport types\nmod = types.ModuleType('reproduce_mod')\nmod.DummyMiddleware = DummyMiddleware\nmod.AsyncMiddleware = AsyncMiddleware\nsys.modules['reproduce_mod'] = mod\n\n# Re-point settings.MIDDLEWARE at the module we just defined\nsettings.MIDDLEWARE = ['reproduce_mod.DummyMiddleware', 'reproduce_mod.AsyncMiddleware']\n\nfrom django.core.handlers.asgi import ASGIHandler\nhandler = ASGIHandler()\nhandler.load_middleware(is_async=True)\n\nchain = handler._middleware_chain\nprint(\"middleware chain type:\", type(chain))\nprint(\"iscoroutinefunction(chain):\", asyncio.iscoroutinefunction(chain))\n\nfrom django.test import RequestFactory\nrf = RequestFactory()\nrequest = rf.get('/admin/')\nrequest.session = None\n\nasync def main():\n    try:\n        resp = await chain(request)\n        print(\"Got response:\", resp)\n    except TypeError as e:\n        print(\"TYPEERROR REPRODUCED:\", e)\n\nasyncio.get_event_loop().run_until_complete(main())\nEOF\npython3 reproduce.py",
+   "hit": null,
+   "lat_ms": 769.5
+  },
+  {
+   "cmd": "cd /tmp/django-bug-verify && cat > reproduce2.py <<'EOF'\nimport asyncio\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True,\n    MIDDLEWARE=[\n        'reproduce_mod2.DummyMiddleware',   # sync-only, raises MiddlewareNotUsed\n        'reproduce_mod2.AsyncMiddleware',   # async middleware, outermost\n    ],\n    ALLOWED_HOSTS=['*'],\n)\nimport django\ndjango.setup()\n\nfrom django.http import HttpResponse\nfrom django.core.exceptions import MiddlewareNotUsed\n\nclass DummyMiddleware:\n    async_capable = False\n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"applied only to sync requests\")\n\nclass AsyncMiddleware:\n    async_capable = True\n    def __init__(self, get_response):\n        self.get_response = get_response\n    async def __call__(self, request):\n        return await self.get_response(request)\n\nimport types\nmod = types.ModuleType('reproduce_mod2')\nmod.DummyMiddleware = DummyMiddleware\nmod.AsyncMiddleware = AsyncMiddleware\nsys.modules['reproduce_mod2'] = mod\nsettings.MIDDLEWARE = ['reproduce_mod2.DummyMiddleware', 'reproduce_mod2.AsyncMiddleware']\n\nfrom django.core.handlers.asgi import ASGIHandler\nhandler = ASGIHandler()\nhandler.load_middleware(is_async=True)\nchain = handler._middleware_chain\n\nprint(\"chain type:\", type(chain))\nprint(\"chain is coroutine function:\", asyncio.iscoroutinefunction(chain))\nprint()\n\n# The poisoned 'handler' state: simulate what the loop did internally\n# by tracing adapt_method_mode decisions\nfrom asgiref.sync import async_to_sync, sync_to_async\n\ndef trace():\n    # Bottom of the stack: _get_response_async -> async_to_sync(get_response)\n    # because convert_exception_to_response makes it look sync\n    print(\"1) After convert_exception_to_response(_get_response_async): looks sync\")\n    print(\"   handler_is_async = True, is_async=True -> no adaptation, stays async_to_sync wrapper? \")\n    # Actually handler = convert_exception_to_response(get_response) where get_response\n    # is _get_response_async (coroutine fn). convert_exception_to_response checks\n    # iscoroutinefunction(get_response) -> True -> returns async wrapper.\n    import inspect\n    from django.core.handlers.exception import convert_exception_to_response\n    from django.core.handlers.base import BaseHandler\n    h = BaseHandler.__new__(BaseHandler)\n    wrapped = convert_exception_to_response(handler._get_response_async)\n    print(\"   wrapped type:\", type(wrapped), \"is_async:\", asyncio.iscoroutinefunction(wrapped))\n\ntrace()\nEOF\npython3 reproduce2.py",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /tmp/django-bug-verify && cat > reproduce3.py <<'EOF'\nimport asyncio, sys\nsys.path.insert(0, '/testbed')\nfrom django.conf import settings\nsettings.configure(DEBUG=True, ALLOWED_HOSTS=['*'],\n    MIDDLEWARE=['repro3.Dummy', 'repro3.AsyncMW'])\nimport django; django.setup()\nfrom django.http import HttpResponse\nfrom django.core.exceptions import MiddlewareNotUsed\n\nclass Dummy:\n    async_capable = False\n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"sync only\")\n\nclass AsyncMW:\n    async_capable = True\n    def __init__(self, get_response):\n        self.get_response = get_response\n    async def __call__(self, request):\n        return await self.get_response(request)\n\nimport types\nm = types.ModuleType('repro3'); m.Dummy = Dummy; m.AsyncMW = AsyncMW\nsys.modules['repro3'] = m\nsettings.MIDDLEWARE = ['repro3.Dummy', 'repro3.AsyncMW']\n\nfrom django.core.handlers.asgi import ASGIHandler\nh = ASGIHandler()\nh.load_middleware(is_async=True)\nchain = h._middleware_chain\n\n# Walk the chain to see what each layer is\nprint(\"Top of chain (called by get_response_async):\")\nlayer = chain\ndepth = 0\nwhile depth < 10:\n    print(f\"  L{depth}: {type(layer)} iscoro={asyncio.iscoroutinefunction(layer)}\")\n    if hasattr(layer, 'get_response'):\n        layer = layer.get_response\n        depth += 1\n    elif hasattr(layer, '__wrapped__'):\n        print(f\"       __wrapped__: {type(layer.__wrapped__)} iscoro={asyncio.iscoroutinefunction(layer.__wrapped__)}\")\n        layer = layer.__wrapped__\n        depth += 1\n    else:\n        break\nEOF\npython3 reproduce3.py",
+   "hit": null,
+   "lat_ms": 377.5
+  },
+  {
+   "cmd": "cd /tmp/django-bug-verify && cat > reproduce4.py <<'EOF'\nimport asyncio, sys, warnings\nwarnings.filterwarnings(\"ignore\")\nsys.path.insert(0, '/testbed')\nfrom django.conf import settings\nsettings.configure(DEBUG=True, ALLOWED_HOSTS=['*'],\n    MIDDLEWARE=['repro4.Dummy', 'repro4.AsyncMW'])\nimport django; django.setup()\nfrom django.core.exceptions import MiddlewareNotUsed\n\nclass Dummy:\n    async_capable = False\n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"sync only\")\n\nclass AsyncMW:\n    async_capable = True\n    def __init__(self, get_response):\n        self.get_response = get_response\n    async def __call__(self, request):\n        return await self.get_response(request)\n\nimport types\nm = types.ModuleType('repro4'); m.Dummy = Dummy; m.AsyncMW = AsyncMW\nsys.modules['repro4'] = m\nsettings.MIDDLEWARE = ['repro4.Dummy', 'repro4.AsyncMW']\n\nfrom django.core.handlers.asgi import ASGIHandler\nh = ASGIHandler()\nh.load_middleware(is_async=True)\nchain = h._middleware_chain\n\n# Unwrap AsyncToSync\ninner = chain.func if hasattr(chain, 'func') else getattr(chain, '__wrapped__', chain)\nprint(\"Unwrapped top:\", type(inner), \"iscoro:\", asyncio.iscoroutinefunction(inner))\n# inner should be AsyncMW instance; its get_response is the poisoned layer\ninner_g = inner.get_response if hasattr(inner, 'get_response') else None\nprint(\"AsyncMW.get_response:\", type(inner_g), \"iscoro:\", asyncio.iscoroutinefunction(inner_g))\n\n# Now actually run the chain on a sync event loop in a thread to get the real error\nfrom django.test import RequestFactory\nrf = RequestFactory()\nrequest = rf.get('/admin/')\nrequest.session = None\n\nimport threading\nresult = {}\ndef run():\n    loop = asyncio.new_event_loop()\n    asyncio.set_event_loop(loop)\n    try:\n        result['resp'] = loop.run_until_complete(chain(request))\n    except Exception as e:\n        result['err'] = f\"{type(e).__name__}: {e}\"\n    finally:\n        loop.close()\n\nt = threading.Thread(target=run)\nt.start(); t.join()\nprint(\"Result:\", result.get('err') or result.get('resp'))\nEOF\npython3 reproduce4.py",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,40p' django/core/handlers/exception.py && grep -n \"iscoroutinefunction\\|def convert\" django/core/handlers/exception.py",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "cd /tmp/django-bug-verify && cat > trace.py <<'EOF'\nimport asyncio, sys, warnings\nwarnings.filterwarnings(\"ignore\")\nsys.path.insert(0, '/testbed')\nfrom django.conf import settings\nsettings.configure(DEBUG=True, ALLOWED_HOSTS=['*'], ROOT_URLCONF='__main__',\n    MIDDLEWARE=['trace_mod.Dummy', 'trace_mod.AsyncMW'])\nimport django; django.setup()\nimport django.urls as urls\nurls.__dict__['patterns'] = []\nfrom django.core.exceptions import MiddlewareNotUsed\n\nclass Dummy:\n    async_capable = False\n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"sync only\")\n\nclass AsyncMW:\n    async_capable = True\n    def __init__(self, get_response):\n        self.get_response = get_response\n    async def __call__(self, request):\n        return await self.get_response(request)\n\nimport types\nm = types.ModuleType('trace_mod'); m.Dummy = Dummy; m.AsyncMW = AsyncMW\nsys.modules['trace_mod'] = m\nsettings.MIDDLEWARE = ['trace_mod.Dummy', 'trace_mod.AsyncMW']\n\n# Monkeypatch adapt_method_mode to trace every decision\nfrom django.core.handlers.base import BaseHandler\norig = BaseHandler.adapt_method_mode\ndef traced(self, is_async, method, method_is_async=None, debug=False, name=None):\n    result = orig(self, is_async, method, method_is_async, debug, name)\n    is_coro = asyncio.iscoroutinefunction(method)\n    result_coro = asyncio.iscoroutinefunction(result)\n    print(f\"adapt(is_async={is_async}, method={getattr(method,'__qualname__',method)}, \"\n          f\"method_async={is_coro}, declared={method_is_async}) -> {type(result).__name__} async={result_coro} name={name}\")\n    return result\nBaseHandler.adapt_method_mode = traced\n\nfrom django.core.handlers.asgi import ASGIHandler\nh = ASGIHandler()\nh.load_middleware(is_async=True)\nchain = h._middleware_chain\nprint(\"\\nFINAL chain:\", type(chain).__name__, \"iscoro:\", asyncio.iscoroutinefunction(chain))\nEOF\npython3 trace.py",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /tmp/django-bug-verify && cat > trace_fixed.py <<'EOF'\nimport asyncio, sys, warnings\nwarnings.filterwarnings(\"ignore\")\nsys.path.insert(0, '/testbed')\nfrom django.conf import settings\nsettings.configure(DEBUG=True, ALLOWED_HOSTS=['*'], ROOT_URLCONF='__main__',\n    MIDDLEWARE=['trace_fix.Dummy', 'trace_fix.AsyncMW'])\nimport django; django.setup()\nimport django.urls as urls\nurls.__dict__['patterns'] = []\nfrom django.core.exceptions import MiddlewareNotUsed\n\nclass Dummy:\n    async_capable = False\n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"sync only\")\n\nclass AsyncMW:\n    async_capable = True\n    def __init__(self, get_response):\n        self.get_response = get_response\n    async def __call__(self, request):\n        return await self.get_response(request)\n\nimport types\nm = types.ModuleType('trace_fix'); m.Dummy = Dummy; m.AsyncMW = AsyncMW\nsys.modules['trace_fix'] = m\nsettings.MIDDLEWARE = ['trace_fix.Dummy', 'trace_fix.AsyncMW']\n\n# Patch: replicate load_middleware with the proposed fix (reset handler/ handler_is_async before continue)\nfrom django.core.handlers.base import BaseHandler\nfrom django.utils.module_loading import import_string\nfrom django.core.handlers.exception import convert_exception_to_response\n\ndef load_middleware_fixed(self, is_async=False):\n    self._view_middleware = []\n    self._template_response_middleware = []\n    self._exception_middleware = []\n    get_response = self._get_response_async if is_async else self._get_response\n    handler = convert_exception_to_response(get_response)\n    handler_is_async = is_async\n    for middleware_path in reversed(settings.MIDDLEWARE):\n        middleware = import_string(middleware_path)\n        middleware_can_sync = getattr(middleware, 'sync_capable', True)\n        middleware_can_async = getattr(middleware, 'async_capable', False)\n        if not middleware_can_sync and not middleware_can_async:\n            raise RuntimeError('Middleware %s must have at least one of sync_capable/async_capable set to True.' % middleware_path)\n        elif not handler_is_async and middleware_can_sync:\n            middleware_is_async = False\n        else:\n            middleware_is_async = middleware_can_async\n        try:\n            handler = self.adapt_method_mode(middleware_is_async, handler, handler_is_async,\n                                             debug=settings.DEBUG, name='middleware %s' % middleware_path)\n            mw_instance = middleware(handler)\n        except MiddlewareNotUsed as exc:\n            # THE FIX: restore pre-adaptation handler state\n            handler = convert_exception_to_response(get_response) if False else handler\n            continue  # (old code - we'll show both)\n    # not used; instead call real load but with patched adapt? Simpler: monkeypatch\n    # We just need to show the *state* that should be passed.\n\n# Easier: monkeypatch so that on MiddlewareNotUsed we restore handler to the\n# value it had *before* adapt_method_mode. Do it via a subclass.\nclass FixedASGIHandler(ASGIHandler):\n    pass\n\nfrom django.core.handlers.asgi import ASGIHandler\norig_adapt = BaseHandler.adapt_method_mode\nclass TracingHandler(ASGIHandler):\n    _pre_adapt_handler = None\n    def adapt_method_mode(self, is_async, method, method_is_async=None, debug=False, name=None):\n        self._pre_adapt_handler = method  # the handler BEFORE this adaptation\n        return orig_adapt(self, is_async, method, method_is_async, debug, name)\n\n# Reproduce the loop manually with the fix applied\nfrom django.conf import settings as S\nh = ASGIHandler()\nget_response = h._get_response_async\nhandler = convert_exception_to_response(get_response)\nhandler_is_async = True\nprint(\"Starting handler:\", type(handler).__name__, \"async:\", asyncio.iscoroutinefunction(handler))\n\nfor middleware_path in reversed(S.MIDDLEWARE):\n    middleware = import_string(middleware_path)\n    middleware_can_sync = getattr(middleware, 'sync_capable', True)\n    middleware_can_async = getattr(middleware, 'async_ca",
+   "hit": null,
+   "lat_ms": 379.1
+  },
+  {
+   "cmd": "cd /tmp/django-bug-verify && cat > trace_fixed.py <<'EOF'\nimport asyncio, sys, warnings\nwarnings.filterwarnings(\"ignore\")\nsys.path.insert(0, '/testbed')\nfrom django.conf import settings\nsettings.configure(DEBUG=True, ALLOWED_HOSTS=['*'], ROOT_URLCONF='__main__',\n    MIDDLEWARE=['trace_fix.Dummy', 'trace_fix.AsyncMW'])\nimport django; django.setup()\nimport django.urls as urls\nurls.__dict__['patterns'] = []\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.core.handlers.asgi import ASGIHandler\nfrom django.core.handlers.exception import convert_exception_to_response\nfrom django.utils.module_loading import import_string\n\nclass Dummy:\n    async_capable = False\n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"sync only\")\n\nclass AsyncMW:\n    async_capable = True\n    def __init__(self, get_response):\n        self.get_response = get_response\n    async def __call__(self, request):\n        return await self.get_response(request)\n\nimport types\nm = types.ModuleType('trace_fix'); m.Dummy = Dummy; m.AsyncMW = AsyncMW\nsys.modules['trace_fix'] = m\nsettings.MIDDLEWARE = ['trace_fix.Dummy', 'trace_fix.AsyncMW']\n\ndef run_load(is_async, with_fix):\n    h = ASGIHandler()\n    get_response = h._get_response_async if is_async else h._get_response\n    handler = convert_exception_to_response(get_response)\n    handler_is_async = is_async\n    for middleware_path in reversed(settings.MIDDLEWARE):\n        middleware = import_string(middleware_path)\n        middleware_can_sync = getattr(middleware, 'sync_capable', True)\n        middleware_can_async = getattr(middleware, 'async_capable', False)\n        if not middleware_can_sync and not middleware_can_async:\n            raise RuntimeError()\n        elif not handler_is_async and middleware_can_sync:\n            middleware_is_async = False\n        else:\n            middleware_is_async = middleware_can_async\n        handler_before = handler\n        handler_is_async_before = handler_is_async\n        try:\n            handler = h.adapt_method_mode(middleware_is_async, handler, handler_is_async,\n                                          debug=False, name='middleware %s' % middleware_path)\n            mw_instance = middleware(handler)\n        except MiddlewareNotUsed:\n            if with_fix:\n                handler = handler_before\n                handler_is_async = handler_is_async_before\n                note = \"FIXED\"\n            else:\n                note = \"POISONED (old code)\"\n            print(f\"    {middleware_path}: MiddlewareNotUsed -> {note}\")\n            print(f\"        next iteration gets handler: {type(handler).__name__}, async={asyncio.iscoroutinefunction(handler)}\")\n            continue\n        handler = convert_exception_to_response(mw_instance)\n        handler_is_async = middleware_is_async\n    handler = h.adapt_method_mode(is_async, handler, handler_is_async)\n    return handler\n\nprint(\"=== ASGI (is_async=True), MIDDLEWARE = [Dummy(sync-only, raises), AsyncMW] ===\")\nprint(\"-- old code (no reset) --\")\nchain = run_load(True, with_fix=False)\nprint(f\"  FINAL: {type(chain).__name__}, iscoroutinefunction={asyncio.iscoroutinefunction(chain)}\")\nprint(\"-- with fix (reset handler before continue) --\")\nchain = run_load(True, with_fix=True)\nprint(f\"  FINAL: {type(chain).__name__}, iscoroutinefunction={asyncio.iscoroutinefunction(chain)}\")\n\nprint()\nprint(\"=== WSGI (is_async=False), same MIDDLEWARE ===\")\nprint(\"-- old code --\")\nchain = run_load(False, with_fix=False)\nprint(f\"  FINAL: {type(chain).__name__}, iscoroutinefunction={asyncio.iscoroutinefunction(chain)} (sync expected: True)\")\nprint(\"-- with fix --\")\nchain = run_load(False, with_fix=True)\nprint(f\"  FINAL: {type(chain).__name__}, iscoroutinefunction={asyncio.iscoroutinefunction(chain)} (sync expected: True)\")\nEOF\npython3 trace_fixed.py",
+   "hit": null,
+   "lat_ms": 379.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-13810",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 20753.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

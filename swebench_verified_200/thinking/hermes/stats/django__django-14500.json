@@ -1,0 +1,1411 @@
+{
+ "calls": 271,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 39158.94532203674,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 4,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 160.7
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && echo \"---HOME---\" && echo $HOME && echo \"---LS---\" && ls -la",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && cat setup.py && echo \"---EGGINFO---\" && ls Django.egg-info && echo \"---PKG---\" && head -40 Django.egg-info/PKG-INFO",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /testbed && ls django/db/migrations/ && echo \"---\" && ls tests/migrations/ | grep -i -E \"squash|executor\"",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /testbed && cat django/db/migrations/executor.py",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "cd /testbed && cat django/db/migrations/loader.py",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -8 -- django/db/migrations/executor.py | cat && echo \"---LOADER---\" && git log --oneline -8 -- django/db/migrations/loader.py | cat && echo \"---RECORDER---\" && cat django/db/migrations/recorder.py",
+   "hit": null,
+   "lat_ms": 174.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,120p' django/db/migrations/graph.py && echo \"...\" && grep -n \"remove_replaced_nodes\\|remove_replacement_node\" django/db/migrations/graph.py",
+   "hit": null,
+   "lat_ms": 219.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '120,200p' django/db/migrations/graph.py",
+   "hit": null,
+   "lat_ms": 142.9
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"replaces\" tests/migrations/test_executor.py | head -30 && echo \"---SQUASHING TESTS---\" && ls tests/migrations/squashing/",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "cd /testbed && ls tests/migrations/ && echo \"---\" && ls tests/migrations/test_migrations_squashed/",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && cat tests/migrations/test_executor.py",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && python --version && pip list 2>/dev/null | grep -i -E \"django|asgiref|sqlparse|pytz\" && cat tests/migrations/test_migrations_squashed/0001_squashed_0002.py tests/migrations/test_migrations_squashed/0001_initial.py tests/migrations/test_migrations_squashed/0002_second.py",
+   "hit": null,
+   "lat_ms": 378.1
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_executor.ExecutorTests.test_run_with_squashed migrations.test_executor.ExecutorTests.test_apply_all_replaced_marks_replacement_as_applied migrations.test_executor.ExecutorTests.test_migrate_marks_replacement_applied_even_if_it_did_nothing 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 974.3
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro.py <<'EOF'\nimport sys\nsys.path.insert(0, '/testbed/tests')\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.auth',\n        'django.contrib.contenttypes',\n        'migrations',\n        'migrations2',\n    ],\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    MIGRATION_MODULES={\"migrations\": \"migrations.test_migrations_squashed\"},\n    USE_TZ=True,\n)\ndjango.setup()\n\nfrom django.db import connection\nfrom django.db.migrations.executor import MigrationExecutor\nfrom django.db.migrations.recorder import MigrationRecorder\n\nexecutor = MigrationExecutor(connection)\nrecorder = MigrationRecorder(connection)\n\nprint(\"== Apply squashed migration ==\")\nexecutor.migrate([(\"migrations\", \"0001_squashed_0002\")])\nprint(\"applied after apply:\", sorted(recorder.applied_migrations()))\n\nexecutor.loader.build_graph()\nplan = executor.migration_plan([(\"migrations\", None)])\nprint(\"backwards plan:\", [(n.name, b) for n, b in plan])\n\nprint(\"== Unapply squashed migration ==\")\nexecutor.migrate([(\"migrations\", None)])\nprint(\"applied after unapply:\", sorted(recorder.applied_migrations()))\n\nprint()\nprint(\"BUG CHECK:\")\nstale = (\"migrations\", \"0001_squashed_0002\")\nif stale in recorder.applied_migrations():\n    print(\"  BUG PRESENT: squashed migration still recorded as applied after unapply\")\nelse:\n    print(\"  OK: squashed migration record removed\")\n\nprint()\nprint(\"== Next migrate run would do (should be empty if truly unapplied...) ==\")\nexecutor.loader.build_graph()\nplan = executor.migration_plan([(\"migrations\", \"0001_squashed_0002\")])\nprint(\"plan to leaf again:\", [(n.name, b) for n, b in plan])\nEOF\npython /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 377.6
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\npath = 'django/db/migrations/executor.py'\nsrc = open(path).read()\n\nold = \"\"\"        # For replacement migrations, record individual statuses\n        if migration.replaces:\n            for app_label, name in migration.replaces:\n                self.recorder.record_unapplied(app_label, name)\n        else:\n            self.recorder.record_unapplied(migration.app_label, migration.name)\n\"\"\"\nnew = \"\"\"        # For replacement migrations, record individual statuses\n        if migration.replaces:\n            for app_label, name in migration.replaces:\n                self.recorder.record_unapplied(app_label, name)\n        self.recorder.record_unapplied(migration.app_label, migration.name)\n\"\"\"\nassert src.count(old) == 1, \"pattern not found exactly once\"\nopen(path, 'w').write(src.replace(old, new))\nprint(\"patched OK\")\nEOF\nsed -n '/def unapply_migration/,/^    def check_replacements/p' django/db/migrations/executor.py",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /testbed && python /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 418.7
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations commands 2>&1 | tail -12",
+   "hit": null,
+   "lat_ms": 1774.1
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations commands 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR)\" ; echo \"exit: ${PIPESTATUS[0]}\"",
+   "hit": null,
+   "lat_ms": 1771.4
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py commands 2>&1 | grep -B5 -A25 \"ERROR: commands\" | head -60",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"test_labels\\|def get_tests\\|module_name\" tests/runtests.py | head -20",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n 130,180p tests/runtests.py",
+   "hit": null,
+   "lat_ms": 78.7
+  },
+  {
+   "cmd": "cd /testbed && ls tests/commands/ | head -5 && ls tests/commands/__init__.py 2>&1; ls tests/ | head -30",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR:|FAIL:)\" ",
+   "hit": null,
+   "lat_ms": 1772.4
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python tests/runtests.py --parallel 8 2>&1 | tail -20 > /tmp/full_test_output.txt; echo \"DONE rc=$?\" >> /tmp/full_test_output.txt' > /tmp/hermes_bg_proc_b564a267ab79.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_b564a267ab79.exit ) & echo $! > /tmp/hermes_bg_proc_b564a267ab79.pid && cat /tmp/hermes_bg_proc_b564a267ab79.pid",
+   "hit": null,
+   "lat_ms": 2170.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"squash\" tests/migrations/test_commands.py | head -20 && grep -rn \"unapply_migration\\|record_unapplied\" tests/migrations/*.py | head -20",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 163.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro2.py <<'EOF'\nimport sys\nsys.path.insert(0, '/testbed/tests')\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.auth',\n        'django.contrib.contenttypes',\n        'migrations',\n        'migrations2',\n    ],\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    MIGRATION_MODULES={\"migrations\": \"migrations.test_migrations_squashed\"},\n    USE_TZ=True,\n)\ndjango.setup()\n\nfrom django.db import connection\nfrom django.db.migrations.executor import MigrationExecutor\nfrom django.db.migrations.recorder import MigrationRecorder\n\ndef applied():\n    return sorted(MigrationRecorder(connection).applied_migrations())\n\nexecutor = MigrationExecutor(connection)\n\n# 1. Apply\nexecutor.migrate([(\"migrations\", \"0001_squashed_0002\")])\nassert applied() == [\n    ('migrations', '0001_initial'),\n    ('migrations', '0001_squashed_0002'),\n    ('migrations', '0002_second'),\n], applied()\nassert executor.loader.project_state(('migrations', '0001_squashed_0002')) is not None\nprint(\"1. apply: OK\")\n\n# 2. Unapply\nexecutor.loader.build_graph()\nexecutor.migrate([(\"migrations\", None)])\nassert applied() == [], applied()\nfrom django.db import connection as c\nwith c.cursor() as cur:\n    cur.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'migrations_%'\")\n    tables = [r[0] for r in cur.fetchall()]\nassert tables == [], tables\nprint(\"2. unapply: OK (no records, no tables)\")\n\n# 3. Re-apply after unapply (fresh state should work)\nexecutor.loader.build_graph()\nexecutor.migrate([(\"migrations\", \"0001_squashed_0002\")])\nassert applied() == [\n    ('migrations', '0001_initial'),\n    ('migrations', '0001_squashed_0002'),\n    ('migrations', '0002_second'),\n], applied()\nprint(\"3. re-apply: OK\")\n\n# 4. Plan to leaf is now empty (fully migrated)\nexecutor.loader.build_graph()\nassert executor.migration_plan([(\"migrations\", \"0001_squashed_0002\")]) == []\nprint(\"4. plan consistent after re-apply: OK\")\n\n# 5. Fake unapply\nexecutor.migrate([(\"migrations\", None)], fake=True)\nassert applied() == [], applied()\nwith c.cursor() as cur:\n    cur.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'migrations_%'\")\n    tables = [r[0] for r in cur.fetchall()]\nassert tables, \"fake unapply should keep tables\"\nprint(\"5. fake unapply: OK (no records, tables kept)\")\n\n# 6. Clean up\nexecutor.migrate([(\"migrations\", None)])\nassert applied() == []\nprint(\"6. cleanup: OK\")\nprint()\nprint(\"ALL CHECKS PASSED\")\nEOF\npython /tmp/repro2.py",
+   "hit": null,
+   "lat_ms": 378.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cd /testbed && ls tests/migrations/test_migrations_squashed_complex/ && cat > /tmp/repro3.py <<'EOF'\nimport sys\nsys.path.insert(0, '/testbed/tests')\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.auth',\n        'django.contrib.contenttypes',\n        'migrations',\n    ],\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    MIGRATION_MODULES={\"migrations\": \"migrations.test_migrations_squashed_complex\"},\n    USE_TZ=True,\n)\ndjango.setup()\n\nfrom django.db import connection\nfrom django.db.migrations.executor import MigrationExecutor\nfrom django.db.migrations.recorder import MigrationRecorder\n\ndef applied():\n    return sorted(MigrationRecorder(connection).applied_migrations())\n\nexecutor = MigrationExecutor(connection)\n# Apply the squashed migration (replaces 3,4,5; depends on 1,2)\nexecutor.migrate([(\"migrations\", \"3_squashed_5\")])\nprint(\"applied after apply:\", applied())\nexecutor.loader.build_graph()\nplan = executor.migration_plan([(\"migrations\", None)])\nprint(\"full backwards plan:\", [(n.name, b) for n, b in plan])\n# Unapply everything: should unapply squashed + 2 + 1\nexecutor.migrate([(\"migrations\", None)])\nprint(\"applied after unapply:\", applied())\nassert applied() == [], applied()\nprint(\"OK: complex squash unapply leaves no records\")\nEOF\npython /tmp/repro3.py",
+   "hit": null,
+   "lat_ms": 379.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro3b.py <<'EOF'\nimport sys\nsys.path.insert(0, '/testbed/tests')\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.auth',\n        'django.contrib.contenttypes',\n        'migrations',\n    ],\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    MIGRATION_MODULES={\"migrations\": \"migrations.test_migrations_squashed_complex\"},\n    USE_TZ=True,\n)\ndjango.setup()\n\nfrom django.db import connection\nfrom django.db.migrations.executor import MigrationExecutor\nfrom django.db.migrations.recorder import MigrationRecorder\n\ndef applied():\n    return sorted(MigrationRecorder(connection).applied_migrations())\n\nexecutor = MigrationExecutor(connection)\nexecutor.migrate([(\"migrations\", \"3_squashed_5\")])\nprint(\"applied after apply:\", applied())\nexecutor.loader.build_graph()\n# 3_squashed_5 is irreversible (RunPython noop) -> use fake unapply\nexecutor.migrate([(\"migrations\", None)], fake=True)\nprint(\"applied after fake unapply:\", applied())\nassert applied() == [], applied()\nprint(\"OK: complex squash fake-unapply leaves no records\")\nEOF\npython /tmp/repro3b.py",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 165.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_b564a267ab79.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_b564a267ab79.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/full_test_output.txt",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && (python tests/runtests.py --parallel 8 2>&1 | grep -E \"^(FAIL|ERROR):\" | sort > /tmp/patched_failures.txt; echo \"patched done\" >> /tmp/patched_failures.txt; git stash; python tests/runtests.py --parallel 8 2>&1 | grep -E \"^(FAIL|ERROR):\" | sort > /tmp/baseline_failures.txt; echo \"baseline done\" >> /tmp/baseline_failures.txt; git stash pop; echo ALLDONE) ' > /tmp/hermes_bg_proc_2a69018dc7d1.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_2a69018dc7d1.exit ) & echo $! > /tmp/hermes_bg_proc_2a69018dc7d1.pid && cat /tmp/hermes_bg_proc_2a69018dc7d1.pid",
+   "hit": null,
+   "lat_ms": 2177.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 81.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"squash\" docs/ref/migrations.txt | head -20",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cd /testbed && grep -rln \"squash\" docs/ | head && echo \"---\" && grep -rn \"unapply\\|un-apply\\|unapplied\" docs/topics/migrations.txt 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 165.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"squash\" docs/topics/migrations.txt | head -20",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 162.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 181.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 75.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 77.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 71.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 73.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 81.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 172.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 165.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 71.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 376.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2a69018dc7d1.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2a69018dc7d1.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "echo \"=== PATCHED failures ===\" && cat /tmp/patched_failures.txt && echo && echo \"=== BASELINE failures ===\" && cat /tmp/baseline_failures.txt && echo && echo \"=== DIFF ===\" && diff /tmp/baseline_failures.txt /tmp/patched_failures.txt && echo \"IDENTICAL failure sets\"",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cd /testbed && git status --short && git diff && python /tmp/repro.py 2>&1 | grep -A1 \"BUG CHECK\"",
+   "hit": null,
+   "lat_ms": 571.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-14500",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 39158.9,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

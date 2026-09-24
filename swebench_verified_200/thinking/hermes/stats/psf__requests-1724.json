@@ -1,0 +1,636 @@
+{
+ "calls": 116,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 59217.81349182129,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 127.8
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && echo '---' && for p in python python2 python2.7 python3; do command -v $p >/dev/null && $p --version 2>&1; done; echo '---'; ls -la",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -8 && git status --short | head; echo '---'; python -c \"import requests; print(requests.__version__, requests.__file__)\"; echo '---'; grep -n \"method.upper()\" requests/*.py",
+   "hit": null,
+   "lat_ms": 249.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n 240,330p requests/sessions.py",
+   "hit": null,
+   "lat_ms": 68.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 270,360p requests/models.py",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1,40p requests/models.py && echo '=====' && grep -n \"is_py2\\|text_type\\|string_types\" requests/models.py | head -20",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "timeout 20 pip download requests==2.2.0 --no-deps -d /tmp/reqver -q 2>&1 | tail -2; ls /tmp/reqver 2>/dev/null; timeout 15 curl -sI https://pypi.org 2>&1 | head -3",
+   "hit": null,
+   "lat_ms": 8022.4
+  },
+  {
+   "cmd": "timeout 15 curl -s -o /dev/null -w '%{http_code}\\n' https://pypi.org/simple/ ; echo \"curl_exit=$?\"; timeout 15 python -c \"import urllib2; print(urllib2.urlopen('https://pypi.org', timeout=10).getcode())\" 2>&1 | tail -1",
+   "hit": null,
+   "lat_ms": 164.4
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def to_native_string\" -A 20 requests/utils.py && echo '=====' && cat requests/compat.py | head -40",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"method\" test_requests.py | head -30; echo '====='; grep -n \"text_type\\|^bytes\\|builtin_str\" requests/compat.py | head",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n 80,130p requests/compat.py && echo '=====' && sed -n 415,445p test_requests.py",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class Request\\|def prepare\\|def __init__\" requests/models.py | head -20 && echo '=====' && sed -n 40,120p requests/models.py",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n 173,265p requests/models.py",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cat > /tmp/repro.py <<'EOF'\n# -*- coding: utf-8 -*-\n\"\"\"Reproduce: unicode method name + non-ascii upload body on py2.7.\"\"\"\nimport sys\nimport tempfile\n\nsys.path.insert(0, '/testbed')\n\nimport BaseHTTPServer\nimport threading\n\nimport requests\n\n\nclass Handler(BaseHTTPServer.BaseHTTPRequestHandler):\n    def do_POST(self):\n        n = int(self.headers.getheader('Content-Length') or 0)\n        body = self.rfile.read(n)\n        self.send_response(200)\n        self.send_header('Content-Type', 'application/octet-stream')\n        self.send_header('Content-Length', str(len(body)))\n        self.endheaders()\n        self.wfile.write(body)\n\n    def do_GET(self):\n        self.send_response(200)\n        self.send_header('Content-Length', '0')\n        self.endheaders()\n\n    def log_message(self, fmt, *args):\n        pass\n\n\nserver = BaseHTTPServer.HTTPServer(('127.0.0.1', 0), Handler)\nport = server.server_address[1]\nt = threading.Thread(target=server.serve_forever)\nt.daemon = True\nt.start()\n\n# Non-ascii bytes in the uploaded file (like /usr/bin/diff binary content).\ndata = 'h\\xe9llo w\\xf6rld \\xcf\\x28 binary \\xe2content'\nfd, tmp = tempfile.mkstemp()\nwith open(tmp, 'wb') as f:\n    f.write(data)\n\nurl = 'http://127.0.0.1:%d/upload' % port\n\n# 1) type check on a PreparedRequest\np = requests.PreparedRequest()\np.prepare(method=u'get', url=url)\nprint('prepared method type:', type(p.method).__name__, repr(p.method))\nassert type(p.method) is str, 'method must be a native string, got %r' % type(p.method)\n\n# 2) end-to-end with a unicode method (the reported crash)\nfiles = {'file': open(tmp, 'rb')}\nr = requests.request(method=u'POST', url=url, files=files)\nprint('status:', r.status_code, 'echoed len:', len(r.content))\nassert r.status_code == 200\nassert data in r.content, 'uploaded bytes were not echoed back'\n\n# 3) plain method still fine\nr = requests.request(method='POST', url=url, files={'file': open(tmp, 'rb')})\nassert r.status_code == 200 and data in r.content\n\nprint('OK')\nEOF\ncd /testbed && python /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 204.7
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\nsrc = open('/tmp/repro.py').read()\nsrc = src.replace(\"p.prepare(method=u'get', url=url)\", \"p.prepare(method=u'get', url=url, headers={}, hooks={})\")\nopen('/tmp/repro.py','w').write(src)\nEOF\npython /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 162.9
+  },
+  {
+   "cmd": "cd /testbed && sed 's/^assert type(p.method) is str.*/pass  # type check (see below)/' /tmp/repro.py > /tmp/repro2.py && python /tmp/repro2.py",
+   "hit": null,
+   "lat_ms": 168.9
+  },
+  {
+   "cmd": "cd /testbed && cat Makefile && sed -n 1,60p test_requests.py | grep -n \"def httpbin\\|import\\|class \" | head",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def httpbin\" -A 8 test_requests.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n 18,33p test_requests.py",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest --version 2>&1 | head -2 && (python -m pytest test_requests.py -x -q 2>&1 | tail -5; true)",
+   "hit": null,
+   "lat_ms": 969.1
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python -m pytest test_requests.py -q -rf 2>&1 | tail -40 > /tmp/baseline_py2.txt; echo DONE >> /tmp/baseline_py2.txt' > /tmp/hermes_bg_proc_66b6e9914639.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_66b6e9914639.exit ) & echo $! > /tmp/hermes_bg_proc_66b6e9914639.pid && cat /tmp/hermes_bg_proc_66b6e9914639.pid",
+   "hit": null,
+   "lat_ms": 2169.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_66b6e9914639.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_66b6e9914639.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_66b6e9914639.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cd /testbed && grep -o \"httpbin([\\\"']\" test_requests.py | sort | uniq -c | sort -rn && echo '=====' && grep -o \"httpbin(['\\\"][^)]*\" test_requests.py | sed \"s/httpbin(//;s/['\\\"]//g\" | sort -u | head -60",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"digest\" -B2 -A12 test_requests.py | head -50 && grep -n \"redirect\" -B2 -A10 test_requests.py | head -60",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"redirect-to\" -B4 -A8 test_requests.py | head -30; grep -n \"HTTPBIN\" test_requests.py | head; grep -n \"def test\" test_requests.py | wc -l",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1,120p requests/auth.py",
+   "hit": null,
+   "lat_ms": 127.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n 120,190p requests/auth.py",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n 565,600p test_requests.py && grep -n \"def test\" test_requests.py | sed -n 1,90p | grep -i \"head\\|gzip\\|html\\|user_agent\\|response_header\\|unicode\\|cookie\" ",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 130,142p test_requests.py; sed -n 213,218p test_requests.py; sed -n 377,405p test_requests.py; sed -n 508,530p test_requests.py; sed -n 687,712p test_requests.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n 405,414p test_requests.py && grep -n \"files\\]\\|'files'\\|\\\"files\\\"\" test_requests.py | head",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat > /tmp/mockhttpbin.py <<'EOF'\n# -*- coding: utf-8 -*-\n\"\"\"Minimal httpbin substitute (py2) for the requests test suite.\"\"\"\nimport gzip\nimport hashlib\nimport json\nimport re\nimport StringIO\nfrom base64 import b64decode\nfrom BaseHTTPServer import BaseHTTPRequestHandler, ThreadingHTTPServer\nfrom urllib import unquote\n\nPORT = 8089\n\n\ndef parse_query(qs):\n    \"\"\"{key: [values]} preserving order, unquoted.\"\"\"\n    d = {}\n    for pair in qs.split('&'):\n        if not pair:\n            continue\n        k, _, v = pair.partition('=')\n        d.setdefault(unquote(k), []).append(unquote(v))\n    return d\n\n\nclass Handler(BaseHTTPRequestHandler):\n    protocol_version = 'HTTP/1.1'\n    server_version = 'MockHTTPBin'\n\n    def log_message(self, fmt, *args):\n        pass\n\n    # ---------- helpers ----------\n    def _headers_dict(self):\n        d = {}\n        for k, v in self.headers.items():\n            d[k] = d[k] + ', ' + v if k in d else v\n        return d\n\n    def _read_body(self):\n        n = int(self.headers.getheader('Content-Length') or 0)\n        return self.rfile.read(n) if n > 0 else ''\n\n    def _send(self, code, body=b'', headers=None):\n        if isinstance(body, unicode):\n            body = body.encode('utf-8')\n        self.send_response(code)\n        for k, v in (headers or []):\n            self.send_header(k, v)\n        self.send_header('Content-Length', str(len(body)))\n        self.endheaders()\n        if self.command != 'HEAD' and body:\n            self.wfile.write(body)\n\n    def _json(self, obj, code=200, headers=()):\n        body = json.dumps(obj, sort_keys=True)\n        self._send(code, body, list(headers) + [('Content-Type', 'application/json')])\n\n    def _echo(self, body_bytes):\n        path, qs = (self.path.split('?', 1) + [''])[:2]\n        payload = {\n            'args': parse_query(qs),\n            'data': body_bytes,\n            'files': {},\n            'form': {},\n            'headers': self._headers_dict(),\n            'method': self.command,\n            'origin': '127.0.0.1',\n            'url': 'http://127.0.0.1:%d%s' % (PORT, self.path),\n            'json': None,\n        }\n        ct = self.headers.getheader('Content-Type') or ''\n        if ct.startswith('application/json'):\n            try:\n                payload['json'] = json.loads(body_bytes)\n            except ValueError:\n                pass\n        elif ct.startswith('application/x-www-form-urlencoded'):\n            payload['form'] = dict((k, v[0]) for k, v in parse_query(body_bytes).items())\n        return payload\n\n    def _digest(self, realm, user, pw, body):\n        auth = self.headers.getheader('Authorization') or ''\n        challenge = 'Digest realm=\"%s\", nonce=\"mocknonce123\", charset=UTF-8' % realm\n        if auth.startswith('Digest '):\n            params = dict(re.findall(r'(\\w+)=\"([^\"]*)\"', auth))\n            A1 = '%s:%s:%s' % (user, realm, pw)\n            A2 = '%s:%s' % (self.command, self.path)\n            HA1 = hashlib.md5(A1.encode('utf-8')).hexdigest()\n            HA2 = hashlib.md5(A2.encode('utf-8')).hexdigest()\n            if 'qop' in params:\n                h = '%s:%s:%s:%s:%s:%s' % (\n                    HA1, params['nonce'], params.get('nc', ''),\n                    params.get('cnonce', ''), params['qop'], HA2)\n            else:\n                h = '%s:%s:%s' % (HA1, params['nonce'], HA2)\n            if hashlib.md5(h.encode('utf-8')).hexdigest() == params.get('response'):\n                return self._json(self._echo(body), 200, [('Set-Cookie', 'fake=fake_value')])\n        return self._json({'message': 'Bad credentials'}, 401,\n                          [('WWW-Authenticate', challenge),\n                           ('Set-Cookie', 'fake=fake_value')])\n\n    # ---------- routing ----------\n    def _route(self):\n        body = self._read_body()\n        path = unquote(self.path.split('?', 1)[0])\n\n        m = re.match(r'^/basic-auth/([^/]+)/([^/]+)$', path)\n        if m:\n            auth = self.headers.getheader('Authorization') or ''\n            ok =",
+   "hit": null,
+   "lat_ms": 186.4
+  },
+  {
+   "cmd": "cd /tmp && (python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) && sleep 1 && python -c \"\nimport urllib2, json\nr = urllib2.urlopen('http://127.0.0.1:8089/get', timeout=5)\nprint(r.status, json.loads(r.read())['url'])\nr = urllib2.urlopen('http://127.0.0.1:8089/redirect/2', timeout=5)\nprint('redirect:', r.status)\n\"",
+   "hit": null,
+   "lat_ms": 1169.4
+  },
+  {
+   "cmd": "cat /tmp/mockhttpbin.log 2>/dev/null; ps aux | grep mockhttpbin | grep -v grep | head -3",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /tmp && python - <<'EOF'\nsrc = open('mockhttpbin.py').read()\nsrc = src.replace(\n    \"from BaseHTTPServer import BaseHTTPRequestHandler, ThreadingHTTPServer\",\n    \"from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer\\nimport socketserver\\n\\n\\nclass ThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):\\n    daemon_threads = True\")\nopen('mockhttpbin.py','w').write(src)\nEOF\n(python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) && sleep 1 && cat /tmp/mockhttpbin.log && python -c \"\nimport urllib2, json\nr = urllib2.urlopen('http://127.0.0.1:8089/get', timeout=5)\nprint(r.status, json.loads(r.read())['url'])\n\"",
+   "hit": null,
+   "lat_ms": 1171.5
+  },
+  {
+   "cmd": "cd /tmp && sed -i 's/import socketserver/import SocketServer/; s/socketserver.ThreadingMixIn/SocketServer.ThreadingMixIn/' mockhttpbin.py && (python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) && sleep 1 && cat /tmp/mockhttpbin.log; python -c \"\nimport urllib2, json\nr = urllib2.urlopen('http://127.0.0.1:8089/get', timeout=5)\nprint('GET /get ->', r.status, json.loads(r.read())['url'])\nimport urllib2\nclass R(urllib2.HTTPRedirectHandler):\n    pass\nop = urllib2.build_opener(R)\nr = op.open('http://127.0.0.1:8089/redirect/2', timeout=5)\nprint('redirect/2 ->', r.status, r.geturl())\n\"",
+   "hit": null,
+   "lat_ms": 1171.2
+  },
+  {
+   "cmd": "python -c \"\nimport urllib2, json\nr = urllib2.urlopen('http://127.0.0.1:8089/get', timeout=5)\nprint('GET /get ->', r.code, json.loads(r.read())['url'])\nr = urllib2.urlopen('http://127.0.0.1:8089/redirect/2', timeout=5)\nprint('redirect/2 ->', r.code, r.geturl())\nreq = urllib2.Request('http://127.0.0.1:8089/digest-auth/auth/user/pass')\ntry:\n    urllib2.urlopen(req, timeout=5)\nexcept urllib2.HTTPError as e:\n    print('digest noauth ->', e.code, dict(e.headers).get('Www-Authenticate'))\n    print('cookie on 401:', dict(e.headers).get('Set-Cookie'))\n\"",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "python - <<'EOF'\nimport urllib2\nr = urllib2.urlopen('http://127.0.0.1:8089/get', timeout=5)\nprint('status:', r.code)\nprint('headers:', dict(r.headers))\ndata = r.read()\nprint('body repr:', repr(data[:300]))\nEOF",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat /tmp/mockhttpbin.log; echo '---ps---'; ps aux | grep mockhttpbin | grep -v grep",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "sed -n 1,70p /tmp/mockhttpbin.py",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "python - <<'EOF'\nimport sys\nsys.path.insert(0, '/tmp')\nimport mockhttpbin\nprint('MRO:', [c.__name__ for c in mockhttpbin.Handler.__mro__])\nprint('has endheaders:', hasattr(mockhttpbin.Handler, 'endheaders'))\nimport BaseHTTPServer\nprint('base has endheaders:', hasattr(BaseHTTPServer.BaseHTTPRequestHandler, 'endheaders'))\nEOF",
+   "hit": null,
+   "lat_ms": 163.0
+  },
+  {
+   "cmd": "python - <<'EOF'\nfrom BaseHTTPServer import BaseHTTPRequestHandler\nfor attr in ('endheaders', 'send_response', 'send_header', '_send_output'):\n    print(attr, hasattr(BaseHTTPRequestHandler, attr))\nimport sys\nprint(sys.version)\nEOF",
+   "hit": null,
+   "lat_ms": 163.8
+  },
+  {
+   "cmd": "grep -n \"def endheaders\\|def _send_output\\|def send_response\\|def send_header\\|def finish\" /opt/miniconda3/envs/testbed/lib/python2.7/BaseHTTPServer.py; echo '---'; python -c \"import BaseHTTPServer; print(BaseHTTPServer.__file__)\"",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "sed -n 380,460p /opt/miniconda3/envs/testbed/lib/python2.7/BaseHTTPServer.py; echo '==='; ls -la /opt/miniconda3/envs/testbed/lib/python2.7/BaseHTTPServer*; wc -l /opt/miniconda3/envs/testbed/lib/python2.7/BaseHTTPServer.py",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "sed -i 's/self\\.endheaders()/self.end_headers()/' /tmp/mockhttpbin.py && pkill -f mockhttpbin.py; sleep 0.5; (python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) && sleep 1 && python - <<'EOF'\nimport urllib2, json\nr = urllib2.urlopen('http://127.0.0.1:8089/get', timeout=5)\nprint('GET /get ->', r.code, json.loads(r.read())['url'])\nr = urllib2.urlopen('http://127.0.0.1:8089/redirect/2', timeout=5)\nprint('redirect/2 ->', r.code, r.geturl())\nreq = urllib2.Request('http://127.0.0.1:8089/digest-auth/auth/user/pass')\ntry:\n    urllib2.urlopen(req, timeout=5)\nexcept urllib2.HTTPError as e:\n    h = dict(e.headers)\n    print('digest noauth ->', e.code, h.get('Www-Authenticate'), '| Set-Cookie:', h.get('Set-Cookie'))\nr = urllib2.urlopen('http://127.0.0.1:8089/cookies/set?foo=bar', timeout=5)\nprint('cookies/set ->', r.code, dict(r.headers).get('Set-Cookie'), json.loads(r.read()))\nr = urllib2.urlopen('http://127.0.0.1:8089/%C3%B8', timeout=5)\nprint('unicode path ->', r.code, json.loads(r.read())['url'])\nEOF",
+   "hit": null,
+   "lat_ms": 141.6
+  },
+  {
+   "cmd": "pkill -f \"[m]ockhttpbin.py\"; sleep 0.5; (python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) && sleep 1 && python - <<'EOF'\nimport urllib2, json\nr = urllib2.urlopen('http://127.0.0.1:8089/get', timeout=5)\nprint('GET /get ->', r.code, json.loads(r.read())['url'])\nr = urllib2.urlopen('http://127.0.0.1:8089/redirect/2', timeout=5)\nprint('redirect/2 ->', r.code, r.geturl())\nreq = urllib2.Request('http://127.0.0.1:8089/digest-auth/auth/user/pass')\ntry:\n    urllib2.urlopen(req, timeout=5)\nexcept urllib2.HTTPError as e:\n    h = dict(e.headers)\n    print('digest noauth ->', e.code, h.get('Www-Authenticate'), '| Set-Cookie:', h.get('Set-Cookie'))\nr = urllib2.urlopen('http://127.0.0.1:8089/cookies/set?foo=bar', timeout=5)\nprint('cookies/set ->', r.code, dict(r.headers).get('Set-Cookie'), json.loads(r.read()))\nr = urllib2.urlopen('http://127.0.0.1:8089/%C3%B8', timeout=5)\nprint('unicode path ->', r.code, json.loads(r.read())['url'])\nEOF",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "pkill -f \"[m]ockhttpbin.py\" && echo killed || echo none; sleep 0.5; ps aux | grep \"[m]ockhttpbin\" | head -3",
+   "hit": null,
+   "lat_ms": 778.0
+  },
+  {
+   "cmd": "(python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) ; sleep 1; cat /tmp/mockhttpbin.log; python - <<'EOF'\nimport urllib2, json\nr = urllib2.urlopen('http://127.0.0.1:8089/get', timeout=5)\nprint('GET /get ->', r.code, json.loads(r.read())['url'])\nr = urllib2.urlopen('http://127.0.0.1:8089/redirect/2', timeout=5)\nprint('redirect/2 ->', r.code, r.geturl())\nreq = urllib2.Request('http://127.0.0.1:8089/digest-auth/auth/user/pass')\ntry:\n    urllib2.urlopen(req, timeout=5)\nexcept urllib2.HTTPError as e:\n    h = dict(e.headers)\n    print('digest noauth ->', e.code, h.get('Www-Authenticate'), '| Set-Cookie:', h.get('Set-Cookie'))\nr = urllib2.urlopen('http://127.0.0.1:8089/cookies/set?foo=bar', timeout=5)\nprint('cookies/set ->', r.code, dict(r.headers).get('Set-Cookie'), json.loads(r.read()))\nr = urllib2.urlopen('http://127.0.0.1:8089/%C3%B8', timeout=5)\nprint('unicode path ->', r.code, json.loads(r.read())['url'])\nEOF",
+   "hit": null,
+   "lat_ms": 1177.3
+  },
+  {
+   "cmd": "curl -sv \"http://127.0.0.1:8089/cookies/set?foo=bar\" 2>&1 | head -20; echo '====='; curl -sv \"http://127.0.0.1:8089/digest-auth/auth/user/pass\" 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && HTTPBIN_URL=http://127.0.0.1:8089/ python -m pytest test_requests.py -q 2>&1 | tail -30 > /tmp/baseline_mock.txt; echo EXIT=$? >> /tmp/baseline_mock.txt' > /tmp/hermes_bg_proc_d64f27eddbb7.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_d64f27eddbb7.exit ) & echo $! > /tmp/hermes_bg_proc_d64f27eddbb7.pid && cat /tmp/hermes_bg_proc_d64f27eddbb7.pid",
+   "hit": null,
+   "lat_ms": 2177.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_d64f27eddbb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_d64f27eddbb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_d64f27eddbb7.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'requests/models.py'\nsrc = open(path).read()\nold = \"\"\"    def prepare_method(self, method):\n        \\\"\\\"\\\"Prepares the given HTTP method.\\\"\\\"\\\"\n        self.method = method\n        if self.method is not None:\n            self.method = self.method.upper()\n\"\"\"\nnew = \"\"\"    def prepare_method(self, method):\n        \\\"\\\"\\\"Prepares the given HTTP method.\\\"\\\"\\\"\n        self.method = method\n        if self.method is not None:\n            self.method = self.method.upper()\n\n            if is_py2 and isinstance(self.method, str):\n                # On Python 2, a unicode method would \"infect\" the request\n                # line with unicode, and httplib would then fail to append a\n                # non-ASCII request body (UnicodeDecodeError). Keep the\n                # method a byte string.\n                self.method = self.method.encode('utf-8')\n\"\"\"\nassert src.count(old) == 1, 'pattern not found exactly once'\nopen(path, 'w').write(src.replace(old, new))\nprint('patched')\nEOF\nsed -n 306,320p requests/models.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && python /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 168.7
+  },
+  {
+   "cmd": "sed -i 's/self\\.endheaders()/self.end_headers()/' /tmp/repro.py && cd /testbed && python /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 251.8
+  },
+  {
+   "cmd": "cat /tmp/baseline_mock.txt; echo '===================='; cat /tmp/baseline_py2.txt",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /testbed && HTTPBIN_URL=http://127.0.0.1:8089/ python -m pytest test_requests.py -q -rf 2>&1 | grep -E \"^FAILED|failed|passed\" | head -15; echo '=== mock log tracebacks ==='; grep -c \"Traceback\" /tmp/mockhttpbin.log; grep -B2 -A12 \"Traceback\" /tmp/mockhttpbin.log | tail -60",
+   "hit": null,
+   "lat_ms": 2370.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n 148,165p test_requests.py && grep -n \"test_mixed_case_scheme_acceptable\\|test_params_are_merged_case_sensitive\\|test_prepared_from_session\" -A 12 test_requests.py | head -50",
+   "hit": null,
+   "lat_ms": 150.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n 479,495p test_requests.py; HTTPBIN_URL=http://127.0.0.1:8089/ python -m pytest test_requests.py -q -rA -k \"cookie_removed_on_expire or cookie_sent_on_redirect or prepared_from_session\" 2>&1 | grep -E \"Error|assert|Error:|E  |FAILED|passed|failed\" | head -30",
+   "hit": null,
+   "lat_ms": 774.2
+  },
+  {
+   "cmd": "curl -s -H \"Dummy-Auth-Test: hello\" \"http://127.0.0.1:8089/headers\"; echo; echo '---'; grep -n \"is_ipaddress\\|_is_domain_ip\\|def domain_return_ok\" -A 6 /opt/miniconda3/envs/testbed/lib/python2.7/http/cookiejar.py | head -30",
+   "hit": null,
+   "lat_ms": 127.0
+  },
+  {
+   "cmd": "python - <<'EOF'\nimport socket\ns = socket.create_connection(('127.0.0.1', 8089), timeout=5)\ns.sendall(b'GET /headers HTTP/1.1\\r\\nHost: 127.0.0.1:8089\\r\\nDummy-Auth-Test: hello\\r\\nX-Case-Check: Val\\r\\n\\r\\n')\nimport time; time.sleep(0.3)\ndata = b''\ns.settimeout(1)\ntry:\n    while True:\n        chunk = s.recv(4096)\n        if not chunk: break\n        data += chunk\nexcept socket.error:\n    pass\nprint(data)\nEOF",
+   "hit": null,
+   "lat_ms": 1574.9
+  },
+  {
+   "cmd": "grep -n \"def parse_headers\" -A 10 /opt/miniconda3/envs/testbed/lib/python2.7/BaseHTTPServer.py",
+   "hit": null,
+   "lat_ms": 73.5
+  },
+  {
+   "cmd": "grep -n \"headers\\|parse_request\\|def handle_one_request\" /opt/miniconda3/envs/testbed/lib/python2.7/BaseHTTPServer.py | head -20",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cat > /tmp/mockhttpbin.py <<'EOF'\n# -*- coding: utf-8 -*-\n\"\"\"Minimal httpbin substitute (py2) for the requests test suite.\n\nNote: this Anaconda build's BaseHTTPServer uses mimetools.Message which\nlowercases header names, so we implement parse_request() ourselves to\npreserve the original header case.\n\"\"\"\nimport gzip\nimport hashlib\nimport json\nimport re\nimport StringIO\nimport SocketServer\nfrom base64 import b64decode\nfrom BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer\nfrom email import Message\nfrom urllib import unquote\n\n\nclass ThreadingHTTPServer(SocketServer.ThreadingMixIn, HTTPServer):\n    daemon_threads = True\n\n\nPORT = 8089\n\n\ndef parse_query(qs):\n    \"\"\"{key: [values]} preserving order, unquoted.\"\"\"\n    d = {}\n    for pair in qs.split('&'):\n        if not pair:\n            continue\n        k, _, v = pair.partition('=')\n        d.setdefault(unquote(k), []).append(unquote(v))\n    return d\n\n\ndef native(s):\n    \"\"\"Decode a bytestring to unicode, preferring utf-8.\"\"\"\n    if isinstance(s, unicode):\n        return s\n    try:\n        return s.decode('utf-8')\n    except UnicodeDecodeError:\n        return s.decode('latin-1')\n\n\nclass Handler(BaseHTTPRequestHandler):\n    protocol_version = 'HTTP/1.1'\n    server_version = 'MockHTTPBin'\n\n    def log_message(self, fmt, *args):\n        pass\n\n    # ---------- request parsing (case-preserving headers) ----------\n    def parse_request(self):\n        self.request_version = 'HTTP/0.9'\n        self.command = None\n        self.path = None\n        self.close_connection = 1\n        requestline = self.rfile.readline(65537)\n        if len(requestline) > 65536:\n            self.requestline = requestline.strip()\n            self.send_error(414)\n            return False\n        if not requestline:\n            self.close_connection = True\n            return False\n        self.requestline = requestline.strip()\n        try:\n            words = self.requestline.split()\n            if len(words) == 3:\n                self.command, self.path, reqver = words\n            elif len(words) == 2:\n                self.command, self.path = words\n                reqver = 'HTTP/0.9'\n            else:\n                self.send_error(400, \"Bad request syntax\")\n                return False\n            if reqver != 'HTTP/0.9':\n                self.request_version = reqver\n        except ValueError:\n            self.send_error(400, \"Bad request syntax\")\n            return False\n        if self.protocol_version >= 'HTTP/1.1' and self.request_version != 'HTTP/0.9':\n            self.close_connection = 0\n        self.headers = Message()\n        if self.request_version != 'HTTP/0.9':\n            while True:\n                line = self.rfile.readline(65537)\n                if not line:\n                    line = '\\r\\n'\n                if line in ('\\r\\n', '\\n', ''):\n                    break\n                line = line.rstrip('\\r\\n')\n                if line[:1] in (' ', '\\t'):\n                    # folded continuation of previous header\n                    keys = self.headers._headers.keys()\n                    if keys:\n                        k = keys[-1]\n                        self.headers._headers[k] += ' ' + line.strip()\n                else:\n                    k, _, v = line.partition(':')\n                    self.headers.addheader(k, v.strip())\n            conntype = self.headers.get('Connection', '')\n            if conntype.lower() == 'close':\n                self.close_connection = 1\n            elif conntype.lower() == 'keep-alive':\n                self.close_connection = 0\n        return True\n\n    # ---------- helpers ----------\n    def _headers_dict(self):\n        d = {}\n        for k, v in self.headers.items():\n            d[k] = d[k] + ', ' + native(v) if k in d else native(v)\n        return d\n\n    def _read_body(self):\n        n = int(self.headers.getheader('Content-Length') or 0)\n        return self.rfile.read(n) if n > 0 else ''\n\n    def _send(self, code, body=b'', headers=None):\n        if isinstance(bo",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "grep -q httpbin.local /etc/hosts || echo \"127.0.0.1 httpbin.local\" >> /etc/hosts; cat /etc/hosts | tail -2",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "kill $(ps aux | grep \"[p]ython /tmp/mockhttpbin.py\" | awk '{print $2}') 2>/dev/null; sleep 0.5; ps aux | grep \"[m]ockhttpbin\" | wc -l",
+   "hit": null,
+   "lat_ms": 770.4
+  },
+  {
+   "cmd": "grep -q httpbin.local /etc/hosts || echo \"127.0.0.1 httpbin.local\" >> /etc/hosts; cat /etc/hosts | tail -2",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "ps aux | grep \"[m]ockhttpbin\"",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "(python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) ; sleep 1; curl -s -H \"Dummy-Auth-Test: hello\" \"http://httpbin.local:8089/headers\"; echo",
+   "hit": null,
+   "lat_ms": 1172.9
+  },
+  {
+   "cmd": "cat /tmp/mockhttpbin.log; ps aux | grep \"[m]ockhttpbin\" | head -2; python - <<'EOF'\nimport socket\ns = socket.create_connection(('127.0.0.1', 8089), timeout=3)\ns.sendall(b'GET /headers HTTP/1.1\\r\\nHost: httpbin.local:8089\\r\\nDummy-Auth-Test: hello\\r\\n\\r\\n')\ns.settimeout(2)\ndata = b''\ntry:\n    while True:\n        c = s.recv(4096)\n        if not c: break\n        data += c\nexcept socket.error:\n    pass\nprint(repr(data[:600]))\nEOF",
+   "hit": null,
+   "lat_ms": 191.2
+  },
+  {
+   "cmd": "cd /tmp && sed -i 's/^from email import Message$/from email.message import Message/' mockhttpbin.py && kill $(ps aux | grep \"[p]ython /tmp/mockhttpbin.py\" | awk '{print $2}') 2>/dev/null; sleep 0.5; (python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) ; sleep 1; curl -s -H \"Dummy-Auth-Test: hello\" \"http://httpbin.local:8089/headers\"; echo; cat /tmp/mockhttpbin.log | head -5",
+   "hit": null,
+   "lat_ms": 78.3
+  },
+  {
+   "cmd": "kill $(ps aux | grep \"[p]ython /tmp/mockhttpbin.py\" | awk '{print $2}') 2>/dev/null; sleep 0.5; ps aux | grep \"[m]ockhttpbin\" | wc -l",
+   "hit": null,
+   "lat_ms": 817.2
+  },
+  {
+   "cmd": "ps aux | grep \"[m]ockhttpbin\" || echo CLEAN",
+   "hit": null,
+   "lat_ms": 251.0
+  },
+  {
+   "cmd": "(python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) ; sleep 1; curl -s -H \"Dummy-Auth-Test: hello\" \"http://httpbin.local:8089/headers\"; echo; head -5 /tmp/mockhttpbin.log",
+   "hit": null,
+   "lat_ms": 1179.8
+  },
+  {
+   "cmd": "python - <<'EOF'\nimport socket\ntry:\n    s = socket.create_connection(('127.0.0.1', 8089), timeout=3)\n    s.sendall(b'GET /headers HTTP/1.1\\r\\nHost: httpbin.local:8089\\r\\nDummy-Auth-Test: hello\\r\\n\\r\\n')\n    s.settimeout(2)\n    data = b''\n    try:\n        while True:\n            c = s.recv(4096)\n            if not c: break\n            data += c\n    except socket.error:\n        pass\n    print(repr(data[:800]))\nexcept Exception as e:\n    print('connect error:', e)\nEOF\ncat /tmp/mockhttpbin.log | head -20",
+   "hit": null,
+   "lat_ms": 170.0
+  },
+  {
+   "cmd": "sed -n 232,345p /opt/miniconda3/envs/testbed/lib/python2.7/BaseHTTPServer.py",
+   "hit": null,
+   "lat_ms": 120.4
+  },
+  {
+   "cmd": "cd /tmp && python - <<'PYEOF'\nsrc = open('mockhttpbin.py').read()\nold = \"\"\"    # ---------- request parsing (case-preserving headers) ----------\n    def parse_request(self):\n        self.request_version = 'HTTP/0.9'\n        self.command = None\n        self.path = None\n        self.close_connection = 1\n        requestline = self.rfile.readline(65537)\n        if len(requestline) > 65536:\n            self.requestline = requestline.strip()\n            self.send_error(414)\n            return False\n        if not requestline:\n            self.close_connection = True\n            return False\n        self.requestline = requestline.strip()\n        try:\n            words = self.requestline.split()\n            if len(words) == 3:\n                self.command, self.path, reqver = words\n            elif len(words) == 2:\n                self.command, self.path = words\n                reqver = 'HTTP/0.9'\n            else:\n                self.send_error(400, \"Bad request syntax\")\n                return False\n            if reqver != 'HTTP/0.9':\n                self.request_version = reqver\n        except ValueError:\n            self.send_error(400, \"Bad request syntax\")\n            return False\n        if self.protocol_version >= 'HTTP/1.1' and self.request_version != 'HTTP/0.9':\n            self.close_connection = 0\n        self.headers = Message()\n        if self.request_version != 'HTTP/0.9':\n            while True:\n                line = self.rfile.readline(65537)\n                if not line:\n                    line = '\\\\r\\\\n'\n                if line in ('\\\\r\\\\n', '\\\\n', ''):\n                    break\n                line = line.rstrip('\\\\r\\\\n')\n                if line[:1] in (' ', '\\\\t'):\n                    # folded continuation of previous header\n                    keys = self.headers._headers.keys()\n                    if keys:\n                        k = keys[-1]\n                        self.headers._headers[k] += ' ' + line.strip()\n                else:\n                    k, _, v = line.partition(':')\n                    self.headers.addheader(k, v.strip())\n            conntype = self.headers.get('Connection', '')\n            if conntype.lower() == 'close':\n                self.close_connection = 1\n            elif conntype.lower() == 'keep-alive':\n                self.close_connection = 0\n        return True\n\"\"\"\nnew = \"\"\"    # ---------- request parsing (case-preserving headers) ----------\n    # NOTE: in this Anaconda build handle_one_request() already reads\n    # self.raw_requestline before calling parse_request(); only the\n    # headers are left on the stream (which the stock parser would read\n    # via mimetools.Message, lowercasing all header names).\n    def parse_request(self):\n        self.close_connection = 1\n        requestline = self.raw_requestline.rstrip('\\\\r\\\\n')\n        self.requestline = requestline\n        words = requestline.split()\n        if len(words) == 3:\n            command, path, version = words\n            if version[:5] != 'HTTP/':\n                self.send_error(400, \"Bad request version (%r)\" % version)\n                return False\n            try:\n                vn = version.split('/', 1)[1].split('.')\n                version_number = (int(vn[0]), int(vn[1]))\n            except (ValueError, IndexError):\n                self.send_error(400, \"Bad request version (%r)\" % version)\n                return False\n            self.request_version = version\n            if version_number >= (1, 1) and self.protocol_version >= 'HTTP/1.1':\n                self.close_connection = 0\n        elif len(words) == 2:\n            command, path = words\n            self.request_version = 'HTTP/0.9'\n            self.close_connection = 1\n        elif not words:\n            return False\n        else:\n            self.send_error(400, \"Bad request syntax (%r)\" % requestline)\n            return False\n        self.command, self.path = command, path\n        self.headers = Message()\n        if self.request_version != 'HTTP/0.9':\n ",
+   "hit": null,
+   "lat_ms": 121.6
+  },
+  {
+   "cmd": "kill $(ps aux | grep \"[p]ython /tmp/mockhttpbin.py\" | awk '{print $2}') 2>/dev/null; sleep 0.5; ps aux | grep \"[m]ockhttpbin\" | wc -l",
+   "hit": null,
+   "lat_ms": 772.5
+  },
+  {
+   "cmd": "ps aux | grep \"[m]ockhttpbin\" || echo CLEAN",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "(python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) ; sleep 1; curl -s -H \"Dummy-Auth-Test: hello\" \"http://httpbin.local:8089/headers\"; echo; head -5 /tmp/mockhttpbin.log",
+   "hit": null,
+   "lat_ms": 1171.7
+  },
+  {
+   "cmd": "cat /tmp/mockhttpbin.log",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "python - <<'EOF'\nfrom email.message import Message\nprint([m for m in dir(Message) if not m.startswith('__')])\nm = Message()\nm._headers['My-Header'] = 'val'\nprint('items:', m.items())\nprint('get lower:', m.get('my-header'))\nEOF",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /tmp && python - <<'PYEOF'\nsrc = open('mockhttpbin.py').read()\nold = \"\"\"                if line[:1] in (' ', '\\\\t'):\n                    keys = self.headers._headers.keys()\n                    if keys:\n                        self.headers._headers[keys[-1]] += ' ' + line.strip()\n                else:\n                    k, _, v = line.partition(':')\n                    self.headers.addheader(k, v.strip())\n\"\"\"\nnew = \"\"\"                if line[:1] in (' ', '\\\\t'):\n                    if self.headers._headers:\n                        self.headers._headers[-1][1] += ' ' + line.strip()\n                else:\n                    k, _, v = line.partition(':')\n                    self.headers.add_header(k, v.strip())\n\"\"\"\nassert src.count(old) == 1, 'block not found'\nopen('mockhttpbin.py', 'w').write(src.replace(old, new))\nprint('ok')\nPYEOF\npython -c \"import py_compile; py_compile.compile('/tmp/mockhttpbin.py', doraise=True); print('compiles ok')\"",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "kill $(ps aux | grep \"[p]ython /tmp/mockhttpbin.py\" | awk '{print $2}') 2>/dev/null; sleep 0.5; ps aux | grep \"[m]ockhttpbin\" | wc -l",
+   "hit": null,
+   "lat_ms": 1130.1
+  },
+  {
+   "cmd": "ps aux | grep \"[m]ockhttpbin\" || echo CLEAN",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "(python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) ; sleep 1; echo \"--- headers echo:\"; curl -s -H \"Dummy-Auth-Test: hello\" \"http://httpbin.local:8089/headers\"; echo; echo \"--- log:\"; head -5 /tmp/mockhttpbin.log",
+   "hit": null,
+   "lat_ms": 1177.0
+  },
+  {
+   "cmd": "tail -12 /tmp/mockhttpbin.log",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /tmp && sed -i \"s/self\\.headers\\.getheader(/self.headers.get(/g\" mockhttpbin.py && grep -n \"headers.get(\" mockhttpbin.py | head && python -c \"import py_compile; py_compile.compile('/tmp/mockhttpbin.py', doraise=True); print('compiles ok')\"",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "kill $(ps aux | grep \"[p]ython /tmp/mockhttpbin.py\" | awk '{print $2}') 2>/dev/null; sleep 0.6; ps aux | grep \"[m]ockhttpbin\" | wc -l",
+   "hit": null,
+   "lat_ms": 772.2
+  },
+  {
+   "cmd": "ps aux | grep \"[m]ockhttpbin\" || echo CLEAN",
+   "hit": null,
+   "lat_ms": 149.2
+  },
+  {
+   "cmd": "(python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) ; sleep 1; echo \"=== headers echo (case):\"; curl -s -H \"Dummy-Auth-Test: hello\" \"http://httpbin.local:8089/headers\"; echo; echo \"=== get with args:\"; curl -s \"http://httpbin.local:8089/get?foo=bar&FOO=baz\"; echo; echo \"=== post binary body:\"; printf '\\xff\\xfe' | curl -s -X POST --data-binary @- -H \"Content-Type: application/octet-stream\" \"http://httpbin.local:8089/post\"; echo; echo \"=== redirect chain:\"; curl -sL \"http://httpbin.local:8089/redirect/2\" | head -c 200; echo; echo \"=== gzip:\"; curl -s --compressed \"http://httpbin.local:8089/gzip\" | head -c 150; echo; echo \"=== digest 401:\"; curl -s -i \"http://httpbin.local:8089/digest-auth/auth/user/pass\" | head -8; echo \"=== log errors:\"; grep -c Traceback /tmp/mockhttpbin.log",
+   "hit": null,
+   "lat_ms": 1369.8
+  },
+  {
+   "cmd": "cd /testbed && HTTPBIN_URL=http://httpbin.local:8089/ python -m pytest test_requests.py -q -rf 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 1973.3
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport requests\ns = requests.session()\nr = s.get('http://httpbin.local:8089/cookies/set?foo=bar')\nprint('set ok:', r.status_code, 'jar:', dict(s.cookies))\nr = s.get('http://httpbin.local:8089/get')\nprint('get headers:', r.json()['headers'].get('Cookie'))\n\ns2 = requests.session()\ns2.get('http://httpbin.local:8089/cookies/set?foo=bar')\nr = s2.get('http://httpbin.local:8089/redirect/1')\nprint('final url:', r.url, 'status:', r.status_code)\nprint('final Cookie header:', r.json()['headers'].get('Cookie'))\n\ns3 = requests.session()\ns3.get('http://httpbin.local:8089/cookies/set?foo=bar')\nprint('jar before expire:', [ (c.name, c.value, c.domain, c.path) for c in s3.cookies ])\nr = s3.get('http://httpbin.local:8089/response-headers',\n            params={'Set-Cookie': 'foo=deleted; expires=Thu, 01-Jan-1970 00:00:01 GMT'})\nprint('expire resp:', r.status_code)\ntry:\n    print('jar after expire:', [ (c.name, c.value, c.domain, c.path) for c in s3.cookies ])\n    print(\"'foo' in jar:\", 'foo' in s3.cookies)\nexcept Exception as e:\n    print('ERROR accessing jar:', type(e).__name__, e)\nEOF",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /tmp && python - <<'PYEOF'\nsrc = open('mockhttpbin.py').read()\nold = \"            hdrs = [('Set-Cookie', '%s=%s' % (k, vs[-1])) for k, vs in jar.items()]\"\nnew = \"            hdrs = [('Set-Cookie', '%s=%s; Path=/' % (k, vs[-1])) for k, vs in jar.items()]\"\nassert src.count(old) == 1\nsrc = src.replace(old, new)\nold2 = \"return self._json(self._echo(body), 200, [('Set-Cookie', 'fake=fake_value')])\"\nnew2 = \"return self._json(self._echo(body), 200, [('Set-Cookie', 'fake=fake_value; Path=/')])\"\nassert src.count(old2) == 1\nsrc = src.replace(old2, new2)\nold3 = \"\"\"        return self._json({'message': 'Bad credentials'}, 401,\n                          [('WWW-Authenticate', challenge),\n                           ('Set-Cookie', 'fake=fake_value')])\"\"\"\nnew3 = \"\"\"        return self._json({'message': 'Bad credentials'}, 401,\n                          [('WWW-Authenticate', challenge),\n                           ('Set-Cookie', 'fake=fake_value; Path=/')])\"\"\"\nassert src.count(old3) == 1\nsrc = src.replace(old3, new3)\nopen('mockhttpbin.py', 'w').write(src)\nprint('ok')\nPYEOF\npython -c \"import py_compile; py_compile.compile('/tmp/mockhttpbin.py', doraise=True); print('compiles ok')\"",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill $(ps aux | grep \"[p]ython /tmp/mockhttpbin.py\" | awk '{print $2}') 2>/dev/null; sleep 0.6; ps aux | grep \"[m]ockhttpbin\" | wc -l",
+   "hit": null,
+   "lat_ms": 773.2
+  },
+  {
+   "cmd": "ps aux | grep \"[m]ockhttpbin\" || echo CLEAN",
+   "hit": null,
+   "lat_ms": 144.6
+  },
+  {
+   "cmd": "(python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) ; sleep 1; curl -s -o /dev/null -w \"mock alive: %{http_code}\\n\" \"http://httpbin.local:8089/get\"",
+   "hit": null,
+   "lat_ms": 1223.2
+  },
+  {
+   "cmd": "cd /testbed && HTTPBIN_URL=http://httpbin.local:8089/ python -m pytest test_requests.py -q -rf 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 1977.3
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport requests\ns = requests.session()\ns.get('http://httpbin.local:8089/cookies/set?foo=bar')\nprint('jar before:', [(c.name, c.value, c.domain, c.path, c.expires) for c in s.cookies])\nr = s.get('http://httpbin.local:8089/response-headers',\n          params={'Set-Cookie': 'foo=deleted; expires=Thu, 01-Jan-1970 00:00:01 GMT'})\nprint('resp:', r.status_code, 'set-cookie hdr:', r.headers.get('Set-Cookie'))\nprint('jar after:', [(c.name, c.value, c.domain, c.path, c.expires) for c in s.cookies])\nprint(\"'foo' in jar:\", 'foo' in s.cookies)\nEOF",
+   "hit": null,
+   "lat_ms": 256.4
+  },
+  {
+   "cmd": "cd /tmp && python - <<'PYEOF'\nsrc = open('mockhttpbin.py').read()\nold = \"from urllib import unquote\"\nnew = \"from urllib import unquote_plus\"\nassert src.count(old) == 1\nsrc = src.replace(old, new)\nold2 = \"        d.setdefault(unquote(k), []).append(unquote(v))\"\nnew2 = \"        d.setdefault(unquote_plus(k), []).append(unquote_plus(v))\"\nassert src.count(old2) == 1\nsrc = src.replace(old2, new2)\nopen('mockhttpbin.py', 'w').write(src)\nprint('ok')\nPYEOF\npython -c \"import py_compile; py_compile.compile('/tmp/mockhttpbin.py', doraise=True); print('compiles ok')\"",
+   "hit": null,
+   "lat_ms": 113.2
+  },
+  {
+   "cmd": "cd /tmp && sed -i 's/^from urllib import unquote_plus$/from urllib import unquote, unquote_plus/' mockhttpbin.py && grep -n \"unquote\" mockhttpbin.py | head && python -c \"import py_compile; py_compile.compile('/tmp/mockhttpbin.py', doraise=True); print('compiles ok')\"",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "kill $(ps aux | grep \"[p]ython /tmp/mockhttpbin.py\" | awk '{print $2}') 2>/dev/null; sleep 0.6; ps aux | grep \"[m]ockhttpbin\" | wc -l",
+   "hit": null,
+   "lat_ms": 770.4
+  },
+  {
+   "cmd": "ps aux | grep \"[m]ockhttpbin\" || echo CLEAN",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "(python /tmp/mockhttpbin.py > /tmp/mockhttpbin.log 2>&1 &) ; sleep 1; cd /testbed && HTTPBIN_URL=http://httpbin.local:8089/ python -m pytest test_requests.py -q -rf 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 2973.5
+  },
+  {
+   "cmd": "cd /testbed && HTTPBIN_URL=http://httpbin.local:8089/ python -m pytest test_requests.py::RequestsTestCase::test_mixed_case_scheme_acceptable -q 2>&1 | grep -E \"assert|Error|failed|passed\" | head -5",
+   "hit": null,
+   "lat_ms": 771.3
+  },
+  {
+   "cmd": "cd /testbed && git stash && git diff HEAD --stat | head -3; grep -n \"is_py2 and isinstance\" requests/models.py | head -2; echo \"patch state: $(grep -c 'encode..utf-8..' requests/models.py 2>/dev/null || true)\"; sed -n 306,312p requests/models.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && HTTPBIN_URL=http://httpbin.local:8089/ python -m pytest test_requests.py -q -rf 2>&1 | tail -4; echo '=== repro on unfixed code ==='; python /tmp/repro.py 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 1973.5
+  },
+  {
+   "cmd": "cd /testbed && git stash pop && sed -n 306,318p requests/models.py && git diff --stat",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && HTTPBIN_URL=http://httpbin.local:8089/ python -m pytest test_requests.py -q -rf 2>&1 | tail -3; echo '=== repro (fixed) ==='; python /tmp/repro.py 2>&1 | grep -v \"Exception in thread\" | tail -4",
+   "hit": null,
+   "lat_ms": 1972.8
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"import requests\" 2>&1 | tail -2",
+   "hit": null,
+   "lat_ms": 165.6
+  },
+  {
+   "cmd": "python3 - <<'EOF'\n# Simulate the fixed prepare_method branch on Python 3:\n# in requests.compat, on py3: is_py2=False, str=str\nis_py2 = False\nstr_ = str  # requests.compat.str on py3 is str\n\ndef prepare_method(self, method):\n    self.method = method\n    if self.method is not None:\n        self.method = self.method.upper()\n        if is_py2 and isinstance(self.method, str_):\n            self.method = self.method.encode('utf-8')\n\nclass P: pass\np = P(); prepare_method(p, 'get')\nassert p.method == 'GET' and type(p.method) is str\np = P(); prepare_method(p, None)\nassert p.method is None\nprint('py3 simulation: no-op, method stays str  ->', repr(p.method))\nEOF",
+   "hit": null,
+   "lat_ms": 119.7
+  },
+  {
+   "cmd": "kill $(ps aux | grep \"[p]ython /tmp/mockhttpbin.py\" | awk '{print $2}') 2>/dev/null; sleep 0.3; cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 381.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "psf__requests-1724",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 59217.8,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

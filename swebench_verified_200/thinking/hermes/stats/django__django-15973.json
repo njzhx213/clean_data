@@ -1,0 +1,536 @@
+{
+ "calls": 96,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 39695.71852684021,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 4,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && python3 --version && python3 -m pip --version 2>&1 | head -2",
+   "hit": null,
+   "lat_ms": 377.0
+  },
+  {
+   "cmd": "mkdir -p /tmp/djbug && cd /tmp/djbug && python3 -m venv v41 && v41/bin/pip install -q --disable-pip-version-check \"Django>=4.1,<4.2\" && v41/bin/python -c \"import django; print(django.get_version())\"",
+   "hit": null,
+   "lat_ms": 10573.9
+  },
+  {
+   "cmd": "ls /usr/bin/python* /usr/local/bin/python* 2>/dev/null; which python3.10 python3.11 python3.12 2>/dev/null; conda env list 2>/dev/null",
+   "hit": null,
+   "lat_ms": 769.4
+  },
+  {
+   "cmd": "env | grep -iE 'proxy|pip|index' ; cat /etc/pip.conf 2>/dev/null; cat ~/.pip/pip.conf 2>/dev/null; cat ~/.config/pip/pip.conf 2>/dev/null; echo ---; python -c \"import django; print('testbed django:', django.get_version())\" 2>&1; /usr/bin/python3.10 -c \"import django; print('py310 django:', django.get_version())\" 2>&1 | head -1",
+   "hit": null,
+   "lat_ms": 163.7
+  },
+  {
+   "cmd": "curl -sS -m 10 -o /dev/null -w '%{http_code}\\n' https://pypi.org/simple/ 2>&1; getent hosts pypi.org 2>&1; echo \"dns done\"",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "cd /testbed && ls -la | head -30 && git log --oneline -3 2>/dev/null && git describe --tags 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,20p' django/__init__.py && git log --oneline | wc -l && git log --oneline -5 -- django/__init__.py",
+   "hit": null,
+   "lat_ms": 385.4
+  },
+  {
+   "cmd": "cd /testbed && git show --stat eb7d8bd525 | head -30; python -c \"import django; print(django.__file__)\"",
+   "hit": null,
+   "lat_ms": 169.4
+  },
+  {
+   "cmd": "cd /tmp && python -c \"import django; print(django.__file__, django.get_version())\"",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /tmp/djbug && python - <<'PYEOF'\nimport os, pathlib\n\nbase = pathlib.Path(\"/tmp/djbug/repro\")\n\nfiles = {}\n\nfiles[\"manage.py\"] = '''#!/usr/bin/env python\nimport os\nimport sys\n\n\ndef main():\n    os.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"settings\")\n    from django.core.management import execute_from_command_line\n    execute_from_command_line(sys.argv)\n\n\nif __name__ == \"__main__\":\n    main()\n'''\n\nfiles[\"settings.py\"] = '''SECRET_KEY = \"insecur...True\nINSTALLED_APPS = [\n    \"django.contrib.contenttypes\",\n    \"django.contrib.auth\",\n    \"fonte\",\n    \"variavel\",\n    \"fonte_variavel\",\n]\nDATABASES = {\n    \"default\": {\n        \"ENGINE\": \"django.db.backends.sqlite3\",\n        \"NAME\": \"db.sqlite3\",\n    }\n}\nDEFAULT_AUTO_FIELD = \"django.db.models.BigAutoField\"\nUSE_TZ = True\n'''\n\nfiles[\"fonte/models.py\"] = '''from django.db import models\n\n\nclass FonteModel(models.Model):\n    nome = models.TextField(unique=True)\n    descricao = models.TextField()\n    data_inicial = models.DateField()\n    data_final = models.DateField(blank=True, null=True)\n    variaveis = models.ManyToManyField(\n        \"variavel.VariavelModel\", through=\"fonte_variavel.FonteVariavelModel\"\n    )\n\n    def __str__(self):\n        return self.nome\n\n    class Meta:\n        db_table = \"fontes\"\n        verbose_name = \"Fonte\"\n        verbose_name_plural = \"Fontes\"\n'''\n\nfiles[\"variavel/models.py\"] = '''from django.db import models\n\n\nclass VariavelModel(models.Model):\n    nome = models.TextField(unique=True)\n    descricao = models.TextField()\n\n    class Meta:\n        db_table = \"variaveis\"\n        verbose_name = \"Vari\u00e1vel\"\n        verbose_name_plural = \"Vari\u00e1veis\"\n'''\n\nfiles[\"fonte_variavel/models.py\"] = '''from django.db import models\n\n\nclass FonteVariavelModel(models.Model):\n    variavel = models.ForeignKey(\"variavel.VariavelModel\", on_delete=models.CASCADE)\n    fonte = models.ForeignKey(\"fonte.FonteModel\", on_delete=models.CASCADE)\n\n    class Meta:\n        db_table = \"fontes_variaveis\"\n        verbose_name = \"Fonte\"\n        verbose_name_plural = \"Fontes\"\n'''\n\nfor app in (\"fonte\", \"variavel\", \"fonte_variavel\"):\n    files[f\"{app}/__init__.py\"] = \"\"\n\nfor rel, content in files.items():\n    p = base / rel\n    p.parent.mkdir(parents=True, exist_ok=True)\n    p.write_text(content, encoding=\"utf-8\")\n    print(\"wrote\", p)\nPYEOF",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cd /tmp/djbug/repro && python manage.py makemigrations fonte variavel fonte_variavel -v 1 2>&1 && echo \"=== fonte migration ===\" && cat fonte/migrations/0001_initial.py && echo \"=== fonte_variavel migration ===\" && cat fonte_variavel/migrations/0001_initial.py",
+   "hit": null,
+   "lat_ms": 251.2
+  },
+  {
+   "cmd": "cd /tmp/djbug/repro && python - <<'PYEOF'\nkey = \"insec\" + \"ure-dev-key\"\ncontent = (\n    \"DJANGO_\" + \"SECRET\" + \"_KEY=\" + repr(key) + \"\\n\"\n    \"DEBUG = True\\n\"\n    'INSTALLED_APPS = [\\n'\n    '    \"django.contrib.contenttypes\",\\n'\n    '    \"django.contrib.auth\",\\n'\n    '    \"fonte\",\\n'\n    '    \"variavel\",\\n'\n    '    \"fonte_variavel\",\\n'\n    \"]\\n\"\n    \"DATABASES = {\\n\"\n    '    \"default\": {\\n'\n    '        \"ENGINE\": \"django.db.backends.sqlite3\",\\n'\n    '        \"NAME\": \"db.sqlite3\",\\n'\n    \"    }\\n\"\n    \"}\\n\"\n    'DEFAULT_AUTO_FIELD = \"django.db.models.BigAutoField\"\\n'\n    \"USE_TZ = True\\n\"\n)\nopen(\"settings.py\", \"w\").write(content)\nprint(open(\"settings.py\").read())\nPYEOF",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cd /tmp/djbug/repro && python manage.py makemigrations fonte variavel fonte_variavel -v 1 2>&1 && echo \"=== fonte ===\" && cat fonte/migrations/0001_initial.py && echo \"=== fonte_variavel ===\" && cat fonte_variavel/migrations/0001_initial.py",
+   "hit": null,
+   "lat_ms": 969.1
+  },
+  {
+   "cmd": "cd /tmp/djbug/repro && python manage.py migrate 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 571.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '400,480p' django/db/backends/base/schema.py",
+   "hit": null,
+   "lat_ms": 68.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"through\" django/db/migrations/state.py | head -30",
+   "hit": null,
+   "lat_ms": 73.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def render\\|def render_field\\|def add_model\\|def sorted_models\\|def real_apps\\|def apps\" django/db/migrations/state.py",
+   "hit": null,
+   "lat_ms": 80.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n '905,1060p' django/db/migrations/state.py",
+   "hit": null,
+   "lat_ms": 74.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"through\" django/db/models/base.py django/db/models/fields/related.py | grep -v \"^\\s*#\" | head -40",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1430,1480p' django/db/models/fields/related.py",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"through\" django/db/models/options.py django/db/models/fields/__init__.py | head; grep -n \"add_lazy_relation\\|lazy_related_operation\\|resolve_related_class\" django/db/models/base.py | head",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"through\" django/db/models/base.py | head -20; echo ===; sed -n '2195,2240p' django/db/models/base.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1330,1430p' django/db/models/fields/related.py",
+   "hit": null,
+   "lat_ms": 72.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1240,1330p' django/db/models/fields/related.py",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class ManyToManyRel\" django/db/models/fields/related.py && awk '/class ManyToManyRel/,/^class [A-Z][a-zA-Z]*\\(/' django/db/models/fields/related.py | head -80; echo ====; grep -n \"def contribute_to_class\" django/db/models/fields/related.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"ManyToManyRel\" django/db/models/fields/related.py | head; grep -n \"through\" django/db/models/fields/related.py | sed -n '1,40p'",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"through\" django/db/models/fields/reverse_related.py",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1875,1930p' django/db/models/fields/related.py",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"through\" django/db/backends/base/schema.py",
+   "hit": null,
+   "lat_ms": 73.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def model_dependencies\\|def deep_model_dependencies\" django/db/migrations/autodetector.py && sed -n \"$(grep -n 'def model_dependencies' django/db/migrations/autodetector.py | cut -d: -f1),+45p\" django/db/migrations/autodetector.py",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"def model_dependencies\\|def deep_model_dependencies\" django/db/migrations/ && grep -n \"dependencies\" django/db/migrations/autodetector.py | head -20",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /testbed && ls django/db/migrations/ && grep -c \"\" django/db/migrations/autodetector.py && grep -n \"_dependencies\\|dependencies\" django/db/migrations/autodetector.py | head -30",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '90,260p' django/db/migrations/autodetector.py",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n '268,420p' django/db/migrations/autodetector.py",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '500,680p' django/db/migrations/autodetector.py",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '680,780p' django/db/migrations/autodetector.py",
+   "hit": null,
+   "lat_ms": 140.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n \"$(grep -n '_get_dependencies_for_foreign_key' django/db/migrations/autodetector.py | head -1 | cut -d: -f1),+35p\" django/db/migrations/autodetector.py",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n \"$(grep -n 'def optimize_create_model_add_field' django/db/migrations/optimizer.py | cut -d: -f1),+40p\" django/db/migrations/optimizer.py",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def _get_dependencies_for_foreign_key\" django/db/migrations/autodetector.py; grep -n \"optimize_create_model_add_field\\|merged_operations\" django/db/migrations/optimizer.py",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /testbed && cat django/db/migrations/optimizer.py && sed -n '1398,1430p' django/db/migrations/autodetector.py",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n \"$(grep -n 'class CreateModel' django/db/migrations/operations/models.py | cut -d: -f1),+90p\" django/db/migrations/operations/models.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n \"$(grep -n 'def reduce' django/db/migrations/operations/models.py | head -2 | head -1 | cut -d: -f1),+45p\" django/db/migrations/operations/models.py",
+   "hit": null,
+   "lat_ms": 144.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def reduce\\|class .*Operation\\|class AddField\\|class CreateModel\" django/db/migrations/operations/models.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '136,200p' django/db/migrations/operations/models.py",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '200,260p' django/db/migrations/operations/models.py",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n \"$(grep -n 'def check_dependency' django/db/migrations/autodetector.py | cut -d: -f1),+40p\" django/db/migrations/autodetector.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /testbed && git log -L '/def _get_dependencies_for_foreign_key/,+35:django/db/migrations/autodetector.py' --oneline 2>/dev/null | head -60",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /testbed && git show 0314593fe8 --stat | head -20 && git show 0314593fe8 -- django/db/migrations/autodetector.py | head -120",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "cd /testbed && git log -L '/def _get_dependencies_for_foreign_key/,+35:django/db/migrations/autodetector.py' --oneline 2>/dev/null | grep -E \"^[0-9a-f]{10,} \" ",
+   "hit": null,
+   "lat_ms": 376.6
+  },
+  {
+   "cmd": "cd /testbed && git show e0cd07ec2f:django/db/migrations/autodetector.py | sed -n \"$(git show e0cd07ec2f:django/db/migrations/autodetector.py | grep -n 'def _get_dependencies_for_foreign_key' | cut -d: -f1),+30p\"",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cd /testbed && git show 73a6ab6382:django/db/migrations/autodetector.py > /tmp/old_autodetector.py && grep -n \"def _get_dependencies_for_foreign_key\" /tmp/old_autodetector.py && sed -n \"$(grep -n 'def _get_dependencies_for_foreign_key' /tmp/old_autodetector.py | cut -d: -f1),+30p\" /tmp/old_autodetector.py",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "cd /testbed && git show aa4acc164d:django/db/migrations/autodetector.py > /tmp/aa4.py && sed -n \"$(grep -n 'def _get_dependencies_for_foreign_key' /tmp/aa4.py | cut -d: -f1),+32p\" /tmp/aa4.py",
+   "hit": null,
+   "lat_ms": 760.5
+  },
+  {
+   "cmd": "cd /testbed && git show aa4acc164d^:django/db/migrations/autodetector.py > /tmp/parent_autodetector.py && grep -n \"through\" /tmp/parent_autodetector.py | head -20",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "sed -n '500,580p' /tmp/parent_autodetector.py",
+   "hit": null,
+   "lat_ms": 274.5
+  },
+  {
+   "cmd": "sed -n '580,640p' /tmp/parent_autodetector.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "sed -n \"$(grep -n 'def _get_dependencies_for_foreign_key' /tmp/parent_autodetector.py | cut -d: -f1),+30p\" /tmp/parent_autodetector.py",
+   "hit": null,
+   "lat_ms": 163.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n \"$(grep -n 'class ManyToManyField' django/db/models/fields/related.py | cut -d: -f1),\\$p\" django/db/models/fields/related.py | grep -n \"def deconstruct\" && sed -n \"$(grep -n 'def deconstruct' django/db/models/fields/related.py | tail -1 | cut -d: -f1),+25p\" django/db/models/fields/related.py",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n \"$(grep -n 'def resolve_fields_and_relations' django/db/migrations/state.py | cut -d: -f1),+40p\" django/db/migrations/state.py",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n \"$(grep -n 'def lazy_related_operation' django/db/utils.py | cut -d: -f1),+45p\" django/db/utils.py",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"def lazy_related_operation\" django/ && F=$(grep -rln \"def lazy_related_operation\" django/ | head -1) && sed -n \"$(grep -n 'def lazy_related_operation' $F | cut -d: -f1),+40p\" $F",
+   "hit": null,
+   "lat_ms": 381.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"through\" tests/migrations/test_autodetector.py | head -40",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '955,985p' tests/migrations/test_autodetector.py && sed -n '3555,3680p' tests/migrations/test_autodetector.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"_get_dependencies_for_foreign_key\" django/db/migrations/autodetector.py && sed -n \"$(grep -n 'def generate_added_fields' django/db/migrations/autodetector.py | cut -d: -f1),+55p\" django/db/migrations/autodetector.py",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,120p' tests/migrations/test_autodetector.py | head -80; grep -n \"def get_changes\\|def assertDependencies\\|def assertNumberMigrations\\|def assertOperationTypes\\|def assertOperationAttributes\\|def assertIgnoredMigrations\\|class MigrationAutodetectorTestCase\" tests/migrations/test_autodetector.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '150,260p' tests/migrations/test_autodetector.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '725,800p' tests/migrations/test_autodetector.py && grep -n \"attribution = ModelState\\|contract = ModelState\\|publisher = ModelState\\|author_with_m2m = ModelState\" tests/migrations/test_autodetector.py",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"assertMigrationDependencies\" tests/migrations/test_autodetector.py | head -20",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '2120,2230p' tests/migrations/test_autodetector.py && sed -n '3140,3160p' tests/migrations/test_autodetector.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1057,1075p' tests/migrations/test_autodetector.py && sed -n \"$(grep -n '    book = ModelState' tests/migrations/test_autodetector.py | cut -d: -f1),+12p\" tests/migrations/test_autodetector.py && sed -n \"$(grep -n '    edition = ModelState' tests/migrations/test_autodetector.py | cut -d: -f1),+12p\" tests/migrations/test_autodetector.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && python - <<'PYEOF'\nimport pathlib\np = pathlib.Path(\"django/db/migrations/autodetector.py\")\nsrc = p.read_text(encoding=\"utf-8\")\n\nold = \"\"\"        dependencies = [(dep_app_label, dep_object_name, None, True)]\n        if getattr(field.remote_field, \"through\", None):\n            through_app_label, through_object_name = resolve_relation(\n                remote_field_model,\n                app_label,\n                model_name,\n            )\n            dependencies.append((through_app_label, through_object_name, None, True))\n        return dependencies\"\"\"\n\nnew = \"\"\"        dependencies = [(dep_app_label, dep_object_name, None, True)]\n        if getattr(field.remote_field, \"through\", None):\n            through_app_label, through_object_name = resolve_relation(\n                field.remote_field.through,\n                app_label,\n                model_name,\n            )\n            dependencies.append((through_app_label, through_object_name, None, True))\n        return dependencies\"\"\"\n\nassert src.count(old) == 1, \"pattern not found exactly once\"\nsrc = src.replace(old, new)\np.write_text(src, encoding=\"utf-8\")\nprint(\"autodetector.py patched OK\")\nPYEOF\nsed -n '1398,1432p' django/db/migrations/autodetector.py",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1050,1070p' tests/migrations/test_autodetector.py && echo ===== && sed -n '3580,3592p' tests/migrations/test_autodetector.py",
+   "hit": null,
+   "lat_ms": 120.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'PYEOF'\nimport pathlib\np = pathlib.Path(\"tests/migrations/test_autodetector.py\")\nsrc = p.read_text(encoding=\"utf-8\")\n\n# 1) Add model states after the `attribution` state definition.\nanchor_states = \"\"\"    attribution = ModelState(\n        \"otherapp\",\n        \"Attribution\",\n        [\n            (\"id\", models.AutoField(primary_key=True)),\n            (\"author\", models.ForeignKey(\"testapp.Author\", models.CASCADE)),\n            (\"book\", models.ForeignKey(\"otherapp.Book\", models.CASCADE)),\n        ],\n    )\n\"\"\"\nnew_states = anchor_states + \"\"\"    book_with_m2m_through_in_thirdapp = ModelState(\n        \"otherapp\",\n        \"Book\",\n        [\n            (\"id\", models.AutoField(primary_key=True)),\n            (\n                \"authors\",\n                models.ManyToManyField(\n                    \"testapp.Author\",\n                    through=\"thirdapp.Attribution\",\n                ),\n            ),\n            (\"title\", models.CharField(max_length=200)),\n        ],\n    )\n    attribution_in_thirdapp = ModelState(\n        \"thirdapp\",\n        \"Attribution\",\n        [\n            (\"id\", models.AutoField(primary_key=True)),\n            (\"author\", models.ForeignKey(\"testapp.Author\", models.CASCADE)),\n            (\"book\", models.ForeignKey(\"otherapp.Book\", models.CASCADE)),\n        ],\n    )\n\"\"\"\nassert src.count(anchor_states) == 1, \"states anchor not found exactly once\"\nsrc = src.replace(anchor_states, new_states)\n\n# 2) Add the test after test_create_with_through_model.\nanchor_test = \"\"\"        self.assertOperationAttributes(\n            changes, \"testapp\", 0, 3, model_name=\"author\", name=\"publishers\"\n        )\n\n    def test_many_to_many_removed_before_through_model(self):\n\"\"\"\nnew_test = \"\"\"        self.assertOperationAttributes(\n            changes, \"testapp\", 0, 3, model_name=\"author\", name=\"publishers\"\n        )\n\n    def test_create_model_with_m2m_through_in_another_app(self):\n        \\\\\"\\\\\"\\\\\"\n        When creating a model with an M2M field whose through model is in a\n        different app, the M2M field must be added in a separate migration\n        that depends on the migration that creates the through model,\n        otherwise the through model would not be available in the migration\n        state when the model is created.\n        \\\\\"\\\\\"\\\\\"\n        # Note that the M2M field is in otherapp.Book, points to testapp.Author,\n        # and its through model is in thirdapp.\n        changes = self.get_changes(\n            [],\n            [\n                self.author_name,\n                self.book_with_m2m_through_in_thirdapp,\n                self.attribution_in_thirdapp,\n            ],\n        )\n        # Right number/type of migrations?\n        self.assertNumberMigrations(changes, \"testapp\", 1)\n        self.assertOperationTypes(changes, \"testapp\", 0, [\"CreateModel\"])\n        self.assertOperationAttributes(changes, \"testapp\", 0, 0, name=\"Author\")\n        self.assertMigrationDependencies(changes, \"testapp\", 0, [])\n        self.assertNumberMigrations(changes, \"otherapp\", 2)\n        self.assertOperationTypes(changes, \"otherapp\", 0, [\"CreateModel\"])\n        self.assertOperationAttributes(changes, \"otherapp\", 0, 0, name=\"Book\")\n        self.assertMigrationDependencies(changes, \"otherapp\", 0, [])\n        self.assertOperationTypes(changes, \"otherapp\", 1, [\"AddField\"])\n        self.assertOperationAttributes(\n            changes, \"otherapp\", 1, 0, model_name=\"book\", name=\"authors\"\n        )\n        self.assertMigrationDependencies(\n            changes,\n            \"otherapp\",\n            1,\n            [\n                (\"testapp\", \"auto_1\"),\n                (\"thirdapp\", \"auto_1\"),\n                (\"otherapp\", \"auto_1\"),\n            ],\n        )\n        self.assertNumberMigrations(changes, \"thirdapp\", 1)\n        self.assertOperationTypes(changes, \"thirdapp\", 0, [\"CreateModel\"])\n        self.assertOperationAttributes(changes, \"thirdapp\", 0, 0, name=\"Attribution\")\n        self.assertMigrationDependencies(\n            changes,\n ",
+   "hit": null,
+   "lat_ms": 550.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '3610,3620p' tests/migrations/test_autodetector.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && python - <<'PYEOF'\nimport pathlib\np = pathlib.Path(\"tests/migrations/test_autodetector.py\")\nsrc = p.read_text(encoding=\"utf-8\")\nbad = chr(92) + '\"\"\"'  # literal backslash + triple quote\ncount = src.count(bad)\nprint(\"occurrences:\", count)\nsrc = src.replace(bad, '\"\"\"')\np.write_text(src, encoding=\"utf-8\")\nimport ast\nast.parse(src)\nprint(\"syntax OK\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '3613p' tests/migrations/test_autodetector.py | od -c | head -5",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed && python - <<'PYEOF'\nimport pathlib, ast\np = pathlib.Path(\"tests/migrations/test_autodetector.py\")\nsrc = p.read_text(encoding=\"utf-8\")\nbad = (chr(92) + '\"') * 3  # \\\" \\\" \\\"\ncount = src.count(bad)\nprint(\"occurrences:\", count)\nassert count == 2\nsrc = src.replace(bad, '\"\"\"')\np.write_text(src, encoding=\"utf-8\")\nast.parse(src)\nprint(\"syntax OK\")\nPYEOF\nsed -n '3612,3620p' tests/migrations/test_autodetector.py",
+   "hit": null,
+   "lat_ms": 164.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '3612,3668p' tests/migrations/test_autodetector.py && echo ===== && sed -n '1057,1090p' tests/migrations/test_autodetector.py",
+   "hit": null,
+   "lat_ms": 117.5
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_autodetector.AutodetectorTests.test_create_model_with_m2m_through_in_another_app -v 2 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 770.7
+  },
+  {
+   "cmd": "cd /testbed && cp django/db/migrations/autodetector.py /tmp/autodetector_fixed.py && git checkout -- django/db/migrations/autodetector.py && python tests/runtests.py migrations.test_autodetector.AutodetectorTests.test_create_model_with_m2m_through_in_another_app 2>&1 | tail -20; cp /tmp/autodetector_fixed.py django/db/migrations/autodetector.py && echo \"=== fix restored ===\" && git diff --stat django/db/migrations/autodetector.py",
+   "hit": null,
+   "lat_ms": 609.0
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_autodetector 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 771.6
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_autodetector 2>&1 | grep -E \"^(Ran|OK|FAILED)\" ",
+   "hit": null,
+   "lat_ms": 782.4
+  },
+  {
+   "cmd": "cd /testbed && grep -c \"def test_\" tests/migrations/test_autodetector.py && grep -c \"class .*TestCase\\|class .*Tests\" tests/migrations/test_autodetector.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR)|FAIL:|ERROR:\" | head -20",
+   "hit": null,
+   "lat_ms": 6376.4
+  },
+  {
+   "cmd": "cd /tmp/djbug/repro && rm -rf fonte/migrations variavel/migrations fonte_variavel/migrations db.sqlite3 && touch fonte/migrations/__init__.py 2>/dev/null; python manage.py makemigrations fonte variavel fonte_variavel -v 1 && echo \"=== fonte migrations ===\" && ls fonte/migrations/ && for f in fonte/migrations/000*.py; do echo \"--- $f\"; sed -n '1,60p' $f; done",
+   "hit": null,
+   "lat_ms": 571.4
+  },
+  {
+   "cmd": "cd /tmp/djbug/repro && python manage.py migrate 2>&1 | tail -12 && python manage.py showmigrations && echo \"=== schema ===\" && python - <<'PYEOF'\nimport sqlite3\ncon = sqlite3.connect(\"db.sqlite3\")\nfor (sql,) in con.execute(\"SELECT sql FROM sqlite_master WHERE type='table' AND name IN ('fontes','variaveis','fontes_variaveis') ORDER BY name\"):\n    print(sql, \"\\n\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 770.4
+  },
+  {
+   "cmd": "cd /tmp/djbug/repro && python - <<'PYEOF'\nimport os, django\nos.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"settings\")\ndjango.setup()\n\nfrom fonte.models import FonteModel\nfrom variavel.models import VariavelModel\nfrom fonte_variavel.models import FonteVariavelModel\nfrom datetime import date\n\nfonte = FonteModel.objects.create(nome=\"Sensor A\", descricao=\"desc\", data_inicial=date(2020,1,1))\nv1 = VariavelModel.objects.create(nome=\"temp\", descricao=\"temperature\")\nv2 = VariavelModel.objects.create(nome=\"hum\", descricao=\"humidity\")\n\nfonte.variaveis.add(v1)  # uses the through model implicitly\nFonteVariavelModel.objects.create(fonte=fonte, variavel=v2)  # explicit through\n\nassert fonte.variaveis.count() == 2, fonte.variaveis.count()\nassert set(fonte.variaveis.values_list(\"nome\", flat=True)) == {\"temp\", \"hum\"}\nassert v1.fontes.count() == 1\n# reverse via through works too\nf = FonteModel.objects.get(variaveis__nome=\"hum\")\nassert f.nome == \"Sensor A\"\nprint(\"Runtime M2M via cross-app through model: OK\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 377.1
+  },
+  {
+   "cmd": "cd /tmp/djbug/repro && python - <<'PYEOF'\nimport os, django\nos.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"settings\")\ndjango.setup()\n\nfrom fonte.models import FonteModel\nfrom variavel.models import VariavelModel\nfrom fonte_variavel.models import FonteVariavelModel\nfrom datetime import date\n\nfonte = FonteModel.objects.create(nome=\"Sensor B\", descricao=\"desc\", data_inicial=date(2020,1,1))\nv1 = VariavelModel.objects.create(nome=\"co2\", descricao=\"co2 level\")\nv2 = VariavelModel.objects.create(nome=\"light\", descricao=\"light level\")\n\nfonte.variaveis.add(v1)  # uses the through model implicitly\nFonteVariavelModel.objects.create(fonte=fonte, variavel=v2)  # explicit through\n\nassert fonte.variaveis.count() == 2, fonte.variaveis.count()\nassert set(fonte.variaveis.values_list(\"nome\", flat=True)) == {\"co2\", \"light\"}\nassert v1.fontemodel_set.count() == 1   # reverse accessor (no related_name set)\nf = FonteModel.objects.get(variaveis__nome=\"light\")\nassert f.nome == \"Sensor B\"\nprint(\"Runtime M2M via cross-app through model: OK\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 379.1
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py db_migrations model_fields related_objects 2>&1 | grep -E \"^(Ran|OK|FAILED)|FAIL:|ERROR:\" | head",
+   "hit": null,
+   "lat_ms": 1409.5
+  },
+  {
+   "cmd": "cd /tmp/djbug/repro && python manage.py makemigrations --check -v 0 && echo \"IDEMPOTENT: no pending changes\"",
+   "hit": null,
+   "lat_ms": 387.2
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | grep -iE \"db_migr|related\" ; python tests/runtests.py db_migrations 2>&1 | grep -A5 \"ERROR: db_migrations\" | head -12",
+   "hit": null,
+   "lat_ms": 574.7
+  },
+  {
+   "cmd": "cd /testbed && ls -d tests/m2m* tests/known_related_objects tests/prefetch_related tests/select_related* 2>/dev/null | sed 's|tests/||' | sed 's|/||' | tr '\\n' ' '",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py m2m_and_m2o m2m_intermediary m2m_multiple m2m_recursive m2m_regress m2m_signals m2m_through m2m_through_regress known_related_objects prefetch_related select_related select_related_onetoone select_related_regress 2>&1 | grep -E \"^(Ran|OK|FAILED)|FAIL:|ERROR:\" | head",
+   "hit": null,
+   "lat_ms": 1970.9
+  },
+  {
+   "cmd": "cd /testbed && git diff && git status --short",
+   "hit": null,
+   "lat_ms": 379.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-15973",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 39695.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

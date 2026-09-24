@@ -1,0 +1,426 @@
+{
+ "calls": 74,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 28770.254373550415,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 73.6
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 66.8
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && ls -la / && ls -la ~ 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "find / -maxdepth 4 -type d -name \"django\" 2>/dev/null | grep -v -E \"site-packages|node_modules\" | head -20",
+   "hit": null,
+   "lat_ms": 164.9
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 2>/dev/null | cat && git status --short | head && python --version",
+   "hit": null,
+   "lat_ms": 571.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"id_for_label\" django/forms/widgets.py | head && grep -n \"class BoundWidget\" django/forms/widgets.py",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"BoundWidget\" django/forms/ | head -20 && grep -n \"version\" django/__init__.py",
+   "hit": null,
+   "lat_ms": 114.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '20,70p' django/forms/boundfield.py && echo ================= && sed -n '240,290p' django/forms/boundfield.py && python -c \"import django; print(django.__version__)\" 2>/dev/null || cat /testbed/django/__init__.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '590,680p' django/forms/widgets.py",
+   "hit": null,
+   "lat_ms": 132.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,20p' django/forms/boundfield.py && echo ================ && grep -n \"auto_id\" django/forms/boundfield.py && echo ================ && sed -n '70,110p' django/forms/boundfield.py",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"id_for_label\\|auto_id\" tests/forms_tests/tests.py tests/widgets/tests.py 2>/dev/null | head -40",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '200,235p' django/forms/boundfield.py && echo ===== && ls tests/ | head -30 && ls tests/forms_tests/ tests/widgets/ 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /testbed && ls tests/forms_tests/tests/ tests/forms_tests/widget_tests/ tests/forms_tests/field_tests/ && grep -rn \"id_for_label\" tests/forms_tests/ | head -20",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n '660,740p' tests/forms_tests/tests/test_forms.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"option_inherits_attrs\\|class RadioSelect\\|class CheckboxSelectMultiple\" django/forms/widgets.py | head",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "mkdir -p /tmp/repro && cat > /tmp/repro/repro.py <<'EOF'\n\"\"\"Repro for: BoundWidget.id_for_label ignores id set by ChoiceWidget.options.\"\"\"\nimport re\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    USE_I18N=True,\n    TEMPLATES=[{\n        'BACKEND': 'django.template.backends.django.DjangoTemplates',\n        'APP_DIRS': True,\n    }],\n)\ndjango.setup()\n\nfrom django import forms\n\nfailures = []\n\n\ndef check(desc, actual, expected):\n    ok = actual == expected\n    print('%-72s %s' % (desc, 'OK' if ok else 'FAIL (got %r, expected %r)' % (actual, expected)))\n    if not ok:\n        failures.append(desc)\n\n\ndef input_id(tag_html):\n    m = re.search(r'id=\"([^\"]*)\"', tag_html)\n    return m.group(1) if m else None\n\n\nclass MyForm(forms.Form):\n    fruits = forms.MultipleChoiceField(\n        choices=[('apple', 'Apple'), ('pear', 'Pear')],\n        widget=forms.CheckboxSelectMultiple,\n    )\n    color = forms.ChoiceField(\n        choices=[('r', 'Red'), ('g', 'Green')],\n        widget=forms.RadioSelect,\n    )\n\n\nfor name in ('fruits', 'color'):\n    for auto_id in ('my_id_%s', True, False):\n        f = MyForm(auto_id=auto_id)\n        for i, sw in enumerate(f[name]):\n            tag_html = str(sw.tag())\n            in_id = input_id(tag_html)\n            if auto_id is False:\n                # documented fallback behavior when no id is available\n                check(\"auto_id=False: %s subwidget %d id_for_label (fallback)\" % (name, i),\n                      sw.id_for_label, 'id_%s_%d' % (name, i))\n            else:\n                check(\"auto_id=%r: %s subwidget %d id_for_label\" % (auto_id, name, i),\n                      sw.id_for_label, in_id)\n\n# Explicit widget id attr\nclass WidgetIdForm(forms.Form):\n    fruits = forms.MultipleChoiceField(\n        choices=[('apple', 'Apple'), ('pear', 'Pear')],\n        widget=forms.CheckboxSelectMultiple(attrs={'id': 'custom_widget_id'}),\n    )\n\nf = WidgetIdForm()\nfor i, sw in enumerate(f['fruits']):\n    check(\"widget attrs id: subwidget %d id_for_label\" % i,\n          sw.id_for_label, 'custom_widget_id_%d' % i)\n\n# Rendered output consistency: label for == input id\nimport django.template as dt\ntpl = dt.Template(\n    '{% for box in form.fruits %}<label for=\"{{ box.id_for_label }}\">{{ box }}</label>{% endfor %}'\n)\nout = tpl.render({'form': MyForm(auto_id='my_id_%s')})\nlabel_fors = re.findall(r'<label for=\"([^\"]*)\"', out)\ninput_ids = re.findall(r'<input[^>]*id=\"([^\"]*)\"', out)\ncheck(\"rendered template: label for attrs == input id attrs\",\n      label_fors, input_ids)\n\nprint()\nif failures:\n    print('FAILURES: %d' % len(failures))\n    for f_ in failures:\n        print(' -', f_)\n    raise SystemExit(1)\nprint('ALL CHECKS PASSED')\nEOF\necho written",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && python /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 571.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"auto_id\" django/forms/forms.py | head && sed -n '/def __init__/,/self.empty_permitted/p' django/forms/forms.py | head -40",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'django/forms/boundfield.py'\nsrc = open(path).read()\nold = \"\"\"    @property\n    def id_for_label(self):\n        return 'id_%s_%s' % (self.data['name'], self.data['index'])\n\"\"\"\nnew = \"\"\"    @property\n    def id_for_label(self):\n        \\\"\\\"\\\"\n        Use the provided \"field\" name if no id is available for the widget.\n        \\\"\\\"\\\"\n        id_ = self.data['attrs'].get('id')\n        if id_:\n            return id_\n        data_index = self.data['index']\n        return 'id_%s_%s' % (self.data['name'], data_index)\n\"\"\"\nassert src.count(old) == 1, \"pattern not found exactly once\"\nopen(path, 'w').write(src.replace(old, new))\nprint(\"patched\")\nEOF\nsed -n '280,295p' django/forms/boundfield.py",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cd /testbed && python /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nsrc = open('/tmp/repro/repro.py').read()\nsrc = src.replace(\"out = tpl.render({'form': MyForm(auto_id='my_id_%s')})\",\n                  \"out = tpl.render(dt.Context({'form': MyForm(auto_id='my_id_%s')}))\")\nopen('/tmp/repro/repro.py', 'w').write(src)\nEOF\npython /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 387.0
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nsrc = open('/tmp/repro/repro.py').read()\nold_tpl = \"\"\"tpl = dt.Template(\n    '{% for box in form.fruits %}<label for=\"{{ box.id_for_label }}\">{{ box }}</label>{% endfor %}'\n)\nout = tpl.render(dt.Context({'form': MyForm(auto_id='my_id_%s')}))\nlabel_fors = re.findall(r'<label for=\"([^\"]*)\"', out)\ninput_ids = re.findall(r'<input[^>]*id=\"([^\"]*)\"', out)\ncheck(\"rendered template: label for attrs == input id attrs\",\n      label_fors, input_ids)\"\"\"\nnew_tpl = \"\"\"# 1) default template rendering: each option's own <label for> must match its input id\nout = dt.Template('{% for box in form.fruits %}{{ box }}{% endfor %}') \\\\\n    .render(dt.Context({'form': MyForm(auto_id='my_id_%s')}))\nlabel_fors = re.findall(r'<label for=\"([^\"]*)\"', out)\ninput_ids = re.findall(r'<input[^>]*id=\"([^\"]*)\"', out)\ncheck(\"default rendering: label for attrs == input id attrs\",\n      label_fors, input_ids)\n\n# 2) explicit {{ box.id_for_label }} in a custom label must match too\nout = dt.Template(\n    '{% for box in form.fruits %}<label for=\"{{ box.id_for_label }}\">{{ box.choice_label }}'\n    '{{ box.tag }}</label>{% endfor %}'\n).render(dt.Context({'form': MyForm(auto_id='my_id_%s')}))\nouter_fors = re.findall(r'<label for=\"([^\"]*)\">', out)\ninner_ids = re.findall(r'<input[^>]*id=\"([^\"]*)\"', out)\ncheck(\"custom template: outer label for == inner input id\",\n      outer_fors, inner_ids)\"\"\"\nassert old_tpl in src\nopen('/tmp/repro/repro.py', 'w').write(src.replace(old_tpl, new_tpl))\nEOF\npython /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py forms_tests --parallel 2 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 1591.4
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py templates i18n admin_widgets --parallel 2 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 378.2
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | grep -E \"^(template|model_form|i18n|admin)\" ",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && ls tests/templates/ | head && ls tests/templates/__init__.py 2>&1",
+   "hit": null,
+   "lat_ms": 68.4
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py template_tests template_backends template_loader i18n model_forms admin_widgets --parallel 2 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 5174.8
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python tests/runtests.py admin_views --parallel 2 2>&1 | tail -6' > /tmp/hermes_bg_proc_641e7907c89d.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_641e7907c89d.exit ) & echo $! > /tmp/hermes_bg_proc_641e7907c89d.pid && cat /tmp/hermes_bg_proc_641e7907c89d.pid",
+   "hit": null,
+   "lat_ms": 2171.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_641e7907c89d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_641e7907c89d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_641e7907c89d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_641e7907c89d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_641e7907c89d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_641e7907c89d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_641e7907c89d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_641e7907c89d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py template_tests template_backends template_loader i18n model_forms admin_widgets 2>&1 | grep -B2 -A 25 -E \"^(FAIL|ERROR):\" | head -80",
+   "hit": null,
+   "lat_ms": 4778.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_641e7907c89d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_641e7907c89d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_641e7907c89d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_641e7907c89d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_641e7907c89d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_641e7907c89d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cd /testbed && git stash && python tests/runtests.py i18n.tests.WatchForTranslationChangesTests.test_i18n_app_dirs template_tests.test_loaders.FileSystemLoaderTests.test_permissions_error 2>&1 | grep -E \"^(FAIL|ERROR|OK|FAILED|Ran)\" ; git stash pop && git diff --stat",
+   "hit": null,
+   "lat_ms": 773.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_641e7907c89d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_641e7907c89d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_641e7907c89d.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python tests/runtests.py admin_views --parallel 2 > /tmp/admin_views.log 2>&1; echo \"EXIT=$?\" >> /tmp/admin_views.log' > /tmp/hermes_bg_proc_8b2c78ec1842.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_8b2c78ec1842.exit ) & echo $! > /tmp/hermes_bg_proc_8b2c78ec1842.pid && cat /tmp/hermes_bg_proc_8b2c78ec1842.pid",
+   "hit": null,
+   "lat_ms": 2201.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_8b2c78ec1842.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_8b2c78ec1842.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_8b2c78ec1842.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_8b2c78ec1842.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_8b2c78ec1842.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_8b2c78ec1842.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_8b2c78ec1842.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_8b2c78ec1842.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_8b2c78ec1842.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_8b2c78ec1842.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_8b2c78ec1842.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_8b2c78ec1842.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_8b2c78ec1842.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_8b2c78ec1842.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 165.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_8b2c78ec1842.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_8b2c78ec1842.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_8b2c78ec1842.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "tail -8 /tmp/admin_views.log",
+   "hit": null,
+   "lat_ms": 73.9
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(USE_I18N=True,\n    TEMPLATES=[{'BACKEND': 'django.template.backends.django.DjangoTemplates', 'APP_DIRS': True}])\ndjango.setup()\nfrom django import forms\nfrom django.forms import SplitDateTimeField\n\nclass F(forms.Form):\n    dt = SplitDateTimeField()\n\nf = F()\ngot = [sw.id_for_label for sw in f['dt']]\nassert got == ['id_dt_0', 'id_dt_1'], got\nf2 = F(auto_id=False)\ngot2 = [sw.id_for_label for sw in f2['dt']]\nassert got2 == ['id_dt_0', 'id_dt_1'], got2  # fallback preserved\nf3 = F(auto_id='ts_%s')\ngot3 = [sw.id_for_label for sw in f3['dt']]\nassert got3 == ['ts_dt_0', 'ts_dt_1'], got3\nprint('MultiWidget subwidgets OK:', got, got2, got3)\n\n# docstring template pattern\nimport django.template as dt\nout = dt.Template(\n    '{% for box in form.fruits %}<label for=\"{{ box.id_for_label }}\">'\n    '{{ box.choice_label }}<span class=\"cb\">{{ box.tag }}</span></label>{% endfor %}'\n).render(dt.Context({'form': MyForm()}))\nprint(out)\nimport re\nfors = re.findall(r'<label for=\"([^\"]*)\"', out)\nids = re.findall(r'<input[^>]*id=\"([^\"]*)\"', out)\nassert fors == ids, (fors, ids)\nprint('docstring template pattern OK: label for == input id')\nEOF",
+   "hit": null,
+   "lat_ms": 377.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def subwidgets\" django/forms/widgets.py && sed -n '/^class Widget/,/^class InputType\\/Widget/p' django/forms/widgets.py | sed -n '/def subwidgets/,/^    def [a-z_]*(self, name, value, attrs=None):$/p' | head -30",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(USE_I18N=True,\n    TEMPLATES=[{'BACKEND': 'django.template.backends.django.DjangoTemplates', 'APP_DIRS': True}])\ndjango.setup()\nimport re\nfrom django import forms\nfrom django.forms import SplitDateTimeField\n\n# 1) Prove the old code raised KeyError for non-choice widget subwidgets\ndata = dict(name='dt', attrs={'id': 'id_dt'}, template_name='x')\ntry:\n    'id_%s_%s' % (data['name'], data['index'])\n    print('old-code KeyError check: unexpected success')\nexcept KeyError as e:\n    print('old code would raise KeyError(%r) for non-choice subwidgets -> fixed by using attrs' % e)\n\n# 2) MultiWidget subwidget id_for_label now uses the real id\nclass F(forms.Form):\n    dt = SplitDateTimeField()\n\nf = F()\nsubs = list(f['dt'])\nassert len(subs) == 1, len(subs)\nassert subs[0].id_for_label == 'id_dt', subs[0].id_for_label\nassert subs[0].id_for_label == subs[0].data['attrs']['id']\nassert list(F(auto_id=False)['dt'])[0].id_for_label == 'id_dt_0'  # fallback preserved\nassert list(F(auto_id='ts_%s')['dt'])[0].id_for_label == 'ts_dt'\nprint('MultiWidget subwidget id_for_label OK (default/False/custom auto_id)')\n\n# 3) Docstring template pattern with CheckboxSelectMultiple\nclass MyForm(forms.Form):\n    fruits = forms.MultipleChoiceField(\n        choices=[('apple', 'Apple'), ('pear', 'Pear')],\n        widget=forms.CheckboxSelectMultiple,\n    )\nout = django.template.Template(\n    '{% for box in form.fruits %}<label for=\"{{ box.id_for_label }}\">'\n    '{{ box.choice_label }}<span class=\"cb\">{{ box.tag }}</span></label>{% endfor %}'\n).render(django.template.Context({'form': MyForm(auto_id='my_id_%s')}))\nprint(out)\nfors = re.findall(r'<label for=\"([^\"]*)\"', out)\nids = re.findall(r'<input[^>]*id=\"([^\"]*)\"', out)\nassert fors == ids, (fors, ids)\nprint('docstring template pattern OK: every label for == its input id')\nEOF",
+   "hit": null,
+   "lat_ms": 377.6
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(USE_I18N=True,\n    TEMPLATES=[{'BACKEND': 'django.template.backends.django.DjangoTemplates', 'APP_DIRS': True}])\ndjango.setup()\nimport re\nfrom django import forms\nfrom django.forms import SplitDateTimeField\n\n# MultiWidget subwidget id_for_label now uses the real id\nclass F(forms.Form):\n    dt = SplitDateTimeField()\n\nsubs = list(F()['dt'])\nassert len(subs) == 1\nassert subs[0].id_for_label == 'id_dt' == subs[0].data['attrs']['id']\nassert list(F(auto_id='ts_%s')['dt'])[0].id_for_label == 'ts_dt'\n# pre-existing upstream behavior: fallback branch requires 'index' (choice widgets only);\n# old code raised KeyError('index') here too\ntry:\n    list(F(auto_id=False)['dt'])[0].id_for_label\n    print('auto_id=False MultiWidget: no crash')\nexcept KeyError:\n    print('auto_id=False MultiWidget: KeyError (pre-existing, unchanged from old code)')\nprint('MultiWidget subwidget id_for_label OK')\n\n# Docstring template pattern with CheckboxSelectMultiple\nclass MyForm(forms.Form):\n    fruits = forms.MultipleChoiceField(\n        choices=[('apple', 'Apple'), ('pear', 'Pear')],\n        widget=forms.CheckboxSelectMultiple,\n    )\nout = django.template.Template(\n    '{% for box in form.fruits %}<label for=\"{{ box.id_for_label }}\">'\n    '{{ box.choice_label }}<span class=\"cb\">{{ box.tag }}</span></label>{% endfor %}'\n).render(django.template.Context({'form': MyForm(auto_id='my_id_%s')}))\nprint(out)\nfors = re.findall(r'<label for=\"([^\"]*)\"', out)\nids = re.findall(r'<input[^>]*id=\"([^\"]*)\"', out)\nassert fors == ids, (fors, ids)\nprint('docstring template pattern OK: every label for == its input id')\nEOF",
+   "hit": null,
+   "lat_ms": 383.1
+  },
+  {
+   "cmd": "cd /testbed && python /tmp/repro/repro.py && python tests/runtests.py forms_tests 2>&1 | tail -3 && git diff --stat",
+   "hit": null,
+   "lat_ms": 1577.9
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py forms_tests 2>&1 | grep -E \"^(Ran|OK|FAILED)\"",
+   "hit": null,
+   "lat_ms": 1371.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-14534",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 28770.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

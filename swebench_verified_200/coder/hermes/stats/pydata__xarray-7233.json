@@ -1,0 +1,621 @@
+{
+ "calls": 113,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 248931.90956115723,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 114.0
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.py\" | grep -E \"(coarsen|window)\" | head -20",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.py\" -path \"*/xarray/*\" | xargs grep -l \"class Coarsen\" | head -10",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "grep -r \"def construct\" /testbed/xarray --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cat /testbed/xarray/core/rolling.py | head -500",
+   "hit": null,
+   "lat_ms": 121.2
+  },
+  {
+   "cmd": "grep -n \"class Coarsen\" /testbed/xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "sed -n '796,1300p' /testbed/xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 115.4
+  },
+  {
+   "cmd": "cat /testbed/xarray/tests/test_coarsen.py | head -200",
+   "hit": null,
+   "lat_ms": 172.1
+  },
+  {
+   "cmd": "grep -n \"construct\" /testbed/xarray/tests/test_coarsen.py",
+   "hit": null,
+   "lat_ms": 115.8
+  },
+  {
+   "cmd": "sed -n '254,350p' /testbed/xarray/tests/test_coarsen.py",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "sed -n '880,980p' /testbed/xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 114.7
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Reproduce the issue from the bug report\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nprint('Original dataset:')\nprint(ds)\nprint()\nprint('Coordinates:', ds.coords)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\nprint('After construct:')\nprint(result)\nprint()\nprint('Coordinates:', result.coords)\nprint()\n\n# Check if 'day' is a coordinate or data variable\nprint('Is day a coordinate?', 'day' in result.coords)\nprint('Is day a data variable?', 'day' in result.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 976.5
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Let's trace through what happens\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nobj = ds\nprint('Original obj.variables:', list(obj.variables.keys()))\nprint('Original obj.coords:', list(obj.coords.keys()))\nprint('Original obj.data_vars:', list(obj.data_vars.keys()))\nprint()\n\n# In construct method:\nwindow_dim = {'time': ('year', 'month')}\nshould_be_coords = set(window_dim) & set(obj.coords)\nprint('should_be_coords:', should_be_coords)\n\"\n",
+   "hit": null,
+   "lat_ms": 779.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\nimport itertools\n\n# Let's trace through what happens\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nobj = ds\nwindow_dim = {'time': ('year', 'month')}\n\nprint('Looping through variables:')\nfor key, var in obj.variables.items():\n    reshaped_dims = tuple(\n        itertools.chain(*[window_dim.get(dim, [dim]) for dim in list(var.dims)])\n    )\n    print(f'  key={key}, var.dims={var.dims}, reshaped_dims={reshaped_dims}')\n    print(f'    Is key in obj.coords? {key in obj.coords}')\n    print()\n\"\n",
+   "hit": null,
+   "lat_ms": 778.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\nimport itertools\n\n# Let's trace through what happens\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nobj = ds\nwindow_dim = {'time': ('year', 'month')}\n\n# Simulate the construct logic\nreshaped = {}\nfor key, var in obj.variables.items():\n    reshaped_dims = tuple(\n        itertools.chain(*[window_dim.get(dim, [dim]) for dim in list(var.dims)])\n    )\n    if reshaped_dims != var.dims:\n        print(f'{key} needs reshaping: {var.dims} -> {reshaped_dims}')\n    else:\n        print(f'{key} does NOT need reshaping: {var.dims}')\n\nprint()\nprint('Current should_be_coords logic:')\nshould_be_coords = set(window_dim) & set(obj.coords)\nprint(f'  set(window_dim) = {set(window_dim)}')\nprint(f'  set(obj.coords) = {set(obj.coords)}')\nprint(f'  intersection = {should_be_coords}')\n\nprint()\nprint('What we actually need:')\n# A coordinate that has the coarsened dimension should stay as coordinate\ncoords_to_reshape = set()\nfor key in obj.coords:\n    if any(dim in window_dim for dim in obj[key].dims):\n        coords_to_reshape.add(key)\nprint(f'  Coordinates that need reshaping: {coords_to_reshape}')\n\"\n",
+   "hit": null,
+   "lat_ms": 578.9
+  },
+  {
+   "cmd": "sed -n '254,310p' /testbed/xarray/tests/test_coarsen.py",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\nprint('Original ds.coords:', list(ds.coords.keys()))\nprint('Original ds.dims:', list(ds.dims.keys()))\nprint('time is a coordinate?', 'time' in ds.coords)\nprint('time is a dimension?', 'time' in ds.dims)\nprint('y is a coordinate?', 'y' in ds.coords)\nprint('y is a dimension?', 'y' in ds.dims)\n\"\n",
+   "hit": null,
+   "lat_ms": 576.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nprint('ds.coords:', list(ds.coords.keys()))\nprint('ds.dims:', list(ds.dims.keys()))\nprint()\nfor key in ds.coords:\n    print(f'Coordinate {key}: dims={ds[key].dims}, is_dimension_coordinate={key in ds.dims}')\n\"\n",
+   "hit": null,
+   "lat_ms": 571.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\nimport itertools\n\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nobj = ds\nwindow_dim = {'time': ('year', 'month')}\n\n# What the current code does:\nshould_be_coords = set(window_dim) & set(obj.coords)\nprint('Current should_be_coords:', should_be_coords)\n\n# What it should do:\n# Any coordinate that is reshaped should remain a coordinate\ncoords_to_reshape = set()\nfor key in obj.coords:\n    if any(dim in window_dim for dim in obj[key].dims):\n        coords_to_reshape.add(key)\n\nprint('Coords to reshape:', coords_to_reshape)\n\n# Actually, looking at the issue more carefully:\n# The problem is that when we have a coordinate like 'day' that depends on 'time',\n# after construct, 'day' gets reshaped but is not added back to coordinates.\n# We need to identify coordinates that will be reshaped and keep them as coordinates.\n\n# Let's think about this more carefully:\n# - 'time' is a dimension (not a coordinate in this case, because dims without coordinates)\n# - 'day' is a coordinate that depends on 'time'\n# - When we call construct with time->(year, month), 'day' gets reshaped\n# - The question is: should 'day' remain a coordinate or become a data variable?\n\n# I think the answer is: 'day' should remain a coordinate because it was a coordinate before.\n# The reshaping doesn't change whether something is a coordinate or not.\n\n# Let me check if there's a different way coordinates are determined:\n# In the code, after building 'reshaped' Dataset, it does:\n# should_be_coords = set(window_dim) & set(self.obj.coords)\n# result = reshaped.set_coords(should_be_coords)\n\n# This only includes coordinates that are dimension names being coarsened.\n# But 'day' is not a dimension name, it's a non-dimensional coordinate.\n\n# I think the fix should be:\n# 1. Find all coordinates that are being reshaped (i.e., their dimensions overlap with window_dim)\n# 2. Those should remain coordinates after construct\n\nprint()\nprint('Analysis:')\nprint('  window_dim keys:', set(window_dim))\nprint('  obj.coords:', set(obj.coords))\nprint('  Coordinates that should be preserved after construct:')\nfor key in obj.coords:\n    if any(dim in window_dim for dim in obj[key].dims):\n        print(f'    {key} - depends on {obj[key].dims}')\n\"\n",
+   "hit": null,
+   "lat_ms": 781.8
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\nresult = ds.coarsen(time=12, x=5).construct(\n    {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\n)\n\nprint('Result:')\nprint(result)\nprint()\nprint('Coordinates:', list(result.coords.keys()))\nprint('Data variables:', list(result.data_vars.keys()))\nprint()\n\n# Check if 'time' is a coordinate\nprint('Is time a coordinate?', 'time' in result.coords)\nprint('Is time a data variable?', 'time' in result.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 774.8
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\nobj = ds\nwindow_dim = {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\n\n# What the current code does:\nshould_be_coords = set(window_dim) & set(obj.coords)\nprint('Current should_be_coords:', should_be_coords)\nprint()\nprint('set(window_dim):', set(window_dim))\nprint('set(obj.coords):', set(obj.coords))\nprint('intersection:', set(window_dim) & set(obj.coords))\nprint()\n\n# So 'time' is in both window_dim and obj.coords, so it's included.\n# But 'day' (from the bug report) is not in window_dim, it's just a coordinate that depends on 'time'.\n# So 'day' is not included in should_be_coords.\n\"\n",
+   "hit": null,
+   "lat_ms": 776.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# In the existing test, 'y' is also a coordinate (dimension coordinate for 'y' dimension)\n# and 'y' is not being coarsened, so it should remain a coordinate.\n# Let me check what happens with 'y':\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\nobj = ds\nwindow_dim = {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\n\n# Check if 'y' is in should_be_coords\nshould_be_coords = set(window_dim) & set(obj.coords)\nprint('should_be_coords:', should_be_coords)\nprint()\n\n# 'y' is in obj.coords but not in window_dim, so it won't be in should_be_coords\n# But 'y' is not reshaped either, so it should be added to reshaped as-is\n# Let's trace through the loop:\n\nfor key, var in obj.variables.items():\n    reshaped_dims = tuple(\n        __import__('itertools').chain(*[window_dim.get(dim, [dim]) for dim in list(var.dims)])\n    )\n    if reshaped_dims != var.dims:\n        print(f'{key} is reshaped: {var.dims} -> {reshaped_dims}')\n    else:\n        print(f'{key} is NOT reshaped: {var.dims}')\n        \n# 'y' is not reshaped, so it goes into the else branch and is just copied.\n# The question is: should it be a coordinate or a data variable?\n# Since 'y' was a coordinate before, it should remain a coordinate.\n# But the current code only adds dimensions that are being coarsened to coordinates.\n\n# Let me check what actually happens with 'y' in the result:\nresult = ds.coarsen(time=12, x=5).construct(\n    {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\n)\nprint()\nprint('Is y a coordinate?', 'y' in result.coords)\nprint('Is y a data variable?', 'y' in result.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 785.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\nobj = ds\nwindow_dim = {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\n\n# Simulate the construct logic step by step\nimport itertools\n\nreshaped = {}\nfor key, var in obj.variables.items():\n    reshaped_dims = tuple(\n        itertools.chain(*[window_dim.get(dim, [dim]) for dim in list(var.dims)])\n    )\n    if reshaped_dims != var.dims:\n        print(f'{key} is reshaped')\n    else:\n        print(f'{key} is NOT reshaped, just copied')\n        reshaped[key] = var\n\nprint()\nprint('reshaped keys after loop:', list(reshaped.keys()))\nprint('obj.coords:', list(obj.coords.keys()))\n\n# Check if 'y' is in reshaped\nprint()\nprint('Is y in reshaped?', 'y' in reshaped)\n\n# Now check what set_coords does:\nshould_be_coords = set(window_dim) & set(obj.coords)\nprint()\nprint('should_be_coords:', should_be_coords)\nresult = reshaped.copy()\nresult = xr.Dataset(result).set_coords(should_be_coords)\nprint('After set_coords:', list(result.coords))\n\"\n",
+   "hit": null,
+   "lat_ms": 779.1
+  },
+  {
+   "cmd": "sed -n '963,982p' /testbed/xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\nobj = ds\nwindow_dim = {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\n\nimport itertools\n\nreshaped = xr.Dataset()\nfor key, var in obj.variables.items():\n    reshaped_dims = tuple(\n        itertools.chain(*[window_dim.get(dim, [dim]) for dim in list(var.dims)])\n    )\n    if reshaped_dims != var.dims:\n        windows = {w: obj.coarsen_obj.windows[w] for w in window_dim if w in var.dims}\n        reshaped_var, _ = var.coarsen_reshape(windows, 'trim', 'left')\n        reshaped[key] = (reshaped_dims, reshaped_var, {})\n    else:\n        reshaped[key] = var\n\nprint('reshaped keys:', list(reshaped.keys()))\nprint('reshaped coords:', list(reshaped.coords))\n\nshould_be_coords = set(window_dim) & set(obj.coords)\nprint()\nprint('should_be_coords:', should_be_coords)\n\n# Let me check what set_coords does\nresult = reshaped.set_coords(should_be_coords)\nprint('After set_coords:', list(result.coords))\n\"\n",
+   "hit": null,
+   "lat_ms": 776.7
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\n# Check what coarsen_reshape does\nobj = ds.coarsen(time=12, x=5)\ncoarsen_obj = obj\nprint('coarsen_obj.windows:', coarsen_obj.windows)\n\nvar = ds['vart'].variable\nprint('var:', var)\nprint('var.dims:', var.dims)\n\nwindows = {'time': 12}\nreshaped_var, _ = var.coarsen_reshape(windows, 'trim', 'left')\nprint('reshaped_var:', reshaped_var)\n\"\n",
+   "hit": null,
+   "lat_ms": 842.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\nimport itertools\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\nobj = ds\nwindow_dim = {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\nboundary = 'trim'\nside = 'left'\n\n# Simulate the construct logic\nreshaped = xr.Dataset()\nfor key, var in obj.variables.items():\n    reshaped_dims = tuple(\n        itertools.chain(*[window_dim.get(dim, [dim]) for dim in list(var.dims)])\n    )\n    if reshaped_dims != var.dims:\n        windows = {w: obj.coarsen_obj.windows[w] for w in window_dim if w in var.dims}\n        reshaped_var, _ = var.coarsen_reshape(windows, boundary, side)\n        reshaped[key] = (reshaped_dims, reshaped_var, {})\n    else:\n        reshaped[key] = var\n\nprint('After loop, reshaped keys:', list(reshaped.keys()))\n\nshould_be_coords = set(window_dim) & set(obj.coords)\nprint('should_be_coords:', should_be_coords)\n\"\n",
+   "hit": null,
+   "lat_ms": 770.8
+  },
+  {
+   "cmd": "grep -n \"def coarsen_reshape\" /testbed/xarray --include=\"*.py\" -r",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "sed -n '2455,2550p' /testbed/xarray/core/variable.py",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\nimport itertools\n\n# Test with the simple example from the bug report\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nobj = ds\nwindow_dim = {'time': ('year', 'month')}\n\nprint('obj.variables:', list(obj.variables.keys()))\nprint('obj.coords:', list(obj.coords.keys()))\nprint()\n\n# The key insight is:\n# - 'day' is a coordinate (not a dimension coordinate)\n# - 'day' has dims ('time',)\n# - When we call construct, 'day' should be reshaped\n# - But 'day' is not in window_dim, so it won't be in should_be_coords\n\nshould_be_coords = set(window_dim) & set(obj.coords)\nprint('should_be_coords (current logic):', should_be_coords)\nprint()\n\n# The fix should be to also include coordinates that are being reshaped\n# i.e., coordinates whose dimensions overlap with window_dim\n\ncoords_to_preserve = set()\nfor key in obj.coords:\n    if any(dim in window_dim for dim in obj[key].dims):\n        coords_to_preserve.add(key)\n        \nprint('coords_to_preserve (proposed fix):', coords_to_preserve)\n\"\n",
+   "hit": null,
+   "lat_ms": 768.8
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Case 1: time is both a dimension and a coordinate\nds1 = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={'time': np.arange(24)}\n)\n\n# Case 2: time is a dimension but not a coordinate (day is a coordinate)\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds2 = da.to_dataset(name='T')\n\nprint('Case 1:')\nprint('  coords:', list(ds1.coords.keys()))\nprint('  dims:', list(ds1.dims.keys()))\nprint()\n\nprint('Case 2:')\nprint('  coords:', list(ds2.coords.keys()))\nprint('  dims:', list(ds2.dims.keys()))\nprint()\n\n# In Case 1, 'time' is a coordinate that is also a dimension.\n# In Case 2, 'time' is not a coordinate (dims without coordinates), but 'day' is.\n\nwindow_dim = {'time': ('year', 'month')}\n\n# Current logic:\nshould_be_coords1 = set(window_dim) & set(ds1.coords)\nshould_be_coords2 = set(window_dim) & set(ds2.coords)\n\nprint('Current should_be_coords for Case 1:', should_be_coords1)\nprint('Current should_be_coords for Case 2:', should_be_coords2)\nprint()\n\n# Proposed fix:\ndef get_coords_to_preserve(obj, window_dim):\n    coords_to_preserve = set()\n    for key in obj.coords:\n        if any(dim in window_dim for dim in obj[key].dims):\n            coords_to_preserve.add(key)\n    return coords_to_preserve\n\ncoords_to_preserve1 = get_coords_to_preserve(ds1, window_dim)\ncoords_to_preserve2 = get_coords_to_preserve(ds2, window_dim)\n\nprint('Proposed coords_to_preserve for Case 1:', coords_to_preserve1)\nprint('Proposed coords_to_preserve for Case 2:', coords_to_preserve2)\n\"\n",
+   "hit": null,
+   "lat_ms": 771.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Case 3: time is a dimension and coordinate, x is a dimension but NOT a coordinate\nds3 = xr.Dataset(\n    {'T': (('time', 'x'), np.arange(24).reshape(4, 6))},\n    coords={'time': np.arange(4)}\n)\n\nprint('Case 3:')\nprint('  coords:', list(ds3.coords.keys()))\nprint('  dims:', list(ds3.dims.keys()))\nprint('  x is a coordinate?', 'x' in ds3.coords)\nprint()\n\nwindow_dim = {'time': ('year', 'month')}\n\n# Current logic:\nshould_be_coords3 = set(window_dim) & set(ds3.coords)\nprint('Current should_be_coords for Case 3:', should_be_coords3)\n\n# Proposed fix:\ndef get_coords_to_preserve(obj, window_dim):\n    coords_to_preserve = set()\n    for key in obj.coords:\n        if any(dim in window_dim for dim in obj[key].dims):\n            coords_to_preserve.add(key)\n    return coords_to_preserve\n\ncoords_to_preserve3 = get_coords_to_preserve(ds3, window_dim)\nprint('Proposed coords_to_preserve for Case 3:', coords_to_preserve3)\n\"\n",
+   "hit": null,
+   "lat_ms": 769.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Case 4: y is a coordinate but NOT being reshaped\nds4 = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={'time': np.arange(24), 'y': 5}  # y is a scalar coordinate\n)\n\nprint('Case 4:')\nprint('  coords:', list(ds4.coords.keys()))\nprint('  T.dims:', ds4['T'].dims)\nprint('  y.dims:', ds4['y'].dims)\nprint()\n\nwindow_dim = {'time': ('year', 'month')}\n\n# Current logic:\nshould_be_coords4 = set(window_dim) & set(ds4.coords)\nprint('Current should_be_coords for Case 4:', should_be_coords4)\n\n# Proposed fix:\ndef get_coords_to_preserve(obj, window_dim):\n    coords_to_preserve = set()\n    for key in obj.coords:\n        if any(dim in window_dim for dim in obj[key].dims):\n            coords_to_preserve.add(key)\n    return coords_to_preserve\n\ncoords_to_preserve4 = get_coords_to_preserve(ds4, window_dim)\nprint('Proposed coords_to_preserve for Case 4:', coords_to_preserve4)\nprint()\n\n# But y should remain a coordinate even though it's not being reshaped!\n# The issue is: how do we know which coordinates should remain?\n\n# Let me check what happens in the current implementation:\nresult = ds4.coarsen(time=12).construct(time=('year', 'month'))\nprint('After construct, y is a coordinate?', 'y' in result.coords)\nprint('Result:', result)\n\"\n",
+   "hit": null,
+   "lat_ms": 773.4
+  },
+  {
+   "cmd": "grep -n \"scalar\" /testbed/xarray/tests/test_coarsen.py",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "grep -A 30 \"test_coarsen_construct\" /testbed/xarray/tests/test_coarsen.py",
+   "hit": null,
+   "lat_ms": 117.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test the fix with the bug report example\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nprint('Original:')\nprint(ds)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint(result)\nprint()\n\n# Check if day is still a coordinate\nprint('day is a coordinate:', 'day' in result.coords)\nprint('day is a data variable:', 'day' in result.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 770.6
+  },
+  {
+   "cmd": "sed -n '960,985p' /testbed/xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cat > /tmp/fix.py << 'EOF'\nimport sys\n\n# Read the file\nwith open('/testbed/xarray/core/rolling.py', 'r') as f:\n    content = f.read()\n\n# Find the line with the old logic\nold_line = '        should_be_coords = set(window_dim) & set(self.obj.coords)'\nnew_lines = '''        # Preserve coordinates that are being reshaped (or are dimension coordinates)\n        should_be_coords = set(window_dim) & set(self.obj.coords)\n        for key in self.obj.coords:\n            if key not in should_be_coords and any(\n                dim in window_dim for dim in self.obj[key].dims\n            ):\n                should_be_coords.add(key)'''\n\n# Replace the old line with the new logic\nif old_line in content:\n    content = content.replace(old_line, new_lines)\n    with open('/testbed/xarray/core/rolling.py', 'w') as f:\n        f.write(content)\n    print(\"Fix applied successfully!\")\nelse:\n    print(\"Could not find the line to replace!\")\n    sys.exit(1)\nEOF\npython3 /tmp/fix.py\n",
+   "hit": null,
+   "lat_ms": 185.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test the fix with the bug report example\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nprint('Original:')\nprint(ds)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint(result)\nprint()\n\n# Check if day is still a coordinate\nprint('day is a coordinate:', 'day' in result.coords)\nprint('day is a data variable:', 'day' in result.data_vars)\nprint()\n\n# Check the actual values\nprint('day values:', result['day'].values)\n\"\n",
+   "hit": null,
+   "lat_ms": 862.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_coarsen.py::test_coarsen_construct -xvs",
+   "hit": null,
+   "lat_ms": 3828.4
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_coarsen.py -x",
+   "hit": null,
+   "lat_ms": 4407.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Edge case 1: Coordinate that is NOT being reshaped should remain a coordinate\nds1 = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={'time': np.arange(24), 'y': 5}  # y is a scalar coordinate\n)\n\nresult1 = ds1.coarsen(time=12).construct(time=('year', 'month'))\nprint('Edge case 1: Scalar coordinate y')\nprint('  y is a coordinate:', 'y' in result1.coords)\nprint('  y is a data variable:', 'y' in result1.data_vars)\nprint('  Result:', result1)\nprint()\n\n# Edge case 2: Coordinate with no overlap with coarsening dimensions\nds2 = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={'time': np.arange(24), 'lat': 45, 'lon': 120}  # scalar coordinates\n)\n\nresult2 = ds2.coarsen(time=12).construct(time=('year', 'month'))\nprint('Edge case 2: Multiple scalar coordinates')\nprint('  lat is a coordinate:', 'lat' in result2.coords)\nprint('  lon is a coordinate:', 'lon' in result2.coords)\nprint('  Result:', result2)\n\"\n",
+   "hit": null,
+   "lat_ms": 778.4
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Check what happens with the existing test\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\nresult = ds.coarsen(time=12, x=5).construct(\n    {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\n)\n\n# 'vary' is a data variable that is NOT reshaped\n# 'vary' has dims ('y',), and 'y' is not in window_dim\n# So 'vary' is not reshaped, it's just copied as-is\n# Is 'vary' a coordinate in the result?\nprint('vary is a coordinate:', 'vary' in result.coords)\nprint('vary is a data variable:', 'vary' in result.data_vars)\nprint()\n\n# 'y' is a coordinate with dims ('y',), and 'y' is not in window_dim\n# So 'y' is not reshaped, it's just copied as-is\n# Is 'y' a coordinate in the result?\nprint('y is a coordinate:', 'y' in result.coords)\nprint('y is a data variable:', 'y' in result.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 783.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\nobj = ds\nwindow_dim = {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\n\n# Current logic (after my fix):\nshould_be_coords = set(window_dim) & set(obj.coords)\nprint('Initial should_be_coords:', should_be_coords)\n\n# Add coordinates that are being reshaped\nfor key in obj.coords:\n    if key not in should_be_coords and any(\n        dim in window_dim for dim in obj[key].dims\n    ):\n        should_be_coords.add(key)\n        print(f'  Adding {key} to should_be_coords')\n\nprint('Final should_be_coords:', should_be_coords)\nprint()\n\n# 'y' should not be in should_be_coords because:\n# - 'y' is not in window_dim\n# - 'y' has dims ('y',), and 'y' is not in window_dim\n# So 'y' is NOT added by the loop\n\n# But 'y' IS a coordinate in the result! How?\n# Let me trace through the loop:\nimport itertools\n\nreshaped = xr.Dataset()\nfor key, var in obj.variables.items():\n    reshaped_dims = tuple(\n        itertools.chain(*[window_dim.get(dim, [dim]) for dim in list(var.dims)])\n    )\n    if reshaped_dims != var.dims:\n        print(f'{key} is reshaped')\n    else:\n        print(f'{key} is NOT reshaped, copied as-is')\n        reshaped[key] = var\n\nprint()\nprint('reshaped keys:', list(reshaped.keys()))\nprint('reshaped coords:', list(reshaped.coords))\nprint()\n\n# Ah! 'y' is NOT reshaped, so it's just copied as-is.\n# But 'y' is NOT in should_be_coords either!\n# Let me check what set_coords does:\nresult = reshaped.set_coords(should_be_coords)\nprint('After set_coords:', list(result.coords))\n\"\n",
+   "hit": null,
+   "lat_ms": 788.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\nobj = ds\n\nprint('obj.variables:', list(obj.variables.keys()))\nprint('obj.coords:', list(obj.coords.keys()))\nprint()\n\n# Check if 'y' is in obj.variables\nprint('y in obj.variables:', 'y' in obj.variables)\nprint('vary in obj.variables:', 'vary' in obj.variables)\n\"\n",
+   "hit": null,
+   "lat_ms": 777.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\nimport itertools\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\nobj = ds\nwindow_dim = {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\n\n# Trace through the loop\nreshaped = xr.Dataset()\nfor key, var in obj.variables.items():\n    reshaped_dims = tuple(\n        itertools.chain(*[window_dim.get(dim, [dim]) for dim in list(var.dims)])\n    )\n    print(f'key={key}, var.dims={var.dims}, reshaped_dims={reshaped_dims}')\n    \n    if reshaped_dims != var.dims:\n        windows = {w: obj.coarsen.windows[w] for w in window_dim if w in var.dims}\n        reshaped_var, _ = var.coarsen_reshape(windows, 'trim', 'left')\n        reshaped[key] = (reshaped_dims, reshaped_var, {})\n    else:\n        reshaped[key] = var\n\nprint()\nprint('reshaped keys:', list(reshaped.keys()))\nprint('reshaped coords:', list(reshaped.coords))\n\"\n",
+   "hit": null,
+   "lat_ms": 791.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\nimport itertools\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\nobj = ds.coarsen(time=12, x=5)\ncoarsen_obj = obj\n\nwindow_dim = {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\n\n# Trace through the loop\nreshaped = xr.Dataset()\nfor key, var in obj.obj.variables.items():\n    reshaped_dims = tuple(\n        itertools.chain(*[window_dim.get(dim, [dim]) for dim in list(var.dims)])\n    )\n    print(f'key={key}, var.dims={var.dims}, reshaped_dims={reshaped_dims}')\n    \n    if reshaped_dims != var.dims:\n        windows = {w: coarsen_obj.windows[w] for w in window_dim if w in var.dims}\n        reshaped_var, _ = var.coarsen_reshape(windows, 'trim', 'left')\n        reshaped[key] = (reshaped_dims, reshaped_var, {})\n    else:\n        reshaped[key] = var\n\nprint()\nprint('reshaped keys:', list(reshaped.keys()))\nprint('reshaped coords:', list(reshaped.coords))\n\"\n",
+   "hit": null,
+   "lat_ms": 776.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n)\n\n# Check if 'y' is a coordinate\nprint('y in ds.coords:', 'y' in ds.coords)\nprint('vary in ds.coords:', 'vary' in ds.coords)\n\n# Now let's see what happens when we copy a coordinate:\ny_var = ds['y'].variable\nprint('y_var type:', type(y_var))\nprint('y_var:', y_var)\n\n# Let's see if there's metadata about whether it's a coordinate\nprint('y_var.attrs:', y_var.attrs)\n\"\n",
+   "hit": null,
+   "lat_ms": 819.4
+  },
+  {
+   "cmd": "grep -n \"class IndexVariable\" /testbed/xarray/core --include=\"*.py\" -r",
+   "hit": null,
+   "lat_ms": 73.2
+  },
+  {
+   "cmd": "sed -n '2821,2900p' /testbed/xarray/core/variable.py",
+   "hit": null,
+   "lat_ms": 74.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n)\n\n# Check if 'y' is a coordinate\nprint('y in ds.coords:', 'y' in ds.coords)\nprint('vary in ds.coords:', 'vary' in ds.coords)\n\n# Now let's see what happens when we copy a coordinate:\ny_var = ds['y'].variable\nprint('y_var type:', type(y_var))\n\n# When we do reshaped['y'] = y_var, what happens?\nreshaped = xr.Dataset()\nreshaped['y'] = y_var\n\nprint()\nprint('After reshaped[y] = y_var:')\nprint('y in reshaped:', 'y' in reshaped)\nprint('y in reshaped.coords:', 'y' in reshaped.coords)\n\"\n",
+   "hit": null,
+   "lat_ms": 786.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Regular Variable (not IndexVariable)\nfrom xarray.core.variable import Variable\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n)\n\n# Create a regular Variable (not IndexVariable)\ny_var = ds['y'].variable\nprint('y_var type:', type(y_var))\n\n# Let's see if it's an IndexVariable\nprint('Is IndexVariable?', isinstance(y_var, xr.core.variable.IndexVariable))\n\n# Let's see what type vary is:\nvary_var = ds['vary'].variable\nprint('vary_var type:', type(vary_var))\nprint('Is vary_var an IndexVariable?', isinstance(vary_var, xr.core.variable.IndexVariable))\n\n# Let's see the Dataset's _coord_names\nprint()\nprint('ds._coord_names:', ds._coord_names)\nprint('ds._var_names:', ds._var_names)\n\"\n",
+   "hit": null,
+   "lat_ms": 773.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n)\n\n# Let's see what type vary is:\nvary_var = ds['vary'].variable\nprint('vary_var type:', type(vary_var))\nprint('Is vary_var an IndexVariable?', isinstance(vary_var, xr.core.variable.IndexVariable))\n\n# Let's see the Dataset's _coord_names\nprint()\nprint('ds._coord_names:', ds._coord_names)\n\n# Now let's see what happens when we copy vary_var to a new dataset\nnew_ds = xr.Dataset()\nnew_ds['vary'] = vary_var\nprint()\nprint('After new_ds[vary] = vary_var:')\nprint('new_ds._coord_names:', new_ds._coord_names)\n\"\n",
+   "hit": null,
+   "lat_ms": 778.4
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n)\n\n# Let's see what type vary is:\nvary_var = ds['vary'].variable\nprint('vary_var type:', type(vary_var))\n\n# Now let's see what happens when we copy vary_var to a new dataset\nnew_ds = xr.Dataset()\nnew_ds['vary'] = vary_var\nprint()\nprint('After new_ds[vary] = vary_var:')\nprint('vary in new_ds:', 'vary' in new_ds)\nprint('vary in new_ds.coords:', 'vary' in new_ds.coords)\nprint('vary in new_ds.data_vars:', 'vary' in new_ds.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 781.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n    },\n    coords={'time': np.arange(48)},\n)\n\n# Get the time variable\ntime_var = ds['time'].variable\nprint('time_var type:', type(time_var))\n\n# Let's see what coarsen_reshape returns\nwindows = {'time': 12}\nboundary = 'trim'\nside = 'left'\n\nreshaped_var, axes = time_var.coarsen_reshape(windows, boundary, side)\nprint()\nprint('reshaped_var type:', type(reshaped_var))\nprint('reshaped_var:', reshaped_var)\n\"\n",
+   "hit": null,
+   "lat_ms": 778.7
+  },
+  {
+   "cmd": "sed -n '964,985p' /testbed/xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 71.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test the fix with the bug report example\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nprint('Original:')\nprint(ds)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint(result)\nprint()\n\n# Check if day is still a coordinate\nprint('day is a coordinate:', 'day' in result.coords)\nprint('day is a data variable:', 'day' in result.data_vars)\nprint()\n\n# Check if time would be a coordinate if it existed\n# (In this case, time is not a coordinate, it's 'dims without coordinates')\nprint('time is a coordinate:', 'time' in result.coords)\nprint()\n\n# Now test with time as a coordinate\nda2 = xr.DataArray(np.arange(24), dims=['time'], coords={'time': np.arange(24)})\nda2 = da2.assign_coords(day=365 * da2)\nds2 = da2.to_dataset(name='T')\n\nprint('Original with time as coordinate:')\nprint(ds2)\nprint()\n\nresult2 = ds2.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint(result2)\nprint()\n\n# Check if day is still a coordinate\nprint('day is a coordinate:', 'day' in result2.coords)\nprint('time is a coordinate:', 'time' in result2.coords)\n\"\n",
+   "hit": null,
+   "lat_ms": 831.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_coarsen.py::test_coarsen_construct -xvs 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 2775.7
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_coarsen.py -x",
+   "hit": null,
+   "lat_ms": 4379.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_rolling.py -x -v 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 7980.7
+  },
+  {
+   "cmd": "grep -n \"construct\" /testbed/xarray/tests/test_rolling.py | head -30",
+   "hit": null,
+   "lat_ms": 115.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_rolling.py -x --timeout=60 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 65793.4
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test with multi-dimensional coordinates\nds = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={\n        'time': np.arange(24),\n        'lat': ('time', np.arange(24)),  # 1D coordinate\n    }\n)\n\nprint('Original:')\nprint(ds)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint(result)\nprint()\n\n# Check if lat is still a coordinate\nprint('lat is a coordinate:', 'lat' in result.coords)\nprint('lat is a data variable:', 'lat' in result.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 787.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test with a coordinate that depends on a dimension NOT being coarsened\nds = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={\n        'time': np.arange(24),\n        'x': ('y', np.arange(10)),  # depends on 'y', not 'time'\n    }\n)\n\nprint('Original:')\nprint(ds)\nprint()\n\n# Coarsen only 'time'\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct (only time is coarsened):')\nprint(result)\nprint()\n\n# Check if x is still a coordinate\nprint('x is a coordinate:', 'x' in result.coords)\nprint('x is a data variable:', 'x' in result.data_vars)\n\n# But wait, 'x' has dims ('y',), and 'y' is not being coarsened\n# So 'x' should be copied as-is and remain a coordinate\n# Let me check if this is the case...\n\"\n",
+   "hit": null,
+   "lat_ms": 776.8
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\nimport itertools\n\nds = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={\n        'time': np.arange(24),\n        'x': ('y', np.arange(10)),  # depends on 'y', not 'time'\n    }\n)\n\nobj = ds.coarsen(time=12)\ncoarsen_obj = obj\nwindow_dim = {'time': ('year', 'month')}\n\n# Trace through the loop\nreshaped = xr.Dataset()\nfor key, var in obj.obj.variables.items():\n    reshaped_dims = tuple(\n        itertools.chain(*[window_dim.get(dim, [dim]) for dim in list(var.dims)])\n    )\n    print(f'key={key}, var.dims={var.dims}, reshaped_dims={reshaped_dims}')\n    \n    if reshaped_dims != var.dims:\n        windows = {w: coarsen_obj.windows[w] for w in window_dim if w in var.dims}\n        reshaped_var, _ = var.coarsen_reshape(windows, 'trim', 'left')\n        reshaped[key] = (reshaped_dims, reshaped_var, {})\n    else:\n        reshaped[key] = var\n\nprint()\nprint('reshaped keys:', list(reshaped.keys()))\nprint('reshaped coords:', list(reshaped.coords))\n\"\n",
+   "hit": null,
+   "lat_ms": 777.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={\n        'time': np.arange(24),\n        'x': ('y', np.arange(10)),  # depends on 'y', not 'time'\n    }\n)\n\n# Check if 'x' is an IndexVariable\nprint('x variable type:', type(ds['x'].variable))\nprint('x is dimension coordinate?', 'x' in ds.dims)\n\n# Check if 'time' is an IndexVariable\nprint('time variable type:', type(ds['time'].variable))\nprint('time is dimension coordinate?', 'time' in ds.dims)\n\n# So 'x' is a regular Variable (not IndexVariable), and it's not a dimension\n# When we copy it to a new dataset, it becomes a data variable\n# But 'time' is an IndexVariable, and it becomes a coordinate\n\n# Let me verify this\nnew_ds = xr.Dataset()\nnew_ds['x'] = ds['x'].variable\nprint()\nprint('After new_ds[x] = x_var:')\nprint('x in new_ds.coords:', 'x' in new_ds.coords)\n\nnew_ds2 = xr.Dataset()\nnew_ds2['time'] = ds['time'].variable\nprint()\nprint('After new_ds2[time] = time_var:')\nprint('time in new_ds2.coords:', 'time' in new_ds2.coords)\n\"\n",
+   "hit": null,
+   "lat_ms": 780.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\nds = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={\n        'time': np.arange(24),\n        'x': ('y', np.arange(10)),  # depends on 'y', not 'time'\n    }\n)\n\n# Check what should_be_coords would be\nobj = ds.coarsen(time=12)\nwindow_dim = {'time': ('year', 'month')}\n\n# Current logic:\nshould_be_coords = set(window_dim) & set(obj.obj.coords)\nprint('Initial should_be_coords:', should_be_coords)\n\n# Add coordinates that are being reshaped\nfor key in obj.obj.coords:\n    if key not in should_be_coords and any(\n        dim in window_dim for dim in obj.obj[key].dims\n    ):\n        should_be_coords.add(key)\n\nprint('Final should_be_coords:', should_be_coords)\n\n# So 'time' is in should_be_coords (because it's in window_dim)\n# But 'x' is NOT in should_be_coords (because it's not in window_dim and its dims don't overlap)\n\n# The question is: should 'x' be in should_be_coords?\n# 'x' is a coordinate in the original dataset, and it's NOT being reshaped\n# So it should remain a coordinate, right?\n\n# Let me check what happens with 'x' after construct:\nresult = obj.construct(time=('year', 'month'))\nprint()\nprint('x is a coordinate after construct:', 'x' in result.coords)\nprint('x is a data variable after construct:', 'x' in result.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 776.9
+  },
+  {
+   "cmd": "grep -B5 -A20 \"non-dimensional\" /testbed/xarray/tests/test_coarsen.py",
+   "hit": null,
+   "lat_ms": 72.9
+  },
+  {
+   "cmd": "grep -n \"coord\" /testbed/xarray/tests/test_coarsen.py | head -40",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Reproduce the test from test_coarsen.py\nds = xr.Dataset(\n    {\n        'vart': ('time', np.arange(48), {'a': 'b'}),\n        'varx': ('x', np.arange(10), {'a': 'b'}),\n        'vartx': (('x', 'time'), np.arange(480).reshape(10, 48), {'a': 'b'}),\n        'vary': ('y', np.arange(12)),\n    },\n    coords={'time': np.arange(48), 'y': np.arange(12)},\n    attrs={'foo': 'bar'},\n)\n\n# 'y' is a coordinate that is NOT being coarsened\n# 'vary' is a data variable with dims ('y',)\n\nresult = ds.coarsen(time=12, x=5).construct(\n    {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\n)\n\nprint('Result:')\nprint(result)\nprint()\n\nprint('y is a coordinate:', 'y' in result.coords)\nprint('vary is a coordinate:', 'vary' in result.coords)\n\n# So 'y' IS a coordinate, but 'vary' is NOT a coordinate\n# Why is that?\n\n# Let me trace through the logic:\nobj = ds.coarsen(time=12, x=5)\nwindow_dim = {'time': ('year', 'month'), 'x': ('x', 'x_reshaped')}\n\n# Check the variables\nfor key in obj.obj.variables:\n    var = obj.obj[key].variable\n    print(f'{key}: dims={var.dims}, type={type(var).__name__}')\n\"\n",
+   "hit": null,
+   "lat_ms": 777.8
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test the fix with the bug report example\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nprint('Original:')\nprint('  day is a coordinate:', 'day' in ds.coords)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint('  day is a coordinate:', 'day' in result.coords)\nprint('  day is a data variable:', 'day' in result.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 774.4
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test with a non-dimensional coordinate that is NOT being reshaped\nds = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={\n        'time': np.arange(24),\n        'day': ('time', np.arange(24) * 365),  # depends on 'time', will be reshaped\n        'lat': 45,  # scalar coordinate, will NOT be reshaped\n    }\n)\n\nprint('Original:')\nprint('  day is a coordinate:', 'day' in ds.coords)\nprint('  lat is a coordinate:', 'lat' in ds.coords)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint('  day is a coordinate:', 'day' in result.coords)\nprint('  lat is a coordinate:', 'lat' in result.coords)\n\"\n",
+   "hit": null,
+   "lat_ms": 852.3
+  },
+  {
+   "cmd": "grep -rn \"scalar\" /testbed/xarray/tests/test_coarsen.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test what a scalar coordinate looks like\nds = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={\n        'time': np.arange(24),\n        'lat': 45,  # scalar coordinate\n    }\n)\n\nprint('ds.coords:')\nprint(ds.coords)\nprint()\n\nprint('ds[lat]:')\nprint(ds['lat'])\nprint()\n\nprint('ds[lat].dims:', ds['lat'].dims)\nprint('ds[lat].shape:', ds['lat'].shape)\n\"\n",
+   "hit": null,
+   "lat_ms": 782.3
+  },
+  {
+   "cmd": "cd /testbed && git diff HEAD xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 243.3
+  },
+  {
+   "cmd": "cd /testbed && git stash",
+   "hit": null,
+   "lat_ms": 168.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test with a scalar coordinate\nds = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={\n        'time': np.arange(24),\n        'lat': 45,  # scalar coordinate\n    }\n)\n\nprint('Original:')\nprint('  lat is a coordinate:', 'lat' in ds.coords)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct (OLD behavior):')\nprint('  lat is a coordinate:', 'lat' in result.coords)\nprint('  lat is a data variable:', 'lat' in result.data_vars)\nprint()\n\nprint('Result:')\nprint(result)\n\"\n",
+   "hit": null,
+   "lat_ms": 944.4
+  },
+  {
+   "cmd": "cd /testbed && git stash pop",
+   "hit": null,
+   "lat_ms": 179.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test with a non-dimensional coordinate\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nprint('Original:')\nprint('  day is a coordinate:', 'day' in ds.coords)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct (NEW behavior):')\nprint('  day is a coordinate:', 'day' in result.coords)\nprint('  day is a data variable:', 'day' in result.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 771.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_coarsen.py -x",
+   "hit": null,
+   "lat_ms": 4579.7
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test with a coordinate that has the same dimensions as the coarsened dimension\nds = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={\n        'time': np.arange(24),\n    }\n)\n\nprint('Original:')\nprint(ds)\nprint()\n\n# This should work fine\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint(result)\nprint()\n\n# Check that time is a coordinate\nprint('time is a coordinate:', 'time' in result.coords)\n\"\n",
+   "hit": null,
+   "lat_ms": 773.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test case 1: Coordinate depends on multiple dimensions, one being coarsened\nds = xr.Dataset(\n    {'T': (('time', 'x'), np.arange(24).reshape(4, 6))},\n    coords={\n        'time': np.arange(4),\n        'x': np.arange(6),\n        'day': (('time', 'x'), np.arange(24).reshape(4, 6) * 365),  # depends on both time and x\n    }\n)\n\nprint('Test case 1: Coordinate depends on multiple dimensions')\nprint('Original:')\nprint('  day is a coordinate:', 'day' in ds.coords)\nprint()\n\nresult = ds.coarsen(time=2, x=3).construct(time=('year', 'month'), x=('x', 'x_reshaped'))\n\nprint('After construct:')\nprint('  day is a coordinate:', 'day' in result.coords)\nprint('  day is a data variable:', 'day' in result.data_vars)\nprint()\n\n# Test case 2: Coordinate depends on a dimension that is NOT being coarsened\nds2 = xr.Dataset(\n    {'T': ('time', np.arange(24))},\n    coords={\n        'time': np.arange(24),\n        'lat': ('y', np.arange(10)),  # depends on y, not time\n    }\n)\n\nprint('Test case 2: Coordinate depends on a dimension NOT being coarsened')\nprint('Original:')\nprint('  lat is a coordinate:', 'lat' in ds2.coords)\nprint()\n\nresult2 = ds2.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint('  lat is a coordinate:', 'lat' in result2.coords)\nprint('  lat is a data variable:', 'lat' in result2.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 772.9
+  },
+  {
+   "cmd": "cd /testbed && git stash",
+   "hit": null,
+   "lat_ms": 174.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test case 1: Coordinate depends on multiple dimensions, one being coarsened\nds = xr.Dataset(\n    {'T': (('time', 'x'), np.arange(24).reshape(4, 6))},\n    coords={\n        'time': np.arange(4),\n        'x': np.arange(6),\n        'day': (('time', 'x'), np.arange(24).reshape(4, 6) * 365),  # depends on both time and x\n    }\n)\n\nprint('Test case 1: Coordinate depends on multiple dimensions')\nprint('Original:')\nprint('  day is a coordinate:', 'day' in ds.coords)\nprint()\n\nresult = ds.coarsen(time=2, x=3).construct(time=('year', 'month'), x=('x', 'x_reshaped'))\n\nprint('After construct:')\nprint('  day is a coordinate:', 'day' in result.coords)\nprint('  day is a data variable:', 'day' in result.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 775.1
+  },
+  {
+   "cmd": "cd /testbed && git stash pop",
+   "hit": null,
+   "lat_ms": 119.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test case: Coordinate depends on only time, which is being coarsened\nds = xr.Dataset(\n    {'T': (('time', 'x'), np.arange(24).reshape(4, 6))},\n    coords={\n        'time': np.arange(4),\n        'x': np.arange(6),\n        'day': ('time', np.arange(4) * 365),  # depends only on time\n    }\n)\n\nprint('Test case: Coordinate depends on only time')\nprint('Original:')\nprint(ds)\nprint('  day is a coordinate:', 'day' in ds.coords)\nprint()\n\nresult = ds.coarsen(time=2).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint(result)\nprint('  day is a coordinate:', 'day' in result.coords)\nprint('  day is a data variable:', 'day' in result.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 770.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_coarsen.py -x",
+   "hit": null,
+   "lat_ms": 4574.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Reproduce the exact example from the bug report\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nprint('Original dataset:')\nprint(ds)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint(result)\nprint()\n\n# Check the expected behavior\nprint('Expected: day should be a coordinate')\nprint('Actual: day is a coordinate?', 'day' in result.coords)\nprint('Actual: day is a data variable?', 'day' in result.data_vars)\nprint()\n\n# Also check the values\nprint('day values are correct:', np.allclose(result['day'].values.flatten(), da.values * 365))\n\"\n",
+   "hit": null,
+   "lat_ms": 771.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_dataset.py -k \"coarsen\" -x",
+   "hit": null,
+   "lat_ms": 3772.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_dataarray.py -k \"coarsen\" -x",
+   "hit": null,
+   "lat_ms": 3780.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test with DataArray\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\n\nprint('Original DataArray:')\nprint(da)\nprint('  day is a coordinate:', 'day' in da.coords)\nprint()\n\nresult = da.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint(result)\nprint('  day is a coordinate:', 'day' in result.coords)\nprint('  day is a data variable?', 'day' in result.data_vars if hasattr(result, 'data_vars') else 'N/A')\n\"\n",
+   "hit": null,
+   "lat_ms": 610.2
+  },
+  {
+   "cmd": "sed -n '983,1000p' /testbed/xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test with a coordinate that has attributes\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=(['time'], np.arange(24) * 365, {'units': 'days'}))\n\nds = da.to_dataset(name='T')\n\nprint('Original dataset:')\nprint(ds)\nprint('  day attrs:', ds['day'].attrs)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint(result)\nprint('  day attrs:', result['day'].attrs)\n\"\n",
+   "hit": null,
+   "lat_ms": 798.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test with keep_attrs=False\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=(['time'], np.arange(24) * 365, {'units': 'days'}))\n\nds = da.to_dataset(name='T', attrs={'global_attr': 'test'})\n\nprint('Original dataset:')\nprint(ds)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'), keep_attrs=False)\n\nprint('After construct (keep_attrs=False):')\nprint(result)\nprint('  day attrs:', result['day'].attrs)\nprint('  T attrs:', result['T'].attrs)\nprint('  global attrs:', result.attrs)\n\"\n",
+   "hit": null,
+   "lat_ms": 805.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Test with keep_attrs=False\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=(['time'], np.arange(24) * 365, {'units': 'days'}))\n\nds = da.to_dataset(name='T')\nds.attrs['global_attr'] = 'test'\n\nprint('Original dataset:')\nprint(ds)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'), keep_attrs=False)\n\nprint('After construct (keep_attrs=False):')\nprint(result)\nprint('  day attrs:', result['day'].attrs)\nprint('  T attrs:', result['T'].attrs)\nprint('  global attrs:', result.attrs)\n\"\n",
+   "hit": null,
+   "lat_ms": 774.2
+  },
+  {
+   "cmd": "cd /testbed && git diff HEAD xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_rolling.py -x --timeout=60 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 65313.5
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_dataset.py -x --timeout=60 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 13000.0
+  },
+  {
+   "cmd": "grep -n \"def test_coarsen_construct\" /testbed/xarray/tests/test_coarsen.py",
+   "hit": null,
+   "lat_ms": 114.1
+  },
+  {
+   "cmd": "sed -n '254,330p' /testbed/xarray/tests/test_coarsen.py",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "cat >> /tmp/test_non_dimensional_coord.py << 'EOF'\n# Test case for non-dimensional coordinates\ndef test_coarsen_construct_non_dimensional_coord():\n    \"\"\"Test that non-dimensional coordinates are preserved after construct.\"\"\"\n    da = xr.DataArray(np.arange(24), dims=[\"time\"])\n    da = da.assign_coords(day=365 * da)\n    ds = da.to_dataset(name=\"T\")\n\n    result = ds.coarsen(time=12).construct(time=(\"year\", \"month\"))\n\n    # Check that 'day' is still a coordinate\n    assert \"day\" in result.coords\n    assert \"day\" not in result.data_vars\n\n    # Check that the values are correct\n    expected_day_values = da.values * 365\n    actual_day_values = result[\"day\"].values.flatten()\n    np.testing.assert_array_equal(actual_day_values, expected_day_values)\n\n\nif __name__ == \"__main__\":\n    import numpy as np\n    import xarray as xr\n    test_coarsen_construct_non_dimensional_coord()\n    print(\"Test passed!\")\nEOF\ncd /testbed && python3 /tmp/test_non_dimensional_coord.py\n",
+   "hit": null,
+   "lat_ms": 771.0
+  },
+  {
+   "cmd": "cat >> /testbed/xarray/tests/test_coarsen.py << 'EOF'\n\n\ndef test_coarsen_construct_non_dimensional_coord() -> None:\n    \"\"\"Test that non-dimensional coordinates are preserved after construct.\n\n    See https://github.com/pydata/xarray/issues/8098\n    \"\"\"\n    da = xr.DataArray(np.arange(24), dims=[\"time\"])\n    da = da.assign_coords(day=365 * da)\n    ds = da.to_dataset(name=\"T\")\n\n    result = ds.coarsen(time=12).construct(time=(\"year\", \"month\"))\n\n    # Check that 'day' is still a coordinate\n    assert \"day\" in result.coords\n    assert \"day\" not in result.data_vars\n\n    # Check that the values are correct\n    expected_day_values = da.values * 365\n    actual_day_values = result[\"day\"].values.flatten()\n    np.testing.assert_array_equal(actual_day_values, expected_day_values)\n\n    # Test with time as a coordinate too\n    da2 = xr.DataArray(np.arange(24), dims=[\"time\"], coords={\"time\": np.arange(24)})\n    da2 = da2.assign_coords(day=365 * da2)\n    ds2 = da2.to_dataset(name=\"T\")\n\n    result2 = ds2.coarsen(time=12).construct(time=(\"year\", \"month\"))\n\n    # Check that both 'day' and 'time' are still coordinates\n    assert \"day\" in result2.coords\n    assert \"time\" in result2.coords\n    assert \"day\" not in result2.data_vars\n    assert \"time\" not in result2.data_vars\n\n    # Check that the values are correct\n    expected_day_values2 = da2.values * 365\n    actual_day_values2 = result2[\"day\"].values.flatten()\n    np.testing.assert_array_equal(actual_day_values2, expected_day_values2)\nEOF\n",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_coarsen.py::test_coarsen_construct_non_dimensional_coord -xvs",
+   "hit": null,
+   "lat_ms": 2770.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_coarsen.py -x",
+   "hit": null,
+   "lat_ms": 4573.2
+  },
+  {
+   "cmd": "cd /testbed && git diff HEAD xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /testbed && git diff HEAD xarray/tests/test_coarsen.py | head -60",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_coarsen.py -x --tb=short",
+   "hit": null,
+   "lat_ms": 4373.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport numpy as np\nimport xarray as xr\n\n# Exact example from the bug report\nda = xr.DataArray(np.arange(24), dims=['time'])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name='T')\n\nprint('Original:')\nprint(ds)\nprint()\n\nresult = ds.coarsen(time=12).construct(time=('year', 'month'))\n\nprint('After construct:')\nprint(result)\nprint()\n\n# Verify the expected behavior\nprint('Verification:')\nprint('  day is a coordinate:', 'day' in result.coords)\nprint('  day is a data variable:', 'day' in result.data_vars)\n\"\n",
+   "hit": null,
+   "lat_ms": 771.4
+  },
+  {
+   "cmd": "cd /testbed && rm /tmp/fix.py /tmp/test_non_dimensional_coord.py",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cd /testbed && git diff HEAD",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest xarray/tests/test_coarsen.py::test_coarsen_construct -xvs && python3 -m pytest xarray/tests/test_coarsen.py::test_coarsen_construct_non_dimensional_coord -xvs",
+   "hit": null,
+   "lat_ms": 5574.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pydata__xarray-7233",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 248931.9,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

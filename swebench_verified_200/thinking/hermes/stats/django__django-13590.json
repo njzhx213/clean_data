@@ -1,0 +1,186 @@
+{
+ "calls": 26,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 13013.477325439453,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 74.0
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && ls -la",
+   "hit": null,
+   "lat_ms": 147.1
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 && git status --short | head && python -c \"import django; print(django.__version__)\"",
+   "hit": null,
+   "lat_ms": 578.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"resolve_lookup_value\" -r django/ | head -20",
+   "hit": null,
+   "lat_ms": 252.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1060,1110p' django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1250,1300p' django/db/models/sql/query.py && git log -1 --format='%ci' HEAD",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"namedtuple\" tests/lookups tests/queries tests/aggregation 2>/dev/null | head -20; echo ---; grep -rn \"_fields\" django/db/models/sql/ | head",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "curl -s -m 8 -o /dev/null -w '%{http_code}' https://github.com/django/django 2>&1; echo; python --version; pip show django 2>/dev/null | head -3",
+   "hit": null,
+   "lat_ms": 571.2
+  },
+  {
+   "cmd": "pip show django | grep -i location; mkdir -p /tmp/repro/reproapp && touch /tmp/repro/reproapp/__init__.py",
+   "hit": null,
+   "lat_ms": 571.3
+  },
+  {
+   "cmd": "cat > /tmp/repro/reproapp/models.py <<'EOF'\nfrom django.db import models\n\n\nclass Book(models.Model):\n    price = models.IntegerField()\nEOF\ncat > /tmp/repro/run_repro.py <<'EOF'\nimport sys\nsys.path.insert(0, '/tmp/repro')\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    DEBUG=True,\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'reproapp',\n    ],\n    USE_TZ=True,\n)\ndjango.setup()\n\nfrom collections import namedtuple\nfrom django.db import connection\nfrom reproapp.models import Book\n\nwith connection.schema_editor() as se:\n    se.create_model(Book)\n\nBook.objects.create(price=1)\nBook.objects.create(price=7)\n\nRange = namedtuple('Range', ['near', 'far'])\n\n# 1. named tuple as the value of a __range lookup (the reported case)\nqs = Book.objects.filter(price__range=Range(1, 10))\nprint(\"range count:\", qs.count())\n\n# 2. named tuple in an __in lookup\nqs2 = Book.objects.filter(price__in=Range(1, 7))\nprint(\"in count:\", qs2.count())\n\n# 3. plain tuple still works\nqs3 = Book.objects.filter(price__range=(1, 10))\nprint(\"plain tuple range count:\", qs3.count())\n\n# 4. named tuple with an expression element (F) - resolution should happen\nfrom django.db.models import F\nFRange = namedtuple('FRange', ['near', 'far'])\nqs4 = Book.objects.filter(price__range=FRange(F('price'), 100))\nprint(\"F named tuple count:\", qs4.count())\n\nprint(\"ALL OK\")\nEOF\ncd /testbed && python /tmp/repro/run_repro.py",
+   "hit": null,
+   "lat_ms": 569.9
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'django/db/models/sql/query.py'\nsrc = open(path).read()\nold = \"\"\"        elif isinstance(value, (list, tuple)):\n            # The items of the iterable may be expressions and therefore need\n            # to be resolved independently.\n            return type(value)(\n                self.resolve_lookup_value(sub_value, can_reuse, allow_joins)\n                for sub_value in value\n            )\n        return value\"\"\"\nnew = \"\"\"        elif isinstance(value, (list, tuple)):\n            # The items of the iterable may be expressions and therefore need\n            # to be resolved independently.\n            if hasattr(value, '_fields'):\n                # Named tuple.\n                return type(value)(\n                    *(\n                        self.resolve_lookup_value(sub_value, can_reuse, allow_joins)\n                        for sub_value in value\n                    )\n                )\n            return type(value)(\n                self.resolve_lookup_value(sub_value, can_reuse, allow_joins)\n                for sub_value in value\n            )\n        return value\"\"\"\nassert src.count(old) == 1, \"expected exactly one match\"\nopen(path, 'w').write(src.replace(old, new))\nprint(\"patched\")\nEOF\nsed -n '1072,1095p' django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /testbed && python /tmp/repro/run_repro.py",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py queries lookups 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 1977.1
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py queries lookups 2>&1 | grep -E \"^(System check|Found|Ran|OK|FAILED|ERROR)\" ",
+   "hit": null,
+   "lat_ms": 1773.3
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py lookups 2>&1 | grep -B2 -A15 \"Traceback\" | head -40",
+   "hit": null,
+   "lat_ms": 571.0
+  },
+  {
+   "cmd": "cd /testbed && ls tests/lookups/ && python tests/runtests.py lookups.tests queries 2>&1 | grep -E \"^(System check|Found|Ran|OK|FAILED|ERROR)\"",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | grep -E \"quer|filter|express|aggreg|date|range\" ",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && ls -d tests/*/ | awk -F/ '{print $3}' | tr '\\n' ' '",
+   "hit": null,
+   "lat_ms": 113.8
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | head -60",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | grep -E \"^quer\" ; echo ---; ls tests/queries/",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py queries aggregation expressions annotations dates datetimes custom_lookups null_queries 2>&1 | grep -E \"^(System check|Found|Ran|OK|FAILED|ERROR|FAIL:|ERROR:)\"",
+   "hit": null,
+   "lat_ms": 2173.9
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py db_functions aggregation_regress expressions_case expressions_window filtered_relation queryset_pickle 2>&1 | grep -E \"^(System check|Ran|OK|FAILED|ERROR|FAIL:)\"",
+   "hit": null,
+   "lat_ms": 1612.6
+  },
+  {
+   "cmd": "cd /testbed && git diff && (python -m flake8 django/db/models/sql/query.py 2>/dev/null || echo \"flake8 not available\")",
+   "hit": null,
+   "lat_ms": 164.3
+  },
+  {
+   "cmd": "cd /testbed && grep -A3 flake8 setup.cfg; python -m py_compile django/db/models/sql/query.py && echo \"compile OK\" && python /tmp/repro/run_repro.py",
+   "hit": null,
+   "lat_ms": 437.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-13590",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 13013.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

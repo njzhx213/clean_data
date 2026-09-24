@@ -1,0 +1,146 @@
+{
+ "calls": 18,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 11959.630012512207,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && python3 --version && git --version && pip --version 2>/dev/null; echo \"---\"; ls /sys/fs/cgroup/ 2>/dev/null | head; echo \"---\"; ls /sys/fs/cgroup/cpu/cpu.cfs_quota_us /sys/fs/cgroup/cpu/cpu.cfs_period_us /sys/fs/cgroup/cpu/cpu.shares 2>&1",
+   "hit": null,
+   "lat_ms": 853.3
+  },
+  {
+   "cmd": "ls -la /testbed && cat /testbed/pylint/version.py 2>/dev/null; echo \"---git---\"; cd /testbed && git log --oneline -3 2>/dev/null && git status --short | head",
+   "hit": null,
+   "lat_ms": 251.8
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 && sed -n '1,80p' pylint/lint/run.py",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"_cpu_count\\|_query_cpu\" pylint/ tests/ && echo \"===parallel.py===\" && cat pylint/lint/parallel.py",
+   "hit": null,
+   "lat_ms": 165.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '150,215p' pylint/lint/run.py && echo \"===pylinter check() parallel part===\" && grep -n \"check_parallel\\|config.jobs\\|jobs\" pylint/lint/pylinter.py | head -30",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && ls tests/lint/ && grep -n \"class Test\\|def test\" tests/lint/unittest_run.py | head -40; echo \"===version===\"; grep -n \"version\" pylint/__pkginfo__.py | head -5",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "timeout 20 git ls-remote https://github.com/PyCQA/pylint.git HEAD 2>&1 | head -3",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '630,670p' pylint/lint/pylinter.py && echo \"===jobs option===\" && grep -n \"jobs\" pylint/lint/base_options.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport pylint\nprint('pylint', pylint.__version__, 'from', pylint.__file__)\nfrom pylint.lint.run import _query_cpu, _cpu_count\nprint('real cgroup values -> _query_cpu():', _query_cpu())\nprint('_cpu_count():', _cpu_count())\n\"",
+   "hit": null,
+   "lat_ms": 165.7
+  },
+  {
+   "cmd": "pip list 2>/dev/null | head -40; echo \"===\"; pip config list 2>/dev/null; echo \"===\"; timeout 15 pip download tomlkit -d /tmp/pipcheck --no-deps 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 8780.6
+  },
+  {
+   "cmd": "cat > /tmp/verify_fix.py << 'EOF'\n\"\"\"Verify _query_cpu/_cpu_count from the real /testbed/pylint/lint/run.py source.\n\nThe full pylint package can't be imported here (no network to install deps),\nso we extract the two functions from the actual repo file via AST and exec\nthem in a controlled namespace, then mock the cgroup files.\n\"\"\"\nimport ast\nimport io\nimport multiprocessing\nimport os\nimport sys\nfrom pathlib import Path\n\nSOURCE = \"/testbed/pylint/lint/run.py\"\n\nwith open(SOURCE, encoding=\"utf-8\") as f:\n    tree = ast.parse(f.read(), filename=SOURCE)\n\nwanted = {\"_query_cpu\", \"_cpu_count\"}\nfound = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in wanted]\nassert {n.name for n in found} == wanted, f\"functions not found: {[n.name for n in found]}\"\n\nns = {\"os\": os, \"Path\": Path, \"multiprocessing\": multiprocessing}\nmodule = ast.Module(body=found, type_ignores=[])\nexec(compile(module, SOURCE, \"exec\"), ns)\n_query_cpu = ns[\"_query_cpu\"]\n_cpu_count = ns[\"_cpu_count\"]\n\nQUOTA = \"/sys/fs/cgroup/cpu/cpu.cfs_quota_us\"\nPERIOD = \"/sys/fs/cgroup/cpu/cpu.cfs_period_us\"\nSHARES = \"/sys/fs/cgroup/cpu/cpu.shares\"\n\nSCENARIO = {}\n\n\nclass FakePath:\n    def __init__(self, path):\n        self._p = str(path)\n\n    def is_file(self):\n        return self._p in SCENARIO\n\n\ndef fake_open(path, *args, **kwargs):\n    return io.StringIO(SCENARIO[str(path)])\n\n\ndef run_scenario(files, desc):\n    global SCENARIO\n    SCENARIO = files\n    ns[\"Path\"] = FakePath\n    ns[\"open\"] = fake_open\n    return _query_cpu(), _cpu_count()\n\n\nFAILURES = []\n\n\ndef check(name, cond, detail):\n    print(f\"  [{'PASS' if cond else 'FAIL'}] {name}: {detail}\")\n    if not cond:\n        FAILURES.append(name)\n\n\nprint(\"== Scenario 1: reported Kubernetes case ==\")\nprint(\"   cpu.cfs_quota_us=-1 (unlimited), cpu.cfs_period_us=100000, cpu.shares=2\")\nq, c = run_scenario({QUOTA: \"-1\\n\", PERIOD: \"100000\\n\", SHARES: \"2\\n\"}, \"k8s\")\nprint(f\"   _query_cpu()={q!r}  _cpu_count()={c!r}\")\ncheck(\"s1.query_cpu_not_zero\", q is None or q >= 1, f\"_query_cpu()={q!r}\")\ncheck(\"s1.cpu_count_not_zero\", c >= 1, f\"_cpu_count()={c!r}\")\n\nprint(\"== Scenario 2: tiny cfs quota (quota=1, period=100000) ==\")\nq, c = run_scenario({QUOTA: \"1\\n\", PERIOD: \"100000\\n\", SHARES: \"2\\n\"}, \"tiny quota\")\nprint(f\"   _query_cpu()={q!r}  _cpu_count()={c!r}\")\ncheck(\"s2.query_cpu_not_zero\", q is None or q >= 1, f\"_query_cpu()={q!r}\")\ncheck(\"s2.cpu_count_not_zero\", c >= 1, f\"_cpu_count()={c!r}\")\n\nprint(\"== Scenario 3: normal docker limit 1.5 CPUs (quota=150000, period=100000) ==\")\nq, c = run_scenario({QUOTA: \"150000\\n\", PERIOD: \"100000\\n\", SHARES: \"1536\\n\"}, \"1.5 cpu limit\")\nprint(f\"   _query_cpu()={q!r}  _cpu_count()={c!r}\")\ncheck(\"s3.query_cpu\", q == 1, f\"_query_cpu()={q!r} (expected 1)\")\ncheck(\"s3.cpu_count\", c == 1, f\"_cpu_count()={c!r} (expected 1)\")\n\nprint(\"== Scenario 4: no cgroup files at all (regular linux box) ==\")\nq, c = run_scenario({}, \"no cgroup\")\naff = len(os.sched_getaffinity(0))\nprint(f\"   _query_cpu()={q!r}  _cpu_count()={c!r}  (sched affinity={aff})\")\ncheck(\"s4.query_cpu_none\", q is None, f\"_query_cpu()={q!r}\")\ncheck(\"s4.cpu_count\", c == aff, f\"_cpu_count()={c!r} (expected {aff})\")\n\nprint(\"== Scenario 5: shares only, 2 CPUs (shares=2048, no quota) ==\")\nq, c = run_scenario({SHARES: \"2048\\n\"}, \"shares=2048\")\nprint(f\"   _query_cpu()={q!r}  _cpu_count()={c!r}\")\ncheck(\"s5.query_cpu\", q == 2, f\"_query_cpu()={q!r} (expected 2)\")\ncheck(\"s5.cpu_count\", c == 2, f\"_cpu_count()={c!r} (expected 2)\")\n\nprint(\"== Scenario 6: shares=1 (fractional < 1 CPU) ==\")\nq, c = run_scenario({QUOTA: \"-1\\n\", PERIOD: \"100000\\n\", SHARES: \"1\\n\"}, \"shares=1\")\nprint(f\"   _query_cpu()={q!r}  _cpu_count()={c!r}\")\ncheck(\"s6.query_cpu_not_zero\", q is None or q >= 1, f\"_query_cpu()={q!r}\")\ncheck(\"s6.cpu_count_not_zero\", c >= 1, f\"_cpu_count()={c!r}\")\n\nprint(\"== End-to-end: multiprocessing.Pool with computed jobs (k8s scenario) ==\")\nq, c = run_scenario({QUOTA: \"-1\\n\", PERIOD: \"100000\\n\", SHARES: \"2\\n\"}, \"k8s\")\ntry:\n    with multiprocessing.Pool(c) as pool",
+   "hit": null,
+   "lat_ms": 165.6
+  },
+  {
+   "cmd": "cd /testbed && python3 - << 'EOF'\nfrom pathlib import Path\n\np = Path(\"pylint/lint/run.py\")\nsrc = p.read_text(encoding=\"utf-8\")\n\nrepls = [\n    (\n        \"        avail_cpu = int(cpu_quota / cpu_period)\\n\",\n        \"        avail_cpu = max(1, int(cpu_quota / cpu_period))\\n\",\n    ),\n    (\n        \"        avail_cpu = int(cpu_shares / 1024)\\n\",\n        \"        avail_cpu = max(1, int(cpu_shares / 1024))\\n\",\n    ),\n    (\n        \"    if cpu_share is not None:\\n        return min(cpu_share, cpu_count)\\n    return cpu_count\\n\",\n        \"    if cpu_share is not None:\\n        return max(1, min(cpu_share, cpu_count))\\n    return cpu_count\\n\",\n    ),\n]\nfor old, new in repls:\n    assert src.count(old) == 1, f\"expected exactly 1 occurrence of: {old!r}\"\n    src = src.replace(old, new)\n\np.write_text(src, encoding=\"utf-8\")\nprint(\"patched OK\")\nEOF\ngit diff",
+   "hit": null,
+   "lat_ms": 177.8
+  },
+  {
+   "cmd": "python3 /tmp/verify_fix.py",
+   "hit": null,
+   "lat_ms": 167.7
+  },
+  {
+   "cmd": "cd /tmp && python3 - << 'EOF'\nfrom pathlib import Path\np = Path(\"/tmp/verify_fix.py\")\nsrc = p.read_text()\nsrc = src.replace(\n    'result = pool.map(lambda x: x * 2, range(4))',\n    'result = pool.map(double, range(4))',\n)\nsrc = src.replace(\n    'print(\"== End-to-end: multiprocessing.Pool with computed jobs (k8s scenario) ==\")',\n    'def double(x):\\n    return x * 2\\n\\n\\nprint(\"== End-to-end: multiprocessing.Pool with computed jobs (k8s scenario) ==\")',\n)\np.write_text(src)\nEOF\npython3 /tmp/verify_fix.py",
+   "hit": null,
+   "lat_ms": 203.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -m py_compile pylint/lint/run.py && echo \"compile OK\" && git status --short && git diff --stat && echo \"=== final code ===\" && sed -n '34,82p' pylint/lint/run.py",
+   "hit": null,
+   "lat_ms": 166.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pylint-dev__pylint-6903",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 11959.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

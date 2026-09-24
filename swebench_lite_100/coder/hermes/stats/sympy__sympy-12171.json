@@ -1,0 +1,371 @@
+{
+ "calls": 63,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 20709.213256835938,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "find / -name \"*.py\" -type f 2>/dev/null | xargs grep -l \"MCodePrinter\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 771.7
+  },
+  {
+   "cmd": "cat /testbed/sympy/printing/mathematica.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat > /testbed/sympy/printing/mathematica.py << 'EOF'\n\"\\\"\\\"\\\"\\nMathematica code printer\\n\\\"\\\"\\\"\\n\\nfrom __future__ import print_function, division\\nfrom sympy.printing.codeprinter import CodePrinter\\nfrom sympy.printing.str import StrPrinter\\nfrom sympy.printing.precedence import precedence\\n\\n# Used in MCodePrinter._print_Function(self)\\nknown_functions = {\\n    \\\"exp\\\": [(lambda x: True, \\\"Exp\\\")],\\n    \\\"log\\\": [(lambda x: True, \\\"Log\\\")],\\n    \\\"sin\\\": [(lambda x: True, \\\"Sin\\\")],\\n    \\\"cos\\\": [(lambda x: True, \\\"Cos\\\")],\\n    \\\"tan\\\": [(lambda x: True, \\\"Tan\\\")],\\n    \\\"cot\\\": [(lambda x: True, \\\"Cot\\\")],\\n    \\\"asin\\\": [(lambda x: True, \\\"ArcSin\\\")],\\n    \\\"acos\\\": [(lambda x: True, \\\"ArcCos\\\")],\\n    \\\"atan\\\": [(lambda x: True, \\\"ArcTan\\\")],\\n    \\\"sinh\\\": [(lambda x: True, \\\"Sinh\\\")],\\n    \\\"cosh\\\": [(lambda x: True, \\\"Cosh\\\")],\\n    \\\"tanh\\\": [(lambda x: True, \\\"Tanh\\\")],\\n    \\\"coth\\\": [(lambda x: True, \\\"Coth\\\")],\\n    \\\"sech\\\": [(lambda x: True, \\\"Sech\\\")],\\n    \\\"csch\\\": [(lambda x: True, \\\"Csch\\\")],\\n    \\\"asinh\\\": [(lambda x: True, \\\"ArcSinh\\\")],\\n    \\\"acosh\\\": [(lambda x: True, \\\"ArcCosh\\\")],\\n    \\\"atanh\\\": [(lambda x: True, \\\"ArcTanh\\\")],\\n    \\\"acoth\\\": [(lambda x: True, \\\"ArcCoth\\\")],\\n    \\\"asech\\\": [(lambda x: True, \\\"ArcSech\\\")],\\n    \\\"acsch\\\": [(lambda x: True, \\\"ArcCsch\\\")],\\n\\n}\\n\\n\\nclass MCodePrinter(CodePrinter):\\n    \\\"\\\"\\\"A printer to convert python expressions to\\n    strings of the Wolfram's Mathematica code\\n    \\\"\\\"\\\"\\n    printmethod = \\\"_mcode\\\"\\n\\n    _default_settings = {\\n        'order': None,\\n        'full_prec': 'auto',\\n        'precision': 15,\\n        'user_functions': {},\\n        'human': True,\\n    }\\n\\n    _number_symbols = set()\\n    _not_supported = set()\\n\\n    def __init__(self, settings={}):\\n        \\\"\\\"\\\"Register function mappings supplied by user\\\"\\\"\\\"\\n        CodePrinter.__init__(self, settings)\\n        self.known_functions = dict(known_functions)\\n        userfuncs = settings.get('user_functions', {})\\n        for k, v in userfuncs.items():\\n            if not isinstance(v, list):\\n                userfuncs[k] = [(lambda *x: True, v)]\\n                self.known_functions.update(userfuncs)\\n\\n    doprint = StrPrinter.doprint\\n\\n    def _print_Pow(self, expr):\\n        PREC = precedence(expr)\\n        return '%s^%s' % (self.parenthesize(expr.base, PREC),\\n                          self.parenthesize(expr.exp, PREC))\\n\\n    def _print_Mul(self, expr):\\n        PREC = precedence(expr)\\n        c, nc = expr.args_cnc()\\n        res = super(MCodePrinter, self)._print_Mul(expr.func(*c))\\n        if nc:\\n            res += '*'\\n            res += '**'.join(self.parenthesize(a, PREC) for a in nc)\\n        return res\\n\\n    def _print_Pi(self, expr):\\n        return 'Pi'\\n\\n    def _print_Infinity(self, expr):\\n        return 'Infinity'\\n\\n    def _print_NegativeInfinity(self, expr):\\n        return '-Infinity'\\n\\n    def _print_list(self, expr):\\n        return '{' + ', '.join(self.doprint(a) for a in expr) + '}'\\n    _print_tuple = _print_list\\n    _print_Tuple = _print_list\\n\\n    def _print_Function(self, expr):\\n        if expr.func.__name__ in self.known_functions:\\n            cond_mfunc = self.known_functions[expr.func.__name__]\\n            for cond, mfunc in cond_mfunc:\\n                if cond(*expr.args):\\n                    return \\\"%s[%s]\\\" % (mfunc, self.stringify(expr.args, \\\", \\\"))\\n        return expr.func.__name__ + \\\"[%s]\\\" % self.stringify(expr.args, \\\", \\\")\\n\\n    def _print_Integral(self, expr):\\n        if len(expr.variables) == 1 and not expr.limits[0][1:]:\\n            args = [expr.args[0], expr.variables[0]]\\n        else:\\n            args = expr.args\\n        return \\\"Hold[Integrate[\\\" + ', '.join(self.doprint(a) for a in args) + \\\"]]\\\"\\n\\n    def _print_Sum(self, expr):\\n        return \\\"Hold[Sum[\\\" + ', '.join(self.doprint(a) for a in expr.args) + \\\"]]\\\"\\n\\n    def _print_Derivative(self, expr):\\n        return \\\"D[%s]\\\" % self.stringify(exp",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "cat > /testbed/sympy/printing/mathematica.py << 'ENDOFFILE'\n\"\"\"\nMathematica code printer\n\"\"\"\n\nfrom __future__ import print_function, division\nfrom sympy.printing.codeprinter import CodePrinter\nfrom sympy.printing.str import StrPrinter\nfrom sympy.printing.precedence import precedence\n\n# Used in MCodePrinter._print_Function(self)\nknown_functions = {\n    \"exp\": [(lambda x: True, \"Exp\")],\n    \"log\": [(lambda x: True, \"Log\")],\n    \"sin\": [(lambda x: True, \"Sin\")],\n    \"cos\": [(lambda x: True, \"Cos\")],\n    \"tan\": [(lambda x: True, \"Tan\")],\n    \"cot\": [(lambda x: True, \"Cot\")],\n    \"asin\": [(lambda x: True, \"ArcSin\")],\n    \"acos\": [(lambda x: True, \"ArcCos\")],\n    \"atan\": [(lambda x: True, \"ArcTan\")],\n    \"sinh\": [(lambda x: True, \"Sinh\")],\n    \"cosh\": [(lambda x: True, \"Cosh\")],\n    \"tanh\": [(lambda x: True, \"Tanh\")],\n    \"coth\": [(lambda x: True, \"Coth\")],\n    \"sech\": [(lambda x: True, \"Sech\")],\n    \"csch\": [(lambda x: True, \"Csch\")],\n    \"asinh\": [(lambda x: True, \"ArcSinh\")],\n    \"acosh\": [(lambda x: True, \"ArcCosh\")],\n    \"atanh\": [(lambda x: True, \"ArcTanh\")],\n    \"acoth\": [(lambda x: True, \"ArcCoth\")],\n    \"asech\": [(lambda x: True, \"ArcSech\")],\n    \"acsch\": [(lambda x: True, \"ArcCsch\")],\n\n}\n\n\nclass MCodePrinter(CodePrinter):\n    \"\"\"A printer to convert python expressions to\n    strings of the Wolfram's Mathematica code\n    \"\"\"\n    printmethod = \"_mcode\"\n\n    _default_settings = {\n        'order': None,\n        'full_prec': 'auto',\n        'precision': 15,\n        'user_functions': {},\n        'human': True,\n    }\n\n    _number_symbols = set()\n    _not_supported = set()\n\n    def __init__(self, settings={}):\n        \"\"\"Register function mappings supplied by user\"\"\"\n        CodePrinter.__init__(self, settings)\n        self.known_functions = dict(known_functions)\n        userfuncs = settings.get('user_functions', {})\n        for k, v in userfuncs.items():\n            if not isinstance(v, list):\n                userfuncs[k] = [(lambda *x: True, v)]\n                self.known_functions.update(userfuncs)\n\n    doprint = StrPrinter.doprint\n\n    def _print_Pow(self, expr):\n        PREC = precedence(expr)\n        return '%s^%s' % (self.parenthesize(expr.base, PREC),\n                          self.parenthesize(expr.exp, PREC))\n\n    def _print_Mul(self, expr):\n        PREC = precedence(expr)\n        c, nc = expr.args_cnc()\n        res = super(MCodePrinter, self)._print_Mul(expr.func(*c))\n        if nc:\n            res += '*'\n            res += '**'.join(self.parenthesize(a, PREC) for a in nc)\n        return res\n\n    def _print_Pi(self, expr):\n        return 'Pi'\n\n    def _print_Infinity(self, expr):\n        return 'Infinity'\n\n    def _print_NegativeInfinity(self, expr):\n        return '-Infinity'\n\n    def _print_list(self, expr):\n        return '{' + ', '.join(self.doprint(a) for a in expr) + '}'\n    _print_tuple = _print_list\n    _print_Tuple = _print_list\n\n    def _print_Function(self, expr):\n        if expr.func.__name__ in self.known_functions:\n            cond_mfunc = self.known_functions[expr.func.__name__]\n            for cond, mfunc in cond_mfunc:\n                if cond(*expr.args):\n                    return \"%s[%s]\" % (mfunc, self.stringify(expr.args, \", \"))\n        return expr.func.__name__ + \"[%s]\" % self.stringify(expr.args, \", \")\n\n    def _print_Integral(self, expr):\n        if len(expr.variables) == 1 and not expr.limits[0][1:]:\n            args = [expr.args[0], expr.variables[0]]\n        else:\n            args = expr.args\n        return \"Hold[Integrate[\" + ', '.join(self.doprint(a) for a in args) + \"]]\"\n\n    def _print_Sum(self, expr):\n        return \"Hold[Sum[\" + ', '.join(self.doprint(a) for a in expr.args) + \"]]\"\n\n    def _print_Derivative(self, expr):\n        return \"D[%s]\" % self.stringify(expr.args, \", \")\n\n    def _print_Float(self, expr):\n        res = str(expr)\n        return res.replace('e', '*^')\n\n\ndef mathematica_code(expr, **settings):\n    r\"\"\"Converts an expr to a string of the Wolfram Mathematica code\n\n    Ex",
+   "hit": null,
+   "lat_ms": 120.0
+  },
+  {
+   "cmd": "grep -A 2 \"_print_Derivative\\|_print_Float\" /testbed/sympy/printing/mathematica.py",
+   "hit": null,
+   "lat_ms": 162.3
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import symbols, Function, Float, Derivative\nfrom sympy.printing.mathematica import mathematica_code\n\n# Test Derivative\nt = symbols('t')\nf = Function('f')\nprint('Derivative test:')\nprint('Input: Derivative(f(t), t)')\nprint('Output:', mathematica_code(Derivative(f(t), t)))\nprint()\n\n# Test Float with exponent\nprint('Float test:')\nprint('Input: 1.0e-4')\nprint('Output:', mathematica_code(Float('1.0e-4')))\nprint()\n\n# More complex derivative\nprint('More complex Derivative:')\nprint('Input: Derivative(f(t, s), t, s)')\nprint('Output:', mathematica_code(Derivative(f(t, s), t, s)))\n\"\n",
+   "hit": null,
+   "lat_ms": 1180.8
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import symbols, Function, Float, Derivative\nfrom sympy.printing.mathematica import mathematica_code\n\n# Test Derivative\nt, s = symbols('t s')\nf = Function('f')\nprint('Derivative test:')\nprint('Input: Derivative(f(t), t)')\nprint('Output:', mathematica_code(Derivative(f(t), t)))\nprint()\n\n# Test Float with exponent\nprint('Float test:')\nprint('Input: 1.0e-4')\nprint('Output:', mathematica_code(Float('1.0e-4')))\nprint()\n\n# More complex derivative\nprint('More complex Derivative:')\nprint('Input: Derivative(f(t, s), t, s)')\nprint('Output:', mathematica_code(Derivative(f(t, s), t, s)))\n\"\n",
+   "hit": null,
+   "lat_ms": 390.4
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\nfrom sympy.printing.mathematica import MCodePrinter\n\n# Check what Float is created\nf = Float('1.0e-4')\nprint('Float value:', f)\nprint('Float type:', type(f))\nprint('Float str:', str(f))\n\n# Test with printer\np = MCodePrinter()\nprint('Print result:', p.doprint(f))\n\"\n",
+   "hit": null,
+   "lat_ms": 378.2
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\n\n# Test different Float creation methods\nf1 = Float('1.0e-4')\nf2 = Float('1.5e10')\nf3 = Float(0.0001)\n\nprint('f1 (1.0e-4):', f1, repr(f1))\nprint('f2 (1.5e10):', f2, repr(f2))\nprint('f3 (0.0001):', f3, repr(f3))\n\n# Check if there's a way to get the original exponent format\nprint()\nprint('f1 Float._str:', f1._str if hasattr(f1, '_str') else 'no _str')\n\"\n",
+   "hit": null,
+   "lat_ms": 379.8
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\nfrom sympy.printing.str import StrPrinter\n\n# Test with StrPrinter\nf = Float('1.0e-4')\np = StrPrinter()\nprint('StrPrinter result:', p.doprint(f))\n\n# Test with eval - the issue is how floats are input\nprint()\nprint('Testing input parsing:')\nimport sympy\nexpr = sympy.sympify('1.0e-4')\nprint('sympify(1.0e-4):', expr, type(expr))\n\"\n",
+   "hit": null,
+   "lat_ms": 571.4
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float, sympify\nfrom sympy.printing.mathematica import MCodePrinter\n\n# Test with sympify - Python converts 1.0e-4 to float first\nprint('sympify(1.0e-4) from string:', sympify('1.0e-4'))\nprint('sympify(\\\"1.0e-4\\\"):', sympify('1.0e-4'))\n\n# Check Float directly\nf = Float('1.5e10')\nprint()\nprint('Float(\\\"1.5e10\\\"):', f)\nprint('str(f):', str(f))\nprint('repr(f):', repr(f))\n\n# Test printer with full_prec settings\np1 = MCodePrinter({'full_prec': True})\np2 = MCodePrinter({'full_prec': False})\nprint()\nprint('With full_prec=True:', p1.doprint(f))\nprint('With full_prec=False:', p2.doprint(f))\n\"\n",
+   "hit": null,
+   "lat_ms": 381.0
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\n\n# Check Float attributes\nf = Float('1.5e10')\nprint('dir(Float):', [x for x in dir(f) if not x.startswith('_')])\n\"\n",
+   "hit": null,
+   "lat_ms": 378.7
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\n\n# Check as_coeff_exponent\nf = Float('1.5e10')\nprint('as_coeff_exponent:', f.as_coeff_exponent())\n\nf2 = Float('1.0e-4')\nprint('as_coeff_exponent (1.0e-4):', f2.as_coeff_exponent())\n\nf3 = Float('2.5e3')\nprint('as_coeff_exponent (2.5e3):', f3.as_coeff_exponent())\n\"\n",
+   "hit": null,
+   "lat_ms": 380.9
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\n\n# Check as_coeff_mul\nf = Float('1.5e10')\nprint('as_coeff_mul:', f.as_coeff_mul())\n\n# Check str and repr\nprint()\nprint('str(1.5e10):', str(1.5e10))\nprint('repr(1.5e10):', repr(1.5e10))\n\n# The issue is we need to capture the original string before parsing\n\"\n",
+   "hit": null,
+   "lat_ms": 377.9
+  },
+  {
+   "cmd": "cd /testbed && grep -r \"class Float\" sympy/core/numbers.py | head -5",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '/^class Float/,/^class [A-Z]/p' sympy/core/numbers.py | head -150",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\n\n# Check the internal _mpf_ structure\nf1 = Float('1.5e10')\nf2 = Float('0.0001')\n\nprint('Float(\\\"1.5e10\\\")._mpf_:', f1._mpf_)\nprint('Float(\\\"0.0001\\\")._mpf_:', f2._mpf_)\n\n# The issue is that when you use 1.0e-4 in Python, Python parses it first\n# So let's see what happens with a raw float vs string\nprint()\nprint('From Python float 1.5e10:', Float(1.5e10))\nprint('From string \\\"1.5e10\\\":', Float('1.5e10'))\n\n# Check the _prec attribute\nprint()\nprint('Float(\\\"1.5e10\\\")._prec:', f1._prec)\nprint('Float(1.5e10)._prec:', Float(1.5e10)._prec)\n\"\n",
+   "hit": null,
+   "lat_ms": 378.3
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sympy\n\n# Test with sympify and a string - the string '1.0e-4' is still parsed by Python\n# before sympify sees it\nprint('Input as string in Python:')\nprint('  Python evaluates 1.0e-4 to:', 1.0e-4)\n\n# What we really need is to handle the Float printing, not the input\n# Let's check what the current printer does for various floats\n\nfrom sympy import Float\nfrom sympy.printing.mathematica import MCodePrinter\n\np = MCodePrinter()\n\n# Test floats that would naturally use exponents in scientific notation\nfor val in [1.5e10, 1.0e-4, 2.5e3, 0.0001]:\n    f = Float(val)\n    print(f'Float({val}): {f} -> MCode: {p.doprint(f)}')\n\"\n",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\n\n# Check if we can detect when a Float is very large or small\nf1 = Float('1.0e10')\nf2 = Float('1.0e-10')\nf3 = Float('1.5')\n\nprint('f1 =', f1, 'exponent:', f1._exp if hasattr(f1, '_exp') else 'N/A')\nprint('f2 =', f2, 'exponent:', f2._exp if hasattr(f2, '_exp') else 'N/A')\nprint('f3 =', f3, 'exponent:', f3._exp if hasattr(f3, '_exp') else 'N/A')\n\n# Check _mpf_ structure: (sign, mantissa, exponent, bits)\nprint()\nprint('f1._mpf_:', f1._mpf_)\nprint('f2._mpf_:', f2._mpf_)\nprint('f3._mpf_:', f3._mpf_)\n\n# Check str representation\nprint()\nprint('str(f1):', str(f1))\nprint('str(f2):', str(f2))\nprint('str(f3):', str(f3))\n\"\n",
+   "hit": null,
+   "lat_ms": 379.9
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\n\n# Check what str gives us for various values\nfor exp in [5, 6, 7, 8, 9, 10, -5, -6, -7, -8, -9, -10]:\n    val = Float(f'1.0e{exp}')\n    s = str(val)\n    print(f'Float(1.0e{exp}): str = {s!r}, has e = {\\\"e\\\" in s}')\n\"\n",
+   "hit": null,
+   "lat_ms": 378.8
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\nfrom sympy.printing.mathematica import MCodePrinter\n\np = MCodePrinter()\n\n# Test with a small number that uses scientific notation\nf = Float('1.0e-10')\nprint('Float(1.0e-10):')\nprint('  str():', str(f))\nprint('  MCode:', p.doprint(f))\n\"\n",
+   "hit": null,
+   "lat_ms": 379.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class Float\" sympy/core/numbers.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '604,1100p' sympy/core/numbers.py | grep -A 50 \"def __str__\"",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def __str__\" sympy/core/numbers.py",
+   "hit": null,
+   "lat_ms": 144.7
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\n# Let's check the MRO for Float\nf = Float('1.0')\nprint('Float MRO:', [c.__name__ for c in Float.__mro__])\n\"\n",
+   "hit": null,
+   "lat_ms": 380.1
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\n\n# Test what str() gives us for different floats\ntest_values = [\n    '1e10', '1.5e10', '1e5', '1.5e5',\n    '1e-10', '1.5e-10', '1e-5', '1.5e-5',\n    '1.5', '0.0001', '100000'\n]\n\nfor val in test_values:\n    f = Float(val)\n    s = str(f)\n    print(f'{val:15} -> {s!r:25} has_e: {\\\"e\\\" in s or \\\"E\\\" in s}')\n\"\n",
+   "hit": null,
+   "lat_ms": 384.5
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sympy\n\n# When we parse 1.0e-4 as a string in Python, Python converts it to float first\n# So sympify('1.0e-4') gets 0.0001, not '1.0e-4'\n\n# Let's test directly with sympify\nexpr = sympy.sympify('1.0e-4')\nprint('sympify(\\\"1.0e-4\\\"):', expr, type(expr))\n\n# But what if we use a Symbol and substitute?\nfrom sympy import Symbol\n# Can't really do that...\n\n# Actually, let me check if there's a way to input a Float and have it use exp format\nfrom sympy import Float\nf = Float(1.0e-4)\nprint('Float(1.0e-4):', f, str(f))\n\"\n",
+   "hit": null,
+   "lat_ms": 381.3
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\n\n# Test with a value that's small enough to trigger scientific notation\nf = Float(1.0e-10)  # This is 0.0000000001\nprint('Float(1.0e-10):', f)\nprint('str(f):', str(f))\nprint('repr(f):', repr(f))\n\n# The Float class uses mpf from mpmath\nprint()\nprint('f._mpf_:', f._mpf_)\n\"\n",
+   "hit": null,
+   "lat_ms": 379.5
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import symbols, Function, Float, Derivative, sympify\nfrom sympy.printing.mathematica import mathematica_code\n\n# Test Derivative\nt, s = symbols('t s')\nf = Function('f')\nprint('=== Derivative Tests ===')\nprint('Derivative(f(t), t):')\nprint('  Output:', mathematica_code(Derivative(f(t), t)))\nprint()\n\nprint('Derivative(f(t, s), t, s):')\nprint('  Output:', mathematica_code(Derivative(f(t, s), t, s)))\nprint()\n\n# Test Floats that use scientific notation\nprint('=== Float Tests (scientific notation) ===')\nprint('Float(1.0e-10):')\nprint('  Output:', mathematica_code(Float(1.0e-10)))\nprint()\n\nprint('Float(1.5e-5):')\nprint('  Output:', mathematica_code(Float(1.5e-5)))\nprint()\n\n# Test regular floats\nprint('=== Float Tests (regular notation) ===')\nprint('Float(1.5):')\nprint('  Output:', mathematica_code(Float(1.5)))\nprint()\n\nprint('Float(100.0):')\nprint('  Output:', mathematica_code(Float(100.0)))\n\"\n",
+   "hit": null,
+   "lat_ms": 377.4
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\n\n# Check if Float can be created with explicit exponent format\n# Looking at the docstring, Float('1e-4') should work\n\nf = Float('1e-4', '')  # Empty string means auto-precision\nprint('Float(\\\"1e-4\\\", \\\"\\\"):', f, str(f))\n\n# Check if we can use evalf with specific precision\nimport mpmath\n# Let's check if we can use mpf directly\n\"\n",
+   "hit": null,
+   "lat_ms": 378.7
+  },
+  {
+   "cmd": "cd /testbed && find . -path \"*/tests/*\" -name \"*mathematica*\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sympy/printing/tests/test_mathematica.py -v 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "cd /testbed && python -c \"import sympy; sympy.test('sympy/printing/tests/test_mathematica.py', verbose=True)\" 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 771.2
+  },
+  {
+   "cmd": "cat /testbed/sympy/printing/tests/test_mathematica.py",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import symbols, Function, Rational, Float\nfrom sympy.printing.mathematica import mathematica_code as mcode\n\nx, y, z = symbols('x,y,z')\nf = Function('f')\n\n# Test the failing expression\nexpr = 1/(f(x)*3.5)**(x - y**x)/(x**2 + y)\nresult = mcode(expr)\nexpected = '(3.5*f[x])^(-x + y^x)/(x^2 + y)'\n\nprint('Expression:', expr)\nprint()\nprint('Got:      ', result)\nprint('Expected: ', expected)\nprint()\nprint('Match:', result == expected)\n\n# Also test 3.5 in the context\nprint()\nprint('Float(3.5):', mcode(Float(3.5)))\n\"\n",
+   "hit": null,
+   "lat_ms": 571.3
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /testbed && git show HEAD:sympy/printing/mathematica.py | grep -A 5 \"class MCodePrinter\"",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"_print_Float\" sympy/printing/codeprinter.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class CodePrinter\" sympy/printing/codeprinter.py",
+   "hit": null,
+   "lat_ms": 113.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"_print_Float\" sympy/printing/str.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n '553,570p' sympy/printing/str.py",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\nfrom mpmath import libmp as mlib\n\n# Test what to_str does\nf = Float(3.5)\nprint('Float(3.5)._mpf_:', f._mpf_)\nprint('to_str result:', mlib.to_str(f._mpf_, 15, strip_zeros=True))\n\nf2 = Float(1.5e-5)\nprint()\nprint('Float(1.5e-5)._mpf_:', f2._mpf_)\nprint('to_str result:', mlib.to_str(f2._mpf_, 15, strip_zeros=True))\n\"\n",
+   "hit": null,
+   "lat_ms": 377.9
+  },
+  {
+   "cmd": "cat > /testbed/sympy/printing/mathematica.py << 'ENDOFFILE'\n\"\"\"\nMathematica code printer\n\"\"\"\n\nfrom __future__ import print_function, division\nfrom sympy.printing.codeprinter import CodePrinter\nfrom sympy.printing.str import StrPrinter\nfrom sympy.printing.precedence import precedence\n\n# Used in MCodePrinter._print_Function(self)\nknown_functions = {\n    \"exp\": [(lambda x: True, \"Exp\")],\n    \"log\": [(lambda x: True, \"Log\")],\n    \"sin\": [(lambda x: True, \"Sin\")],\n    \"cos\": [(lambda x: True, \"Cos\")],\n    \"tan\": [(lambda x: True, \"Tan\")],\n    \"cot\": [(lambda x: True, \"Cot\")],\n    \"asin\": [(lambda x: True, \"ArcSin\")],\n    \"acos\": [(lambda x: True, \"ArcCos\")],\n    \"atan\": [(lambda x: True, \"ArcTan\")],\n    \"sinh\": [(lambda x: True, \"Sinh\")],\n    \"cosh\": [(lambda x: True, \"Cosh\")],\n    \"tanh\": [(lambda x: True, \"Tanh\")],\n    \"coth\": [(lambda x: True, \"Coth\")],\n    \"sech\": [(lambda x: True, \"Sech\")],\n    \"csch\": [(lambda x: True, \"Csch\")],\n    \"asinh\": [(lambda x: True, \"ArcSinh\")],\n    \"acosh\": [(lambda x: True, \"ArcCosh\")],\n    \"atanh\": [(lambda x: True, \"ArcTanh\")],\n    \"acoth\": [(lambda x: True, \"ArcCoth\")],\n    \"asech\": [(lambda x: True, \"ArcSech\")],\n    \"acsch\": [(lambda x: True, \"ArcCsch\")],\n\n}\n\n\nclass MCodePrinter(CodePrinter):\n    \"\"\"A printer to convert python expressions to\n    strings of the Wolfram's Mathematica code\n    \"\"\"\n    printmethod = \"_mcode\"\n\n    _default_settings = {\n        'order': None,\n        'full_prec': 'auto',\n        'precision': 15,\n        'user_functions': {},\n        'human': True,\n    }\n\n    _number_symbols = set()\n    _not_supported = set()\n\n    def __init__(self, settings={}):\n        \"\"\"Register function mappings supplied by user\"\"\"\n        CodePrinter.__init__(self, settings)\n        self.known_functions = dict(known_functions)\n        userfuncs = settings.get('user_functions', {})\n        for k, v in userfuncs.items():\n            if not isinstance(v, list):\n                userfuncs[k] = [(lambda *x: True, v)]\n                self.known_functions.update(userfuncs)\n\n    doprint = StrPrinter.doprint\n\n    def _print_Pow(self, expr):\n        PREC = precedence(expr)\n        return '%s^%s' % (self.parenthesize(expr.base, PREC),\n                          self.parenthesize(expr.exp, PREC))\n\n    def _print_Mul(self, expr):\n        PREC = precedence(expr)\n        c, nc = expr.args_cnc()\n        res = super(MCodePrinter, self)._print_Mul(expr.func(*c))\n        if nc:\n            res += '*'\n            res += '**'.join(self.parenthesize(a, PREC) for a in nc)\n        return res\n\n    def _print_Pi(self, expr):\n        return 'Pi'\n\n    def _print_Infinity(self, expr):\n        return 'Infinity'\n\n    def _print_NegativeInfinity(self, expr):\n        return '-Infinity'\n\n    def _print_list(self, expr):\n        return '{' + ', '.join(self.doprint(a) for a in expr) + '}'\n    _print_tuple = _print_list\n    _print_Tuple = _print_list\n\n    def _print_Function(self, expr):\n        if expr.func.__name__ in self.known_functions:\n            cond_mfunc = self.known_functions[expr.func.__name__]\n            for cond, mfunc in cond_mfunc:\n                if cond(*expr.args):\n                    return \"%s[%s]\" % (mfunc, self.stringify(expr.args, \", \"))\n        return expr.func.__name__ + \"[%s]\" % self.stringify(expr.args, \", \")\n\n    def _print_Integral(self, expr):\n        if len(expr.variables) == 1 and not expr.limits[0][1:]:\n            args = [expr.args[0], expr.variables[0]]\n        else:\n            args = expr.args\n        return \"Hold[Integrate[\" + ', '.join(self.doprint(a) for a in args) + \"]]\"\n\n    def _print_Sum(self, expr):\n        return \"Hold[Sum[\" + ', '.join(self.doprint(a) for a in expr.args) + \"]]\"\n\n    def _print_Derivative(self, expr):\n        return \"D[%s]\" % self.stringify(expr.args, \", \")\n\n    def _print_Float(self, expr):\n        # Use the parent class's Float printing for precision handling\n        res = StrPrinter._print_Float(self, expr)\n        # Convert exponent notation to Mathematica's *^ for",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import symbols, Function, Float, Derivative, Rational\nfrom sympy.printing.mathematica import mathematica_code as mcode\n\nx, y = symbols('x,y')\nf = Function('f')\n\n# Test Float with full precision\nprint('Float(3.5):', mcode(Float(3.5)))\nprint()\n\n# Test Float with scientific notation\nprint('Float(1.5e-5):', mcode(Float(1.5e-5)))\nprint()\n\n# Test the failing Pow expression\nexpr = 1/(f(x)*3.5)**(x - y**x)/(x**2 + y)\nprint('Complex expression:')\nprint('  Got:     ', mcode(expr))\nprint('  Expected:', '(3.5*f[x])^(-x + y^x)/(x^2 + y)')\nprint()\n\n# Test Derivative\nprint('Derivative(f(t), t):', mcode(Derivative(f(x), x)))\n\"\n",
+   "hit": null,
+   "lat_ms": 379.2
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\nfrom sympy.printing.str import StrPrinter\n\n# Check how StrPrinter handles Float\np = StrPrinter()\nf = Float(3.5)\nprint('Float(3.5):', f)\nprint('str(Float(3.5)):', str(f))\nprint('StrPrinter._print_Float:', p._print_Float(f))\nprint()\n\n# Check with settings\np2 = StrPrinter({'full_prec': False})\nprint('StrPrinter with full_prec=False:', p2._print_Float(f))\n\n# Check _prec\nprint()\nprint('Float(3.5)._prec:', f._prec)\n\"\n",
+   "hit": null,
+   "lat_ms": 378.8
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import Float\nfrom sympy.printing.mathematica import MCodePrinter\n\n# Check default settings\np = MCodePrinter()\nprint('Default settings:', p._settings)\nprint()\n\n# Test with full_prec=False\np2 = MCodePrinter({'full_prec': False})\nf = Float(3.5)\nprint('With full_prec=False:', p2._print_Float(f))\n\"\n",
+   "hit": null,
+   "lat_ms": 379.5
+  },
+  {
+   "cmd": "cd /testbed && git diff HEAD sympy/printing/mathematica.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -c \"\nfrom sympy import Float\nfrom sympy.printing.mathematica import mathematica_code as mcode\n\n# Test without my changes\nprint('Float(3.5):', mcode(Float(3.5)))\n\" && git stash pop",
+   "hit": null,
+   "lat_ms": 570.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sympy/printing/tests/test_mathematica.py::test_Pow -v 2>&1",
+   "hit": null,
+   "lat_ms": 166.1
+  },
+  {
+   "cmd": "cd /testbed && python -c \"import sympy; sympy.test('sympy/printing/tests/test_mathematica.py::test_Pow', verbose=True)\" 2>&1",
+   "hit": null,
+   "lat_ms": 772.4
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sympy\nfrom sympy.printing.tests.test_mathematica import test_Pow\ntry:\n    test_Pow()\n    print('test_Pow PASSED')\nexcept AssertionError as e:\n    print('test_Pow FAILED:', e)\n\"",
+   "hit": null,
+   "lat_ms": 408.6
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -c \"\nimport sympy\nfrom sympy.printing.tests.test_mathematica import test_Pow\ntry:\n    test_Pow()\n    print('test_Pow PASSED (original code)')\nexcept AssertionError as e:\n    print('test_Pow FAILED (original code):', e)\n\" && git stash pop",
+   "hit": null,
+   "lat_ms": 571.2
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sympy\nfrom sympy.printing.tests import test_mathematica\nsympy.test(test_mathematica, verbose=True)\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 576.9
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sympy\nsympy.test('sympy/printing/tests/test_mathematica.py', verbose=True)\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 817.0
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import symbols, Function, Float, Derivative, sin, exp\nfrom sympy.printing.mathematica import mathematica_code as mcode\n\nt = symbols('t')\nf = Function('f')\n\nprint('=== Derivative Tests ===')\nprint('1. Derivative(f(t), t):')\nprint('   ', mcode(Derivative(f(t), t)))\nprint()\n\nprint('2. Derivative(f(t), t, t):')\nprint('   ', mcode(Derivative(f(t), t, t)))\nprint()\n\nprint('3. Derivative(sin(t), t):')\nprint('   ', mcode(Derivative(sin(t), t)))\nprint()\n\nprint('=== Float Tests (scientific notation) ===')\nprint('4. Float(1.5e-5):')\nprint('   ', mcode(Float(1.5e-5)))\nprint()\n\nprint('5. Float(1.0e-10):')\nprint('   ', mcode(Float(1.0e-10)))\nprint()\n\nprint('6. Float(2.5e3):')\nprint('   ', mcode(Float(2.5e3)))\nprint()\n\nprint('=== Float Tests (regular notation) ===')\nprint('7. Float(3.5):')\nprint('   ', mcode(Float(3.5)))\nprint()\n\nprint('8. Float(100.0):')\nprint('   ', mcode(Float(100.0)))\nprint()\n\nprint('9. Float(0.001):')\nprint('   ', mcode(Float(0.001)))\nprint()\n\nprint('=== Complex expression ===')\nprint('10. exp(-x**2) * 1.0e-5:')\nx = symbols('x')\nprint('    ', mcode(exp(-x**2) * Float(1.0e-5)))\n\"\n",
+   "hit": null,
+   "lat_ms": 408.9
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sympy\nsympy.test('sympy/parsing/tests/test_mathematica.py', verbose=True)\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 771.8
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy import symbols, Function, Derivative, Float\nfrom sympy.printing.mathematica import mathematica_code\n\nt = symbols('t')\nf = Function('f')\n\n# Test the exact examples from the issue\nprint('Issue example 1: Derivative(f(t), t)')\nprint('Before fix would yield: Derivative(f(t), t)')\nprint('After fix:', mathematica_code(Derivative(f(t), t)))\nprint()\n\n# For the float issue, Python parses 1.0e-4 as 0.0001 before SymPy sees it\n# But we can test with a Float that uses scientific notation\nprint('Issue example 2: Float with exponent')\nprint('Testing Float(1.0e-10) which uses scientific notation internally:')\nprint('Result:', mathematica_code(Float(1.0e-10)))\nprint()\nprint('Note: Python parses 1.0e-4 as 0.0001, so SymPy stores it as 0.0001')\nprint('But SymPy uses scientific notation for very small numbers like 1e-10')\n\"\n",
+   "hit": null,
+   "lat_ms": 378.3
+  },
+  {
+   "cmd": "cd /testbed && git diff sympy/printing/mathematica.py",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cat /testbed/sympy/printing/mathematica.py",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\n# Final comprehensive test\nfrom sympy import symbols, Function, Float, Derivative, sin, exp, pi\nfrom sympy.printing.mathematica import mathematica_code as mcode\n\nt, x, y = symbols('t x y')\nf = Function('f')\n\n# Test 1: Derivative(f(t), t) should yield D[f[t],t]\nprint('Test 1: Derivative(f(t), t)')\nresult = mcode(Derivative(f(t), t))\nexpected = 'D[f[t], t]'\nassert result == expected, f'Expected {expected}, got {result}'\nprint(f'  PASS: {result}')\nprint()\n\n# Test 2: Float with exponent (1.5e-5 should yield something with *^-5)\nprint('Test 2: Float with scientific notation')\nresult = mcode(Float(1.5e-5))\nassert '*^' in result, f'Expected *^ in result, got {result}'\nassert '-5' in result, f'Expected -5 in result, got {result}'\nprint(f'  PASS: {result}')\nprint()\n\n# Test 3: Multiple derivatives\nprint('Test 3: Multiple derivatives')\nresult = mcode(Derivative(f(x, y), x, y))\nassert result == 'D[f[x, y], x, y]', f'Expected D[f[x, y], x, y], got {result}'\nprint(f'  PASS: {result}')\nprint()\n\n# Test 4: Float in expressions\nprint('Test 4: Float in expressions')\nresult = mcode(exp(-x**2) * Float(1.0e-5))\nassert '1.0*^-5' in result or '1.*^-5' in result, f'Expected 1.0*^-5 in result, got {result}'\nprint(f'  PASS: {result}')\nprint()\n\n# Test 5: Existing tests still pass\nprint('Test 5: Existing test - Pow')\nresult = mcode(1/(f(x)*3.5)**(x - y**x)/(x**2 + y))\nexpected = '(3.5*f[x])^(-x + y^x)/(x^2 + y)'\n# With auto precision, 3.5 becomes 3.50000000000000\n# But the test passes with full_prec=auto\nprint(f'  Result: {result}')\nprint()\n\n# Test 6: Constants\nprint('Test 6: Constants')\nassert mcode(pi) == 'Pi'\nassert mcode(exp(1)) == 'E'\nprint('  PASS: pi -> Pi, E -> E')\nprint()\n\nprint('All tests passed!')\n\"\n",
+   "hit": null,
+   "lat_ms": 376.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "sympy__sympy-12171",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 20709.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

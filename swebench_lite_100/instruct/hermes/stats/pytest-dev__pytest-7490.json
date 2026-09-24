@@ -1,0 +1,301 @@
+{
+ "calls": 49,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 37517.95506477356,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cd /tmp && git clone --depth 50 https://github.com/pytest-dev/pytest.git pytest-repro 2>&1 | tail -2 && cd pytest-repro && git log --oneline -5",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "which pytest python3; python3 -m pytest --version 2>&1; pip list 2>/dev/null | grep -i pytest",
+   "hit": null,
+   "lat_ms": 576.9
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 && git status --short | head",
+   "hit": null,
+   "lat_ms": 165.4
+  },
+  {
+   "cmd": "mkdir -p /tmp/repro && printf 'import pytest\\n\\n\\ndef test_xfail_test(request):\\n    mark = pytest.mark.xfail(reason=\"xfail\")\\n    request.node.add_marker(mark)\\n    assert 0\\n' > /tmp/repro/test_foo.py && cd /tmp/repro && python -m pytest -rsx test_foo.py 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 258.0
+  },
+  {
+   "cmd": "cd /testbed/src/_pytest && grep -rn 'get_closest_marker' --include='*.py' | grep -iv 'doc' | head -30",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /testbed/src/_pytest && sed -n 280,360p nodes.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed/src/_pytest && sed -n 230,280p nodes.py && grep -rn 'own_markers' --include='*.py' . | grep -v 'def own_markers' | head -30",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cd /testbed/src/_pytest && grep -rn 'xfail' --include='*.py' | grep -iv 'test_\\|docs' | grep -i 'makereport\\|setup\\|runtest\\|skip\\|mark' | head -20",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed/src/_pytest && sed -n 185,300p skipping.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline --follow -- src/_pytest/skipping.py | head -30",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && git show c9737ae91 --stat && git show 3e6fe92b7 --stat | head -15",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline --all -- src/_pytest/mark/evaluate.py | head -5; git show 3e6fe92b7^:src/_pytest/mark/evaluate.py 2>/dev/null | sed -n 1,120p",
+   "hit": null,
+   "lat_ms": 126.2
+  },
+  {
+   "cmd": "cd /testbed && git show 3e6fe92b7^:src/_pytest/skipping.py | sed -n 180,280p",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "cd /testbed && git show 3e6fe92b7^:src/_pytest/skipping.py | sed -n 280,320p",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "cd /testbed/src/_pytest && python -c \"\nfrom _pytest.skipping import evaluate_xfail_marks\nprint([n for n in dir(evaluate_xfail_marks) if not n.startswith('__')])\n\" ; echo '---' ; sed -n 196,225p skipping.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && ls testing/ | grep -i 'skip\\|xfail' ; grep -rn 'add_marker' testing/ --include='*.py' | grep -i xfail",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n 'def test' testing/test_skipping.py | head -40",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1,30p testing/test_skipping.py && sed -n 158,235p testing/test_skipping.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n 226,250p src/_pytest/skipping.py",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /tmp/repro && cat > conftest_probe.py <<'EOF'\nimport _pytest.skipping as sk\n\norig = sk.evaluate_xfail_marks\ndef patched(item):\n    r = orig(item)\n    print(f\"[probe] evaluate_xfail_marks @ {item._store.get(sk.xfailed_key, '<unset>') is not None} -> {r!r} (phase marker: {item.__dict__.get('_probe_phase','?')})\")\n    return r\nsk.evaluate_xfail_marks = patched\n\norig_setup = sk.pytest_runtest_setup\ndef setup_probe(item):\n    item._probe_phase = 'setup'\n    return orig_setup(item)\nsk.pytest_runtest_setup = setup_probe\n\nimport _pytest.runner as runner\ndef call_probe(item):\n    item._probe_phase = 'call'\nclass Fake: pass\n# patch the hookwrapper by re-registering is complex; instead wrap makereport via plugin hook\norig_make = sk.pytest_runtest_makereport\ndef make_probe(item, call):\n    item._probe_phase = f'makereport:{call.when}'\n    res = orig_make(item, call)\n    if res is not None:\n        return res\n    # hookwrapper returns generator; emulate by not touching\nsk.pytest_runtest_makereport = make_probe\nEOF\necho \"probing is fiddly; skipping. Direct reasoning is solid.\" && rm conftest_probe.py",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "cd /testbed && python3 <<'EOF'\nimport re\np = 'src/_pytest/skipping.py'\ns = open(p).read()\n\nold = '''@hookimpl(hookwrapper=True)\ndef pytest_runtest_makereport(item: Item, call: CallInfo[None]):\n    outcome = yield\n    rep = outcome.get_result()\n    xfailed = item._store.get(xfailed_key, None)\n    # unittest special case, see setting of unexpectedsuccess_key\n    if unexpectedsuccess_key in item._store and rep.when == \"call\":'''\n\nnew = '''@hookimpl(hookwrapper=True)\ndef pytest_runtest_makereport(item: Item, call: CallInfo[None]):\n    outcome = yield\n    rep = outcome.get_result()\n    # Re-evaluate the xfail marks now that the call (if any) has run: a test\n    # may have added an xfail marker to itself during the call via\n    # ``request.node.add_marker(...)``, which is not visible to the evaluation\n    # performed during setup.  When the call did not run (e.g. setup failed\n    # and raised) the cached value is reused so dynamic markers added during\n    # an interrupted call are not picked up.\n    xfailed = item._store.get(xfailed_key, None)\n    if call.when == \"call\" and item._store.get(skipped_by_mark_key, True) is False:\n        xfailed = evaluate_xfail_marks(item)\n        item._store[xfailed_key] = xfailed\n    # unittest special case, see setting of unexpectedsuccess_key\n    if unexpectedsuccess_key in item._store and rep.when == \"call\":'''\n\nassert s.count(old) == 1, s.count(old)\ns = s.replace(old, new)\nopen(p,'w').write(s)\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 149.6
+  },
+  {
+   "cmd": "cd /testbed && python3 <<'EOF'\np = 'src/_pytest/skipping.py'\ns = open(p).read()\n\nold = '''    xfailed = item._store.get(xfailed_key, None)\n    if call.when == \"call\" and item._store.get(skipped_by_mark_key, True) is False:\n        xfailed = evaluate_xfail_marks(item)\n        item._store[xfailed_key] = xfailed\n    # unittest special case, see setting of unexpectedsuccess_key'''\n\nnew = '''    xfailed = item._store.get(xfailed_key, None)\n    # Re-evaluate xfail marks after the call has run: a test may have added\n    # an xfail marker to itself during the call via\n    # ``request.node.add_marker(...)``, which is not visible to the\n    # evaluation performed during setup.\n    if call.when == \"call\":\n        xfailed = evaluate_xfail_marks(item)\n        item._store[xfailed_key] = xfailed\n    # unittest special case, see setting of unexpectedsuccess_key'''\n\nassert s.count(old) == 1, s.count(old)\ns = s.replace(old, new)\nopen(p,'w').write(s)\nprint(\"patched\")\nEOF\nsed -n 228,300p src/_pytest/skipping.py",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /testbed && python3 <<'EOF'\np = 'src/_pytest/skipping.py'\ns = open(p).read()\n\nold = '''    outcome = yield\n    rep = outcome.get_result()\n    # Re-evaluate the xfail marks now that the call (if any) has run: a test\n    # may have added an xfail marker to itself during the call via\n    # ``request.node.add_marker(...)``, which is not visible to the evaluation\n    # performed during setup.  When the call did not run (e.g. setup failed\n    # and raised) the cached value is reused so dynamic markers added during\n    # an interrupted call are not picked up.\n    xfailed = item._store.get(xfailed_key, None)\n    # Re-evaluate xfail marks after the call has run: a test may have added\n    # an xfail marker to itself during the call via\n    # ``request.node.add_marker(...)``, which is not visible to the\n    # evaluation performed during setup.\n    if call.when == \"call\":\n        xfailed = evaluate_xfail_marks(item)\n        item._store[xfailed_key] = xfailed\n    # unittest special case, see setting of unexpectedsuccess_key'''\n\nnew = '''    outcome = yield\n    rep = outcome.get_result()\n    xfailed = item._store.get(xfailed_key, None)\n    # Re-evaluate the xfail marks now that the call (if any) has run: a test\n    # may have added an xfail marker to itself during the call via\n    # ``request.node.add_marker(...)`` (e.g. on ``request.node``), which is\n    # not visible to the evaluation performed during setup.\n    if call.when == \"call\":\n        xfailed = evaluate_xfail_marks(item)\n        item._store[xfailed_key] = xfailed\n    # unittest special case, see setting of unexpectedsuccess_key'''\n\nassert s.count(old) == 1, s.count(old)\ns = s.replace(old, new)\nopen(p,'w').write(s)\nprint(\"cleaned\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cd /tmp/repro && python -m pytest -rsx test_foo.py 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 250.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py -x -q 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2572.2
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_mark.py testing/test_runtest.py testing/test_junitxml.py -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 253.4
+  },
+  {
+   "cmd": "cd /testbed && ls testing/test_runner.py testing/test_mark.py 2>&1; python -m pytest testing/test_mark.py testing/test_runner.py testing/test_junitxml.py testing/test_terminal.py -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 771.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_mark.py testing/test_runner.py testing/test_terminal.py testing/test_unittest.py testing/test_setup.py -q 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 269.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_mark.py testing/test_runner.py testing/test_terminal.py testing/test_unittest.py -q 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 12183.8
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest testing/test_terminal.py::test_color_yes \"testing/test_terminal.py::TestCodeHighlight::test_code_highlight_simple\" \"testing/test_terminal.py::TestCodeHighlight::test_code_highlight_continuation\" -q 2>&1 | tail -8; git stash pop",
+   "hit": null,
+   "lat_ms": 572.8
+  },
+  {
+   "cmd": "cd /tmp/repro && cat > test_edge.py <<'EOF'\nimport pytest\n\n\ndef test_dynamic_strict_xfail_fails(request):\n    # strict xfail added at runtime; test actually fails -> xfailed (skipped)\n    request.node.add_marker(pytest.mark.xfail(reason=\"strict\", strict=True))\n    assert 0\n\n\ndef test_dynamic_xpass(request):\n    # xfail added at runtime; test actually passes -> xpassed\n    request.node.add_marker(pytest.mark.xfail(reason=\"xpass\", strict=True))\n    assert 1\n\n\ndef test_dynamic_xpass_strict_fails(request):\n    # strict xfail added at runtime; test passes -> XPASS(strict) -> failed\n    request.node.add_marker(pytest.mark.xfail(reason=\"strict xpass\", strict=True))\n    assert 1\nEOF\npython -m pytest -rsx test_edge.py 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 259.6
+  },
+  {
+   "cmd": "cd /tmp/repro && cat > test_static_ref.py <<'EOF'\nimport pytest\n\n\n@pytest.mark.xfail(reason=\"xpass\", strict=True)\ndef test_static_xpass_strict():\n    assert 1\n\n\n@pytest.mark.xfail(reason=\"xpass\", strict=False)\ndef test_static_xpass_nonstrict():\n    assert 1\nEOF\necho \"=== static xpass, strict=True (passing test) ===\"\npython -m pytest -rsx test_static_ref.py::test_static_xpass_strict 2>&1 | tail -6\necho \"=== static xpass, strict=False (passing test) ===\"\npython -m pytest -rsx test_static_ref.py::test_static_xpass_nonstrict 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 572.4
+  },
+  {
+   "cmd": "cd /tmp/repro && cat > test_dynamic_nonstrict.py <<'EOF'\nimport pytest\n\n\ndef test_dynamic_xpass_nonstrict(request):\n    request.node.add_marker(pytest.mark.xfail(reason=\"xpass\", strict=False))\n    assert 1\n\n\ndef test_dynamic_strict_fails(request):\n    request.node.add_marker(pytest.mark.xfail(reason=\"strict\", strict=True))\n    assert 0\nEOF\npython -m pytest -rsx test_dynamic_nonstrict.py 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 255.0
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n 174,190p testing/test_skipping.py",
+   "hit": null,
+   "lat_ms": 72.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n 158,174p testing/test_skipping.py",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "cd /testbed && python3 <<'EOF'\np = 'testing/test_skipping.py'\ns = open(p).read()\n\nold = '''        reports = runtestprotocol(item, log=False)\n        assert len(reports) == 3\n        callreport = reports[1]\n        assert callreport.skipped\n        assert callreport.wasxfail == \"\"\n\n    def test_xfail_xpassed(self, testdir):'''\n\nnew = '''        reports = runtestprotocol(item, log=False)\n        assert len(reports) == 3\n        callreport = reports[1]\n        assert callreport.skipped\n        assert callreport.wasxfail == \"\"\n\n    def test_xfail_dynamically_added_marker_failing_test(self, testdir):\n        \"\"\"An xfail marker added to the item during the call (via\n        ``request.node.add_marker``) must be honored when the test fails,\n        just as if the marker had been applied statically (issue #7326).\"\"\"\n        item = testdir.getitem(\n            \"\"\"\n            import pytest\n            def test_func(request):\n                request.node.add_marker(pytest.mark.xfail(reason=\"dynamically xfail\"))\n                assert 0\n        \"\"\"\n        )\n        reports = runtestprotocol(item, log=False)\n        assert len(reports) == 3\n        callreport = reports[1]\n        assert callreport.skipped\n        assert callreport.wasxfail == \"dynamically xfail\"\n\n    def test_xfail_xpassed(self, testdir):'''\n\nassert s.count(old) == 1, s.count(old)\ns = s.replace(old, new)\nopen(p,'w').write(s)\nprint(\"added regression test\")\nEOF",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py::TestRunProtocol -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 380.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n '^class ' testing/test_skipping.py",
+   "hit": null,
+   "lat_ms": 72.3
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py -q 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 2990.4
+  },
+  {
+   "cmd": "cd /testbed && git stash push src/_pytest/skipping.py && python -m pytest \"testing/test_skipping.py::TestXFail::test_xfail_dynamically_added_marker_failing_test\" -q 2>&1 | tail -8; git stash pop",
+   "hit": null,
+   "lat_ms": 569.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py -q 2>&1 | tail -4 && echo \"=== changelog dir ===\" && ls changelog/ 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 2578.2
+  },
+  {
+   "cmd": "cd /testbed && cat changelog/7392.bugfix.rst; echo \"---README excerpt---\"; sed -n 1,40p changelog/README.rst | grep -A3 -i 'bugfix'",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cd /testbed && printf 'Fixed a bug where an xfail marker added dynamically to a test item during the call phase (for example via ``request.node.add_marker(pytest.mark.xfail(...))``) was ignored, causing the failing test to be reported as a regular failure instead of xfailed.\\n' > changelog/7326.bugfix.rst && cat changelog/7326.bugfix.rst",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py testing/test_mark.py testing/test_runner.py testing/test_unittest.py -q 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 8777.5
+  },
+  {
+   "cmd": "cd /testbed && git diff && echo \"=== new files ===\" && git status --short",
+   "hit": null,
+   "lat_ms": 136.7
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pytest-dev__pytest-7490",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 37518.0,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

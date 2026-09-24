@@ -1,0 +1,216 @@
+{
+ "calls": 32,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 15677.155017852783,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && echo \"HOME=$HOME\"",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "python -c \"import sklearn; print(sklearn.__version__); print(sklearn.__file__)\" 2>&1; pip show scikit-learn 2>/dev/null | head -6",
+   "hit": null,
+   "lat_ms": 971.6
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 && git status --short | head",
+   "hit": null,
+   "lat_ms": 249.4
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"discrete_features\" sklearn/feature_selection/_mutual_info.py | head -40",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "cd /testbed && ls sklearn/feature_selection/ && grep -rn \"def _estimate_mi\" sklearn/",
+   "hit": null,
+   "lat_ms": 380.3
+  },
+  {
+   "cmd": "cd /testbed && wc -l sklearn/feature_selection/mutual_info_.py sklearn/feature_selection/tests/test_mutual_info.py",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /testbed && cat -n sklearn/feature_selection/mutual_info_.py",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && cat -n sklearn/feature_selection/tests/test_mutual_info.py",
+   "hit": null,
+   "lat_ms": 68.5
+  },
+  {
+   "cmd": "python -c \"import numpy, scipy; print('numpy', numpy.__version__); print('scipy', scipy.__version__)\"",
+   "hit": null,
+   "lat_ms": 380.0
+  },
+  {
+   "cmd": "cd /testbed && git log -1 --format='%H %ci %s' 26f690961 && git show 8bdc5b436 --stat | head -20",
+   "hit": null,
+   "lat_ms": 248.6
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"== 'auto'\" sklearn/ | grep -v test",
+   "hit": null,
+   "lat_ms": 250.5
+  },
+  {
+   "cmd": "python --version && mkdir -p /tmp/mi_repro && cat > /tmp/mi_repro/repro.py <<'EOF'\nimport warnings\nwarnings.simplefilter('error', DeprecationWarning)\nimport numpy as np\nimport traceback\nfrom sklearn.feature_selection.mutual_info_ import (\n    _estimate_mi, mutual_info_classif, mutual_info_regression)\n\nrng = np.random.RandomState(0)\nX = rng.rand(100, 3)\ny = (X[:, 0] > 0.5).astype(int)\n\ndef check(label, **kwargs):\n    try:\n        mi = _estimate_mi(X, y, random_state=0, **kwargs)\n        print(f\"OK    {label}: {np.round(mi, 3)}\")\n        return mi\n    except Exception as e:\n        print(f\"FAIL  {label}: {type(e).__name__}: {e}\")\n        return None\n\nmi_auto = check(\"discrete_features='auto'\")\nmi_list = check(\"discrete_features=[0] (list of indices)\")\nmi_bool = check(\"discrete_features=True\")\n\nmi_np_idx = check(\"discrete_features=np.array([0]) (int indices)\")\nmi_np_mask = check(\"discrete_features=np.array([True, False, False]) (bool mask)\")\n\n# single-element arrays (truth value of 1-element array does not raise)\nmi_np_1el = check(\"discrete_features=np.array([True]) (1-elem mask)\")\n\nprint()\nprint(\"Public API with numpy array mask:\")\ntry:\n    mi = mutual_info_classif(X, y, discrete_features=np.array([True, False, False]), random_state=0)\n    print(\"OK   mutual_info_classif:\", np.round(mi, 3))\nexcept Exception as e:\n    print(\"FAIL mutual_info_classif:\", type(e).__name__, e)\ntry:\n    mi = mutual_info_regression(X, y, discrete_features=np.array([0]), random_state=0)\n    print(\"OK   mutual_info_regression:\", np.round(mi, 3))\nexcept Exception as e:\n    print(\"FAIL mutual_info_regression:\", type(e).__name__, e)\n\n# correctness: numpy mask/indices must agree with equivalent bool/list forms\nprint()\nprint(\"Consistency checks:\")\nm1 = _estimate_mi(X, y, discrete_features=[0], random_state=0)\nm2 = _estimate_mi(X, y, discrete_features=np.array([0]), random_state=0)\nprint(\"list [0] vs np.array([0]):\", \"equal\" if m2 is not None and np.allclose(m1, m2) else \"MISMATCH/ERROR\")\nEOF\npython /tmp/mi_repro/repro.py",
+   "hit": null,
+   "lat_ms": 1149.7
+  },
+  {
+   "cmd": "cd /tmp/mi_repro && cat > diag1.py <<'EOF'\nimport warnings\nimport numpy as np\n\ndef cmp(label, arr):\n    with warnings.catch_warnings(record=True) as w:\n        warnings.simplefilter('always')\n        res = (arr == 'auto')\n        warns = [str(x.message) for x in w]\n    print(f\"{label}: result={res!r} warns={warns}\")\n    try:\n        if arr == 'auto':\n            print(f\"   -> if-statement OK (truthy)\")\n        else:\n            print(f\"   -> if-statement OK (falsy)\")\n    except Exception as e:\n        print(f\"   -> if-statement RAISES {type(e).__name__}: {e}\")\n\ncmp(\"np.array([0])  (1-elem int)\", np.array([0]))\ncmp(\"np.array([0,1]) (2-elem int)\", np.array([0, 1]))\ncmp(\"np.array([True,False,False]) (bool mask)\", np.array([True, False, False]))\ncmp(\"np.array([True]) (1-elem bool)\", np.array([True]))\ncmp(\"[0] (python list)\", [0])\ncmp(\"'auto' (str)\", 'auto')\ncmp(\"True (bool)\", True)\nEOF\npython diag1.py",
+   "hit": null,
+   "lat_ms": 800.6
+  },
+  {
+   "cmd": "cd /tmp/mi_repro && cat > diag2.py <<'EOF'\nimport numpy as np\nfrom sklearn.feature_selection.mutual_info_ import _compute_mi_cd, _estimate_mi\n\n# all-unique discrete feature, continuous target\nrng = np.random.RandomState(0)\nx_unique = rng.rand(100)          # all unique\ny = rng.rand(100)\ntry:\n    mi = _compute_mi_cd(y, x_unique)\n    print(\"all-unique d: OK\", mi)\nexcept Exception as e:\n    print(\"all-unique d: RAISES\", type(e).__name__, \"-\", e)\n\n# duplicated discrete feature\nx_dup = (rng.rand(100) > 0.5).astype(float)\ntry:\n    mi = _compute_mi_cd(y, x_dup)\n    print(\"duplicated d: OK\", mi)\nexcept Exception as e:\n    print(\"duplicated d: RAISES\", type(e).__name__, \"-\", e)\n\n# what does _estimate_mi do with discrete_features=[0] on a tiny dataset?\nX = np.array([[0., 1.], [1., 2.], [0., 3.], [1., 4.], [0., 5.], [1., 6.]])\ny = np.array([1., 2., 3., 4., 5., 6.])\nfor df in ['auto', [0], np.array([0]), np.array([True, False])]:\n    try:\n        mi = _estimate_mi(X, y, discrete_features=df, random_state=0)\n        print(f\"df={df!r}: OK {mi}\")\n    except Exception as e:\n        print(f\"df={df!r}: RAISES {type(e).__name__} - {e}\")\nEOF\npython diag2.py",
+   "hit": null,
+   "lat_ms": 1201.5
+  },
+  {
+   "cmd": "cd /tmp/mi_repro && cat > diag3.py <<'EOF'\nimport numpy as np\nfrom sklearn.feature_selection.mutual_info_ import _compute_mi_cd, _estimate_mi, mutual_info_regression\n\nrng = np.random.RandomState(0)\ny = rng.rand(100)\n\n# all-unique discrete feature (e.g. a float column treated as discrete)\nx_unique = rng.rand(100)\ntry:\n    print(\"all-unique d:\", _compute_mi_cd(y, x_unique, 3))\nexcept Exception as e:\n    print(\"all-unique d: RAISES\", type(e).__name__, \"-\", e)\n\n# one duplicate + rest unique -> works today\nx_one_dup = np.r_[rng.rand(99), 0.0]\nx_one_dup[5] = 0.0\ntry:\n    print(\"one duplicate:\", _compute_mi_cd(y, x_one_dup, 3))\nexcept Exception as e:\n    print(\"one duplicate: RAISES\", type(e).__name__, \"-\", e)\n\n# the realistic case from the issue: int column of distinct values + continuous target\nX = np.random.RandomState(0).rand(100, 2)\nX[:, 0] = np.arange(100)  # all-unique \"discrete\" feature\ny2 = np.random.RandomState(1).rand(100)\nfor df in ['auto', np.array([0]), np.array([True, False]), [0], [True, False]]:\n    try:\n        mi = mutual_info_regression(X, y2, discrete_features=df, random_state=0)\n        print(f\"mutual_info_regression df={df!r}: OK {np.round(mi, 3)}\")\n    except Exception as e:\n        print(f\"mutual_info_regression df={df!r}: RAISES {type(e).__name__} - {e}\")\nEOF\npython diag3.py",
+   "hit": null,
+   "lat_ms": 963.0
+  },
+  {
+   "cmd": "cd /testbed && grep -rln \"mutual_info\" sklearn/ --include=\"*.py\" | grep -v \"\\.pyc\"",
+   "hit": null,
+   "lat_ms": 186.6
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport io\n\npath = 'sklearn/feature_selection/mutual_info_.py'\nwith io.open(path, encoding='utf-8') as f:\n    src = f.read()\n\n# Fix 1: don't compare a possibly-array value to the string 'auto'\nold1 = \"\"\"    if discrete_features == 'auto':\n        discrete_features = issparse(X)\n\"\"\"\nnew1 = \"\"\"    if isinstance(discrete_features, str) and discrete_features == 'auto':\n        discrete_features = issparse(X)\n\"\"\"\nassert src.count(old1) == 1, src.count(old1)\nsrc = src.replace(old1, new1)\n\n# Fix 2: _compute_mi_cd crashes when every label of the discrete variable\n# is unique (nothing left after filtering -> NearestNeighbors.fit(empty))\nold2 = \"\"\"    # Ignore points with unique labels.\n    mask = label_counts > 1\n    n_samples = np.sum(mask)\n    label_counts = label_counts[mask]\n\"\"\"\nnew2 = \"\"\"    # Ignore points with unique labels.\n    mask = label_counts > 1\n    n_samples = np.sum(mask)\n    if n_samples == 0:\n        # All labels are unique, there is nothing to estimate.\n        return 0\n\n    label_counts = label_counts[mask]\n\"\"\"\nassert src.count(old2) == 1, src.count(old2)\nsrc = src.replace(old2, new2)\n\nwith io.open(path, 'w', encoding='utf-8') as f:\n    f.write(src)\nprint(\"patched OK\")\nEOF\ngit diff",
+   "hit": null,
+   "lat_ms": 142.8
+  },
+  {
+   "cmd": "cd /tmp/mi_repro && cat > verify.py <<'EOF'\nimport warnings\nimport numpy as np\nfrom scipy.sparse import csr_matrix\nfrom sklearn.feature_selection.mutual_info_ import (\n    _estimate_mi, mutual_info_classif, mutual_info_regression)\n\n# Any FutureWarning (e.g. \"elementwise comparison failed\") must be fatal\nwarnings.simplefilter('error', FutureWarning)\n\nrng = np.random.RandomState(0)\nX = rng.rand(100, 3)\nX[:, 2] = (X[:, 2] > 0.5)          # one genuinely discrete column\ny_cls = (X[:, 0] > 0.5).astype(int)\ny_reg = rng.rand(100)\n\nfails = []\ndef ok(label, cond):\n    print((\"PASS  \" if cond else \"FAIL  \") + label)\n    if not cond:\n        fails.append(label)\n\n# --- classification target ---\nmi_auto = mutual_info_classif(X, y_cls, discrete_features='auto', random_state=0)\nmi_false = mutual_info_classif(X, y_cls, discrete_features=False, random_state=0)\nmi_mask = mutual_info_classif(X, y_cls, discrete_features=np.array([False, False, True]), random_state=0)\nmi_list = mutual_info_classif(X, y_cls, discrete_features=[2], random_state=0)\nmi_mask_l = mutual_info_classif(X, y_cls, discrete_features=[False, False, True], random_state=0)\nmi_idx_np = mutual_info_classif(X, y_cls, discrete_features=np.array([2]), random_state=0)\n\nok(\"dense 'auto' == False\", np.allclose(mi_auto, mi_false))\nok(\"np bool mask == list mask\", np.allclose(mi_mask, mi_mask_l))\nok(\"np index array == list indices\", np.allclose(mi_mask, mi_idx_np))\nok(\"np index array == list [2]\", np.allclose(mi_mask, mi_list))\nok(\"discrete feature gets highest MI\", np.argmax(mi_mask) == 2)\n\n# --- regression target ---\nmi_r_auto = mutual_info_regression(X, y_reg, discrete_features='auto', random_state=0)\nmi_r_mask = mutual_info_regression(X, y_reg, discrete_features=np.array([False, False, True]), random_state=0)\nmi_r_idx = mutual_info_regression(X, y_reg, discrete_features=np.array([0]), random_state=0)\nok(\"regression np bool mask runs\", mi_r_mask.shape == (3,))\nok(\"regression np int indices runs\", mi_r_idx.shape == (3,))\n\n# --- sparse input: 'auto' must equal True ---\nXs = csr_matrix(X)\nmi_s_auto = mutual_info_classif(Xs, y_cls, discrete_features='auto', random_state=0)\nmi_s_true = mutual_info_classif(Xs, y_cls, discrete_features=True, random_state=0)\nok(\"sparse 'auto' == True\", np.allclose(mi_s_auto, mi_s_true))\ntry:\n    mutual_info_classif(Xs, y_cls, discrete_features=False, random_state=0)\n    ok(\"sparse + discrete_features=False raises\", False)\nexcept ValueError:\n    ok(\"sparse + discrete_features=False raises\", True)\n\n# --- the all-unique discrete feature crash (previous ValueError: 0 samples) ---\nXu = rng.rand(100, 2)\nXu[:, 0] = np.arange(100)          # all-unique feature, treated as discrete\nyr = rng.rand(100)\nfor df in [np.array([0]), [0], np.array([True, False]), [True, False], True]:\n    mi = mutual_info_regression(Xu, yr, discrete_features=df, random_state=0)\n    ok(f\"all-unique feature, df={df!r} -> finite MI\", np.all(np.isfinite(mi)))\n\n# --- direct _estimate_mi with every documented form ---\nfrom sklearn.utils.testing import assert_array_equal\nfor df in ['auto', True, False, [0, 2], np.array([0, 2]),\n           [True, False, True], np.array([True, False, True])]:\n    m = _estimate_mi(X, y_cls, discrete_features=df, random_state=0)\n    ok(f\"_estimate_mi df={df!r}\", m.shape == (3,))\n\nprint()\nprint(\"ALL PASS\" if not fails else f\"{len(fails)} FAILURES: {fails}\")\nEOF\npython verify.py",
+   "hit": null,
+   "lat_ms": 1002.8
+  },
+  {
+   "cmd": "cd /tmp/mi_repro && python - <<'EOF'\nimport warnings\nwarnings.simplefilter('error', FutureWarning)\nimport numpy as np\nfrom sklearn.feature_selection.mutual_info_ import mutual_info_classif\n\n# y determined by the discrete feature (col 2), like test_mutual_info_classif_mixed\nrng = np.random.RandomState(0)\nX = rng.rand(200, 3)\nX[:, 2] = X[:, 2] > 0.5\ny = X[:, 2].astype(int)\nmi = mutual_info_classif(X, y, discrete_features=np.array([False, False, True]), random_state=0)\nprint(\"mi:\", np.round(mi, 3))\nprint(\"argmax is discrete feature:\", np.argmax(mi) == 2)\nEOF",
+   "hit": null,
+   "lat_ms": 971.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sklearn/feature_selection/tests/test_mutual_info.py -v 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 1247.3
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python -m pytest sklearn/feature_selection/tests/ -q 2>&1 | tail -8' > /tmp/hermes_bg_proc_88cba9716e36.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_88cba9716e36.exit ) & echo $! > /tmp/hermes_bg_proc_88cba9716e36.pid && cat /tmp/hermes_bg_proc_88cba9716e36.pid",
+   "hit": null,
+   "lat_ms": 2175.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_88cba9716e36.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_88cba9716e36.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_88cba9716e36.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_88cba9716e36.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_88cba9716e36.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /tmp/mi_repro && echo \"=== diag3 (previously emitted FutureWarning + crash) ===\" && python diag3.py 2>&1",
+   "hit": null,
+   "lat_ms": 983.0
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"mutual_info_classif\\|mutual_info_regression\\|_estimate_mi\" sklearn/feature_selection/tests/test_feature_select.py sklearn/metrics/tests/test_score_objects.py | head",
+   "hit": null,
+   "lat_ms": 188.7
+  },
+  {
+   "cmd": "cd /tmp/mi_repro && python - <<'EOF'\n# Fix the one bad assertion in verify.py (data design: y from col 0, so col 0 should win)\nsrc = open('verify.py').read()\nsrc = src.replace(\n    \"ok(\\\"discrete feature gets highest MI\\\", np.argmax(mi_mask) == 2)\",\n    \"ok(\\\"informative feature (col 0) gets highest MI\\\", np.argmax(mi_mask) == 0)\")\nopen('verify.py', 'w').write(src)\nEOF\npython verify.py && echo ---- && cd /testbed && git diff --stat",
+   "hit": null,
+   "lat_ms": 984.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "scikit-learn__scikit-learn-13497",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 15677.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

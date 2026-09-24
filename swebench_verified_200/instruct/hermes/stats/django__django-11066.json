@@ -1,0 +1,526 @@
+{
+ "calls": 94,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 38938.05480003357,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "find / -path /proc -prune -o -name \"contenttypes\" -type d -print 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 569.2
+  },
+  {
+   "cmd": "cat -n /testbed/django/contrib/contenttypes/management/__init__.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nfrom pathlib import Path\np = Path(\"django/contrib/contenttypes/management/__init__.py\")\ns = p.read_text()\nold = \"            content_type = ContentType.objects.db_manager(db).get_by_natural_key(self.app_label, old_model)\"\nnew = \"            content_type = ContentType.objects.using(db).get_by_natural_key(self.app_label, old_model)\"\nassert s.count(old) == 1\ns = s.replace(old, new)\nold2 = \"                    content_type.save(update_fields={'model'})\"\nnew2 = \"                    content_type.save(using=db, update_fields={'model'})\"\nassert s.count(old2) == 1\ns = s.replace(old2, new2)\np.write_text(s)\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 163.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 13,40p django/contrib/contenttypes/management/__init__.py && git diff",
+   "hit": null,
+   "lat_ms": 1056.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n -A3 \"db_manager\" django/contrib/contenttypes/models.py",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def get_by_natural_key\" -A 20 django/contrib/contenttypes/models.py && grep -n \"def save\" -A 15 django/contrib/contenttypes/models.py",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport os, django\nos.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"tests.test_sqlite_db\")\nEOF\nls tests/ | grep -i sqlite | head; echo ---; ls /testbed/runtests.py",
+   "hit": null,
+   "lat_ms": 255.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/contenttypes/ -x -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "cd /testbed && python -c \"import django; print(django.__file__, django.get_version())\" && ls -la | head -30",
+   "hit": null,
+   "lat_ms": 250.9
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport os, sys\nsys.path.insert(0, os.path.abspath('tests'))\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'extra',\n    ],\n    DATABASES={\n        'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n        'other': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n    },\n)\ndjango.setup()\n\nfrom django.core.management import call_command\nfrom django.db import connection, connections\n\n# Migrate both databases\ncall_command('migrate', verbosity=0, database='default')\ncall_command('migrate', verbosity=0, database='other')\n\nfrom django.contrib.contenttypes.models import ContentType\n\n# Create a model with a content type on the 'other' database only\nfrom extra.models import Model\n\n# Add a CT directly to 'other' db\nct = ContentType.objects.using('other').create(app_label='extra', model='model')\nprint(\"CT on other:\", ct)\n# Verify no CT on default\nprint(\"default count:\", ContentType.objects.using('default').count())\nprint(\"other count:\", ContentType.objects.using('other').count())\n\n# Now simulate the RenameContentType path on the 'other' database\nfrom django.test.utils import setup_test_environment\nsetup_test_environment()\n\nfrom django.db import transaction\nfrom extra.migrations.rename import RenameContentType\nop = RenameContentType('extra', 'model', 'newmodel')\nfrom django.db.backends.sqlite3.schema import DatabaseSchemaEditor\nwith connections['other'].schema_editor() as se:\n    op._rename(None, se, 'model', 'newmodel')\n\nct.refresh_from_db()\nprint(\"After rename, ct.model =\", ct.model)\nassert ct.model == 'newmodel', ct.model\nprint(\"OK: rename saved on correct database\")\nEOF",
+   "hit": null,
+   "lat_ms": 377.7
+  },
+  {
+   "cmd": "pip install -q pytz 2>&1 | tail -2",
+   "hit": null,
+   "lat_ms": 8179.0
+  },
+  {
+   "cmd": "python -c \"import pytz\" 2>&1; python -c \"import sys; print(sys.version_info)\"; ls /opt/miniconda3/envs/ 2>/dev/null; conda env list 2>/dev/null",
+   "hit": null,
+   "lat_ms": 769.1
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/python -c \"import pytz, django; print('ok')\" && /opt/miniconda3/envs/testbed/bin/python --version",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, os.path.abspath('tests'))\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'extra',\n    ],\n    DATABASES={\n        'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n        'other': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n    },\n)\ndjango.setup()\n\nfrom django.core.management import call_command\ncall_command('migrate', verbosity=0, database='default')\ncall_command('migrate', verbosity=0, database='other')\n\nfrom django.contrib.contenttypes.models import ContentType\nct = ContentType.objects.using('other').create(app_label='extra', model='model')\nprint(\"default count:\", ContentType.objects.using('default').count())\nprint(\"other count:\", ContentType.objects.using('other').count())\n\nfrom django.test.utils import setup_test_environment\nsetup_test_environment()\n\nfrom django.db import connections\nfrom django.contrib.contenttypes.management import RenameContentType\nop = RenameContentType('extra', 'model', 'newmodel')\nwith connections['other'].schema_editor() as se:\n    op._rename(None, se, 'model', 'newmodel')\n\nct.refresh_from_db()\nprint(\"After rename, ct.model =\", ct.model)\nassert ct.model == 'newmodel', ct.model\nprint(\"OK: rename saved on correct database\")\nEOF",
+   "hit": null,
+   "lat_ms": 573.4
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | grep -x \"extra\\|custom_migration\" ; grep -rn \"class Model\" tests/custom_migrations/models.py | head; ls tests/custom_migrations/",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && grep -rln \"RenameContentType\\|rename_contenttypes\" tests/ | head",
+   "hit": null,
+   "lat_ms": 167.9
+  },
+  {
+   "cmd": "cd /testbed && head -60 tests/contenttypes_tests/test_operations.py && grep -rn \"RenameContentType\" tests/contenttypes_tests/test_operations.py | head",
+   "hit": null,
+   "lat_ms": 119.3
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py contenttypes_tests.test_operations -v 2 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 770.9
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py contenttypes_tests.test_operations -v 2 2>&1 | grep -E \"^(test_|Ran|OK|FAILED|ERROR)\" ",
+   "hit": null,
+   "lat_ms": 584.9
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py contenttypes_tests.test_operations.test_existing_content_type_rename 2>&1 | grep -B2 -A 25 \"ERROR:\"",
+   "hit": null,
+   "lat_ms": 583.5
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py contenttypes_tests.test_operations.ContentTypeOperationsTests.test_existing_content_type_rename 2>&1 | grep -B2 -A 30 \"ERROR:\"",
+   "hit": null,
+   "lat_ms": 584.2
+  },
+  {
+   "cmd": "cd /testbed && git stash && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py contenttypes_tests.test_operations 2>&1 | grep -E \"^(test_|Ran|OK|FAILED|ERROR)\" ; git stash pop",
+   "hit": null,
+   "lat_ms": 982.8
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, os.path.abspath('tests'))\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'contenttypes_tests',\n    ],\n    DATABASES={\n        'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n        'other': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n    },\n    MIGRATION_MODULES={\n        'contenttypes_tests': 'contenttypes_tests.operations_migrations',\n    },\n)\ndjango.setup()\n\nfrom django.core.management import call_command\n# migrate both databases to the state BEFORE the rename migration (state \"zero\")\ncall_command('migrate', 'contenttypes_tests', 'zero', verbosity=0, database='default')\ncall_command('migrate', 'contenttypes_tests', 'zero', verbosity=0, database='other')\n\nfrom django.contrib.contenttypes.models import ContentType\n# Create the content type ONLY on the 'other' database\nct = ContentType.objects.using('other').create(app_label='contenttypes_tests', model='foo')\nprint(\"default CTs:\", list(ContentType.objects.using('default').values_list('app_label','model')))\nprint(\"other CTs:\", list(ContentType.objects.using('other').values_list('app_label','model')))\n\n# Now run the migrate on 'other' db which includes the RenameModel\ncall_command('migrate', 'contenttypes_tests', database='other', interactive=False, verbosity=1)\n\nct.refresh_from_db()\nprint(\"After rename, ct.model =\", ct.model)\nassert ct.model == 'renamedfoo', ct.model\nprint(\"OK: rename saved on correct database\")\nEOF",
+   "hit": null,
+   "lat_ms": 398.2
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, os.path.abspath('tests'))\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'django.contrib.sites',\n        'contenttypes_tests',\n    ],\n    DATABASES={\n        'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n        'other': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n    },\n    MIGRATION_MODULES={\n        'contenttypes_tests': 'contenttypes_tests.operations_migrations',\n    },\n)\ndjango.setup()\n\nfrom django.core.management import call_command\ncall_command('migrate', 'contenttypes_tests', 'zero', verbosity=0, database='default')\ncall_command('migrate', 'contenttypes_tests', 'zero', verbosity=0, database='other')\n\nfrom django.contrib.contenttypes.models import ContentType\nct = ContentType.objects.using('other').create(app_label='contenttypes_tests', model='foo')\nprint(\"default CTs:\", list(ContentType.objects.using('default').values_list('app_label','model')))\nprint(\"other CTs:\", list(ContentType.objects.using('other').values_list('app_label','model')))\n\ncall_command('migrate', 'contenttypes_tests', database='other', interactive=False, verbosity=1)\n\nct.refresh_from_db()\nprint(\"After rename, ct.model =\", ct.model)\nassert ct.model == 'renamedfoo', ct.model\nprint(\"OK: rename saved on correct database\")\nEOF",
+   "hit": null,
+   "lat_ms": 395.6
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, os.path.abspath('tests'))\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'django.contrib.sites',\n        'contenttypes_tests',\n    ],\n    DATABASES={\n        'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n        'other': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n    },\n    MIGRATION_MODULES={\n        'contenttypes_tests': 'contenttypes_tests.operations_migrations',\n    },\n)\ndjango.setup()\n\nfrom django.core.management import call_command\n# full migrate on both dbs to set up django_content_type table etc.\ncall_command('migrate', verbosity=0, database='default')\ncall_command('migrate', 'other' and 'other', verbosity=0, database='other')\n# Now reset contenttypes_tests to state 'zero' on both\ncall_command('migrate', 'contenttypes_tests', 'zero', verbosity=0, database='default')\ncall_command('migrate', 'contenttypes_tests', 'zero', verbosity=0, database='other')\n# clear all app content types on default to mimic reporter's setup\nfrom django.contrib.contenttypes.models import ContentType\nContentType.objects.using('default').filter(app_label='contenttypes_tests').delete()\nct = ContentType.objects.using('other').create(app_label='contenttypes_tests', model='foo')\nprint(\"default CTs:\", list(ContentType.objects.using('default').values_list('app_label','model')))\nprint(\"other CTs:\", list(ContentType.objects.using('other').values_list('app_label','model')))\n\ncall_command('migrate', 'contenttypes_tests', database='other', interactive=False, verbosity=1)\n\nct.refresh_from_db()\nprint(\"After rename, ct.model =\", ct.model)\nassert ct.model == 'renamedfoo', ct.model\nprint(\"OK: rename saved on correct database\")\nEOF",
+   "hit": null,
+   "lat_ms": 569.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1,60p django/contrib/contenttypes/models.py",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nfrom django.db.models.manager import BaseManager\nimport inspect\nsrc = inspect.getsource(BaseManager.from_queryset)\nprint(src[:3000])\nEOF",
+   "hit": null,
+   "lat_ms": 405.9
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"_get_queryset_methods\" -A 15 django/db/models/manager.py",
+   "hit": null,
+   "lat_ms": 120.5
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nfrom django.db.models.manager import BaseManager\nimport inspect\nprint(inspect.getsource(BaseManager._get_queryset_methods))\nEOF",
+   "hit": null,
+   "lat_ms": 379.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"db_manager\\|db = \\|self.db\" django/db/models/manager.py | head -20 && grep -n \"db_manager\" django/db/models/query.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n 115,135p django/db/models/manager.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"_queryset_class\\|def using\\|def db_manager\" django/db/models/query.py | head",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\n# Minimal repro of the mechanism without full app setup\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\nfrom django.apps import apps as global_apps\n\n# The migration-time apps registry: ContentType comes from the historical state\n# Simulate what ContentType.objects looks like in _rename.\nhistorical = ContentType.objects.db_manager('other')\nprint(\"db_manager type:\", type(historical))\nprint(\"db_manager using db:\", historical.db)\nqs = historical.get_queryset()\nprint(\"qs._db:\", qs._db)\n\n# Now the .using(db) chain on the plain manager:\nqs2 = ContentType.objects.using('other')\nprint(\"manager.using() type:\", type(qs2))\nprint(\"has get_by_natural_key?\", hasattr(qs2, 'get_by_natural_key'))\nEOF",
+   "hit": null,
+   "lat_ms": 377.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def db_manager\" -A 8 django/db/models/query.py",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"def db_manager\" django/db/models/",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\n\nqs = ContentType.objects.db_manager('other').get_queryset()\nprint(\"qs type:\", type(qs))\nprint(\"qs._db:\", qs._db)\nprint(\"has get_by_natural_key?\", hasattr(qs, 'get_by_natural_key'))\nqs2 = qs.using('other')\nprint(\"qs2._db:\", qs2._db, \"has method?\", hasattr(qs2, 'get_by_natural_key'))\nEOF",
+   "hit": null,
+   "lat_ms": 377.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n 130,160p django/db/models/query.py",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"^class \\|^QuerySet\\|from_queryset\" django/db/models/query.py | head",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1130,1150p django/db/models/query.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\nimport inspect\nprint(inspect.getmro(ContentType.objects.__class__))\nprint(\"MRO of qs:\")\nqs = ContentType.objects.db_manager('other').get_queryset()\nprint(inspect.getmro(type(qs)))\nprint(\"manager has get_by_natural_key:\", hasattr(ContentType.objects, 'get_by_natural_key'))\nm = ContentType.objects\nprint(\"manager.__class__:\", type(m))\nprint(\"m is Manager? methods sample:\", [x for x in dir(m) if 'natural' in x])\nEOF",
+   "hit": null,
+   "lat_ms": 387.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n 188,230p django/db/models/query.py",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\n\nm = ContentType.objects\nqs = m.using('other')\nprint(\"qs class:\", type(qs))\nprint(\"m class:\", type(m))\nprint(\"same?\", type(qs) is type(m))\n# Does the manager have using?\nprint(\"manager using method:\", m.using.__qualname__)\nEOF",
+   "hit": null,
+   "lat_ms": 377.1
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\n\nm = ContentType.objects\n# What does the manager's get_queryset return?\ngs = m.get_queryset\nprint(\"manager.get_queryset:\", gs)\nqs = gs()\nprint(\"qs class:\", type(qs), \"qs._db:\", qs._db)\nqs2 = qs.using('other')\nprint(\"qs2 class:\", type(qs2), \"qs2._db:\", qs2._db)\nprint(\"qs2 has get_by_natural_key:\", hasattr(qs2, 'get_by_natural_key'))\nEOF",
+   "hit": null,
+   "lat_ms": 378.4
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\n\nm = ContentType.objects\nqs = m.using('other')\nprint(\"m.using result class:\", type(qs))\nprint(\"has get_by_natural_key:\", hasattr(qs, 'get_by_natural_key'))\ndbm = m.db_manager('other')\nqs2 = dbm.get_queryset()\nprint(\"db_manager().get_queryset() class:\", type(qs2), \"_db:\", qs2._db)\nprint(\"has get_by_natural_key:\", hasattr(qs2, 'get_by_natural_key'))\nEOF",
+   "hit": null,
+   "lat_ms": 381.9
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\n\nm = ContentType.objects\nqs = m.using('other')\n# where does get_by_natural_key resolve on the manager?\nprint(\"manager has attr:\", 'get_by_natural_key' in type(m).__dict__)\nprint([k for k,v in vars(type(m)).items() if 'natural' in k])\n# check the Manager base\nimport django.db.models.manager as mgr\nprint([k for k,v in vars(mgr.Manager).items() if 'natural' in k or k in ('_queryset_class','get_queryset')])\nprint(type(m)._queryset_class)\n# What about the manager's get_queryset method\nimport inspect\nprint(inspect.getsource(type(m).get_queryset))\nEOF",
+   "hit": null,
+   "lat_ms": 377.1
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\nfrom django.db.models.manager import BaseManager\n\nm = ContentType.objects\nprint(\"_db on manager:\", m._db)\nprint(\"_queryset_class is QuerySet?\", type(m)._queryset_class)\nqs = m.using('other')\nprint(\"qs class:\", type(qs))\nprint(\"qs has get_by_natural_key:\", hasattr(qs, 'get_by_natural_key'))\n# check if the manager's copied method list contains get_by_natural_key\nprint(\"manager copied from_queryset methods with 'natural':\", [n for n in type(m).__dict__ if 'natural' in n])\n# The from_queryset copy copies QUERYSET methods; get_by_natural_key is a MANAGER method, not a queryset one.\n# So m.using() -> manager_method -> getattr(self.get_queryset(), 'using') -> plain QuerySet\n# And m.get_by_natural_key is the actual manager method (not copied from queryset).\n# Therefore m.using(db).get_by_natural_key(...) is BROKEN because .using() returns a plain QuerySet!\n\n# The fix: keep db_manager, which is a manager (with the method), and set _db explicitly.\ndbm = m.db_manager('other')\nprint(\"dbm class:\", type(dbm), \"dbm._db:\", dbm._db)\nprint(\"dbm has get_by_natural_key:\", hasattr(dbm, 'get_by_natural_key'))\nEOF",
+   "hit": null,
+   "lat_ms": 377.1
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\n\nm = ContentType.objects\nqs = m.using('other')\nprint(\"qs class mro:\", type(qs).__mro__)\nprint(\"'get_by_natural_key' in type(qs):\", 'get_by_natural_key' in type(qs))\n# Maybe get_by_natural_key was copied onto the QuerySet class itself via from_queryset?\nprint(\"'get_by_natural_key' in QuerySet dict:\", 'get_by_natural_key' in type(qs).__dict__)\nEOF",
+   "hit": null,
+   "lat_ms": 383.7
+  },
+  {
+   "cmd": "cd /testbed && git diff HEAD --stat && git log --oneline -3",
+   "hit": null,
+   "lat_ms": 165.9
+  },
+  {
+   "cmd": "cd /testbed && git stash && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py contenttypes_tests.test_operations 2>&1 | grep -E \"^(Ran|OK|FAILED)\"; git stash pop && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\nm = ContentType.objects\nqs = m.using('other')\nprint(\"type(qs):\", type(qs))\nprint(\"mro:\", type(qs).__mro__)\nprint(\"has get_by_natural_key:\", hasattr(qs, 'get_by_natural_key'))\nEOF",
+   "hit": null,
+   "lat_ms": 1171.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1,25p tests/contenttypes_tests/operations_migrations/0001_initial.py 2>/dev/null; ls tests/contenttypes_tests/operations_migrations/",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && cat tests/contenttypes_tests/operations_migrations/0002_rename_foo.py",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\nm = ContentType.objects\nqs = m.using('other')\nprint(\"type(qs):\", type(qs))\nprint(\"has get_by_natural_key:\", hasattr(qs, 'get_by_natural_key'))\n# maybe .using on the manager is overridden?\nimport inspect\nprint(type(m).__mro__)\nprint(\"using in type(m).__dict__:\", 'using' in type(m).__dict__)\nprint(\"using in Manager dict:\", 'using' in type(m).__mro__[1].__dict__)\nEOF",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\nm = ContentType.objects\nqs = m.using('other')\nprint(\"qs.__class__:\", qs.__class__)\nprint(\"m.using is manager_method:\", m.using)\n# Call directly\nprint(m.using('other'))\nEOF",
+   "hit": null,
+   "lat_ms": 380.1
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"get_by_natural_key\" django/ --include=\"*.py\" | head",
+   "hit": null,
+   "lat_ms": 172.9
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def db_manager\\|def using\" django/db/models/manager.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"def using\" django/db/models/",
+   "hit": null,
+   "lat_ms": 115.7
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.db.models.manager import BaseManager\nm = BaseManager()\nprint(\"BaseManager has 'using' attr:\", hasattr(m, 'using'))\nprint(\"BaseManager has 'db_manager' attr:\", hasattr(m, 'db_manager'))\n# The manager_method copies queryset methods onto the manager CLASS\nimport inspect\nsrc = inspect.getsource(type(m).using) if 'using' in type(m).__dict__ else \"inherited\"\nprint(\"using source in class dict:\", 'using' in type(m).__dict__)\nEOF",
+   "hit": null,
+   "lat_ms": 377.7
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\nfrom django.db.models.manager import BaseManager\n# 'using' is a manager_method copied from queryset class. But the manager class is ContentTypeManager\n# Let's see: is 'using' in the MRO?\nfor cls in type(ContentType.objects).__mro__:\n    if 'using' in cls.__dict__:\n        print(\"using defined in:\", cls)\n# And where is get_by_natural_key?\nfor cls in type(ContentType.objects).__mro__:\n    if 'get_by_natural_key' in cls.__dict__:\n        print(\"get_by_natural_key defined in:\", cls)\n# Now check: m.using('other') calls manager_method which does getattr(self.get_queryset(), 'using')\n# self.get_queryset() returns plain QuerySet. QuerySet.using returns clone QuerySet.\n# So m.using('other') returns a QuerySet, not a manager!\n# That means .get_by_natural_key on it would fail...\n# UNLESS get_by_natural_key was ALSO copied onto the QuerySet class. Let's check.\nfrom django.db.models.query import QuerySet\nprint(\"get_by_natural_key in QuerySet.__dict__:\", 'get_by_natural_key' in QuerySet.__dict__)\nEOF",
+   "hit": null,
+   "lat_ms": 378.2
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.db.models.manager import BaseManagerFromQuerySet\nimport inspect\nprint(inspect.getsource(BaseManagerFromQuerySet))\nEOF",
+   "hit": null,
+   "lat_ms": 379.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class BaseManagerFromQuerySet\\|def using\" -B2 -A20 django/db/models/manager.py | head -60",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"using\" django/db/models/manager.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class BaseManager\" -A 50 django/db/models/manager.py | head -80",
+   "hit": null,
+   "lat_ms": 557.3
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"BaseManagerFromQuerySet\" django/db/models/manager.py",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\n# The 'using' method on manager is defined where?\nprint(type(ContentType.objects).using)\nimport inspect\n# It's a manager_method from _get_queryset_methods (closure), so its __qualname__ tells us\nprint(type(ContentType.objects).using.__qualname__)\nEOF",
+   "hit": null,
+   "lat_ms": 381.5
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n                   DATABASES={'default': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'},\n                              'other': {'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}})\ndjango.setup()\nfrom django.contrib.contenttypes.models import ContentType\nfrom django.db.models.manager import BaseManager\n\nm = ContentType.objects\n# 'using' is a manager_method that delegates to self.get_queryset().using(...)\n# So m.using('other') returns self.get_queryset().using('other') which is a plain QuerySet!\n# That's the bug I found earlier. But wait, earlier test said \"has get_by_natural_key: False\"\n# Let me re-check more carefully what m.using('other') actually returns\nqs = m.using('other')\nprint(\"type:\", type(qs))\n# Actually, looking at the _get_queryset_methods code:\n# manager_method calls self.get_queryset() which is BaseManager.get_queryset\n# which returns self._queryset_class(model=self.model, using=self._db, hints=self._hints)\n# Then .using('other') on that QuerySet returns a clone QuerySet\n# So m.using('other') IS a QuerySet, not a Manager!\n\n# So the ORIGINAL code `ContentType.objects.db_manager(db).get_by_natural_key(...)`\n# uses db_manager() which returns a CONTENT TYPE MANAGER (with get_by_natural_key)\n# My change to `.using(db)` breaks because `.using()` returns a plain QuerySet!\n\n# The correct fix is to keep db_manager and also pass using=db to save:\n# content_type = ContentType.objects.db_manager(db).get_by_natural_key(...)\n# content_type.save(using=db, update_fields={'model'})\n\nprint(\"Confirmed: .using() on manager returns QuerySet, not Manager\")\nprint(\"db_manager returns:\", type(ContentType.objects.db_manager('other')))\nEOF",
+   "hit": null,
+   "lat_ms": 378.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nfrom pathlib import Path\np = Path(\"django/contrib/contenttypes/management/__init__.py\")\ns = p.read_text()\nold = \"            content_type = ContentType.objects.using(db).get_by_natural_key(self.app_label, old_model)\"\nnew = \"            content_type = ContentType.objects.db_manager(db).get_by_natural_key(self.app_label, old_model)\"\nassert s.count(old) == 1\ns = s.replace(old, new)\np.write_text(s)\nprint(\"reverted db_manager line\")\nEOF",
+   "hit": null,
+   "lat_ms": 167.9
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 165.6
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py contenttypes_tests.test_operations -v 2 2>&1 | grep -E \"^(test_|Ran|OK|FAILED|ERROR)\"",
+   "hit": null,
+   "lat_ms": 771.2
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, os.path.abspath('tests'))\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'django.contrib.sites',\n        'contenttypes_tests',\n    ],\n    DATABASES={\n        'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n        'other': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n    },\n    MIGRATION_MODULES={\n        'contenttypes_tests': 'contenttypes_tests.operations_migrations',\n    },\n)\ndjango.setup()\n\nfrom django.core.management import call_command\n# Full migrate on both dbs (sets up django_content_type table etc.)\ncall_command('migrate', verbosity=0, database='default')\ncall_command('migrate', verbosity=0, database='other')\n# Reset contenttypes_tests app to state 'zero' (pre-rename) on both\ncall_command('migrate', 'contenttypes_tests', 'zero', verbosity=0, database='default')\ncall_command('migrate', 'contenttypes_tests', 'zero', verbosity=0, database='other')\n# Remove all app content types on 'default' to mimic reporter's setup where the\n# CT only exists on the non-default database.\nfrom django.contrib.contenttypes.models import ContentType\nContentType.objects.using('default').filter(app_label='contenttypes_tests').delete()\nct = ContentType.objects.using('other').create(app_label='contenttypes_tests', model='foo')\nprint(\"default CTs:\", list(ContentType.objects.using('default').values_list('app_label','model')))\nprint(\"other CTs:\", list(ContentType.objects.using('other').values_list('app_label','model')))\n\n# Now run the rename migration on 'other' only.\ncall_command('migrate', 'contenttypes_tests', database='other', interactive=False, verbosity=1)\n\nct.refresh_from_db()\nprint(\"After rename, ct.model =\", ct.model)\nassert ct.model == 'renamedfoo', ct.model\nprint(\"OK: rename saved on the correct (non-default) database\")\nEOF",
+   "hit": null,
+   "lat_ms": 771.1
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, os.path.abspath('tests'))\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'django.contrib.sites',\n        'contenttypes_tests',\n    ],\n    DATABASES={\n        'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n        'other': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n    },\n    MIGRATION_MODULES={\n        'contenttypes_tests': 'contenttypes_tests.operations_migrations',\n    },\n)\ndjango.setup()\n\nfrom django.core.management import call_command\nfrom django.db import connections\n\n# Create the django_content_type table on 'other' without the app tables.\n# Simpler: run migrate for contenttypes+auth+sites on both, then manually create the\n# content type row on 'other' and remove it from 'default' at the row level.\ncall_command('migrate', 'contenttypes', verbosity=0, database='default')\ncall_command('migrate', 'auth', verbosity=0, database='default')\ncall_command('migrate', 'sites', verbosity=0, database='default')\ncall_command('migrate', 'contenttypes', verbosity=0, database='other')\ncall_command('migrate', 'auth', verbosity=0, database='other')\ncall_command('migrate', 'sites', verbosity=0, database='other')\n\nfrom django.contrib.contenttypes.models import ContentType\n# Insert the CT row ONLY on 'other' (raw SQL to avoid triggering cascade FK logic)\nconnections['other'].cursor().execute(\n    \"INSERT INTO django_content_type (app_label, model) VALUES ('contenttypes_tests', 'foo')\"\n)\nprint(\"default CTs:\", list(ContentType.objects.using('default').filter(app_label='contenttypes_tests').values_list('app_label','model')))\nprint(\"other CTs:\", list(ContentType.objects.using('other').filter(app_label='contenttypes_tests').values_list('app_label','model')))\n\n# Now run the rename migration on 'other'.\ncall_command('migrate', 'contenttypes_tests', database='other', interactive=False, verbosity=1)\n\nrows = list(ContentType.objects.using('other').filter(app_label='contenttypes_tests').values_list('model'))\nprint(\"After rename, other CTs:\", rows)\nassert rows == ['renamedfoo'], rows\nprint(\"OK: rename saved on the correct (non-default) database\")\nEOF",
+   "hit": null,
+   "lat_ms": 570.0
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, os.path.abspath('tests'))\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'django.contrib.sites',\n        'contenttypes_tests',\n    ],\n    DATABASES={\n        'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n        'other': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n    },\n    MIGRATION_MODULES={\n        'contenttypes_tests': 'contenttypes_tests.operations_migrations',\n    },\n)\ndjango.setup()\n\nfrom django.core.management import call_command\nfrom django.db import connections\n\ncall_command('migrate', 'contenttypes', verbosity=0, database='default')\ncall_command('migrate', 'auth', verbosity=0, database='default')\ncall_command('migrate', 'sites', verbosity=0, database='default')\ncall_command('migrate', 'contenttypes', verbosity=0, database='other')\ncall_command('migrate', 'auth', verbosity=0, database='other')\ncall_command('migrate', 'sites', verbosity=0, database='other')\n\nfrom django.contrib.contenttypes.models import ContentType\nconnections['other'].cursor().execute(\n    \"INSERT INTO django_content_type (app_label, model) VALUES ('contenttypes_tests', 'foo')\"\n)\n\n# Run the rename migration on 'other'.\ncall_command('migrate', 'contenttypes_tests', database='other', interactive=False, verbosity=1)\n\n# Verify via raw SQL to avoid any ORM cache effects\ncurs = connections['other'].cursor()\ncurs.execute(\"SELECT model FROM django_content_type WHERE app_label='contenttypes_tests'\")\nother_models = [r[0] for r in curs.fetchall()]\ncurs2 = connections['default'].cursor()\ncurs2.execute(\"SELECT model FROM django_content_type WHERE app_label='contenttypes_tests'\")\ndefault_models = [r[0] for r in curs2.fetchall()]\nprint(\"other models:\", other_models)\nprint(\"default models:\", default_models)\nassert other_models == ['renamedfoo'], other_models\nassert default_models == [], default_models\nprint(\"OK: rename was saved on the 'other' database, not 'default'\")\nEOF",
+   "hit": null,
+   "lat_ms": 621.3
+  },
+  {
+   "cmd": "cd /testbed && git stash && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, os.path.abspath('tests'))\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'django.contrib.sites',\n        'contenttypes_tests',\n    ],\n    DATABASES={\n        'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n        'other': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n    },\n    MIGRATION_MODULES={\n        'contenttypes_tests': 'contenttypes_tests.operations_migrations',\n    },\n)\ndjango.setup()\n\nfrom django.core.management import call_command\nfrom django.db import connections\n\ncall_command('migrate', 'contenttypes', verbosity=0, database='default')\ncall_command('migrate', 'auth', verbosity=0, database='default')\ncall_command('migrate', 'sites', verbosity=0, database='default')\ncall_command('migrate', 'contenttypes', verbosity=0, database='other')\ncall_command('migrate', 'auth', verbosity=0, database='other')\ncall_command('migrate', 'sites', verbosity=0, database='other')\n\nconnections['other'].cursor().execute(\n    \"INSERT INTO django_content_type (app_label, model) VALUES ('contenttypes_tests', 'foo')\"\n)\n\ntry:\n    call_command('migrate', 'contenttypes_tests', database='other', interactive=False, verbosity=1)\n    print(\"UNEXPECTED: migration succeeded without the fix\")\nexcept Exception as e:\n    print(\"REPRODUCED BUG (original code):\", type(e).__name__, e)\nEOF\ngit stash pop",
+   "hit": null,
+   "lat_ms": 970.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def save\" -A 10 django/db/models/base.py | head -20 && grep -n \"class BaseManager\" -A 5 django/db/models/manager.py | head",
+   "hit": null,
+   "lat_ms": 73.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n 673,700p django/db/models/base.py",
+   "hit": null,
+   "lat_ms": 117.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n 700,750p django/db/models/base.py",
+   "hit": null,
+   "lat_ms": 118.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def get\\|_state.db\\|using\" django/db/models/query.py | grep -i \"def get\\|_state\" | head",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /testbed && git stash && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, os.path.abspath('tests'))\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'django.contrib.sites',\n        'contenttypes_tests',\n    ],\n    DATABASES={\n        'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n        'other': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n    },\n    MIGRATION_MODULES={\n        'contenttypes_tests': 'contenttypes_tests.operations_migrations',\n    },\n)\ndjango.setup()\n\nfrom django.core.management import call_command\nfrom django.db import connections\n\ncall_command('migrate', 'contenttypes', verbosity=0, database='default')\ncall_command('migrate', 'auth', verbosity=0, database='default')\ncall_command('migrate', 'sites', verbosity=0, database='default')\ncall_command('migrate', 'contenttypes', verbosity=0, database='other')\ncall_command('migrate', 'auth', verbosity=0, database='other')\ncall_command('migrate', 'sites', verbosity=0, database='other')\n\nconnections['other'].cursor().execute(\n    \"INSERT INTO django_content_type (app_label, model) VALUES ('contenttypes_tests', 'foo')\"\n)\n\n# Monkey-patch to trace where save goes\nfrom django.db.models import base as model_base\norig_save = model_base.Model.save\ndef traced_save(self, *args, **kwargs):\n    print(f\"  save() called: using={kwargs.get('using')!r}, instance._state.db={self._state.db!r}, class={type(self).__name__}\")\n    return orig_save(self, *args, **kwargs)\nmodel_base.Model.save = traced_save\n\ncall_command('migrate', 'contenttypes_tests', database='other', interactive=False, verbosity=1)\n\ncurs = connections['other'].cursor()\ncurs.execute(\"SELECT model FROM django_content_type WHERE app_label='contenttypes_tests'\")\nprint(\"other models after:\", [r[0] for r in curs.fetchall()])\nEOF\ngit stash pop",
+   "hit": null,
+   "lat_ms": 970.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class DefaultDatabaseRouter\\|def db_for_write\\|def db_for_read\\|def allow_migrate_model\" -A 15 django/db/utils.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class BaseDatabaseRouter\\|def db_for_write\\|def db_for_read\" -A 10 django/db/utils.py | head -40",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"class BaseDatabaseRouter\\|def db_for_write\\|def db_for_read\" django/db/ | head",
+   "hit": null,
+   "lat_ms": 148.2
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"class BaseDatabaseRouter\\|def db_for_write\\|def db_for_read\" django/ | head",
+   "hit": null,
+   "lat_ms": 250.3
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"class BaseDatabaseRouter\\|def db_for_write\\|def db_for_read\\|DEFAULT_DB_ALIAS\" django/db/utils.py | head",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"class BaseDatabaseRouter\\|def db_for_write\\|def db_for_read\" django/ | head",
+   "hit": null,
+   "lat_ms": 250.0
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"class BaseDatabaseRouter\" django/ && grep -rn \"db_for_write\" django/db/utils.py | head",
+   "hit": null,
+   "lat_ms": 257.7
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"db_for_write\\|db_for_read\" django/db/utils.py | head",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n 240,290p django/db/utils.py",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, os.path.abspath('tests'))\nimport django\nfrom django.conf import settings\n\nclass DynamicRouter:\n    \"\"\"Mimics django-dynamic-db-router: routes all reads/writes to the\n    currently-active non-default database, and never touches 'default'.\"\"\"\n    def __init__(self):\n        self.active_db = 'other'\n    def db_for_read(self, model, **hints):\n        return self.active_db\n    def db_for_write(self, model, **hints):\n        return self.active_db\n    def allow_migrate(self, db, app_label, **hints):\n        return db == self.active_db\n    def allow_migrate_model(self, db, model):\n        return db == self.active_db\n    def allow_relation(self, obj1, obj2, **hints):\n        return True\n    def allow_syncdb(self, model, db):\n        return True\n\nrouter = DynamicRouter()\n\nsettings.configure(\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'django.contrib.sites',\n        'contenttypes_tests',\n    ],\n    DATABASE_ROUTERS=['__main__.DynamicRouter'],\n    DATABASES={\n        'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n        'other': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'},\n    },\n    MIGRATION_MODULES={\n        'contenttypes_tests': 'contenttypes_tests.operations_migrations',\n    },\n)\ndjango.setup()\n\nfrom django.core.management import call_command\nfrom django.db import connections\n\n# NOTE: we only migrate 'other' \u2014 'default' is never touched, exactly like the\n# reporter's setup where the default db is a placeholder that is never generated.\ncall_command('migrate', 'contenttypes', verbosity=0, database='other')\ncall_command('migrate', 'auth', verbosity=0, database='other')\ncall_command('migrate', 'sites', verbosity=0, database='other')\n\nconnections['other'].cursor().execute(\n    \"INSERT INTO django_content_type (app_label, model) VALUES ('contenttypes_tests', 'foo')\"\n)\n\ntry:\n    call_command('migrate', 'contenttypes_tests', database='other', interactive=False, verbosity=1)\n    print(\"MIGRATION SUCCEEDED\")\nexcept Exception as e:\n    print(\"REPRODUCED BUG (original code, dynamic router):\", type(e).__name__, \"-\", e)\n\ncurs = connections['other'].cursor()\ncurs.execute(\"SELECT model FROM django_content_type WHERE app_label='contenttypes_tests'\")\nprint(\"other models after:\", [r[0] for r in curs.fetchall()])\nEOF\ngit stash pop 2>/dev/null | tail -3",
+   "hit": null,
+   "lat_ms": 569.4
+  },
+  {
+   "cmd": "cd /testbed && git status --short && git diff",
+   "hit": null,
+   "lat_ms": 251.5
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py contenttypes_tests 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 971.2
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py contenttypes_tests 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR)\"",
+   "hit": null,
+   "lat_ms": 970.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 13,36p django/contrib/contenttypes/management/__init__.py",
+   "hit": null,
+   "lat_ms": 110.0
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-11066",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 38938.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

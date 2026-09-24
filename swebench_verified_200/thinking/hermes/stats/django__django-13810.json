@@ -1,0 +1,666 @@
+{
+ "calls": 122,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 58454.514503479004,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 72.2
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "find / -name \"base.py\" -path \"*core/handlers*\" 2>/dev/null | head -20; echo \"---\"; which python3; python3 --version; pip show django 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 1169.0
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 2>/dev/null; git status 2>/dev/null | head -5; echo \"---\"; grep -n \"MiddlewareNotUsed\\|adapt_method_mode\\|async_capable\" django/core/handlers/base.py | head -40",
+   "hit": null,
+   "lat_ms": 572.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,120p' django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed && cat django/core/handlers/exception.py && echo \"=== __acall__ search ===\" && grep -rn \"__acall__\" django/ | head -20 && echo \"=== async_capable in middlewares ===\" && grep -rln \"async_capable\" django/middleware/ | head -30",
+   "hit": null,
+   "lat_ms": 165.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n '60,140p' django/utils/deprecation.py && echo \"=== asgi.py handler ===\" && sed -n '1,120p' django/core/handlers/asgi.py",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '120,260p' django/core/handlers/asgi.py",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '120,240p' django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"MiddlewareNotUsed\" django/middleware/ django/contrib/*/middleware* 2>/dev/null; echo \"=== async_capable attrs in builtin middlewares ===\"; grep -rn \"async_capable\\|sync_capable\" django/middleware/*.py django/contrib/sessions/middleware.py django/contrib/auth/middleware.py 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /tmp && timeout 30 git clone --depth 1 https://github.com/hbielenia/asgi-djangotoolbar-bug 2>&1 | head -5 && find asgi-djangotoolbar-bug -name \"settings.py\" | head -3",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cd /testbed && ls tests/middleware/ && grep -rn \"MiddlewareNotUsed\" tests/ | head -20",
+   "hit": null,
+   "lat_ms": 165.6
+  },
+  {
+   "cmd": "cd /testbed && cat tests/middleware_exceptions/tests.py && echo \"=== __init__/settings ===\" && ls tests/middleware_exceptions/ && cat tests/middleware_exceptions/settings.py 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && cat tests/middleware_exceptions/middleware.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && git describe --tags 2>/dev/null; git log -1 --format=\"%H %ad\" 2>/dev/null; cat django/__init__.py | grep VERSION; pip list 2>/dev/null | grep -i -E \"asgiref|daphne|channels\"",
+   "hit": null,
+   "lat_ms": 587.2
+  },
+  {
+   "cmd": "mkdir -p /tmp/repro && cat > /tmp/repro/repro_mw.py <<'EOF'\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\nfrom django.utils.deprecation import MiddlewareMixin\n\n\nclass OuterMiddleware(MiddlewareMixin):\n    # Both sync- and async-capable (MiddlewareMixin defaults), like most\n    # real-world middleware.\n    def process_response(self, request, response):\n        response['X-Outer'] = 'yes'\n        return response\n\n\nclass NotUsedMiddleware:\n    # Sync-only (async_capable=False) and never used -> raises\n    # MiddlewareNotUsed in __init__, like django-debug-toolbar does.\n    sync_capable = True\n    async_capable = False\n\n    def __init__(self, get_response):\n        raise MiddlewareNotUsed\n\n\nclass InnerMiddleware(MiddlewareMixin):\n    def process_response(self, request, response):\n        response['X-Inner'] = 'yes'\n        return response\nEOF\ncat > /tmp/repro/repro_urls.py <<'EOF'\nfrom django.http import HttpResponse\nfrom django.urls import path\n\n\ndef ok_view(request):\n    return HttpResponse('OK')\n\n\nurlpatterns = [path('', ok_view, name='ok')]\nEOF\ncat > /tmp/repro/repro.py <<'EOF'\nimport asyncio\nimport sys\n\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/tmp/repro')\n\nfrom django.conf import settings\n\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='repro',\n    ROOT_URLCONF='repro_urls',\n    MIDDLEWARE=[\n        'repro_mw.OuterMiddleware',\n        'repro_mw.NotUsedMiddleware',\n        'repro_mw.InnerMiddleware',\n    ],\n)\n\nimport django\ndjango.setup()\n\nfrom django.core.handlers.asgi import ASGIHandler\n\n\nasync def amain():\n    handler = ASGIHandler()\n    scope = {\n        'type': 'http',\n        'method': 'GET',\n        'path': '/',\n        'query_string': b'',\n        'headers': [],\n        'scheme': 'http',\n        'server': ('testserver', '80'),\n    }\n    messages = []\n\n    async def receive():\n        return {'type': 'http.request', 'body': b'', 'more_body': False}\n\n    async def send(message):\n        messages.append(message)\n\n    await handler(scope, receive, send)\n    for m in messages:\n        if m['type'] == 'http.response.start':\n            print('STATUS:', m['status'])\n            print('HEADERS:', m['headers'])\n        else:\n            print('BODY:', m['body'])\n\n\nasyncio.get_event_loop().run_until_complete(amain())\nEOF\ncd /tmp/repro && timeout 60 python repro.py",
+   "hit": null,
+   "lat_ms": 772.5
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\npath = 'django/core/handlers/base.py'\nsrc = open(path).read()\nold = \"\"\"            try:\n                # Adapt handler, if needed.\n                handler = self.adapt_method_mode(\n                    middleware_is_async, handler, handler_is_async,\n                    debug=settings.DEBUG, name='middleware %s' % middleware_path,\n                )\n                mw_instance = middleware(handler)\n            except MiddlewareNotUsed as exc:\n                if settings.DEBUG:\n                    if str(exc):\n                        logger.debug('MiddlewareNotUsed(%r): %s', middleware_path, exc)\n                    else:\n                        logger.debug('MiddlewareNotUsed: %r', middleware_path)\n                continue\n\"\"\"\nnew = \"\"\"            try:\n                # Adapt handler, if needed.\n                adapted_handler = self.adapt_method_mode(\n                    middleware_is_async, handler, handler_is_async,\n                    debug=settings.DEBUG, name='middleware %s' % middleware_path,\n                )\n                mw_instance = middleware(adapted_handler)\n            except MiddlewareNotUsed as exc:\n                if settings.DEBUG:\n                    if str(exc):\n                        logger.debug('MiddlewareNotUsed(%r): %s', middleware_path, exc)\n                    else:\n                        logger.debug('MiddlewareNotUsed: %r', middleware_path)\n                continue\n\n            handler = adapted_handler\n\"\"\"\nassert src.count(old) == 1, \"pattern not found exactly once\"\nopen(path, 'w').write(src.replace(old, new))\nprint(\"patched OK\")\nEOF\ngit diff",
+   "hit": null,
+   "lat_ms": 163.1
+  },
+  {
+   "cmd": "cd /tmp/repro && timeout 60 python repro.py",
+   "hit": null,
+   "lat_ms": 379.2
+  },
+  {
+   "cmd": "cat > /tmp/repro/repro2.py <<'EOF'\nimport asyncio, sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/tmp/repro')\n\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True, SECRET_KEY='x', ROOT_URLCONF='repro_urls',\n    MIDDLEWARE=[\n        'repro_mw2.ModeProbeOuter',\n        'repro_mw2.NotUsedMiddleware',\n        'repro_mw2.InnerMiddleware',\n    ],\n)\nimport django; django.setup()\nfrom django.core.handlers.asgi import ASGIHandler\n\nasync def amain():\n    handler = ASGIHandler()\n    scope = {'type':'http','method':'GET','path':'/','query_string':b'','headers':[],'scheme':'http','server':('t','80')}\n    out=[]\n    async def receive(): return {'type':'http.request','body':b'','more_body':False}\n    async def send(m):\n        if m['type']=='http.response.start': out.append(m['status'])\n    await handler(scope, receive, send)\n    print('STATUS:', out)\n    print('Outer mode used:', repro_mw2.last_mode)\n\nimport repro_mw2\nasyncio.get_event_loop().run_until_complete(amain())\nEOF\ncat > /tmp/repro/repro_mw2.py <<'EOF'\nimport asyncio\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\nfrom django.utils.deprecation import MiddlewareMixin\n\nlast_mode = None\n\nclass ModeProbeOuter(MiddlewareMixin):\n    async def process_response(self, request, response):\n        last_mode = 'async'\n        response['X-Outer']='yes'\n        return response\n    # Also provide sync process_response so we can detect which ran.\n    # If sync mode were used, only the sync def would run. We override\n    # __call__ detection instead:\n\nclass NotUsedMiddleware:\n    sync_capable = True\n    async_capable = False\n    def __init__(self, get_response):\n        raise MiddlewareNotUsed\n\nclass InnerMiddleware(MiddlewareMixin):\n    def process_response(self, request, response):\n        response['X-Inner']='yes'\n        return response\nEOF\ncd /tmp/repro && timeout 60 python repro2.py",
+   "hit": null,
+   "lat_ms": 377.7
+  },
+  {
+   "cmd": "cat > /tmp/repro/repro_mw2.py <<'EOF'\nimport threading\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.utils.deprecation import MiddlewareMixin\n\nevents = []\n\nclass ModeProbeOuter(MiddlewareMixin):\n    def process_response(self, request, response):\n        events.append(('outer_process_response', threading.get_ident()))\n        response['X-Outer'] = 'yes'\n        return response\n\nclass NotUsedMiddleware:\n    sync_capable = True\n    async_capable = False\n    def __init__(self, get_response):\n        raise MiddlewareNotUsed\n\nclass InnerMiddleware(MiddlewareMixin):\n    def process_response(self, request, response):\n        events.append(('inner_process_response', threading.get_ident()))\n        response['X-Inner'] = 'yes'\n        return response\nEOF\ncat > /tmp/repro/repro2.py <<'EOF'\nimport asyncio, sys, threading\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/tmp/repro')\n\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True, SECRET_KEY='***', ROOT_URLCONF='repro_urls',\n    MIDDLEWARE=[\n        'repro_mw2.ModeProbeOuter',\n        'repro_mw2.NotUsedMiddleware',\n        'repro_mw2.InnerMiddleware',\n    ],\n)\nimport django; django.setup()\nimport repro_mw2\nfrom django.core.handlers.asgi import ASGIHandler\n\nasync def amain():\n    loop_thread = threading.get_ident()\n    handler = ASGIHandler()\n    scope = {'type':'http','method':'GET','path':'/','query_string':b'','headers':[],'scheme':'http','server':('t','80')}\n    status = []\n    async def receive(): return {'type':'http.request','body':b'','more_body':False}\n    async def send(m):\n        if m['type']=='http.response.start': status.append(m['status'])\n    await handler(scope, receive, send)\n    print('STATUS:', status)\n    for name, tid in repro_mw2.events:\n        print('%s ran %s' % (name, 'OFF event-loop thread (async mode)' if tid != loop_thread else 'ON event-loop thread (sync mode)'))\n    assert status == [200], status\n    assert all(tid != loop_thread for _, tid in repro_mw2.events), \"middleware ran in sync mode!\"\n    print('PASS: chain fully async, NotUsed middleware left no side effect')\n\nasyncio.get_event_loop().run_until_complete(amain())\nEOF\ncd /tmp/repro && timeout 60 python repro2.py",
+   "hit": null,
+   "lat_ms": 382.7
+  },
+  {
+   "cmd": "cat > /tmp/repro/repro_sync.py <<'EOF'\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/tmp/repro')\n\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True, SECRET_KEY='***', ROOT_URLCONF='repro_urls',\n    MIDDLEWARE=[\n        'repro_mw2.ModeProbeOuter',\n        'repro_mw2.NotUsedMiddleware',\n        'repro_mw2.InnerMiddleware',\n    ],\n)\nimport django; django.setup()\nimport repro_mw2\nfrom django.test.client import Client\n\nc = Client()\nresponse = c.get('/')\nprint('SYNC STATUS:', response.status_code)\nprint('headers:', dict(response.headers) if hasattr(response, 'headers') else {k: v for k, v in response.items()})\nassert response.status_code == 200\nassert b'OK' in response.content\nprint('PASS: sync path works with MiddlewareNotUsed in the stack')\nEOF\ncd /tmp/repro && timeout 60 python repro_sync.py",
+   "hit": null,
+   "lat_ms": 569.8
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | grep -E \"asgi|handler|middleware\" && timeout 570 python -m django test middleware_exceptions middleware handlers 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 381.6
+  },
+  {
+   "cmd": "cd /testbed && ls runtests.py 2>/dev/null; ls tests/*.py | head; echo \"---try runtests---\"; timeout 570 python runtests.py middleware_exceptions 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python tests/runtests.py middleware_exceptions middleware handlers asgi 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 2974.5
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python tests/runtests.py middleware_exceptions middleware handlers asgi > /tmp/test_out.txt 2>&1; echo \"exit=$?\"; grep -E \"^(OK|FAILED|ERROR)\" /tmp/test_out.txt; grep -E \"Ran [0-9]+ tests\" /tmp/test_out.txt",
+   "hit": null,
+   "lat_ms": 2776.1
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python tests/runtests.py client request_tests urlpatterns view_tests signals decorators middleware_exceptions > /tmp/test_out2.txt 2>&1; echo \"exit=$?\"; grep -E \"^(OK|FAILED|ERROR)\" /tmp/test_out2.txt; grep -E \"Ran [0-9]+ tests\" /tmp/test_out2.txt",
+   "hit": null,
+   "lat_ms": 2627.2
+  },
+  {
+   "cmd": "cd /testbed && grep -B2 -A15 \"^ERROR: client\" /tmp/test_out2.txt | head -40; ls tests/ | grep -E \"^(client|request)\"",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "cd /testbed && ls -d tests/client* tests/request* 2>&1; ls tests/ | head -60",
+   "hit": null,
+   "lat_ms": 116.9
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python tests/runtests.py async basic dispatch builtin_server requests > /tmp/test_out3.txt 2>&1; echo \"exit=$?\"; grep -E \"^(OK|FAILED|ERROR)\" /tmp/test_out3.txt; grep -E \"Ran [0-9]+ tests\" /tmp/test_out3.txt",
+   "hit": null,
+   "lat_ms": 975.2
+  },
+  {
+   "cmd": "cd /testbed && grep -B3 -A25 \"^FAIL:\" /tmp/test_out3.txt | head -50",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && git stash && timeout 300 python tests/runtests.py requests.test_data_upload_settings.DataUploadMaxNumberOfFieldsFormPost > /tmp/pre.txt 2>&1; echo \"exit=$?\"; grep -E \"^(OK|FAILED)\" /tmp/pre.txt; git stash pop && git diff --stat",
+   "hit": null,
+   "lat_ms": 991.2
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python tests/runtests.py > /tmp/full_test.txt 2>&1; echo \"exit=$?\" >> /tmp/full_test.txt' > /tmp/hermes_bg_proc_207171d07c7d.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_207171d07c7d.exit ) & echo $! > /tmp/hermes_bg_proc_207171d07c7d.pid && cat /tmp/hermes_bg_proc_207171d07c7d.pid",
+   "hit": null,
+   "lat_ms": 2171.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cat > /tmp/repro/repro_mw3.py <<'EOF'\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\n\n\nclass AsyncOnlyNotUsedMiddleware:\n    # Async-only (sync_capable=False) and never used -> raises\n    # MiddlewareNotUsed in __init__.\n    sync_capable = False\n    async_capable = True\n\n    def __init__(self, get_response):\n        raise MiddlewareNotUsed\n\n\nclass SyncOnlyOuterMiddleware:\n    # Plain sync-only middleware, outermost.\n    sync_capable = True\n    async_capable = False\n\n    def __init__(self, get_response):\n        self.get_response = get_response\n\n    def __call__(self, request):\n        response = self.get_response(request)\n        response['X-SyncOuter'] = 'yes'\n        return response\n\n\nclass InnerMiddleware:\n    def __init__(self, get_response):\n        self.get_response = get_response\n\n    def __call__(self, request):\n        response = self.get_response(request)\n        response['X-Inner'] = 'yes'\n        return response\nEOF\ncat > /tmp/repro/repro3.py <<'EOF'\nimport asyncio, sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/tmp/repro')\n\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True, SECRET_KEY='***', ROOT_URLCONF='repro_urls',\n    MIDDLEWARE=[\n        'repro_mw3.SyncOnlyOuterMiddleware',\n        'repro_mw3.AsyncOnlyNotUsedMiddleware',\n        'repro_mw3.InnerMiddleware',\n    ],\n)\nimport django; django.setup()\n\n# --- sync (WSGI) path ---\nfrom django.test.client import Client\nc = Client()\nr = c.get('/')\nassert r.status_code == 200, r.status_code\nassert r['X-Inner'] == 'yes' and r['X-SyncOuter'] == 'yes'\nprint('SYNC PASS: async-only NotUsed middleware left no side effect')\n\n# --- async (ASGI) path ---\nfrom django.core.handlers.asgi import ASGIHandler\nasync def amain():\n    handler = ASGIHandler()\n    scope = {'type':'http','method':'GET','path':'/','query_string':b'','headers':[],'scheme':'http','server':('t','80')}\n    status=[]\n    async def receive(): return {'type':'http.request','body':b'','more_body':False}\n    async def send(m):\n        if m['type']=='http.response.start': status.append(m['status'])\n    await handler(scope, receive, send)\n    return status\n\nstatus = asyncio.get_event_loop().run_until_complete(amain())\nassert status == [200], status\nprint('ASYNC PASS: async-only NotUsed middleware left no side effect')\nEOF\ncd /tmp/repro && timeout 60 python repro3.py",
+   "hit": null,
+   "lat_ms": 570.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 769.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 568.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 572.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 572.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 773.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 773.0
+  },
+  {
+   "cmd": "cd /testbed && git stash && cd /tmp/repro && timeout 60 python repro3.py 2>&1 | tail -6; cd /testbed && git stash pop",
+   "hit": null,
+   "lat_ms": 6976.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 970.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 376.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 376.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 575.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 571.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 768.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '23,95p' django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 382.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 377.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 569.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 377.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 568.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 376.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 569.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 378.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 569.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 376.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 379.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 568.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 570.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 572.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 569.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 572.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 376.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 569.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 568.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 573.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 768.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 248.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 162.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 1170.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_207171d07c7d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_207171d07c7d.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cd /testbed && tail -20 /tmp/full_test.txt | grep -vE \"^(Cloning|Destroying)\"; echo \"====\"; grep -cE \"^(FAIL|ERROR):\" /tmp/full_test.txt; grep -E \"^(FAIL|ERROR):\" /tmp/full_test.txt",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /testbed && grep -E \"^Ran [0-9]+ tests\" /tmp/full_test.txt; git stash && timeout 570 python tests/runtests.py forms_tests.tests.tests.FormsModelTestCase.test_unicode_filename file_uploads.tests.FileUploadTests file_uploads.tests.DirectoryCreationTests.test_readonly_root staticfiles_tests.test_views.TestServeStaticWithDefaultURL.test_nonascii_filenames staticfiles_tests.test_views.TestServeStaticWithURLHelper.test_nonascii_filenames staticfiles_tests.test_management.TestCollectionExcludeNoDefaultIgnore.test_nonascii_filenames staticfiles_tests.test_management.TestFindStatic.test_nonascii_filenames staticfiles_tests.test_management.TestCollection.test_nonascii_filenames staticfiles_tests.test_management.TestCollectionPathLib.test_nonascii_filenames staticfiles_tests.test_management.TestCollectionLinks.test_nonascii_filenames utils_tests.test_html.TestUtilsHtml.test_strip_tags_files i18n.test_percents.ExtractingStringsWithPercentSigns file_storage.tests.ContentFileStorageTestCase.test_content_saving admin_scripts.tests.DjangoAdminSettingsDirectory.test_startapp_unicode_name inspectdb.tests.InspectDBTestCase.test_custom_fields requests.test_data_upload_settings.DataUploadMaxNumberOfFieldsFormPost.test_number_exceeded template_tests.test_loaders.FileSystemLoaderTests.test_permissions_error admin_scripts.tests.DiffSettings > /tmp/pre_full.txt 2>&1; echo \"exit=$?\"; grep -E \"^(OK|FAILED)\" /tmp/pre_full.txt; grep -E \"Ran [0-9]+ tests\" /tmp/pre_full.txt; git stash pop",
+   "hit": null,
+   "lat_ms": 2971.5
+  },
+  {
+   "cmd": "cd /testbed && git diff && echo \"==== FINAL TEST RUN ====\" && timeout 300 python tests/runtests.py middleware_exceptions middleware handlers asgi 2>&1 | grep -E \"^(OK|FAILED|Ran)\"",
+   "hit": null,
+   "lat_ms": 2977.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-13810",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 58454.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

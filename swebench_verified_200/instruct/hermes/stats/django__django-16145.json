@@ -1,0 +1,166 @@
+{
+ "calls": 22,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 4939.727306365967,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 80.2
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "find / -name \"basehttp.py\" -path \"*django*\" 2>/dev/null | head -5; which python3; python3 -c \"import django; print(django.__file__, django.get_version())\" 2>/dev/null || echo \"no django in default python3\"",
+   "hit": null,
+   "lat_ms": 770.6
+  },
+  {
+   "cmd": "cat -n /testbed/django/core/servers/basehttp.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat -n /testbed/django/core/management/commands/runserver.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 && git status --short",
+   "hit": null,
+   "lat_ms": 379.1
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"Starting development server\" tests/ | head -20",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"0:8000\\|'0'\\|\\\"0\\\"\" tests/commands/test_runserver.py | head -30",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "cd /testbed && find tests -name \"*runserver*\"",
+   "hit": null,
+   "lat_ms": 185.8
+  },
+  {
+   "cmd": "cd /testbed && find tests -path \"*commands*\" -name \"*.py\" | head -20 && grep -rln \"runserver\" tests/ | head",
+   "hit": null,
+   "lat_ms": 163.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"0.0.0.0\\|0:\\|ip:\" tests/admin_scripts/tests.py | head -30",
+   "hit": null,
+   "lat_ms": 75.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1550,1700p tests/admin_scripts/tests.py",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1,60p tests/admin_scripts/tests.py | grep -n \"RunserverCommand\\|import\" | head -20",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport re\npath = \"django/core/management/commands/runserver.py\"\nsrc = open(path).read()\nold = '''            if self.addr:\n                if _ipv6:\n                    self.addr = self.addr[1:-1]\n                    self.use_ipv6 = True\n                    self._raw_ipv6 = True\n                elif self.use_ipv6 and not _fqdn:\n                    raise CommandError('\"%s\" is not a valid IPv6 address.' % self.addr)'''\nnew = '''            if self.addr:\n                if _ipv6:\n                    self.addr = self.addr[1:-1]\n                    self.use_ipv6 = True\n                    self._raw_ipv6 = True\n                elif self.addr == \"0\":\n                    # \"0\" is treated as a shortcut for 0.0.0.0 (bind to all\n                    # interfaces), consistent with the documentation.\n                    self.addr = \"0.0.0.0\"\n                elif self.use_ipv6 and not _fqdn:\n                    raise CommandError('\"%s\" is not a valid IPv6 address.' % self.addr)'''\nassert src.count(old) == 1\nopen(path, \"w\").write(src.replace(old, new))\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed && DJANGO_SETTINGS_MODULE= python3 - <<'EOF'\nfrom io import StringIO\nfrom django.core.management.commands.runserver import Command as RunserverCommand\n\ndef check(addrport, **kwargs):\n    out = StringIO()\n    cmd = RunserverCommand(stdout=out)\n    cmd.run = lambda *a, **o: None\n    cmd.execute(addrport=addrport, use_reloader=False, skip_checks=True,\n                use_ipv6=kwargs.get(\"use_ipv6\", False), **{})\n    return cmd.addr, cmd.port\n\nprint(check(\"0:8000\"))\nprint(check(\"0.0.0.0:8000\"))\nprint(check(\"1.2.3.4:8000\"))\nprint(check(\"7000\"))\nprint(check(\"localhost:8000\"))\nEOF",
+   "hit": null,
+   "lat_ms": 571.8
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(DEBUG=True, INSTALLED_APPS=[], DATABASES={}, ALLOWED_HOSTS=[\"*\"])\ndjango.setup()\n\nfrom django.core.management.commands.runserver import Command as RunserverCommand\n\ndef check(addrport, use_ipv6=False):\n    cmd = RunserverCommand(stdout=None)\n    cmd.run = lambda *a, **o: None\n    # call handle directly (execute adds no_color handling)\n    cmd.handle(addrport=addrport, use_ipv6=use_ipv6)\n    return cmd.addr, cmd.port\n\nprint(check(\"0:8000\"))\nprint(check(\"0.0.0.0:8000\"))\nprint(check(\"1.2.3.4:8000\"))\nprint(check(\"7000\"))\nprint(check(\"localhost:8000\"))\nprint(check(\"0.0.0.0\"))  # no port\nEOF",
+   "hit": null,
+   "lat_ms": 376.8
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/admin_scripts/tests.py -k \"Runserver\" -x -q 2>&1 | tail -15 || python3 tests/runtests.py admin_scripts.tests.ManageRunserver -v 2 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 166.1
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py admin_scripts.tests.ManageRunserver -v 2 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 571.5
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(DEBUG=True, INSTALLED_APPS=[], DATABASES={}, ALLOWED_HOSTS=[\"*\"], ROOT_URLCONF=None)\ndjango.setup()\n\nfrom io import StringIO\nfrom django.core.management.commands.runserver import Command as RunserverCommand\n\nout = StringIO()\ncmd = RunserverCommand(stdout=out)\n# Replace the actual server run with a no-op so it doesn't block\ncmd.inner_run = lambda *a, **o: None\ncmd.run = lambda **o: cmd.inner_run(**o)\ncmd.execute(addrport=\"0:8000\", use_reloader=False, skip_checks=True,\n            use_ipv6=False, no_color=True, verbosity=1, traceback=False)\nprint(out.getvalue())\nEOF",
+   "hit": null,
+   "lat_ms": 248.5
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(DEBUG=True, INSTALLED_APPS=[], DATABASES={}, ALLOWED_HOSTS=[\"*\"], ROOT_URLCONF=None)\ndjango.setup()\n\nfrom io import StringIO\nfrom django.core.management.commands.runserver import Command as RunserverCommand\n\nout = StringIO()\ncmd = RunserverCommand(stdout=out)\ncmd.inner_run = lambda *a, **o: None\ncmd.run = lambda **o: cmd.inner_run(**o)\ncmd.execute(addrport=\"0:8000\", use_reloader=False, skip_checks=True,\n            use_ipv6=False, no_color=True, force_color=False,\n            verbosity=1, traceback=False, settings=None)\nprint(out.getvalue())\nEOF",
+   "hit": null,
+   "lat_ms": 248.9
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(DEBUG=True, INSTALLED_APPS=[], DATABASES={}, ALLOWED_HOSTS=[\"*\"], ROOT_URLCONF=None)\ndjango.setup()\n\nfrom io import StringIO\nfrom unittest import mock\nfrom django.core.management.commands.runserver import Command as RunserverCommand\n\ncaptured = {}\ndef fake_inner(self, *args, **options):\n    # mimic banner line only\n    captured[\"banner\"] = \"Starting development server at %s://%s:%s/\" % (\n        self.protocol,\n        \"[%s]\" % self.addr if self._raw_ipv6 else self.addr,\n        self.port,\n    )\n\nout = StringIO()\ncmd = RunserverCommand(stdout=out)\nwith mock.patch.object(RunserverCommand, \"inner_run\", fake_inner):\n    cmd.execute(addrport=\"0:8000\", use_reloader=False, skip_checks=True,\n                use_ipv6=False, no_color=True, force_color=False,\n                verbosity=1, traceback=False, settings=None)\nprint(captured[\"banner\"])\nEOF",
+   "hit": null,
+   "lat_ms": 248.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-16145",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 4939.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

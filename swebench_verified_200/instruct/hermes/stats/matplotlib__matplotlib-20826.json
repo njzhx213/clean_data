@@ -1,0 +1,671 @@
+{
+ "calls": 123,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 355425.6901741028,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 162.3
+  },
+  {
+   "cmd": "cd /tmp && git clone --depth 50 --branch v3.4.2 https://github.com/matplotlib/matplotlib.git mpl 2>&1 | tail -3 && cd mpl && git log --oneline -5",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "python -c \"import matplotlib; print(matplotlib.__version__)\" 2>&1 || pip install matplotlib 2>&1 | tail -2",
+   "hit": null,
+   "lat_ms": 1371.6
+  },
+  {
+   "cmd": "python -c \"import matplotlib, os; print(os.path.dirname(matplotlib.__file__))\" && pip show matplotlib 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 1292.2
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 && git status | head -3",
+   "hit": null,
+   "lat_ms": 113.4
+  },
+  {
+   "cmd": "cd /tmp && cat > repro.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\n\nx = np.arange(0.0, 2*np.pi, 0.01)\ny = np.sin(x)\n\nfor ax in axes.flatten():\n    ax.clear()\n    ax.plot(x, y)\n\n# Report tick label visibility per axis\nfor i, ax in enumerate(axes.flatten()):\n    vis = [t.get_visible() for t in ax.get_xticklabels(minor=False)]\n    print(f\"ax[{i}] xticklabels visible: {vis}\")\n    vis_y = [t.get_visible() for t in ax.get_yticklabels(minor=False)]\n    print(f\"ax[{i}] yticklabels visible: {vis_y}\")\n    print(f\"ax[{i}] top ticks: {[t.get_visible() for t in ax.get_xticklines(minor=False)]}\")\n    # check whether top axis tick labels exist\nfig.savefig(\"repro.png\")\nEOF\npython repro.py",
+   "hit": null,
+   "lat_ms": 3970.8
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def clear\" axes/_base.py axes/_axes.py",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '1460,1560p' axes/_base.py",
+   "hit": null,
+   "lat_ms": 113.2
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def cla\" axes/_base.py",
+   "hit": null,
+   "lat_ms": 923.0
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '1182,1330p' axes/_base.py",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def _set_artist_props\" axes/_base.py && sed -n \"$(grep -n 'def _set_artist_props' axes/_base.py | cut -d: -f1),+60p\" axes/_base.py",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n \"$(grep -n 'def sharex' axes/_base.py | cut -d: -f1),+80p\" axes/_base.py",
+   "hit": null,
+   "lat_ms": 301.4
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def set_visible\" axis.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -rn \"def set_visible\" axis/ artist.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '990,1010p' artist.py",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "cd /tmp && cat > debug.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nax = axes[0, 0]\n\n# Check initial state before clear\nprint(\"BEFORE clear:\")\nprint(\"  xaxis visible:\", ax.xaxis.get_visible())\nprint(\"  xaxis.major visible:\", ax.xaxis.major.get_visible() if hasattr(ax.xaxis.major, 'get_visible') else 'n/a')\nprint(\"  xaxis ticklabel locs:\", [(loc, lbl.get_visible()) for loc, lbl in zip(ax.xaxis.get_tick_locations(minor=False), ax.xaxis.get_ticklabels(minor=False))])\n\nax.clear()\n\nprint(\"\\nAFTER clear:\")\nprint(\"  xaxis visible:\", ax.xaxis.get_visible())\nprint(\"  xaxis.major visible:\", ax.xaxis.major.get_visible() if hasattr(ax.xaxis.major, 'get_visible') else 'n/a')\nprint(\"  xaxis ticklabel locs:\", [(loc, lbl.get_visible()) for loc, lbl in zip(ax.xaxis.get_tick_locations(minor=False), ax.xaxis.get_ticklabels(minor=False))])\nprint(\"  xaxis ticklabel lines visible:\", [line.get_visible() for line in ax.xaxis.get_ticklines(minor=False)])\nEOF\npython debug.py",
+   "hit": null,
+   "lat_ms": 969.9
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def get_ticklabels\\|def get_ticklines\\|def _get_tickline_sans\" axis.py | head -10",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /tmp && cat > debug2.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nax = axes[0, 0]\n\nprint(\"BEFORE clear:\")\nprint(\"  xaxis major ticklines visible:\", [l.get_visible() for l in ax.xaxis.get_ticklines(minor=False)])\nprint(\"  xaxis major ticklabels visible:\", [l.get_visible() for l in ax.xaxis.get_ticklabels(minor=False)])\n\nax.clear()\n\nprint(\"\\nAFTER clear:\")\nprint(\"  xaxis major ticklines visible:\", [l.get_visible() for l in ax.xaxis.get_ticklines(minor=False)])\nprint(\"  xaxis major ticklabels visible:\", [l.get_visible() for l in ax.xaxis.get_ticklabels(minor=False)])\n\n# Check what _get_ticks does\nfig.canvas.draw()\nprint(\"\\nAFTER draw:\")\nprint(\"  xaxis major ticklines visible:\", [l.get_visible() for l in ax.xaxis.get_ticklines(minor=False)])\nprint(\"  xaxis major ticklabels visible:\", [l.get_visible() for l in ax.xaxis.get_ticklabels(minor=False)])\nEOF\npython debug2.py",
+   "hit": null,
+   "lat_ms": 1169.8
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"class _AxisLine\\|class XAxis\\|class YAxis\\|class _BaseAxis\" axis.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"class _AxisLine\\|class Axis\" axis.py | head -10",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '600,850p' axis.py",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '2002,2150p' axis.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"_get_tick_boxes_siblings\\|_get_tick_boxes\" axis.py",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '1800,2000p' axis.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def _update_ticks\\|def _get_tick_bboxes\" axis.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '1033,1130p' axis.py",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def draw\" axis.py",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '1144,1200p' axis.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"class Tick\" axis.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '35,290p' axis.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def _apply_params\\|def set_tick_params\\|_get_ticks_position\" axis.py",
+   "hit": null,
+   "lat_ms": 113.2
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '347,450p' axis.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '843,970p' axis.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '2210,2240p' axis.py && echo \"---\" && sed -n '2470,2500p' axis.py",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def set_ticks_position\" axis.py",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '2155,2210p' axis.py",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"_shared_axes\\|_get_shared_axes\" axes/_base.py | head -20",
+   "hit": null,
+   "lat_ms": 116.0
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"_major_tick_kw\\|_minor_tick_kw\" axis.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /tmp && cat > hypothesis.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nax = axes[0, 0]\n\n# Check tick position BEFORE clear\nprint(\"BEFORE clear:\")\nprint(\"  xaxis.get_ticks_position():\", ax.xaxis.get_ticks_position())\nprint(\"  yaxis.get_ticks_position():\", ax.yaxis.get_ticks_position())\nprint(\"  xaxis._major_tick_kw:\", ax.xaxis._major_tick_kw)\n\nax.clear()\n\nprint(\"\\nAFTER clear:\")\nprint(\"  xaxis.get_ticks_position():\", ax.xaxis.get_ticks_position())\nprint(\"  yaxis.get_ticks_position():\", ax.yaxis.get_ticks_position())\nprint(\"  xaxis._major_tick_kw:\", ax.xaxis._major_tick_kw)\nEOF\npython hypothesis.py",
+   "hit": null,
+   "lat_ms": 973.1
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '1295,1315p' axes/_base.py",
+   "hit": null,
+   "lat_ms": 125.5
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '1182,1196p' axes/_base.py",
+   "hit": null,
+   "lat_ms": 71.6
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport matplotlib\nmatplotlib.use('Agg')\nimport numpy as np\nimport matplotlib.pyplot as plt\n\n# Test: does set_ticks_position('unknown') raise?\nfig, ax = plt.subplots()\ntry:\n    ax.xaxis.set_ticks_position('unknown')\n    print('No exception')\nexcept Exception as e:\n    print(f'Exception: {type(e).__name__}: {e}')\n\"",
+   "hit": null,
+   "lat_ms": 973.6
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/fix.py << 'PYEOF'\nimport re\n\nwith open('lib/matplotlib/axes/_base.py', 'r') as f:\n    content = f.read()\n\n# 1. Stash tick positions before clearing axes\nold_stash = \"\"\"        xaxis_visible = self.xaxis.get_visible()\n        yaxis_visible = self.yaxis.get_visible()\n\n        self.xaxis.clear()\n        self.yaxis.clear()\"\"\"\n\nnew_stash = \"\"\"        xaxis_visible = self.xaxis.get_visible()\n        yaxis_visible = self.yaxis.get_visible()\n\n        # Stash the current tick positions, so that they can be restored\n        # after the axes are cleared.  This is important for shared axes,\n        # where the tick label visibility is set by `sharex`/`sharey`.\n        try:\n            xaxis_ticks_position = self.xaxis.get_ticks_position()\n        except Exception:\n            xaxis_ticks_position = None\n        try:\n            yaxis_ticks_position = self.yaxis.get_ticks_position()\n        except Exception:\n            yaxis_ticks_position = None\n\n        self.xaxis.clear()\n        self.yaxis.clear()\"\"\"\n\nassert old_stash in content, \"stash pattern not found\"\ncontent = content.replace(old_stash, new_stash)\n\n# 2. Restore tick positions after the shared_axes clean\nold_restore = \"\"\"        self._shared_axes[\"x\"].clean()\n        self._shared_axes[\"y\"].clean()\n        if self._sharex is not None:\n            self.xaxis.set_visible(xaxis_visible)\n            self.patch.set_visible(patch_visible)\n        if self._sharey is not None:\n            self.yaxis.set_visible(yaxis_visible)\n            self.patch.set_visible(patch_visible)\n\n        self.stale = True\"\"\"\n\nnew_restore = \"\"\"        self._shared_axes[\"x\"].clean()\n        self._shared_axes[\"y\"].clean()\n        if self._sharex is not None:\n            self.xaxis.set_visible(xaxis_visible)\n            self.patch.set_visible(patch_visible)\n        if self._sharey is not None:\n            self.yaxis.set_visible(yaxis_visible)\n            self.patch.set_visible(patch_visible)\n\n        # Restore the tick positions that were stashed before clearing.\n        if xaxis_ticks_position is not None:\n            self.xaxis.set_ticks_position(xaxis_ticks_position)\n        if yaxis_ticks_position is not None:\n            self.yaxis.set_ticks_position(yaxis_ticks_position)\n\n        self.stale = True\"\"\"\n\nassert old_restore in content, \"restore pattern not found\"\ncontent = content.replace(old_restore, new_restore)\n\nwith open('lib/matplotlib/axes/_base.py', 'w') as f:\n    f.write(content)\n\nprint(\"Fix applied successfully\")\nPYEOF\npython /tmp/fix.py",
+   "hit": null,
+   "lat_ms": 163.5
+  },
+  {
+   "cmd": "cd /tmp && python repro.py && python hypothesis.py",
+   "hit": null,
+   "lat_ms": 972.8
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport matplotlib\nmatplotlib.use('Agg')\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nax = axes[0, 0]\n\nprint('BEFORE draw:')\nprint('  xaxis major tick1line visible:', [t.tick1line.get_visible() for t in ax.xaxis.majorTicks])\nprint('  xaxis major tick2line visible:', [t.tick2line.get_visible() for t in ax.xaxis.majorTicks])\nprint('  xaxis major label1 visible:', [t.label1.get_visible() for t in ax.xaxis.majorTicks])\nprint('  xaxis major label2 visible:', [t.label2.get_visible() for t in ax.xaxis.majorTicks])\nprint('  xaxis get_ticks_position:', ax.xaxis.get_ticks_position())\n\nfig.canvas.draw()\n\nprint('AFTER draw:')\nprint('  xaxis major tick1line visible:', [t.tick1line.get_visible() for t in ax.xaxis.majorTicks])\nprint('  xaxis major tick2line visible:', [t.tick2line.get_visible() for t in ax.xaxis.majorTicks])\nprint('  xaxis major label1 visible:', [t.label1.get_visible() for t in ax.xaxis.majorTicks])\nprint('  xaxis major label2 visible:', [t.label2.get_visible() for t in ax.xaxis.majorTicks])\nprint('  xaxis get_ticks_position:', ax.xaxis.get_ticks_position())\n\"",
+   "hit": null,
+   "lat_ms": 1170.7
+  },
+  {
+   "cmd": "cd /testbed && git checkout lib/matplotlib/axes/_base.py && cat > /tmp/fix2.py << 'PYEOF'\nwith open('lib/matplotlib/axes/_base.py', 'r') as f:\n    content = f.read()\n\n# 1. Stash tick label visibility before clearing axes\nold_stash = \"\"\"        xaxis_visible = self.xaxis.get_visible()\n        yaxis_visible = self.yaxis.get_visible()\n\n        self.xaxis.clear()\n        self.yaxis.clear()\"\"\"\n\nnew_stash = \"\"\"        xaxis_visible = self.xaxis.get_visible()\n        yaxis_visible = self.yaxis.get_visible()\n\n        # Stash the tick label visibility, so that it can be restored after\n        # the axes are cleared.  This is important for shared axes, where\n        # the tick label visibility is set by `sharex`/`sharey`.\n        try:\n            xaxis_label1_visible = self.xaxis.majorTicks[0].label1.get_visible()\n            xaxis_label2_visible = self.xaxis.majorTicks[0].label2.get_visible()\n        except Exception:\n            xaxis_label1_visible = xaxis_label2_visible = None\n        try:\n            yaxis_label1_visible = self.yaxis.majorTicks[0].label1.get_visible()\n            yaxis_label2_visible = self.yaxis.majorTicks[0].label2.get_visible()\n        except Exception:\n            yaxis_label1_visible = yaxis_label2_visible = None\n\n        self.xaxis.clear()\n        self.yaxis.clear()\"\"\"\n\nassert old_stash in content, \"stash pattern not found\"\ncontent = content.replace(old_stash, new_stash)\n\n# 2. Restore tick label visibility after the shared_axes clean\nold_restore = \"\"\"        self._shared_axes[\"x\"].clean()\n        self._shared_axes[\"y\"].clean()\n        if self._sharex is not None:\n            self.xaxis.set_visible(xaxis_visible)\n            self.patch.set_visible(patch_visible)\n        if self._sharey is not None:\n            self.yaxis.set_visible(yaxis_visible)\n            self.patch.set_visible(patch_visible)\n\n        self.stale = True\"\"\"\n\nnew_restore = \"\"\"        self._shared_axes[\"x\"].clean()\n        self._shared_axes[\"y\"].clean()\n        if self._sharex is not None:\n            self.xaxis.set_visible(xaxis_visible)\n            self.patch.set_visible(patch_visible)\n        if self._sharey is not None:\n            self.yaxis.set_visible(yaxis_visible)\n            self.patch.set_visible(patch_visible)\n\n        # Restore the tick label visibility that was stashed before clearing.\n        if xaxis_label1_visible is not None:\n            self.xaxis.set_tick_params(labelbottom=xaxis_label1_visible,\n                                       labeltop=xaxis_label2_visible)\n        if yaxis_label1_visible is not None:\n            self.yaxis.set_tick_params(labelleft=yaxis_label1_visible,\n                                       labelright=yaxis_label2_visible)\n\n        self.stale = True\"\"\"\n\nassert old_restore in content, \"restore pattern not found\"\ncontent = content.replace(old_restore, new_restore)\n\nwith open('lib/matplotlib/axes/_base.py', 'w') as f:\n    f.write(content)\n\nprint(\"Fix applied successfully\")\nPYEOF\npython /tmp/fix2.py",
+   "hit": null,
+   "lat_ms": 163.8
+  },
+  {
+   "cmd": "cd /tmp && python repro.py && python hypothesis.py",
+   "hit": null,
+   "lat_ms": 2373.6
+  },
+  {
+   "cmd": "cd /tmp && cat > debug3.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nax = axes[0, 0]\n\nprint(\"BEFORE clear:\")\nprint(\"  yaxis major tick1line visible:\", [t.tick1line.get_visible() for t in ax.yaxis.majorTicks])\nprint(\"  yaxis major tick2line visible:\", [t.tick2line.get_visible() for t in ax.yaxis.majorTicks])\nprint(\"  yaxis major label1 visible:\", [t.label1.get_visible() for t in ax.yaxis.majorTicks])\nprint(\"  yaxis major label2 visible:\", [t.label2.get_visible() for t in ax.yaxis.majorTicks])\nprint(\"  yaxis _major_tick_kw:\", ax.yaxis._major_tick_kw)\n\nax.clear()\n\nprint(\"\\nAFTER clear:\")\nprint(\"  yaxis major tick1line visible:\", [t.tick1line.get_visible() for t in ax.yaxis.majorTicks])\nprint(\"  yaxis major tick2line visible:\", [t.tick2line.get_visible() for t in ax.yaxis.majorTicks])\nprint(\"  yaxis major label1 visible:\", [t.label1.get_visible() for t in ax.yaxis.majorTicks])\nprint(\"  yaxis major label2 visible:\", [t.label2.get_visible() for t in ax.yaxis.majorTicks])\nprint(\"  yaxis _major_tick_kw:\", ax.yaxis._major_tick_kw)\nEOF\npython debug3.py",
+   "hit": null,
+   "lat_ms": 969.9
+  },
+  {
+   "cmd": "cd /tmp && cat > debug4.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nax0 = axes[0, 0]\nax1 = axes[0, 1]\n\nprint(\"BEFORE clear:\")\nprint(\"  ax0 yaxis _major_tick_kw:\", ax0.yaxis._major_tick_kw)\nprint(\"  ax1 yaxis _major_tick_kw:\", ax1.yaxis._major_tick_kw)\nprint(\"  ax0 yaxis is ax1 yaxis?\", ax0.yaxis is ax1.yaxis)\nprint(\"  ax0 yaxis.major is ax1 yaxis.major?\", ax0.yaxis.major is ax1.yaxis.major)\n\nax0.clear()\n\nprint(\"\\nAFTER ax0.clear():\")\nprint(\"  ax0 yaxis _major_tick_kw:\", ax0.yaxis._major_tick_kw)\nprint(\"  ax1 yaxis _major_tick_kw:\", ax1.yaxis._major_tick_kw)\nprint(\"  ax0 yaxis is ax1 yaxis?\", ax0.yaxis is ax1.yaxis)\nprint(\"  ax0 yaxis.major is ax1 yaxis.major?\", ax0.yaxis.major is ax1.yaxis.major)\nEOF\npython debug4.py",
+   "hit": null,
+   "lat_ms": 973.5
+  },
+  {
+   "cmd": "cd /tmp && cat > debug5.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nax1 = axes[0, 1]\n\nprint(\"BEFORE clear:\")\nprint(\"  ax1 yaxis major tick2line visible:\", [t.tick2line.get_visible() for t in ax1.yaxis.majorTicks])\nprint(\"  ax1 yaxis major tick1line visible:\", [t.tick1line.get_visible() for t in ax1.yaxis.majorTicks])\nprint(\"  ax1 yaxis _major_tick_kw:\", ax1.yaxis._major_tick_kw)\n\nax1.clear()\n\nprint(\"\\nAFTER clear:\")\nprint(\"  ax1 yaxis major tick2line visible:\", [t.tick2line.get_visible() for t in ax1.yaxis.majorTicks])\nprint(\"  ax1 yaxis major tick1line visible:\", [t.tick1line.get_visible() for t in ax1.yaxis.majorTicks])\nprint(\"  ax1 yaxis _major_tick_kw:\", ax1.yaxis._major_tick_kw)\nEOF\npython debug5.py",
+   "hit": null,
+   "lat_ms": 969.6
+  },
+  {
+   "cmd": "cd /testbed && git checkout lib/matplotlib/axes/_base.py && cat > /tmp/fix3.py << 'PYEOF'\nwith open('lib/matplotlib/axes/_base.py', 'r') as f:\n    content = f.read()\n\n# 1. Stash tick parameters before clearing axes\nold_stash = \"\"\"        xaxis_visible = self.xaxis.get_visible()\n        yaxis_visible = self.yaxis.get_visible()\n\n        self.xaxis.clear()\n        self.yaxis.clear()\"\"\"\n\nnew_stash = \"\"\"        xaxis_visible = self.xaxis.get_visible()\n        yaxis_visible = self.yaxis.get_visible()\n\n        # Stash the current tick parameters, so that they can be restored\n        # after the axes are cleared.  This is important for shared axes,\n        # where the tick visibility is set by `sharex`/`sharey`.\n        try:\n            xaxis_tick_kw = dict(self.xaxis._major_tick_kw)\n        except Exception:\n            xaxis_tick_kw = None\n        try:\n            yaxis_tick_kw = dict(self.yaxis._major_tick_kw)\n        except Exception:\n            yaxis_tick_kw = None\n\n        self.xaxis.clear()\n        self.yaxis.clear()\"\"\"\n\nassert old_stash in content, \"stash pattern not found\"\ncontent = content.replace(old_stash, new_stash)\n\n# 2. Restore tick parameters after the shared_axes clean\nold_restore = \"\"\"        self._shared_axes[\"x\"].clean()\n        self._shared_axes[\"y\"].clean()\n        if self._sharex is not None:\n            self.xaxis.set_visible(xaxis_visible)\n            self.patch.set_visible(patch_visible)\n        if self._sharey is not None:\n            self.yaxis.set_visible(yaxis_visible)\n            self.patch.set_visible(patch_visible)\n\n        self.stale = True\"\"\"\n\nnew_restore = \"\"\"        self._shared_axes[\"x\"].clean()\n        self._shared_axes[\"y\"].clean()\n        if self._sharex is not None:\n            self.xaxis.set_visible(xaxis_visible)\n            self.patch.set_visible(patch_visible)\n        if self._sharey is not None:\n            self.yaxis.set_visible(yaxis_visible)\n            self.patch.set_visible(patch_visible)\n\n        # Restore the tick parameters that were stashed before clearing.\n        if xaxis_tick_kw is not None:\n            self.xaxis._major_tick_kw.update(xaxis_tick_kw)\n            for tick in self.xaxis.majorTicks:\n                tick._apply_params(**xaxis_tick_kw)\n        if yaxis_tick_kw is not None:\n            self.yaxis._major_tick_kw.update(yaxis_tick_kw)\n            for tick in self.yaxis.majorTicks:\n                tick._apply_params(**yaxis_tick_kw)\n\n        self.stale = True\"\"\"\n\nassert old_restore in content, \"restore pattern not found\"\ncontent = content.replace(old_restore, new_restore)\n\nwith open('lib/matplotlib/axes/_base.py', 'w') as f:\n    f.write(content)\n\nprint(\"Fix applied successfully\")\nPYEOF\npython /tmp/fix3.py",
+   "hit": null,
+   "lat_ms": 162.9
+  },
+  {
+   "cmd": "cd /tmp && python repro.py && python hypothesis.py && python debug3.py",
+   "hit": null,
+   "lat_ms": 2973.9
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest lib/matplotlib/tests/test_axes.py -x -q 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 20582.3
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest lib/matplotlib/tests/test_axes.py::test_markevery_polar -x -q 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 3372.0
+  },
+  {
+   "cmd": "cd /testbed && git stash pop && python -m pytest \"lib/matplotlib/tests/test_axes.py::test_markevery_polar\" -x -q 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 2372.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest \"lib/matplotlib/tests/test_axes.py::test_markevery_polar[png]\" -x -q 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 2172.4
+  },
+  {
+   "cmd": "cd /testbed && rm -f result_images/test_axes/markevery_polar*.png && python -m pytest \"lib/matplotlib/tests/test_axes.py::test_markevery_polar[png]\" -x -q 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 2180.2
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest \"lib/matplotlib/tests/test_axes.py::test_markevery_polar[png]\" -x -q 2>&1 | tail -10 && git stash pop",
+   "hit": null,
+   "lat_ms": 2172.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def test_markevery_polar\" lib/matplotlib/tests/test_axes.py",
+   "hit": null,
+   "lat_ms": 73.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1462,1500p' lib/matplotlib/tests/test_axes.py",
+   "hit": null,
+   "lat_ms": 415.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest lib/matplotlib/tests/test_axis.py -x -q 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 391.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest lib/matplotlib/tests/test_shared_axes.py lib/matplotlib/tests/test_ticker.py -x -q 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 570.8
+  },
+  {
+   "cmd": "cd /testbed && find lib/matplotlib/tests -name \"*.py\" | xargs grep -l \"sharex\\|sharey\\|clear\\|cla\" | head -10",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest lib/matplotlib/tests/test_ticker.py lib/matplotlib/tests/test_pyplot.py -x -q 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 2572.0
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest lib/matplotlib/tests/test_ticker.py::TestScalarFormatter::test_mathtext_ticks -x -q 2>&1 | tail -5 && git stash pop",
+   "hit": null,
+   "lat_ms": 1374.0
+  },
+  {
+   "cmd": "cd /tmp && cat > final_test.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\n# Test 1: Original bug report\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nx = np.arange(0.0, 2*np.pi, 0.01)\ny = np.sin(x)\n\nfor ax in axes.flatten():\n    ax.clear()\n    ax.plot(x, y)\n\n# Check tick label visibility\nax00, ax01, ax10, ax11 = axes.flatten()\n\n# ax00: top-left - should have x labels hidden (shared), y labels visible\n# ax01: top-right - should have x labels hidden, y labels hidden (shared)\n# ax10: bottom-left - should have x labels visible, y labels hidden (shared)\n# ax11: bottom-right - should have x labels visible, y labels hidden (shared)\n\nax00_x_labels = [t.get_visible() for t in ax00.get_xticklabels()]\nax00_y_labels = [t.get_visible() for t in ax00.get_yticklabels()]\nax01_x_labels = [t.get_visible() for t in ax01.get_xticklabels()]\nax01_y_labels = [t.get_visible() for t in ax01.get_yticklabels()]\nax10_x_labels = [t.get_visible() for t in ax10.get_xticklabels()]\nax10_y_labels = [t.get_visible() for t in ax10.get_yticklabels()]\nax11_x_labels = [t.get_visible() for t in ax11.get_xticklabels()]\nax11_y_labels = [t.get_visible() for t in ax11.get_yticklabels()]\n\nprint(\"Test 1: Shared axes with clear()\")\nprint(f\"  ax00 x_labels: {any(ax00_x_labels)} (expected: False)\")\nprint(f\"  ax00 y_labels: {any(ax00_y_labels)} (expected: True)\")\nprint(f\"  ax01 x_labels: {any(ax01_x_labels)} (expected: False)\")\nprint(f\"  ax01 y_labels: {any(ax01_y_labels)} (expected: False)\")\nprint(f\"  ax10 x_labels: {any(ax10_x_labels)} (expected: True)\")\nprint(f\"  ax10 y_labels: {any(ax10_y_labels)} (expected: False)\")\nprint(f\"  ax11 x_labels: {any(ax11_x_labels)} (expected: True)\")\nprint(f\"  ax11 y_labels: {any(ax11_y_labels)} (expected: False)\")\n\n# Check tick line visibility (top/right ticks should be hidden)\nax00_top_ticks = [t.get_visible() for t in ax00.xaxis.get_ticklines(minor=False)]\nax00_right_ticks = [t.get_visible() for t in ax00.yaxis.get_ticklines(minor=False)]\nprint(f\"  ax00 top xticks visible: {any(ax00_top_ticks)} (expected: False)\")\nprint(f\"  ax00 right yticks visible: {any(ax00_right_ticks)} (expected: False)\")\n\nassert not any(ax00_x_labels), \"ax00 x labels should be hidden\"\nassert any(ax00_y_labels), \"ax00 y labels should be visible\"\nassert not any(ax01_x_labels), \"ax01 x labels should be hidden\"\nassert not any(ax01_y_labels), \"ax01 y labels should be hidden\"\nassert any(ax10_x_labels), \"ax10 x labels should be visible\"\nassert not any(ax10_y_labels), \"ax10 y labels should be hidden\"\nassert any(ax11_x_labels), \"ax11 x labels should be visible\"\nassert not any(ax11_y_labels), \"ax11 y labels should be hidden\"\nassert not any(ax00_top_ticks), \"ax00 top xticks should be hidden\"\nassert not any(ax00_right_ticks), \"ax00 right yticks should be hidden\"\n\nprint(\"  PASS\\n\")\n\n# Test 2: Non-shared axes with clear()\nfig2, ax2 = plt.subplots()\nax2.plot(x, y)\nax2.clear()\nax2.plot(x, y)\n\n# Should have default tick behavior (bottom labels visible, top labels hidden)\nax2_x_labels = [t.get_visible() for t in ax2.get_xticklabels()]\nax2_top_ticks = [t.get_visible() for t in ax2.xaxis.get_ticklines(minor=False)]\nprint(\"Test 2: Non-shared axes with clear()\")\nprint(f\"  x_labels visible: {any(ax2_x_labels)} (expected: True)\")\nprint(f\"  top xticks visible: {any(ax2_top_ticks)} (expected: False)\")\n\nassert any(ax2_x_labels), \"x labels should be visible\"\nassert not any(ax2_top_ticks), \"top xticks should be hidden\"\nprint(\"  PASS\\n\")\n\n# Test 3: Multiple clear() calls\nfig3, axes3 = plt.subplots(2, 2, sharex=True, sharey=True)\nfor _ in range(3):\n    for ax in axes3.flatten():\n        ax.clear()\n        ax.plot(x, y)\n\nax300, ax301, ax310, ax311 = axes3.flatten()\nprint(\"Test 3: Multiple clear() calls\")\nprint(f\"  ax300 x_labels: {any([t.get_visible() for t in ax300.get_xticklabels()])} (expected: False)\")\nprint(f\"  ax300 y_labels: {any([t.get_visible() for t in ax300.get_yticklabels()])} (expected: True)\")\nprint(f\"  ax311 x_labe",
+   "hit": null,
+   "lat_ms": 1171.8
+  },
+  {
+   "cmd": "cd /tmp && cat > debug6.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nax10 = axes[1, 0]\n\nprint(\"BEFORE clear:\")\nprint(\"  ax10 yaxis _major_tick_kw:\", ax10.yaxis._major_tick_kw)\nprint(\"  ax10 yaxis major label1 visible:\", [t.label1.get_visible() for t in ax10.yaxis.majorTicks])\n\nax10.clear()\n\nprint(\"\\nAFTER clear:\")\nprint(\"  ax10 yaxis _major_tick_kw:\", ax10.yaxis._major_tick_kw)\nprint(\"  ax10 yaxis major label1 visible:\", [t.label1.get_visible() for t in ax10.yaxis.majorTicks])\nprint(\"  ax10 yaxis major tick1line visible:\", [t.tick1line.get_visible() for t in ax10.yaxis.majorTicks])\nEOF\npython debug6.py",
+   "hit": null,
+   "lat_ms": 981.7
+  },
+  {
+   "cmd": "cd /tmp && cat > debug7.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nax10 = axes[1, 0]\n\nprint(\"AFTER plt.subplots (before any clear):\")\nprint(\"  ax10 yaxis _major_tick_kw:\", ax10.yaxis._major_tick_kw)\nprint(\"  ax10 yaxis major label1 visible:\", [t.label1.get_visible() for t in ax10.yaxis.majorTicks])\nprint(\"  ax10 yaxis major tick1line visible:\", [t.tick1line.get_visible() for t in ax10.yaxis.majorTicks])\n\n# Now let's check what happens when we just draw\nfig.canvas.draw()\nprint(\"\\nAFTER draw:\")\nprint(\"  ax10 yaxis _major_tick_kw:\", ax10.yaxis._major_tick_kw)\nprint(\"  ax10 yaxis major label1 visible:\", [t.label1.get_visible() for t in ax10.yaxis.majorTicks])\nEOF\npython debug7.py",
+   "hit": null,
+   "lat_ms": 1171.9
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def subplots\\|def _make_subplots\" figure.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '790,950p' figure.py",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def subplots\" gridspec.py",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '262,400p' gridspec.py",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def _label_outer_xaxis\\|def _label_outer_yaxis\" axes/_base.py",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -rn \"def _label_outer\" axes/",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '115,160p' axes/_subplots.py",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cd /tmp && cat > debug8.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\n# Without clear() - what's the actual state?\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nax10 = axes[1, 0]\n\nprint(\"WITHOUT clear() - after plt.subplots:\")\nprint(\"  ax10 yaxis _major_tick_kw:\", ax10.yaxis._major_tick_kw)\nprint(\"  ax10 yaxis major label1 visible:\", [t.label1.get_visible() for t in ax10.yaxis.majorTicks])\n\n# Now test with clear()\nfig2, axes2 = plt.subplots(2, 2, sharex=True, sharey=True)\nfor ax in axes2.flatten():\n    ax.clear()\nax10_2 = axes2[1, 0]\n\nprint(\"\\nWITH clear():\")\nprint(\"  ax10 yaxis _major_tick_kw:\", ax10_2.yaxis._major_tick_kw)\nprint(\"  ax10 yaxis major label1 visible:\", [t.label1.get_visible() for t in ax10_2.yaxis.majorTicks])\n\n# Let's check what the actual matplotlib 3.4.1 behavior was\n# The issue says 3.4.1 produced correct output, so let's see what\n# _label_outer_yaxis does and if it's being called correctly\nprint(\"\\nChecking subplotspec:\")\nprint(\"  ax10 is_first_col:\", ax10.get_subplotspec().is_first_col())\nprint(\"  ax10 is_last_col:\", ax10.get_subplotspec().is_last_col())\nprint(\"  ax10 is_first_row:\", ax10.get_subplotspec().is_first_row())\nprint(\"  ax10 is_last_row:\", ax10.get_subplotspec().is_last_row())\nEOF\npython debug8.py",
+   "hit": null,
+   "lat_ms": 969.8
+  },
+  {
+   "cmd": "cd /testbed && git stash && cd /tmp && python -c \"\nimport matplotlib\nmatplotlib.use('Agg')\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nfor ax in axes.flatten():\n    ax.clear()\n\nax10 = axes[1, 0]\nprint('WITHOUT FIX (original code) - after clear():')\nprint('  ax10 yaxis _major_tick_kw:', ax10.yaxis._major_tick_kw)\nprint('  ax10 yaxis major label1 visible:', [t.label1.get_visible() for t in ax10.yaxis.majorTicks])\nprint('  ax10 yaxis major tick1line visible:', [t.tick1line.get_visible() for t in ax10.yaxis.majorTicks])\n\" && cd /testbed && git stash pop",
+   "hit": null,
+   "lat_ms": 1236.2
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"_LazyTickList\" axis.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '568,600p' axis.py",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cd /tmp && python final_test.py 2>&1",
+   "hit": null,
+   "lat_ms": 1193.5
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport matplotlib\nmatplotlib.use('Agg')\nimport numpy as np\nimport matplotlib.pyplot as plt\n\n# WITHOUT clear() - what does the user actually see?\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nx = np.arange(0.0, 2*np.pi, 0.01)\ny = np.sin(x)\nfor ax in axes.flatten():\n    ax.plot(x, y)\n\nfig.canvas.draw()\n\nax10 = axes[1, 0]\nprint('WITHOUT clear() - after draw:')\nprint('  ax10 yaxis _major_tick_kw:', ax10.yaxis._major_tick_kw)\nprint('  ax10 yaxis major label1 visible:', [t.label1.get_visible() for t in ax10.yaxis.majorTicks])\nprint('  ax10 yaxis major tick1line visible:', [t.tick1line.get_visible() for t in ax10.yaxis.majorTicks])\n\n# Check what get_yticklabels returns\nprint('  ax10 get_yticklabels visible:', [t.get_visible() for t in ax10.get_yticklabels()])\n\"",
+   "hit": null,
+   "lat_ms": 1170.7
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline --all -- lib/matplotlib/axes/_base.py | head -20",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"_label_outer\" gridspec.py",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '305,320p' gridspec.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && git diff lib/matplotlib/axes/_base.py",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "cd /tmp && cat > debug9.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\n# Check the state of all 4 axes after clear()\nfig, axes = plt.subplots(2, 2, sharex=True, sharey=True)\nx = np.arange(0.0, 2*np.pi, 0.01)\ny = np.sin(x)\nfor ax in axes.flatten():\n    ax.clear()\n    ax.plot(x, y)\n\nfig.canvas.draw()\n\nfor i, ax in enumerate(axes.flatten()):\n    print(f\"ax[{i}]:\")\n    print(f\"  xaxis _major_tick_kw: {ax.xaxis._major_tick_kw}\")\n    print(f\"  yaxis _major_tick_kw: {ax.yaxis._major_tick_kw}\")\n    print(f\"  xaxis major tick1line visible: {[t.tick1line.get_visible() for t in ax.xaxis.majorTicks]}\")\n    print(f\"  yaxis major tick1line visible: {[t.tick1line.get_visible() for t in ax.yaxis.majorTicks]}\")\n    print()\nEOF\npython debug9.py",
+   "hit": null,
+   "lat_ms": 1171.9
+  },
+  {
+   "cmd": "cd /tmp && cat > compare.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nx = np.arange(0.0, 2*np.pi, 0.01)\ny = np.sin(x)\n\n# WITHOUT clear()\nfig1, axes1 = plt.subplots(2, 2, sharex=True, sharey=True)\nfor ax in axes1.flatten():\n    ax.plot(x, y)\nfig1.canvas.draw()\n\n# WITH clear()\nfig2, axes2 = plt.subplots(2, 2, sharex=True, sharey=True)\nfor ax in axes2.flatten():\n    ax.clear()\n    ax.plot(x, y)\nfig2.canvas.draw()\n\nprint(\"Comparing WITH vs WITHOUT clear():\")\nfor i in range(4):\n    ax1 = axes1.flatten()[i]\n    ax2 = axes2.flatten()[i]\n    print(f\"\\nax[{i}]:\")\n    print(f\"  xaxis _major_tick_kw match: {ax1.xaxis._major_tick_kw == ax2.xaxis._major_tick_kw}\")\n    print(f\"    without: {ax1.xaxis._major_tick_kw}\")\n    print(f\"    with:    {ax2.xaxis._major_tick_kw}\")\n    print(f\"  yaxis _major_tick_kw match: {ax1.yaxis._major_tick_kw == ax2.yaxis._major_tick_kw}\")\n    print(f\"    without: {ax1.yaxis._major_tick_kw}\")\n    print(f\"    with:    {ax2.yaxis._major_tick_kw}\")\nEOF\npython compare.py",
+   "hit": null,
+   "lat_ms": 1370.2
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest lib/matplotlib/tests/test_axes.py -x -q -k \"not test_markevery_polar\" 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 19185.6
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest lib/matplotlib/tests/test_axes.py::test_bar_pandas -x -q 2>&1 | tail -5 && git stash pop",
+   "hit": null,
+   "lat_ms": 2176.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest lib/matplotlib/tests/test_axes.py -q -k \"not test_markevery_polar and not test_bar_pandas\" 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 60805.8
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest lib/matplotlib/tests/test_axes.py -q -k \"not test_markevery_polar and not test_bar_pandas\" 2>&1 | tail -15 && git stash pop",
+   "hit": null,
+   "lat_ms": 58204.9
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def test_rc_grid\" lib/matplotlib/tests/test_axes.py && sed -n \"$(grep -n 'def test_rc_grid' lib/matplotlib/tests/test_axes.py | cut -d: -f1),+30p\" lib/matplotlib/tests/test_axes.py",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest \"lib/matplotlib/tests/test_axes.py::test_rc_grid[png]\" -x -q 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 1570.7
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest \"lib/matplotlib/tests/test_axes.py::test_rc_grid[png]\" -x -q 2>&1 | tail -5 && git stash pop",
+   "hit": null,
+   "lat_ms": 1776.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest \"lib/matplotlib/tests/test_axes.py::test_rc_grid[png]\" -x -q 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 1790.5
+  },
+  {
+   "cmd": "cd /testbed && rm -f result_images/test_axes/rc_grid*.png && python -m pytest \"lib/matplotlib/tests/test_axes.py::test_rc_grid[png]\" -x -q 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 1571.3
+  },
+  {
+   "cmd": "cd /tmp && cat > debug_rc_grid.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport matplotlib.pyplot as plt\n\nrc_dict0 = {'axes.grid': True, 'axes.grid.axis': 'both'}\nrc_dict1 = {'axes.grid': True, 'axes.grid.axis': 'x'}\nrc_dict2 = {'axes.grid': True, 'axes.grid.axis': 'y'}\ndict_list = [rc_dict0, rc_dict1, rc_dict2]\n\nfig = plt.figure()\nfor i, rc_dict in enumerate(dict_list, 1):\n    with matplotlib.rc_context(rc_dict):\n        ax = fig.add_subplot(3, 1, i)\n        print(f\"ax {i}: gridOn={ax.xaxis._major_tick_kw.get('gridOn')}, \"\n              f\"yaxis gridOn={ax.yaxis._major_tick_kw.get('gridOn')}\")\n        print(f\"  xaxis major tick1line visible: {[t.tick1line.get_visible() for t in ax.xaxis.majorTicks]}\")\n        print(f\"  xaxis major gridline visible: {[t.gridline.get_visible() for t in ax.xaxis.majorTicks]}\")\n        print(f\"  yaxis major tick1line visible: {[t.tick1line.get_visible() for t in ax.yaxis.majorTicks]}\")\n        print(f\"  yaxis major gridline visible: {[t.gridline.get_visible() for t in ax.yaxis.majorTicks]}\")\n\nfig.savefig(\"rc_grid_debug.png\")\nEOF\npython debug_rc_grid.py",
+   "hit": null,
+   "lat_ms": 1369.8
+  },
+  {
+   "cmd": "cd /testbed && git stash && cd /tmp && python debug_rc_grid.py && cd /testbed && git stash pop",
+   "hit": null,
+   "lat_ms": 1575.6
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def grid\" axes/_base.py | head -5",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '3210,3300p' axes/_base.py",
+   "hit": null,
+   "lat_ms": 79.7
+  },
+  {
+   "cmd": "cd /tmp && cat > debug_grid.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport matplotlib.pyplot as plt\n\n# Test the specific case that fails\nrc_dict1 = {'axes.grid': True, 'axes.grid.axis': 'x'}\nwith matplotlib.rc_context(rc_dict1):\n    fig = plt.figure()\n    ax = fig.add_subplot(1, 1, 1)\n    print(f\"gridOn={ax.xaxis._major_tick_kw.get('gridOn')}\")\n    print(f\"yaxis gridOn={ax.yaxis._major_tick_kw.get('gridOn')}\")\n    print(f\"yaxis major gridline visible: {[t.gridline.get_visible() for t in ax.yaxis.majorTicks]}\")\n    \n    # Check what happens during grid() call\n    print(f\"\\nBefore grid call:\")\n    print(f\"  yaxis gridline visible: {[t.gridline.get_visible() for t in ax.yaxis.majorTicks]}\")\n    \n    # The grid() call should set yaxis gridOn=False since axis='x'\n    # Let's check what the grid method does\n    print(f\"\\nChecking _gridOn: {ax._gridOn}\")\n    print(f\"Checking rcParams axes.grid: {matplotlib.rcParams['axes.grid']}\")\n    print(f\"Checking rcParams axes.grid.axis: {matplotlib.rcParams['axes.grid.axis']}\")\nEOF\npython debug_grid.py",
+   "hit": null,
+   "lat_ms": 970.9
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"def grid\" axis.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '1388,1470p' axis.py",
+   "hit": null,
+   "lat_ms": 71.4
+  },
+  {
+   "cmd": "cd /tmp && cat > debug_grid2.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport matplotlib.pyplot as plt\nimport matplotlib.axes._base as _base\n\n# Monkey-patch to trace\noriginal_grid = _base._AxesBase.grid\ndef traced_grid(self, *args, **kwargs):\n    result = original_grid(self, *args, **kwargs)\n    print(f\"  grid({args}, {kwargs}) called\")\n    print(f\"    yaxis gridOn after: {self.yaxis._major_tick_kw.get('gridOn')}\")\n    print(f\"    yaxis gridline visible after: {[t.gridline.get_visible() for t in self.yaxis.majorTicks]}\")\n    return result\n_base._AxesBase.grid = traced_grid\n\nrc_dict1 = {'axes.grid': True, 'axes.grid.axis': 'x'}\nwith matplotlib.rc_context(rc_dict1):\n    fig = plt.figure()\n    ax = fig.add_subplot(1, 1, 1)\n    print(f\"Final yaxis gridOn: {ax.yaxis._major_tick_kw.get('gridOn')}\")\n    print(f\"Final yaxis gridline visible: {[t.gridline.get_visible() for t in ax.yaxis.majorTicks]}\")\nEOF\npython debug_grid2.py",
+   "hit": null,
+   "lat_ms": 969.8
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"\\.grid(\" axes/_base.py | head -10",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -n \"\\.grid(\" figure.py | head -10",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -rn \"def add_subplot\" figure.py | head -3",
+   "hit": null,
+   "lat_ms": 113.5
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '649,750p' figure.py",
+   "hit": null,
+   "lat_ms": 74.5
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && sed -n '750,790p' figure.py",
+   "hit": null,
+   "lat_ms": 74.7
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -rn \"\\.grid(\" axes/ | grep -v \"def grid\\|test\\|#\" | head -20",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -rn \"grid\" figure.py | grep -v \"def \\|#\\|\\\"\\\"\\\"\" | head -10",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed/lib/matplotlib && grep -rn \"grid\" pyplot.py | grep -v \"def \\|#\\|\\\"\\\"\\\"\" | head -10",
+   "hit": null,
+   "lat_ms": 75.8
+  },
+  {
+   "cmd": "cd /tmp && cat > debug_grid3.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport matplotlib.pyplot as plt\nimport matplotlib.axes._base as _base\nimport traceback\n\n# Monkey-patch to trace\noriginal_grid = _base._AxesBase.grid\ndef traced_grid(self, *args, **kwargs):\n    print(f\"  grid({args}, {kwargs}) called at:\")\n    for line in traceback.format_stack()[-3:-1]:\n        print(f\"    {line.strip()}\")\n    result = original_grid(self, *args, **kwargs)\n    print(f\"    yaxis gridOn after: {self.yaxis._major_tick_kw.get('gridOn')}\")\n    return result\n_base._AxesBase.grid = traced_grid\n\nrc_dict1 = {'axes.grid': True, 'axes.grid.axis': 'x'}\nwith matplotlib.rc_context(rc_dict1):\n    fig = plt.figure()\n    ax = fig.add_subplot(1, 1, 1)\n    print(f\"Final yaxis gridOn: {ax.yaxis._major_tick_kw.get('gridOn')}\")\nEOF\npython debug_grid3.py",
+   "hit": null,
+   "lat_ms": 969.7
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/fix4.py << 'PYEOF'\nwith open('lib/matplotlib/axes/_base.py', 'r') as f:\n    content = f.read()\n\n# Replace the restore section to only restore tick line and label visibility\nold_restore = \"\"\"        # Restore the tick parameters that were stashed before clearing.\n        if xaxis_tick_kw is not None:\n            self.xaxis._major_tick_kw.update(xaxis_tick_kw)\n            for tick in self.xaxis.majorTicks:\n                tick._apply_params(**xaxis_tick_kw)\n        if yaxis_tick_kw is not None:\n            self.yaxis._major_tick_kw.update(yaxis_tick_kw)\n            for tick in self.yaxis.majorTicks:\n                tick._apply_params(**yaxis_tick_kw)\"\"\"\n\nnew_restore = \"\"\"        # Restore the tick line and label visibility that were stashed\n        # before clearing.  This is important for shared axes, where the\n        # tick visibility is set by `sharex`/`sharey`.  We do not restore\n        # `gridOn` because the grid state is set by the `grid()` call that\n        # happens after this point.\n        if xaxis_tick_kw is not None:\n            tick_params = {k: v for k, v in xaxis_tick_kw.items()\n                           if k in ('tick1On', 'tick2On', 'label1On', 'label2On')}\n            if tick_params:\n                self.xaxis._major_tick_kw.update(tick_params)\n                for tick in self.xaxis.majorTicks:\n                    tick._apply_params(**tick_params)\n        if yaxis_tick_kw is not None:\n            tick_params = {k: v for k, v in yaxis_tick_kw.items()\n                           if k in ('tick1On', 'tick2On', 'label1On', 'label2On')}\n            if tick_params:\n                self.yaxis._major_tick_kw.update(tick_params)\n                for tick in self.yaxis.majorTicks:\n                    tick._apply_params(**tick_params)\"\"\"\n\nassert old_restore in content, \"restore pattern not found\"\ncontent = content.replace(old_restore, new_restore)\n\nwith open('lib/matplotlib/axes/_base.py', 'w') as f:\n    f.write(content)\n\nprint(\"Fix applied successfully\")\nPYEOF\npython /tmp/fix4.py",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest \"lib/matplotlib/tests/test_axes.py::test_rc_grid[png]\" -x -q 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 1572.3
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest lib/matplotlib/tests/test_axes.py -q -k \"not test_markevery_polar and not test_bar_pandas and not test_pandas_minimal_plot and not test_pandas_indexing_dates and not test_pandas_index_shape\" 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 56801.7
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest \"lib/matplotlib/tests/test_axes.py::test_hist2d[pdf]\" \"lib/matplotlib/tests/test_axes.py::test_hist2d_transpose[pdf]\" -x -q 2>&1 | tail -5 && git stash pop",
+   "hit": null,
+   "lat_ms": 1973.2
+  },
+  {
+   "cmd": "cd /tmp && python compare.py && python final_test.py 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 2174.7
+  },
+  {
+   "cmd": "cd /tmp && cat > final_verify.py << 'EOF'\nimport matplotlib\nmatplotlib.use(\"Agg\")\nimport numpy as np\nimport matplotlib.pyplot as plt\n\nx = np.arange(0.0, 2*np.pi, 0.01)\ny = np.sin(x)\n\n# Generate both images\nfig1, axes1 = plt.subplots(2, 2, sharex=True, sharey=True)\nfor ax in axes1.flatten():\n    ax.plot(x, y)\nfig1.savefig(\"without_clear.png\", dpi=100, bbox_inches='tight')\nplt.close(fig1)\n\nfig2, axes2 = plt.subplots(2, 2, sharex=True, sharey=True)\nfor ax in axes2.flatten():\n    ax.clear()\n    ax.plot(x, y)\nfig2.savefig(\"with_clear.png\", dpi=100, bbox_inches='tight')\nplt.close(fig2)\n\n# Compare pixel by pixel\nfrom PIL import Image\nimport numpy as np\n\nimg1 = np.array(Image.open(\"without_clear.png\"))\nimg2 = np.array(Image.open(\"with_clear.png\"))\n\nprint(f\"Image 1 shape: {img1.shape}\")\nprint(f\"Image 2 shape: {img2.shape}\")\n\nif img1.shape == img2.shape:\n    diff = np.abs(img1.astype(int) - img2.astype(int))\n    print(f\"Max pixel difference: {diff.max()}\")\n    print(f\"Mean pixel difference: {diff.mean():.4f}\")\n    print(f\"Pixels with difference > 10: {(diff.max(axis=-1) > 10).sum()}\")\n    if diff.max() == 0:\n        print(\"Images are IDENTICAL!\")\n    elif diff.max() < 10:\n        print(\"Images are very similar (minor rendering differences)\")\n    else:\n        print(\"Images differ significantly\")\nelse:\n    print(\"Images have different sizes!\")\nEOF\npython final_verify.py",
+   "hit": null,
+   "lat_ms": 1972.9
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest lib/matplotlib/tests/test_axes.py lib/matplotlib/tests/test_ticker.py lib/matplotlib/tests/test_pyplot.py -q -k \"not test_markevery_polar and not test_bar_pandas and not test_pandas_minimal_plot and not test_pandas_indexing_dates and not test_pandas_index_shape and not test_hist2d and not test_mathtext_ticks\" 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 60004.2
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 110.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "matplotlib__matplotlib-20826",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 355425.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

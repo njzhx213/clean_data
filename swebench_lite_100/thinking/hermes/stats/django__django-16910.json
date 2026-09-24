@@ -1,0 +1,1981 @@
+{
+ "calls": 385,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 99899.3148803711,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 4,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "python3 -V && pip3 -V && git --version && nproc && df -h /tmp | tail -1",
+   "hit": null,
+   "lat_ms": 377.3
+  },
+  {
+   "cmd": "pwd && df -h . && echo HOME=$HOME",
+   "hit": null,
+   "lat_ms": 143.8
+  },
+  {
+   "cmd": "python3 -m venv /tmp/dj421 && /tmp/dj421/bin/pip -q install 'Django==4.2.1' && /tmp/dj421/bin/django-admin --version",
+   "hit": null,
+   "lat_ms": 10611.3
+  },
+  {
+   "cmd": "python3 -m venv /tmp/dj419 && /tmp/dj419/bin/pip -q install 'Django==4.1.9' && /tmp/dj419/bin/django-admin --version",
+   "hit": null,
+   "lat_ms": 10784.0
+  },
+  {
+   "cmd": "mkdir -p /tmp/repro/bugtest && : > /tmp/repro/bugtest/__init__.py && cat > /tmp/repro/bugtest/models.py <<'EOF'\nfrom django.db import models\n\n\nclass Main(models.Model):\n    main_field_1 = models.CharField(blank=True, max_length=45)\n    main_field_2 = models.CharField(blank=True, max_length=45)\n    main_field_3 = models.CharField(blank=True, max_length=45)\n\n\nclass Secondary(models.Model):\n    main = models.OneToOneField(\n        Main, primary_key=True, related_name='secondary', on_delete=models.CASCADE\n    )\n    secondary_field_1 = models.CharField(blank=True, max_length=45)\n    secondary_field_2 = models.CharField(blank=True, max_length=45)\n    secondary_field_3 = models.CharField(blank=True, max_length=45)\nEOF\ncat > /tmp/repro/repro.py <<'EOF'\n\"\"\"Repro for: only() + select_related() on reverse OneToOneField relation.\"\"\"\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    DEBUG=True,\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['bugtest'],\n    USE_TZ=True,\n)\ndjango.setup()\n\nfrom django.db import connection  # noqa: E402\nfrom bugtest.models import Main, Secondary  # noqa: E402\n\ndef qs():\n    return Main.objects.select_related('secondary').only(\n        'main_field_1', 'secondary__secondary_field_1'\n    )\n\nprint(\"Django:\", django.get_version())\nprint(\"SQL:\", str(qs().query))\nprint()\n\nwith connection.schema_editor() as se:\n    se.create_model(Main)\n    se.create_model(Secondary)\n\nm = Main.objects.create(main_field_1='m1', main_field_2='m2', main_field_3='m3')\nSecondary.objects.create(\n    main=m, secondary_field_1='s1', secondary_field_2='s2', secondary_field_3='s3'\n)\n\nobj = qs().get()\nprint(\"main_field_1:\", obj.main_field_1)\nprint(\"secondary.secondary_field_1:\", obj.secondary.secondary_field_1)\nprint(\"main deferred_fields:    \", sorted(obj.deferred_fields))\nprint(\"secondary deferred_fields:\", sorted(obj.secondary.deferred_fields))\nexpected = {'secondary_field_2', 'secondary_field_3'}\nok = obj.secondary.deferred_fields == expected\nprint(\"RESULT:\", \"CORRECT (only() honored)\" if ok else \"BUG: related fields not deferred\")\nEOF\necho written",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "cd /testbed && ls -a | head -30 && python3 -c \"import django; print(django.__file__); print(django.__version__)\" 2>&1 | tail -2",
+   "hit": null,
+   "lat_ms": 736.5
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 | cat && git status --short | head && head -20 django/__init__.py && git describe --tags 2>&1 | head -1",
+   "hit": null,
+   "lat_ms": 578.5
+  },
+  {
+   "cmd": "cd /tmp && PYTHONPATH=/testbed:/tmp/repro python3 /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 236.8
+  },
+  {
+   "cmd": "python3 -c \"import asgiref\" 2>&1; pip3 list 2>/dev/null | grep -i -E \"asgiref|sqlparse|django|pillow\" ; ls /opt/miniconda3/envs 2>/dev/null; which -a python3 python 2>/dev/null",
+   "hit": null,
+   "lat_ms": 571.9
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/python -c \"import django, asgiref, sqlparse; print(django.__file__, django.__version__)\" && cd /tmp && PYTHONPATH=/testbed:/tmp/repro /opt/miniconda3/envs/testbed/bin/python /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 771.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"deferred_fields\" django/db/models/base.py | head -20",
+   "hit": null,
+   "lat_ms": 114.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n 655,690p django/db/models/base.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /tmp/repro && python3 - <<'EOF'\nimport re\nsrc = open('repro.py').read()\nsrc = src.replace(\"sorted(obj.deferred_fields)\", \"sorted(obj.get_deferred_fields())\")\nsrc = src.replace(\"sorted(obj.secondary.deferred_fields)\", \"sorted(obj.secondary.get_deferred_fields())\")\nsrc = src.replace(\"obj.secondary.deferred_fields == expected\", \"obj.secondary.get_deferred_fields() == expected\")\nopen('repro.py','w').write(src)\nEOF\ncd /tmp && PYTHONPATH=/testbed:/tmp/repro /opt/miniconda3/envs/testbed/bin/python /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 378.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def get_related_selections\" django/db/models/sql/compiler.py && grep -n \"related_selects\\|select_related\" django/db/models/sql/query.py | head -40",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1143,1260p django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1260,1320p django/db/models/sql/compiler.py && grep -n \"select_mask\" django/db/models/sql/compiler.py | head -30",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def get_select_mask\" django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 792,900p django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 148.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"_get_only_select_mask\\|_get_defer_select_mask\" django/db/models/sql/query.py && sed -n \"$(grep -n '_def _get_only_select_mask' django/db/models/sql/query.py | cut -d: -f1),+75p\" django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n 715,792p django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline | wc -l && git log --oneline -3 -- django/db/models/sql/query.py | cat && git log -S \"_get_only_select_mask\" --oneline -- django/db/models/sql/query.py | cat",
+   "hit": null,
+   "lat_ms": 848.4
+  },
+  {
+   "cmd": "cd /testbed && git show b3db6c8dcb --stat | head -30 && git log -1 --format=\"%ci %an\" b3db6c8dcb | cat",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cd /testbed && git show b3db6c8dcb -- django/db/models/sql/query.py | head -260",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cd /tmp && PYTHONPATH=/testbed:/tmp/repro /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}, INSTALLED_APPS=['bugtest'])\ndjango.setup()\nfrom bugtest.models import Main, Secondary\n\nopts = Main._meta\nrev = opts.get_field('secondary')\nfwd = Secondary._meta.get_field('main')\nprint(\"reverse get_field ->\", type(rev).__name__, repr(rev)[:80])\nprint(\"forward field     ->\", type(fwd).__name__, fwd)\nprint(\"same object?\", rev is fwd, \"| rev == fwd?\", rev == fwd)\nprint(\"has is_relation:\", getattr(rev, 'is_relation', 'MISSING'))\nprint(\"rev.remote_field ->\", getattr(rev, 'remote_field', 'MISSING'))\nprint(\"hasattr(rev, 'field'):\", hasattr(rev, 'field'))\nif hasattr(rev, 'field'):\n    print(\"rev.field is fwd:\", rev.field is fwd)\n\n# Now inspect the actual select mask the query builds\nqs = Main.objects.select_related('secondary').only('main_field_1', 'secondary__secondary_field_1')\nq = qs.query\nprint()\nprint(\"deferred_loading:\", q.deferred_loading)\nmask = q.get_select_mask()\nfor k, v in mask.items():\n    print(\"mask key:\", type(k).__name__, k, \"->\", {type(x).__name__ if not isinstance(x,str) else x for x in (v if isinstance(v, dict) else [])} if isinstance(v, dict) else v)\nprint()\nprint(\"compiler reverse lookup uses o.field (forward field):\", fwd)\nprint(\"mask contains fwd field as key?\", fwd in mask)\nEOF",
+   "hit": null,
+   "lat_ms": 380.0
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"get_select_mask\" django/ | grep -v \".pyc\"",
+   "hit": null,
+   "lat_ms": 165.4
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"select_mask\\|deferred\" django/db/models/query.py | head -20",
+   "hit": null,
+   "lat_ms": 115.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n 2555,2625p django/db/models/query.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n 951,1010p django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 167.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n \"$(grep -n 'def add_deferred' django/db/models/sql/query.py | cut -d: -f1),+55p\" django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 131.1
+  },
+  {
+   "cmd": "cd /tmp && PYTHONPATH=/testbed:/tmp/repro /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}, INSTALLED_APPS=['bugtest'])\ndjango.setup()\nfrom bugtest.models import Main, Secondary\n\n# defer() on reverse o2o\nqs = Main.objects.select_related('secondary').defer('secondary__secondary_field_2', 'secondary__secondary_field_3')\nprint(\"DEFER SQL:\", str(qs.query))\n# forward select_related + only (should work)\nclass T: pass\nqs2 = Main.objects.select_related('secondary').only('main_field_1', 'main_field_2')\nprint(\"ONLY-MAIN SQL:\", str(qs2.query))\nEOF",
+   "hit": null,
+   "lat_ms": 381.5
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\npath = 'django/db/models/sql/query.py'\nsrc = open(path).read()\nold = \"\"\"        # Only include fields mentioned in the mask.\n        for field_name, field_mask in mask.items():\n            field = opts.get_field(field_name)\n            field_select_mask = select_mask.setdefault(field, {})\n\"\"\"\nnew = \"\"\"        # Only include fields mentioned in the mask.\n        for field_name, field_mask in mask.items():\n            field = opts.get_field(field_name)\n            if hasattr(field, \"field\"):\n                # Reverse relations are keyed by their forward field to\n                # match the related select lookups in the compiler.\n                field = field.field\n            field_select_mask = select_mask.setdefault(field, {})\n\"\"\"\nassert src.count(old) == 1, f\"expected exactly 1 match, found {src.count(old)}\"\nopen(path, 'w').write(src.replace(old, new))\nprint(\"patched\")\nEOF\ngit diff | cat",
+   "hit": null,
+   "lat_ms": 168.4
+  },
+  {
+   "cmd": "cd /tmp && PYTHONPATH=/testbed:/tmp/repro /opt/miniconda3/envs/testbed/bin/python /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 377.4
+  },
+  {
+   "cmd": "cd /testbed && git checkout django/db/models/sql/query.py && python3 - <<'EOF'\npath = 'django/db/models/sql/query.py'\nsrc = open(path).read()\nold = \"\"\"        # Only include fields mentioned in the mask.\n        for field_name, field_mask in mask.items():\n            field = opts.get_field(field_name)\n            field_select_mask = select_mask.setdefault(field, {})\n            if field_mask:\n                if not field.is_relation:\n                    raise FieldError(next(iter(field_mask)))\n                related_model = field.remote_field.model._meta.concrete_model\n                self._get_only_select_mask(\n                    related_model._meta, field_mask, field_select_mask\n                )\n        return select_mask\"\"\"\nnew = \"\"\"        # Only include fields mentioned in the mask.\n        for field_name, field_mask in mask.items():\n            field = opts.get_field(field_name)\n            if hasattr(field, \"field\"):\n                # Reverse relations are keyed by their forward field to\n                # match the related select lookups in the compiler.\n                key = field.field\n            else:\n                key = field\n            field_select_mask = select_mask.setdefault(key, {})\n            if field_mask:\n                if not field.is_relation:\n                    raise FieldError(next(iter(field_mask)))\n                related_model = field.remote_field.model._meta.concrete_model\n                self._get_only_select_mask(\n                    related_model._meta, field_mask, field_select_mask\n                )\n        return select_mask\"\"\"\nassert src.count(old) == 1, f\"expected exactly 1 match, found {src.count(old)}\"\nopen(path, 'w').write(src.replace(old, new))\nprint(\"patched\")\nEOF\ngit diff | cat",
+   "hit": null,
+   "lat_ms": 166.7
+  },
+  {
+   "cmd": "cd /tmp && PYTHONPATH=/testbed:/tmp/repro /opt/miniconda3/envs/testbed/bin/python /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 379.6
+  },
+  {
+   "cmd": "cd /testbed && ls runtests.py && /opt/miniconda3/envs/testbed/bin/python runtests.py --parallel 1 defer defer_regress 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && ls -a && ls tests 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && ls tests/runtests.py && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py --parallel 1 defer defer_regress 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 771.4
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py --parallel 1 select_related one_to_one querysets queries model_fields filtered_relations 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 3371.2
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py --parallel 1 select_related one_to_one querysets queries model_fields filtered_relations 2>&1 | grep -B 2 -A 30 \"^ERROR\\|^FAIL\" | head -80",
+   "hit": null,
+   "lat_ms": 3410.7
+  },
+  {
+   "cmd": "cd /testbed && ls tests | grep -i -E \"quer|filter|select|defer|one_to|values|aggregat\" ",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py --parallel 1 filtered_relation select_related_onetoone select_related_regress aggregation aggregation_regress null_queries queryset_pickle 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 1172.4
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py --parallel 1 filtered_relation select_related_onetoone select_related_regress aggregation aggregation_regress null_queries queryset_pickle 2>&1 | grep -A 40 \"^FAIL\" | head -60",
+   "hit": null,
+   "lat_ms": 1170.7
+  },
+  {
+   "cmd": "cd /testbed && git stash && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py --parallel 1 select_related_onetoone.tests.ReverseSelectRelatedTestCase.test_inheritance_deferred2 2>&1 | tail -6; git stash pop && git diff --stat | cat",
+   "hit": null,
+   "lat_ms": 973.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n 200,270p tests/select_related_onetoone/tests.py && grep -n \"class Child4\\|class Child1\\|class Parent1\\|class Parent2\\|class Child3\" tests/select_related_onetoone/models.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /tmp && cat > /tmp/repro/mti_repro.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth', 'select_related_onetoone'],\n)\ndjango.setup()\nfrom select_related_onetoone.models import Parent2, Child4\n\nqs = Parent2.objects.select_related(\"child1\", \"child1__child4\").only(\n    \"id2\", \"child1__value\", \"child1__child4__value4\"\n)\nprint(\"SQL:\", str(qs.query))\nprint()\nq = qs.query\nmask = q.get_select_mask()\nfor k, v in mask.items():\n    print(\"mask key:\", type(k).__name__, k)\nEOF\nPYTHONPATH=/testbed:/tmp/repro /opt/miniconda3/envs/testbed/bin/python /tmp/repro/mti_repro.py",
+   "hit": null,
+   "lat_ms": 377.9
+  },
+  {
+   "cmd": "cd /tmp && PYTHONPATH=/testbed:/testbed/tests /opt/miniconda3/envs/testbed/bin/python /tmp/repro/mti_repro.py && echo ============ && cd /testbed && git stash -q && PYTHONPATH=/testbed:/testbed/tests /opt/miniconda3/envs/testbed/bin/python /tmp/repro/mti_repro.py; cd /testbed && git stash pop -q && git diff --stat | cat",
+   "hit": null,
+   "lat_ms": 976.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def select_related_descend\" django/db/models/sql/compiler.py && sed -n \"$(grep -n 'def select_related_descend' django/db/models/sql/compiler.py | cut -d: -f1),+35p\" django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"def select_related_descend\" django/ && grep -n \"select_related_descend\" django/db/models/sql/compiler.py | head -3",
+   "hit": null,
+   "lat_ms": 251.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n 305,345p django/db/models/query_utils.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n 345,375p django/db/models/query_utils.py",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "cd /testbed && git stash -q && cat > /tmp/repro/mti_debug.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['select_related_onetoone'],\n)\ndjango.setup()\nfrom django.db.models.sql import compiler\nfrom select_related_onetoone.models import Parent2, Child1, Child4\n\nprint(\"Child1.local_fields:\", [f.name for f in Child1._meta.local_fields])\nprint(\"Child1.concrete_fields:\", [f.name for f in Child1._meta.concrete_fields])\n\norig_gdc = compiler.SQLCompiler.get_default_columns\ndef gdc(self, select_mask, start_alias=None, opts=None, from_parent=None):\n    res = orig_gdc(self, select_mask, start_alias, opts, from_parent)\n    print(f\"gdc(opts={opts.model.__name__ if opts else None}, start_alias={start_alias}, from_parent={from_parent and from_parent.__name__}, mask_empty={not select_mask}) -> {[str(c) for c in res]}\")\n    return res\ncompiler.SQLCompiler.get_default_columns = gdc\n\nqs = Parent2.objects.select_related(\"child1\", \"child1__child4\").only(\n    \"id2\", \"child1__value\", \"child1__child4__value4\"\n)\nprint(\"SQL:\", str(qs.query))\nEOF\nPYTHONPATH=/testbed:/testbed/tests /opt/miniconda3/envs/testbed/bin/python /tmp/repro/mti_debug.py; cd /testbed && git stash pop -q",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -S \"test_inheritance_deferred2\" -- tests/select_related_onetoone/tests.py | cat && git log --oneline -3 -- tests/select_related_onetoone/tests.py | cat",
+   "hit": null,
+   "lat_ms": 571.8
+  },
+  {
+   "cmd": "cd /testbed && git worktree add /tmp/django-pre b3db6c8dcb~1 2>&1 | tail -1 && ls /tmp/django-pre | head -5",
+   "hit": null,
+   "lat_ms": 570.9
+  },
+  {
+   "cmd": "cd /tmp && PYTHONPATH=/tmp/django-pre:/testbed/tests /opt/miniconda3/envs/testbed/bin/python /tmp/repro/mti_debug.py 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 574.9
+  },
+  {
+   "cmd": "cd /tmp && cat > /tmp/repro/mti_sql.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['select_related_onetoone'],\n)\ndjango.setup()\nfrom select_related_onetoone.models import Parent2\n\nqs = Parent2.objects.select_related(\"child1\", \"child1__child4\").only(\n    \"id2\", \"child1__value\", \"child1__child4__value4\"\n)\nprint(\"SQL:\", str(qs.query))\nEOF\nPYTHONPATH=/tmp/django-pre:/testbed/tests /opt/miniconda3/envs/testbed/bin/python /tmp/repro/mti_sql.py",
+   "hit": null,
+   "lat_ms": 406.5
+  },
+  {
+   "cmd": "cd /tmp/django-pre && sed -n \"$(grep -n 'def get_select' django/db/models/sql/query.py | head -1 | cut -d: -f1),+45p\" django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /tmp/django-pre && grep -n \"def get_select\\b\\|def get_select(\" django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 146.4
+  },
+  {
+   "cmd": "cd /tmp/django-pre && grep -n \"def get_select\\|def get_default_columns\\|def get_related_selections\" django/db/models/sql/compiler.py && sed -n \"$(grep -n 'def get_default_columns' django/db/models/sql/compiler.py | cut -d: -f1),+45p\" django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 140.1
+  },
+  {
+   "cmd": "cd /testbed && git show 42ee31930b --stat | head -20 && git show 42ee31930b -- tests/select_related_onetoone/tests.py | head -60",
+   "hit": null,
+   "lat_ms": 569.8
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && git stash -q && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py --parallel 8 > /tmp/baseline.txt 2>&1; echo \"exit=$?\" && git stash pop -q && tail -5 /tmp/baseline.txt' > /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_bb0ebe1eec06.exit ) & echo $! > /tmp/hermes_bg_proc_bb0ebe1eec06.pid && cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid",
+   "hit": null,
+   "lat_ms": 2171.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_bb0ebe1eec06.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_bb0ebe1eec06.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 66.8
+  },
+  {
+   "cmd": "cd /testbed && git diff --stat | cat && grep -E \"^(Ran|FAILED|OK)\" /tmp/baseline.txt && grep -c \"^ERROR\\|^FAIL:\" /tmp/baseline.txt; grep -E \"^(ERROR|FAIL):\" /tmp/baseline.txt | head -20",
+   "hit": null,
+   "lat_ms": 163.1
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py --parallel 8 > /tmp/patched.txt 2>&1; echo \"exit=$?\"' > /tmp/hermes_bg_proc_06d16bd12cb7.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_06d16bd12cb7.exit ) & echo $! > /tmp/hermes_bg_proc_06d16bd12cb7.pid && cat /tmp/hermes_bg_proc_06d16bd12cb7.pid",
+   "hit": null,
+   "lat_ms": 2174.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cd /tmp && cat > /tmp/repro/extended.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['bugtest'],\n    USE_TZ=True,\n)\ndjango.setup()\nfrom bugtest.models import Main, Secondary\n\ndef show(label, qs):\n    print(f\"--- {label}\")\n    print(\"  \", str(qs.query).replace(\"FROM\", \"\\n    FROM\"))\n\n# 1. Ticket case\nshow(\"ticket: only + select_related reverse o2o\",\n     Main.objects.select_related('secondary').only('main_field_1', 'secondary__secondary_field_1'))\n\n# 2. defer() on reverse o2o (should be unaffected)\nshow(\"defer reverse o2o\",\n     Main.objects.select_related('secondary').defer('secondary__secondary_field_2', 'secondary__secondary_field_3'))\n\n# 3. only() without select_related (related fields not joined at all)\nshow(\"only, no select_related\",\n     Main.objects.only('main_field_1', 'secondary__secondary_field_1'))\n\n# 4. only() touching only main fields, select_related reverse\nshow(\"only main fields + select_related reverse\",\n     Main.objects.select_related('secondary').only('main_field_1', 'main_field_2'))\n\n# 5. values() combined with only()\nshow(\"only + values\",\n     Main.objects.select_related('secondary').only('main_field_1', 'secondary__secondary_field_1').values('main_field_1', 'secondary__secondary_field_1'))\n\n# 6. forward o2o direction: Secondary -> Main\nshow(\"forward: only + select_related\",\n     Secondary.objects.select_related('main').only('secondary_field_1', 'main__main_field_1'))\n\n# 7. plain all-fields select_related (no only)\nshow(\"select_related only\",\n     Main.objects.select_related('secondary'))\nEOF\nPYTHONPATH=/testbed:/tmp/repro /opt/miniconda3/envs/testbed/bin/python /tmp/repro/extended.py",
+   "hit": null,
+   "lat_ms": 376.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 81.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cd /tmp/repro && cat > bugtest/models.py <<'EOF'\nfrom django.db import models\n\n\nclass Main(models.Model):\n    main_field_1 = models.CharField(blank=True, max_length=45)\n    main_field_2 = models.CharField(blank=True, max_length=45)\n    main_field_3 = models.CharField(blank=True, max_length=45)\n\n\nclass Secondary(models.Model):\n    main = models.OneToOneField(\n        Main, primary_key=True, related_name='secondary', on_delete=models.CASCADE\n    )\n    secondary_field_1 = models.CharField(blank=True, max_length=45)\n    secondary_field_2 = models.CharField(blank=True, max_length=45)\n    secondary_field_3 = models.CharField(blank=True, max_length=45)\n\n\nclass Tertiary(models.Model):\n    secondary = models.OneToOneField(\n        Secondary, primary_key=True, related_name='tertiary', on_delete=models.CASCADE\n    )\n    tertiary_field_1 = models.CharField(blank=True, max_length=45)\n    tertiary_field_2 = models.CharField(blank=True, max_length=45)\nEOF\ncat > chain.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['bugtest'],\n    USE_TZ=True,\n)\ndjango.setup()\nfrom bugtest.models import Main, Secondary, Tertiary\n\nqs = Main.objects.select_related('secondary', 'secondary__tertiary').only(\n    'main_field_1', 'secondary__secondary_field_1', 'secondary__tertiary__tertiary_field_1'\n)\nprint(\"CHAIN SQL:\", str(qs.query).replace(\"FROM\", \"\\nFROM\"))\nprint()\nq = qs.query\nmask = q.get_select_mask()\nprint(\"mask keys:\", [f\"{type(k).__name__}:{getattr(k, 'name', k)}\" for k in mask])\nsub = mask.get([k for k in mask if type(k).__name__ == 'OneToOneField'][0])\nprint(\"secondary sub-mask keys:\", [f\"{type(k).__name__}:{getattr(k, 'name', k)}\" for k in sub])\nEOF\nPYTHONPATH=/testbed:/tmp/repro /opt/miniconda3/envs/testbed/bin/python /tmp/repro/chain.py",
+   "hit": null,
+   "lat_ms": 377.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_06d16bd12cb7.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_06d16bd12cb7.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /tmp && grep -E \"^(Ran|FAILED|OK)\" patched.txt && grep -E \"^(ERROR|FAIL):\" patched.txt | sort > patched_failures.txt && grep -E \"^(ERROR|FAIL):\" baseline.txt | sort > baseline_failures.txt && echo \"=== DIFF (baseline vs patched) ===\" && diff baseline_failures.txt patched_failures.txt; echo \"diff-exit=$?\"",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /tmp && grep -i -E \"module.*not found|failed to import|ImportError|Traceback\" patched.txt | head -10; echo ---; grep -c \"test_\" patched.txt | head -1; tail -3 patched.txt; echo ---; grep -c \"test_\" baseline.txt",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /tmp && grep -i -E \"died|crash|worker|interrupt\" patched.txt | head; echo \"=== baseline:\"; grep -i -E \"died|crash|worker|interrupt\" baseline.txt | head; echo \"===\"; grep -E \"^Ran\" patched.txt baseline.txt",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py --parallel 8 > /tmp/patched2.txt 2>&1; echo \"exit=$?\"' > /tmp/hermes_bg_proc_f13fc85a227b.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_f13fc85a227b.exit ) & echo $! > /tmp/hermes_bg_proc_f13fc85a227b.pid && cat /tmp/hermes_bg_proc_f13fc85a227b.pid",
+   "hit": null,
+   "lat_ms": 2176.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 382.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 162.3
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py select_related_onetoone select_related_regress defer defer_regress filtered_relation select_related one_to_one queries model_fields aggregation aggregation_regress null_queries 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 4375.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 568.7
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py select_related_onetoone select_related_regress defer defer_regress filtered_relation select_related one_to_one queries model_fields aggregation aggregation_regress null_queries 2>&1 | grep -E \"^(Ran|OK|FAILED)|^FAIL:\" ",
+   "hit": null,
+   "lat_ms": 4376.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /testbed && git stash -q && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py select_related_onetoone select_related_regress defer defer_regress filtered_relation select_related one_to_one queries model_fields aggregation aggregation_regress null_queries 2>&1 | grep -E \"^(Ran|OK|FAILED)|^FAIL:\"; git stash pop -q && git diff --stat | cat",
+   "hit": null,
+   "lat_ms": 4374.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cd /tmp && cat > /tmp/repro/mti_behavior.py <<'EOF'\n\"\"\"Verify exact query behavior for the MTI inheritance case with the patch.\"\"\"\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['select_related_onetoone'],\n)\ndjango.setup()\nfrom django.test.utils import CaptureQueriesContext\nfrom django.db import connection\nfrom select_related_onetoone.models import Parent2, Child4\n\ndef num_queries(fn):\n    with CaptureQueriesContext(connection) as ctx:\n        fn()\n    return len(ctx.captured_queries)\n\nc = Child4.objects.create(name1=\"n1\", name2=\"n2\", value=1, value4=4)\nqs = Parent2.objects.select_related(\"child1\", \"child1__child4\").only(\n    \"id2\", \"child1__value\", \"child1__child4__value4\"\n)\n\np = qs.get(name2=\"n2\")\nprint(\"1) get + id2 + child1.value + child4.value4 + child4.id2 :\",\n      num_queries(lambda: (p := qs.get(name2=\"n2\"))))\nassert p.id2 == c.id2 and p.child1.value == 1 and p.child1.child4.value4 == 4\nassert p.child1.child4.id2 == c.id2\n\nprint(\"2) p.child1.name2   (deferred load expected: 1)  :\",\n      num_queries(lambda: print(p.child1.name2)))\nprint(\"3) p.child1.name1   (deferred load expected: 1)  :\",\n      num_queries(lambda: print(p.child1.name1)))\nprint(\"4) p.child1.child4.name1 (deferred load expected: 1):\",\n      num_queries(lambda: print(p.child1.child4.name1)))\n\n# And after a fresh fetch where name1 was loaded once, second access = 0\np = qs.get(name2=\"n2\")\n_ = p.child1.name1\nprint(\"5) second access to same loaded attr (expected: 0):\",\n      num_queries(lambda: print(p.child1.name1)))\nEOF\nPYTHONPATH=/testbed:/testbed/tests /opt/miniconda3/envs/testbed/bin/python /tmp/repro/mti_behavior.py",
+   "hit": null,
+   "lat_ms": 377.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f13fc85a227b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f13fc85a227b.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cd /tmp && python3 - <<'EOF'\nsrc = open('/tmp/repro/mti_behavior.py').read()\nsrc = src.replace(\n    \"from select_related_onetoone.models import Parent2, Child4\",\n    \"\"\"from select_related_onetoone.models import Parent2, Child4\nimport select_related_onetoone.models as m\nfrom django.apps import apps\nwith connection.schema_editor() as se:\n    for model in apps.get_models(app_label='select_related_onetoone'):\n        se.create_model(model)\"\"\"\n)\nopen('/tmp/repro/mti_behavior.py','w').write(src)\nEOF\nPYTHONPATH=/testbed:/testbed/tests /opt/miniconda3/envs/testbed/bin/python /tmp/repro/mti_behavior.py",
+   "hit": null,
+   "lat_ms": 377.0
+  },
+  {
+   "cmd": "cd /tmp && python3 - <<'EOF'\nsrc = open('/tmp/repro/mti_behavior.py').read()\nsrc = src.replace(\"import select_related_onetoone.models as m\\n\", \"import select_related_onetoone.models as m\\nfrom django.apps import apps\\n\")\nsrc = src.replace(\"from django.apps import apps\\n\", \"\")\nsrc = src.replace(\"for model in apps.get_models(app_label='select_related_onetoone'):\", \"for model in [m.Parent1, m.Parent2, m.Child1, m.Child2, m.Child3, m.Child4, m.LinkedList]:\")\nopen('/tmp/repro/mti_behavior.py','w').write(src)\nEOF\nPYTHONPATH=/testbed:/testbed/tests /opt/miniconda3/envs/testbed/bin/python /tmp/repro/mti_behavior.py",
+   "hit": null,
+   "lat_ms": 376.7
+  },
+  {
+   "cmd": "cd /tmp && grep -E \"^(Ran|OK|FAILED)\" patched2.txt && grep -E \"^(ERROR|FAIL):\" patched2.txt | sort > patched2_failures.txt && diff baseline_failures.txt patched2_failures.txt; echo \"diff-vs-baseline-exit=$?\"",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && git stash -q && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py --parallel 8 > /tmp/baseline2.txt 2>&1; echo \"exit=$?\"; git stash pop -q' > /tmp/hermes_bg_proc_4f6cd6601d53.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_4f6cd6601d53.exit ) & echo $! > /tmp/hermes_bg_proc_4f6cd6601d53.pid && cat /tmp/hermes_bg_proc_4f6cd6601d53.pid",
+   "hit": null,
+   "lat_ms": 2242.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 71.7
+  },
+  {
+   "cmd": "cd /tmp && PYTHONPATH=/testbed:/testbed/tests:/tmp/repro /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth', 'bugtest', 'select_related_onetoone'],\n)\ndjango.setup()\nfrom django.apps import apps\nbad = []\ntotal = 0\nfor app_config in apps.get_app_configs():\n    for model in app_config.get_models():\n        for name, field in model._meta.fields_map.items():\n            total += 1\n            if hasattr(field, \"field\"):\n                if field.__class__.__module__ == \"django.db.models.fields.related\":\n                    print(f\"{app_config.label}.{model.__name__}.{name}: {type(field).__name__} -> fwd: {field.field!r}\")\n                else:\n                    bad.append((app_config.label, model.__name__, name, type(field).__name__))\nprint(\"total fields_map entries:\", total)\nprint(\"UNEXPECTED .field holders:\", bad or \"none\")\nEOF",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"^class OneToOneRel\\|^class ManyToOneRel\\|^class ManyToManyRel\\|^class ForeignObjectRel\" django/db/models/fields/*.py",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 91.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 117.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4f6cd6601d53.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4f6cd6601d53.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cd /tmp && grep -E \"^(Ran|OK|FAILED)\" baseline2.txt && grep -E \"^(ERROR|FAIL):\" baseline2.txt | sort > baseline2_failures.txt && diff baseline2_failures.txt patched_failures.txt; echo \"diff-exit=$?\" && cd /testbed && git diff --stat | cat",
+   "hit": null,
+   "lat_ms": 163.4
+  },
+  {
+   "cmd": "cd /testbed && git worktree remove /tmp/django-pre --force 2>&1; git status --short && echo \"=== FINAL DIFF ===\" && git diff | cat && echo \"=== FINAL REPRO ===\" && cd /tmp && PYTHONPATH=/testbed:/tmp/repro /opt/miniconda3/envs/testbed/bin/python /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 578.1
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-16910",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 99899.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

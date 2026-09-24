@@ -1,0 +1,306 @@
+{
+ "calls": 50,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 13092.254161834717,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "find / -name \"base.py\" -path \"*/contrib/sessions/*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 769.8
+  },
+  {
+   "cmd": "cat /testbed/django/contrib/sessions/backends/base.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "find /testbed -path \"*/tests/*\" -name \"*session*\" -type f | head -20",
+   "hit": null,
+   "lat_ms": 380.0
+  },
+  {
+   "cmd": "find /testbed -path \"*/tests/*\" -name \"*session*\" -type d",
+   "hit": null,
+   "lat_ms": 165.9
+  },
+  {
+   "cmd": "ls /testbed/tests/sessions_tests/",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "grep -n \"decode\\|legacy\" /testbed/tests/sessions_tests/tests.py | head -20",
+   "hit": null,
+   "lat_ms": 114.6
+  },
+  {
+   "cmd": "sed -n '310,345p' /testbed/tests/sessions_tests/tests.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "grep -n \"padding\\|binascii\" /testbed/tests/sessions_tests/tests.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "sed -n '108,145p' /testbed/django/contrib/sessions/backends/base.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "sed -n '135,150p' /testbed/django/contrib/sessions/backends/base.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat -n /testbed/django/contrib/sessions/backends/base.py | sed -n '130,155p'",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat > /tmp/fix.patch << 'EOF'\n--- a/django/contrib/sessions/backends/base.py\n+++ b/django/contrib/sessions/backends/base.py\n@@ -132,13 +132,13 @@ class SessionBase:\n \n     def _legacy_decode(self, session_data):\n         # RemovedInDjango40Warning: pre-Django 3.1 format will be invalid.\n-        encoded_data = base64.b64decode(session_data.encode('ascii'))\n+        # base64.b64decode can raise binascii.Error (e.g. incorrect padding)\n         try:\n-            # could produce ValueError if there is no ':'\n-            hash, serialized = encoded_data.split(b':', 1)\n-            expected_hash = self._hash(serialized)\n-            if not constant_time_compare(hash.decode(), expected_hash):\n-                raise SuspiciousSession(\"Session data corrupted\")\n+            encoded_data = base64.b64decode(session_data.encode('ascii'))\n+            # could produce ValueError if there is no ':'\n+            hash, serialized = encoded_data.split(b':', 1)\n+            expected_hash = self._hash(serialized)\n+            if not constant_time_compare(hash.decode(), expected_hash):\n+                raise SuspiciousSession(\"Session data corrupted\")\n             else:\n                 return self.serializer().loads(serialized)\n         except Exception as e:\nEOF\ncat /tmp/fix.patch",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /testbed && patch -p1 < /tmp/fix.patch",
+   "hit": null,
+   "lat_ms": 285.0
+  },
+  {
+   "cmd": "head -134 /testbed/django/contrib/sessions/backends/base.py > /tmp/base_part1.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat >> /tmp/base_part1.py << 'EOF'\n    def _legacy_decode(self, session_data):\n        # RemovedInDjango40Warning: pre-Django 3.1 format will be invalid.\n        # base64.b64decode can raise binascii.Error (e.g. incorrect padding)\n        try:\n            encoded_data = base64.b64decode(session_data.encode('ascii'))\n            # could produce ValueError if there is no ':'\n            hash, serialized = encoded_data.split(b':', 1)\n            expected_hash = self._hash(serialized)\n            if not constant_time_compare(hash.decode(), expected_hash):\n                raise SuspiciousSession(\"Session data corrupted\")\n            else:\n                return self.serializer().loads(serialized)\n        except Exception as e:\n            # ValueError, SuspiciousOperation, unpickling exceptions. If any of\n            # these happen, just return an empty dictionary (an empty session).\n            if isinstance(e, SuspiciousOperation):\n                logger = logging.getLogger('django.security.%s' % e.__class__.__name__)\n                logger.warning(str(e))\n            return {}\nEOF",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "tail -n +151 /testbed/django/contrib/sessions/backends/base.py > /tmp/base_part2.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cat /tmp/base_part1.py /tmp/base_part2.py > /testbed/django/contrib/sessions/backends/base.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "sed -n '130,155p' /testbed/django/contrib/sessions/backends/base.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "grep -n \"def _legacy_decode\" /testbed/django/contrib/sessions/backends/base.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && git checkout django/contrib/sessions/backends/base.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "sed -n '130,155p' /testbed/django/contrib/sessions/backends/base.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "sed -n '133,150p' /testbed/django/contrib/sessions/backends/base.py",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "python3 << 'PYTHON'\nimport re\n\nwith open('/testbed/django/contrib/sessions/backends/base.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the _legacy_decode method\nold_method = '''    def _legacy_decode(self, session_data):\n        # RemovedInDjango40Warning: pre-Django 3.1 format will be invalid.\n        encoded_data = base64.b64decode(session_data.encode('ascii'))\n        try:\n            # could produce ValueError if there is no ':'\n            hash, serialized = encoded_data.split(b':', 1)\n            expected_hash = self._hash(serialized)\n            if not constant_time_compare(hash.decode(), expected_hash):\n                raise SuspiciousSession(\"Session data corrupted\")\n            else:\n                return self.serializer().loads(serialized)\n        except Exception as e:\n            # ValueError, SuspiciousOperation, unpickling exceptions. If any of\n            # these happen, just return an empty dictionary (an empty session).\n            if isinstance(e, SuspiciousOperation):\n                logger = logging.getLogger('django.security.%s' % e.__class__.__name__)\n                logger.warning(str(e))\n            return {}'''\n\nnew_method = '''    def _legacy_decode(self, session_data):\n        # RemovedInDjango40Warning: pre-Django 3.1 format will be invalid.\n        # base64.b64decode can raise binascii.Error (e.g. incorrect padding).\n        try:\n            encoded_data = base64.b64decode(session_data.encode('ascii'))\n            # could produce ValueError if there is no ':'\n            hash, serialized = encoded_data.split(b':', 1)\n            expected_hash = self._hash(serialized)\n            if not constant_time_compare(hash.decode(), expected_hash):\n                raise SuspiciousSession(\"Session data corrupted\")\n            else:\n                return self.serializer().loads(serialized)\n        except Exception as e:\n            # ValueError, SuspiciousOperation, unpickling exceptions. If any of\n            # these happen, just return an empty dictionary (an empty session).\n            if isinstance(e, SuspiciousOperation):\n                logger = logging.getLogger('django.security.%s' % e.__class__.__name__)\n                logger.warning(str(e))\n            return {}'''\n\ncontent = content.replace(old_method, new_method)\n\nwith open('/testbed/django/contrib/sessions/backends/base.py', 'w') as f:\n    f.write(content)\n\nprint(\"File updated successfully\")\nPYTHON",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "sed -n '130,155p' /testbed/django/contrib/sessions/backends/base.py",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/sessions_tests/tests.py::SessionTests::test_decode -xvs 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 164.9
+  },
+  {
+   "cmd": "cd /testbed && python -m django test sessions_tests.tests.SessionTests.test_decode --settings=sessions_tests.settings 2>&1",
+   "hit": null,
+   "lat_ms": 779.3
+  },
+  {
+   "cmd": "cd /testbed && python -m django test sessions_tests --settings=sessions_tests.settings 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 421.6
+  },
+  {
+   "cmd": "cd /testbed && ls tests/",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed/tests && python -m django test sessions_tests --settings=sessions_tests.settings 2>&1",
+   "hit": null,
+   "lat_ms": 378.9
+  },
+  {
+   "cmd": "cat /testbed/tests/sessions_tests/__init__.py",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "cat /testbed/tests/sessions_tests/models.py",
+   "hit": null,
+   "lat_ms": 118.8
+  },
+  {
+   "cmd": "cat /testbed/tests/runtests.py | head -50",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py sessions_tests 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 969.5
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'PYTHON'\nimport os\nimport sys\nimport django\n\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tests.sessions_tests.settings')\nsys.path.insert(0, '/testbed/tests')\n\n# Setup Django\ndjango.setup()\n\nfrom django.contrib.sessions.backends.db import SessionStore\nimport base64\n\n# Create a session store\nsession = SessionStore()\n\n# Test 1: Invalid base64 padding (as per the bug report)\nprint(\"Test 1: Invalid base64 padding (incorrect padding)\")\ninvalid_padding = \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"  # Invalid padding\ntry:\n    result = session.decode(invalid_padding)\n    print(f\"  SUCCESS: decode returned: {result}\")\nexcept Exception as e:\n    print(f\"  FAILED: {type(e).__name__}: {e}\")\n\n# Test 2: Valid base64 but wrong content\nprint(\"\\nTest 2: Valid base64 but wrong content\")\nwrong_content = base64.b64encode(b'justsomegarbage').decode('ascii')\ntry:\n    result = session.decode(wrong_content)\n    print(f\"  SUCCESS: decode returned: {result}\")\nexcept Exception as e:\n    print(f\"  FAILED: {type(e).__name__}: {e}\")\n\n# Test 3: Completely invalid string\nprint(\"\\nTest 3: Completely invalid string (not base64)\")\ninvalid_string = \"!!!not base64!!!\"\ntry:\n    result = session.decode(invalid_string)\n    print(f\"  SUCCESS: decode returned: {result}\")\nexcept Exception as e:\n    print(f\"  FAILED: {type(e).__name__}: {e}\")\n\n# Test 4: Valid legacy session\nprint(\"\\nTest 4: Valid legacy session (should work)\")\nimport warnings\nfrom django.utils.deprecation import RemovedInDjango40Warning\n\nwith warnings.catch_warnings():\n    warnings.filterwarnings(\"ignore\", category=RemovedInDjango40Warning)\n    legacy_encoded = (\n        'OWUzNTNmNWQxNTBjOWExZmM4MmQ3NzNhMDRmMjU4NmYwNDUyNGI2NDp7ImEgdGVzd'\n        'CBrZXkiOiJhIHRlc3QgdmFsdWUifQ=='\n    )\n    try:\n        result = session.decode(legacy_encoded)\n        print(f\"  SUCCESS: decode returned: {result}\")\n    except Exception as e:\n        print(f\"  FAILED: {type(e).__name__}: {e}\")\n\n# Test 5: Valid current session\nprint(\"\\nTest 5: Valid current session format (should work)\")\ndata = {'a test key': 'a test value'}\nencoded = session.encode(data)\nprint(f\"  Encoded: {encoded[:50]}...\")\ntry:\n    result = session.decode(encoded)\n    print(f\"  SUCCESS: decode returned: {result}\")\nexcept Exception as e:\n    print(f\"  FAILED: {type(e).__name__}: {e}\")\n\nprint(\"\\nAll tests completed!\")\nPYTHON",
+   "hit": null,
+   "lat_ms": 382.4
+  },
+  {
+   "cmd": "cat /testbed/tests/sessions_tests/tests.py | head -50",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cd /testbed/tests && python3 << 'PYTHON'\nimport sys\nimport os\nimport django\n\n# Add the tests directory to path\nsys.path.insert(0, '/testbed/tests')\n\n# Configure Django settings\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sessions_tests.settings')\n\n# Need to create settings module\nif not os.path.exists('/testbed/tests/sessions_tests/settings.py'):\n    with open('/testbed/tests/sessions_tests/settings.py', 'w') as f:\n        f.write('''\nimport os\nBASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))\nSECRET_KEY = 'test-secret-key'\nDEBUG = True\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),\n    }\n}\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.sessions',\n]\nMIDDLEWARE = []\nSESSION_ENGINE = 'django.contrib.sessions.backends.db'\n''')\n\n# Setup Django\ndjango.setup()\n\nfrom django.contrib.sessions.backends.db import SessionStore\nimport base64\nimport warnings\nfrom django.utils.deprecation import RemovedInDjango40Warning\n\n# Create a session store\nsession = SessionStore()\n\n# Test 1: Invalid base64 padding (as per the bug report)\nprint(\"Test 1: Invalid base64 padding (incorrect padding)\")\ninvalid_padding = \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"  # Invalid padding\ntry:\n    result = session.decode(invalid_padding)\n    print(f\"  SUCCESS: decode returned: {result}\")\nexcept Exception as e:\n    print(f\"  FAILED: {type(e).__name__}: {e}\")\n\n# Test 2: Valid base64 but wrong content\nprint(\"\\nTest 2: Valid base64 but wrong content\")\nwrong_content = base64.b64encode(b'justsomegarbage').decode('ascii')\ntry:\n    result = session.decode(wrong_content)\n    print(f\"  SUCCESS: decode returned: {result}\")\nexcept Exception as e:\n    print(f\"  FAILED: {type(e).__name__}: {e}\")\n\n# Test 3: Completely invalid string\nprint(\"\\nTest 3: Completely invalid string (not base64)\")\ninvalid_string = \"!!!not base64!!!\"\ntry:\n    result = session.decode(invalid_string)\n    print(f\"  SUCCESS: decode returned: {result}\")\nexcept Exception as e:\n    print(f\"  FAILED: {type(e).__name__}: {e}\")\n\n# Test 4: Valid legacy session\nprint(\"\\nTest 4: Valid legacy session (should work)\")\nwith warnings.catch_warnings():\n    warnings.filterwarnings(\"ignore\", category=RemovedInDjango40Warning)\n    legacy_encoded = (\n        'OWUzNTNmNWQxNTBjOWExZmM4MmQ3NzNhMDRmMjU4NmYwNDUyNGI2NDp7ImEgdGVzd'\n        'CBrZXkiOiJhIHRlc3QgdmFsdWUifQ=='\n    )\n    try:\n        result = session.decode(legacy_encoded)\n        print(f\"  SUCCESS: decode returned: {result}\")\n    except Exception as e:\n        print(f\"  FAILED: {type(e).__name__}: {e}\")\n\n# Test 5: Valid current session\nprint(\"\\nTest 5: Valid current session format (should work)\")\ndata = {'a test key': 'a test value'}\nencoded = session.encode(data)\nprint(f\"  Encoded: {encoded[:50]}...\")\ntry:\n    result = session.decode(encoded)\n    print(f\"  SUCCESS: decode returned: {result}\")\nexcept Exception as e:\n    print(f\"  FAILED: {type(e).__name__}: {e}\")\n\nprint(\"\\nAll tests completed!\")\nPYTHON",
+   "hit": null,
+   "lat_ms": 379.2
+  },
+  {
+   "cmd": "cd /testbed/tests && python3 << 'PYTHON'\nimport sys\nimport os\n\n# Add the tests directory to path\nsys.path.insert(0, '/testbed/tests')\n\n# Run using runtests.py\nfrom django.test.utils import get_runner\nfrom django.conf import settings\n\n# Import the test module directly\nfrom sessions_tests import tests\n\n# Create a test runner\nTestRunner = get_runner(settings)\n\n# Run just the decode tests\nimport unittest\nloader = unittest.TestLoader()\nsuite = unittest.TestSuite()\n\n# Add specific test methods\nsuite.addTest(tests.SessionTests('test_decode'))\nsuite.addTest(tests.SessionTests('test_decode_legacy'))\nsuite.addTest(tests.SessionTests('test_decode_failure_logged_to_security'))\n\n# Run tests\nrunner = TestRunner(verbosity=2)\nresult = runner.run_tests(suite)\n\nif result.wasSuccessful():\n    print(\"\\n=== All decode tests passed! ===\")\nelse:\n    print(\"\\n=== Some tests failed ===\")\n    for failure in result.failures + result.errors:\n        print(failure[1])\nPYTHON",
+   "hit": null,
+   "lat_ms": 391.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py sessions_tests.tests.SessionTests.test_decode sessions_tests.tests.SessionTests.test_decode_legacy sessions_tests.tests.SessionTests.test_decode_failure_logged_to_security 2>&1",
+   "hit": null,
+   "lat_ms": 571.1
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py sessions_tests.tests 2>&1 | grep -A 5 \"test_decode\"",
+   "hit": null,
+   "lat_ms": 774.3
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py sessions_tests 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 773.8
+  },
+  {
+   "cmd": "sed -n '133,152p' /testbed/django/contrib/sessions/backends/base.py",
+   "hit": null,
+   "lat_ms": 166.0
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'PYTHON'\n# Direct test without Django setup\nimport base64\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Test the _legacy_decode method directly\nfrom django.contrib.sessions.backends.base import SessionBase\n\nclass TestSessionStore(SessionBase):\n    def __init__(self):\n        self.key_salt = 'test'\n        from django.conf import settings\n        if not settings.configured:\n            settings.configure(SECRET_KEY='test-secret-key')\n        super().__init__()\n    \n    def load(self):\n        return {}\n    \n    def exists(self, key):\n        return False\n    \n    def create(self):\n        pass\n    \n    def save(self, must_create=False):\n        pass\n    \n    def delete(self, key=None):\n        pass\n\nsession = TestSessionStore()\n\nprint(\"Testing _legacy_decode with invalid padding:\")\nprint(\"=\" * 60)\n\n# Test 1: Invalid padding (the original bug)\ntest_cases = [\n    (\"Invalid padding (too short)\", \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"),\n    (\"Invalid padding (too long)\", \"x\" * 100),\n    (\"Not base64 at all\", \"!!!not base64!!!\"),\n    (\"Valid base64 but garbage\", base64.b64encode(b'justsomegarbage').decode('ascii')),\n    (\"Valid base64 with colon but bad hash\", base64.b64encode(b'badhash:somedata').decode('ascii')),\n]\n\nfor name, data in test_cases:\n    try:\n        result = session._legacy_decode(data)\n        print(f\"\u2713 {name}: returned {result}\")\n    except Exception as e:\n        print(f\"\u2717 {name}: {type(e).__name__}: {e}\")\n\nprint(\"\\n\" + \"=\" * 60)\nprint(\"All tests passed! Invalid padding no longer crashes.\")\nPYTHON",
+   "hit": null,
+   "lat_ms": 249.3
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'PYTHON'\n# Direct test without Django setup\nimport base64\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Test the _legacy_decode method directly\nfrom django.conf import settings\nif not settings.configured:\n    settings.configure(SECRET_KEY='***')\n\nfrom django.contrib.sessions.backends.base import SessionBase\n\nclass TestSessionStore(SessionBase):\n    def __init__(self):\n        super().__init__()\n    \n    def load(self):\n        return {}\n    \n    def exists(self, key):\n        return False\n    \n    def create(self):\n        pass\n    \n    def save(self, must_create=False):\n        pass\n    \n    def delete(self, key=None):\n        pass\n\nsession = TestSessionStore()\n\nprint(\"Testing _legacy_decode with invalid padding:\")\nprint(\"=\" * 60)\n\n# Test 1: Invalid padding (the original bug)\ntest_cases = [\n    (\"Invalid padding (too short)\", \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"),\n    (\"Invalid padding (too long)\", \"x\" * 100),\n    (\"Not base64 at all\", \"!!!not base64!!!\"),\n    (\"Valid base64 but garbage\", base64.b64encode(b'justsomegarbage').decode('ascii')),\n    (\"Valid base64 with colon but bad hash\", base64.b64encode(b'badhash:somedata').decode('ascii')),\n]\n\nfor name, data in test_cases:\n    try:\n        result = session._legacy_decode(data)\n        print(f\"\u2713 {name}: returned {result}\")\n    except Exception as e:\n        print(f\"\u2717 {name}: {type(e).__name__}: {e}\")\n\nprint(\"\\n\" + \"=\" * 60)\nprint(\"All tests passed! Invalid padding no longer crashes.\")\nPYTHON",
+   "hit": null,
+   "lat_ms": 249.7
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'PYTHON'\n# Direct test without Django setup\nimport base64\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Test the _legacy_decode method directly\nfrom django.conf import settings\nif not settings.configured:\n    settings.configure(SECRET_KEY='***')\n\nfrom django.contrib.sessions.backends.base import SessionBase\n\nclass TestSessionStore(SessionBase):\n    def __init__(self):\n        super().__init__()\n    \n    def load(self):\n        return {}\n    \n    def exists(self, key):\n        return False\n    \n    def create(self):\n        pass\n    \n    def save(self, must_create=False):\n        pass\n    \n    def delete(self, key=None):\n        pass\n\nsession = TestSessionStore()\n\nprint(\"Testing _legacy_decode with invalid padding:\")\nprint(\"=\" * 60)\n\n# Test 1: Invalid padding (the original bug)\ntest_cases = [\n    (\"Invalid padding (too short)\", \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"),\n    (\"Invalid padding (too long)\", \"x\" * 100),\n    (\"Not base64 at all\", \"!!!not base64!!!\"),\n    (\"Valid base64 but garbage\", base64.b64encode(b'justsomegarbage').decode('ascii')),\n    (\"Valid base64 with colon but bad hash\", base64.b64encode(b'badhash:somedata').decode('ascii')),\n]\n\nfor name, data in test_cases:\n    try:\n        result = session._legacy_decode(data)\n        print(f\"[PASS] {name}: returned {result}\")\n    except Exception as e:\n        print(f\"[FAIL] {name}: {type(e).__name__}: {e}\")\n\nprint(\"\\n\" + \"=\" * 60)\nprint(\"All tests passed! Invalid padding no longer crashes.\")\nPYTHON",
+   "hit": null,
+   "lat_ms": 249.7
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py sessions_tests 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 772.8
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py sessions_tests 2>&1 | grep -E \"(OK|FAILED|Ran)\"",
+   "hit": null,
+   "lat_ms": 777.2
+  },
+  {
+   "cmd": "cd /testbed && git diff django/contrib/sessions/backends/base.py",
+   "hit": null,
+   "lat_ms": 111.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-13321",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 13092.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

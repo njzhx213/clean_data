@@ -1,0 +1,351 @@
+{
+ "calls": 59,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 26045.35484313965,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"set_cmap\" lib/matplotlib/tests/test_pyplot.py lib/matplotlib/tests/test_colors.py lib/matplotlib/tests/test_image.py 2>/dev/null | head -20; echo ======; grep -n \"def get_cmap\" -A 12 lib/matplotlib/pyplot.py | head -40; echo ======; grep -n \"def __eq__\" -A 12 lib/matplotlib/colors.py",
+   "hit": null,
+   "lat_ms": 116.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"^from\\|^import\\|colormaps\" lib/matplotlib/pyplot.py | sed -n 1,40p && grep -n \"def colormaps\\|colormaps =\\|_colormaps\" lib/matplotlib/pyplot.py | head",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\npath = 'lib/matplotlib/pyplot.py'\nsrc = open(path).read()\n\nold = '''def set_cmap(cmap: Colormap | str) -> None:\n    \"\"\"\n    Set the default colormap, and applies it to the current image if any.\n\n    Parameters\n    ----------\n    cmap : `~matplotlib.colors.Colormap` or str\n        A colormap instance or the name of a registered colormap.\n\n    See Also\n    --------\n    colormaps\n    matplotlib.cm.register_cmap\n    matplotlib.cm.get_cmap\n    \"\"\"\n    cmap = get_cmap(cmap)\n\n    rc('image', cmap=cmap.name)\n    im = gci()\n\n    if im is not None:\n        im.set_cmap(cmap)\n'''\n\nnew = '''def set_cmap(cmap: Colormap | str | None) -> None:\n    \"\"\"\n    Set the default colormap, and applies it to the current image if any.\n\n    Parameters\n    ----------\n    cmap : `~matplotlib.colors.Colormap` or str\n        A colormap instance or the name of a registered colormap.\n\n    See Also\n    --------\n    colormaps\n    matplotlib.cm.register_cmap\n    matplotlib.cm.get_cmap\n    \"\"\"\n    if isinstance(cmap, str):\n        # Validate the name, and remember it: the rcParam must hold the name\n        # the colormap was registered under, not the colormap's (possibly\n        # different) internal name, so that the default colormap can be\n        # looked up by name at a later time.\n        name = cmap\n        _api.check_in_list(sorted(colormaps), cmap=name)\n        cmap = colormaps[name]\n    else:\n        if cmap is None:\n            cmap = colormaps[rcParams[\"image.cmap\"]]\n        if cmap.name not in colormaps:\n            # Register the colormap under its own name so that the name\n            # stored in the rcParam can be resolved at a later time.\n            colormaps.register(cmap)\n        name = cmap.name\n        cmap = colormaps[name]\n\n    rc('image', cmap=name)\n    im = gci()\n\n    if im is not None:\n        im.set_cmap(cmap)\n'''\n\nassert src.count(old) == 1, f\"expected exactly 1 match, found {src.count(old)}\"\nopen(path, 'w').write(src.replace(old, new))\nprint(\"pyplot.py patched OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 163.4
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'lib/matplotlib/cm.py'\nsrc = open(path).read()\n\nold = '''    if isinstance(cmap, colors.Colormap):\n        return cmap\n    cmap_name = cmap if cmap is not None else mpl.rcParams[\"image.cmap\"]\n    # use check_in_list to ensure type stability of the exception raised by\n    # the internal usage of this (ValueError vs KeyError)\n    _api.check_in_list(sorted(_colormaps), cmap=cmap_name)\n    return mpl.colormaps[cmap_name]\n'''\n\nnew = '''    if isinstance(cmap, colors.Colormap):\n        return cmap\n    cmap_name = cmap if cmap is not None else mpl.rcParams[\"image.cmap\"]\n    if isinstance(cmap_name, colors.Colormap):\n        # The rcParam may hold a Colormap instance directly (the validator\n        # allows it), in which case no name lookup is needed.\n        return cmap_name\n    # use check_in_list to ensure type stability of the exception raised by\n    # the internal usage of this (ValueError vs KeyError)\n    _api.check_in_list(sorted(_colormaps), cmap=cmap_name)\n    return mpl.colormaps[cmap_name]\n'''\n\nassert src.count(old) == 1, f\"expected exactly 1 match, found {src.count(old)}\"\nopen(path, 'w').write(src.replace(old, new))\nprint(\"cm.py patched OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF' 2>&1 | grep -v MatplotlibDeprecationWarning\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\nimport matplotlib\nmatplotlib.use('Agg')\nfrom matplotlib import cm\nfrom matplotlib.colors import LinearSegmentedColormap\nimport matplotlib.pyplot as plt\nimport numpy as np\n\ndef make_cmap(name):\n    return LinearSegmentedColormap.from_list(name,\n        [[0, 0, 0], [0.5, 0.25, 0.1], [1, 1, 1]])\n\n# Scenario 1: the exact issue repro\nmy_cmap = make_cmap('some_cmap_name')\ncm.register_cmap(name='my_cmap_name', cmap=my_cmap)\nplt.set_cmap('my_cmap_name')\nprint(\"1) rcParam:\", matplotlib.rcParams['image.cmap'])\nim = plt.imshow([[1, 1], [2, 2]])\nprint(\"1) imshow OK, im.cmap.name =\", im.cmap.name,\n      \"| colors equal:\",\n      np.array_equal(im.to_rgba([[0, 0], [1, 1]]),\n                     cm.get_cmap('my_cmap_name')([[0, 0], [1, 1]])))\nplt.close('all')\n\n# Scenario 2: imported cmap registered under new name\ncmap2 = make_cmap('internal_name')\ncm.register_cmap(name='imported_cmap', cmap=cmap2)\nplt.set_cmap('imported_cmap')\nim = plt.imshow([[1, 1], [2, 2]])\nprint(\"2) imshow OK, im.cmap.name =\", im.cmap.name)\nplt.close('all')\n\n# Scenario 3: set_cmap with a Colormap instance (unregistered)\ncmap3 = make_cmap('instance_cmap')\nplt.set_cmap(cmap3)\nprint(\"3) rcParam:\", matplotlib.rcParams['image.cmap'],\n      \"| registered:\", 'instance_cmap' in plt.colormaps)\nim = plt.imshow([[1, 1], [2, 2]])\nprint(\"3) imshow OK, im.cmap.name =\", im.cmap.name)\nplt.close('all')\n\n# Scenario 4: set_cmap with an instance registered under a DIFFERENT name\ncmap4 = make_cmap('instance_internal')\ncm.register_cmap(name='instance_external', cmap=cmap4)\nplt.set_cmap(cmap4)\nprint(\"4) rcParam:\", matplotlib.rcParams['image.cmap'])\nim = plt.imshow([[1, 1], [2, 2]])\nprint(\"4) imshow OK, im.cmap.name =\", im.cmap.name)\nplt.close('all')\n\n# Scenario 5: builtin still fine + bad name still errors\nplt.set_cmap('viridis')\nim = plt.imshow([[1, 1], [2, 2]])\nprint(\"5) builtin OK, im.cmap.name =\", im.cmap.name)\ntry:\n    plt.set_cmap('AardvarksAreAwkward')\n    print(\"5) ERROR: no exception\")\nexcept ValueError as e:\n    print(\"5) bad name raises ValueError OK\")\nplt.close('all')\n\n# Scenario 6: set_cmap(None) no longer crashes / behaves sanely\nplt.set_cmap('plasma')\nplt.set_cmap(None)\nprint(\"6) set_cmap(None) OK, rcParam:\", matplotlib.rcParams['image.cmap'])\nplt.close('all')\n\n# Scenario 7: rcParam holding a Colormap instance directly (validator allows it)\ncmap7 = make_cmap('direct_instance')\nmatplotlib.rcParams['image.cmap'] = cmap7\nim = plt.imshow([[1, 1], [2, 2]])\nprint(\"7) rcParam instance OK, im.cmap.name =\", im.cmap.name)\nmatplotlib.rcParams['image.cmap'] = 'viridis'\nplt.close('all')\n\n# Scenario 8: existing equality semantics preserved\nnew_cm = plt.colormaps[\"viridis\"]\ncm.register_cmap(\"viridis2\", new_cm)\nassert plt.colormaps[\"viridis2\"] == new_cm\nprint(\"8) registry equality semantics preserved\")\ncm.unregister_cmap(\"viridis2\")\nprint(\"ALL SCENARIOS PASS\")\nEOF",
+   "hit": null,
+   "lat_ms": 2974.5
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF' 2>&1 | tail -5\nimport warnings; warnings.filterwarnings('ignore')\nimport matplotlib; matplotlib.use('Agg')\nimport matplotlib.pyplot as plt\nfrom matplotlib import cm\nfrom matplotlib.colors import LinearSegmentedColormap\nimport numpy as np\n\ncmap = LinearSegmentedColormap.from_list('some_cmap_name', [[0,0,0],[0.5,0.25,0.1],[1,1,1]])\ncm.register_cmap(name='my_cmap_name', cmap=cmap)\nplt.set_cmap('my_cmap_name')\nim = plt.imshow([[1, 1], [2, 2]])\nx = np.linspace(0, 1, 5)\na = im.cmap(x); b = plt.colormaps['my_cmap_name'](x)\nprint(\"im.cmap colors == registered cmap colors:\", np.array_equal(a, b))\nplt.close('all')\nEOF",
+   "hit": null,
+   "lat_ms": 769.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest lib/matplotlib/tests/test_colors.py -x -q 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 1377.7
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest lib/matplotlib/tests/test_colors.py::test_double_register_builtin_cmap -x -q 2>&1 | tail -4; git stash pop && git diff --stat",
+   "hit": null,
+   "lat_ms": 1773.3
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python -m pytest lib/matplotlib/tests/test_colors.py lib/matplotlib/tests/test_pyplot.py -q -p no:cacheprovider 2>&1 | tail -15' > /tmp/hermes_bg_proc_fa627a0b5369.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_fa627a0b5369.exit ) & echo $! > /tmp/hermes_bg_proc_fa627a0b5369.pid && cat /tmp/hermes_bg_proc_fa627a0b5369.pid",
+   "hit": null,
+   "lat_ms": 2242.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_fa627a0b5369.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 247.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_fa627a0b5369.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_fa627a0b5369.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_fa627a0b5369.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_fa627a0b5369.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_fa627a0b5369.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_fa627a0b5369.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'lib/matplotlib/cm.py'\nsrc = open(path).read()\n\nold = '''        # get the default color map\n        if cmap is None:\n            return self[mpl.rcParams[\"image.cmap\"]]\n'''\nnew = '''        # get the default color map\n        if cmap is None:\n            cmap = mpl.rcParams[\"image.cmap\"]\n            if isinstance(cmap, colors.Colormap):\n                # The rcParam may hold a Colormap instance directly\n                # (the validator allows it), so no name lookup is needed.\n                return cmap\n            return self[cmap]\n'''\nassert src.count(old) == 1, f\"expected exactly 1 match, found {src.count(old)}\"\nopen(path, 'w').write(src.replace(old, new))\nprint(\"cm.py get_cmap patched OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /testbed && ls doc/users/next_whats_new/ 2>/dev/null && sed -n 2258,2300p lib/matplotlib/pyplot.py",
+   "hit": null,
+   "lat_ms": 113.3
+  },
+  {
+   "cmd": "cd /testbed && ls doc/users/next_whats_new/ && sed -n '182,220p' lib/matplotlib/cm.py && sed -n '2266,2300p' lib/matplotlib/pyplot.py",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "cd /testbed && cat doc/users/next_whats_new/pie_hatch.rst",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && cat > doc/users/next_whats_new/set_cmap.rst <<'EOF'\n``pyplot.set_cmap`` with a colormap registered under a different name\n---------------------------------------------------------------------\n\n`~matplotlib.pyplot.set_cmap` now keeps the registered name (the name the\ncolormap was registered under, or the name passed as a string) when setting\nthe default colormap :rc:`image.cmap`, instead of replacing it with the\ncolormap's internal `~matplotlib.colors.Colormap.name`.  As a result, a\ncolormap registered under a name different from its internal name can be\nused as the default colormap:\n\n.. code-block:: python\n\n    my_cmap = LinearSegmentedColormap.from_list('internal_name', data)\n    mpl.colormaps.register(my_cmap, name='registered_name')\n    plt.set_cmap('registered_name')\n    ax.imshow(X)  # works; previously raised \"ValueError: 'internal_name' ...\"\n\nSimilarly, passing a `~matplotlib.colors.Colormap` instance to\n`~matplotlib.pyplot.set_cmap` now registers the instance under its own name\nif it was not registered yet, so that the default colormap can be looked up\nby name at a later time.\nEOF\necho written && ls doc/users/next_whats_new/",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest lib/matplotlib/tests/test_pyplot.py::test_pyplot_up_to_date -q -p no:cacheprovider 2>&1 | tail -4; git stash pop",
+   "hit": null,
+   "lat_ms": 3772.9
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python -m pytest lib/matplotlib/tests/test_colors.py lib/matplotlib/tests/test_pyplot.py lib/matplotlib/tests/test_image.py lib/matplotlib/tests/test_colorbar.py -q -p no:cacheprovider 2>&1 | tail -8' > /tmp/hermes_bg_proc_7438471a76ac.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_7438471a76ac.exit ) & echo $! > /tmp/hermes_bg_proc_7438471a76ac.pid && cat /tmp/hermes_bg_proc_7438471a76ac.pid",
+   "hit": null,
+   "lat_ms": 2220.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 162.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7438471a76ac.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7438471a76ac.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 71.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7438471a76ac.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7438471a76ac.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7438471a76ac.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cd /testbed && (which ruff || pip list 2>/dev/null | grep -i ruff) ; python -m ruff --version 2>/dev/null || echo \"no ruff\"",
+   "hit": null,
+   "lat_ms": 575.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 72.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7438471a76ac.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 77.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7438471a76ac.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7438471a76ac.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7438471a76ac.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7438471a76ac.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1,45p lib/matplotlib/tests/test_pyplot.py && which ruff; ls /usr/local/bin | grep -i ruff",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7438471a76ac.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7438471a76ac.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7438471a76ac.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /testbed && cp lib/matplotlib/pyplot.py /tmp/pyplot_mine.py && python tools/boilerplate.py /tmp/pyplot_mine.py 2>&1 | tail -2 && diff /testbed/lib/matplotlib/pyplot.py /tmp/pyplot_mine.py | head -30 && echo \"=== hunks: $(diff /testbed/lib/matplotlib/pyplot.py /tmp/pyplot_mine.py | grep -c '^[0-9]')\"",
+   "hit": null,
+   "lat_ms": 2771.0
+  },
+  {
+   "cmd": "cd /testbed && diff /testbed/lib/matplotlib/pyplot.py /tmp/pyplot_mine.py | grep '^[0-9]' && grep -n \"def set_cmap\" /tmp/pyplot_mine.py",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF' 2>&1 | grep -v \"DeprecationWarning\\|register_cmap\\|unregister_cmap\\|colormaps\\[\"\nimport matplotlib\nmatplotlib.use('Agg')\nfrom matplotlib import cm\nfrom matplotlib.colors import LinearSegmentedColormap\nimport matplotlib.pyplot as plt\nimport numpy as np\n\nprint(\"=== Issue scenario A (deprecated API, verbatim from the report) ===\")\nmy_cmap_data = np.array([[1.5e-03, 4.7e-04, 1.4e-02],\n                         [2.3e-03, 1.3e-03, 1.8e-02],\n                         [3.3e-03, 2.3e-03, 2.4e-02]])\nmy_cmap = LinearSegmentedColormap.from_list('some_cmap_name', my_cmap_data)\ncm.register_cmap(name='my_cmap_name', cmap=my_cmap)\nplt.set_cmap('my_cmap_name')   # was OK before, broke imshow\nim = plt.imshow([[1, 1], [2, 2]])\nassert im.cmap is not None\nprint(\"A) plt.imshow after plt.set_cmap('my_cmap_name'): OK\")\nprint(\"A) rcParams['image.cmap'] =\", matplotlib.rcParams['image.cmap'])\nassert matplotlib.rcParams['image.cmap'] == 'my_cmap_name'\nassert cm.get_cmap('my_cmap_name') is not None\nplt.close('all')\n\nprint(\"=== Issue scenario B (imported cmap, registered under new name) ===\")\nmy_cmap2 = LinearSegmentedColormap.from_list('other_internal_name', my_cmap_data)\ncm.register_cmap(name='my_cmap_name2', cmap=my_cmap2)\nplt.set_cmap('my_cmap_name2')\nim = plt.imshow([[1, 1], [2, 2]])\nprint(\"B) OK; image uses registered colors:\",\n      np.array_equal(im.cmap(np.linspace(0, 1, 4)),\n                     cm.get_cmap('my_cmap_name2')(np.linspace(0, 1, 4))))\nplt.close('all')\n\nprint(\"=== Modern API equivalent ===\")\ncmap = LinearSegmentedColormap.from_list('internal', my_cmap_data)\nmatplotlib.colormaps.register(cmap, name='external')\nplt.set_cmap('external')\nim = plt.imshow([[1, 1], [2, 2]])\nassert matplotlib.rcParams['image.cmap'] == 'external'\nprint(\"OK; rcParam:\", matplotlib.rcParams['image.cmap'])\nmatplotlib.colormaps.unregister('external')\nplt.close('all')\n\nprint(\"=== Regression checks ===\")\n# builtins\nplt.set_cmap('jet'); im = plt.imshow([[1, 2], [3, 4]])\nassert im.cmap.name == 'jet'\n# bad name error type/message\ntry:\n    plt.set_cmap('not_a_cmap_xyz')\n    raise AssertionError(\"should have raised\")\nexcept ValueError as e:\n    assert 'not_a_cmap_xyz' in str(e)\nprint(\"builtin + error handling OK\")\n# set_cmap applies to current image\nfig, ax = plt.subplots()\nim = ax.imshow([[1, 1], [2, 2]])\nplt.set_cmap('hot')\nassert im.cmap.name == 'hot'\nprint(\"applies to current image OK\")\nplt.close('all')\nprint(\"\\nALL FINAL CHECKS PASS\")\nEOF",
+   "hit": null,
+   "lat_ms": 773.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def gci\\|def gca\\b\" -A 8 lib/matplotlib/pyplot.py | head -30 && python - <<'EOF'\nimport matplotlib; matplotlib.use('Agg')\nimport matplotlib.pyplot as plt\nfig, ax = plt.subplots()\nim = ax.imshow([[1, 1], [2, 2]])\nprint(\"before: im.cmap.name =\", im.cmap.name)\nplt.set_cmap('hot')\nprint(\"after:  im.cmap.name =\", im.cmap.name, \"| rcParam:\", matplotlib.rcParams['image.cmap'])\nEOF",
+   "hit": null,
+   "lat_ms": 773.6
+  },
+  {
+   "cmd": "cd /testbed && git stash -q && python - <<'EOF'\nimport matplotlib; matplotlib.use('Agg')\nimport matplotlib.pyplot as plt\nfig, ax = plt.subplots()\nim = ax.imshow([[1, 1], [2, 2]])\nprint(\"before: im.cmap.name =\", im.cmap.name)\nplt.set_cmap('hot')\nprint(\"after:  im.cmap.name =\", im.cmap.name, \"| rcParam:\", matplotlib.rcParams['image.cmap'])\nprint(\"gci() is im:\", plt.gci() is im)\nEOF\ngit stash pop -q",
+   "hit": null,
+   "lat_ms": 971.3
+  },
+  {
+   "cmd": "cd /testbed && git diff && echo ======= && git status --short",
+   "hit": null,
+   "lat_ms": 169.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "matplotlib__matplotlib-25479",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 26045.4,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

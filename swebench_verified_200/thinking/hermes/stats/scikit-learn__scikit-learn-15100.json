@@ -1,0 +1,146 @@
+{
+ "calls": 18,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 7353.224515914917,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 74.4
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd ~ && python3 --version; python3 -c \"import sklearn; print('sklearn', sklearn.__version__); print(sklearn.__file__)\" 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "python3 - <<'EOF'\nimport unicodedata\n# Check the category of the combining tilde\nc = chr(771)\nprint(\"U+0303 repr:\", repr(c), \"category:\", unicodedata.category(c))\ns2 = chr(110) + chr(771)\nprint(\"s2:\", [hex(ord(x)) for x in s2])\nprint(\"NFD of s2:\", [hex(ord(x)) for x in unicodedata.normalize(\"NFD\", s2)])\nEOF",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"strip_accents\" sklearn/feature_extraction/text.py | head -30",
+   "hit": null,
+   "lat_ms": 68.0
+  },
+  {
+   "cmd": "cd /testbed && PYTHONIOENCODING=utf-8 python3 - <<'EOF'\nimport unicodedata\nfrom sklearn.feature_extraction.text import strip_accents_unicode\n\ns1 = chr(241)  # LATIN SMALL LETTER N WITH TILDE (precomposed)\ns2 = chr(110) + chr(771)  # n + COMBINING TILDE (decomposed)\n\nprint(\"s1 codepoints:\", [hex(ord(c)) for c in s1])\nprint(\"s2 codepoints:\", [hex(ord(c)) for c in s2])\nprint(\"strip(s1) == 'n':\", strip_accents_unicode(s1) == \"n\")\nprint(\"strip(s2) == s2 (unchanged):\", strip_accents_unicode(s2) == s2)\nprint(\"strip(s2) codepoints:\", [hex(ord(c)) for c in strip_accents_unicode(s2)])\nEOF",
+   "hit": null,
+   "lat_ms": 569.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n '100,160p' sklearn/feature_extraction/text.py",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 && git status --short | head; grep -n \"strip_accents\" sklearn/feature_extraction/tests/test_text.py",
+   "hit": null,
+   "lat_ms": 256.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '55,125p' sklearn/feature_extraction/tests/test_text.py",
+   "hit": null,
+   "lat_ms": 133.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,30p' sklearn/feature_extraction/tests/test_text.py",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport io\n\npath = 'sklearn/feature_extraction/text.py'\nsrc = io.open(path, encoding='utf-8').read()\n\nold = \"\"\"    normalized = unicodedata.normalize('NFKD', s)\n    if normalized == s:\n        return s\n    else:\n        return ''.join([c for c in normalized if not unicodedata.combining(c)])\"\"\"\n\nnew = \"\"\"    return ''.join([c for c in unicodedata.normalize('NFKD', s)\n                    if not unicodedata.combining(c)])\"\"\"\n\nassert old in src, \"pattern not found\"\nsrc = src.replace(old, new)\nio.open(path, 'w', encoding='utf-8').write(src)\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport io\n\npath = 'sklearn/feature_extraction/tests/test_text.py'\nsrc = io.open(path, encoding='utf-8').read()\n\n# 1. add unicodedata import\nold_import = \"# -*- coding: utf-8 -*-\\nfrom collections.abc import Mapping\\nimport re\\nimport warnings\\n\"\nnew_import = \"# -*- coding: utf-8 -*-\\nfrom collections.abc import Mapping\\nimport re\\nimport unicodedata\\nimport warnings\\n\"\nassert old_import in src\nsrc = src.replace(old_import, new_import)\n\n# 2. extend test_strip_accents with decomposed-form regression checks\nold_test = \"\"\"    # mix letters accentuated and not\n    a = \"this is \u00e0 test\"\n    expected = 'this is a test'\n    assert strip_accents_unicode(a) == expected\n\"\"\"\nnew_test = \"\"\"    # mix letters accentuated and not\n    a = \"this is \u00e0 test\"\n    expected = 'this is a test'\n    assert strip_accents_unicode(a) == expected\n\n    # strings already in decomposed (NFKD) form must be stripped the\n    # same way (regression test for issue #14721)\n    a = unicodedata.normalize('NFKD', '\u00e0\u00e1\u00e2\u00e3\u00e4\u00e5\u00e7\u00e8\u00e9\u00ea\u00eb')\n    expected = 'aaaaaaceeee'\n    assert strip_accents_unicode(a) == expected\n\n    a = 'n\\\\u0303'  # n + COMBINING TILDE, i.e. \u00f1 in NFKD form\n    expected = 'n'\n    assert strip_accents_unicode(a) == expected\n\"\"\"\nassert old_test in src\nsrc = src.replace(old_test, new_test)\nio.open(path, 'w', encoding='utf-8').write(src)\nprint(\"test patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 117.6
+  },
+  {
+   "cmd": "cd /testbed && PYTHONIOENCODING=utf-8 python3 - <<'EOF'\nfrom sklearn.feature_extraction.text import strip_accents_unicode\n\ns1 = chr(241)              # precomposed \u00f1\ns2 = chr(110) + chr(771)   # n + COMBINING TILDE (NFKD form)\n\nprint(\"strip(s1):\", repr(strip_accents_unicode(s1)))\nprint(\"strip(s2):\", repr(strip_accents_unicode(s2)))\nassert strip_accents_unicode(s1) == 'n'\nassert strip_accents_unicode(s2) == 'n'\nassert strip_accents_unicode(s1) == strip_accents_unicode(s2)\nprint(\"OK: both forms normalize to 'n'\")\n\n# also check via CountVectorizer end-to-end\nfrom sklearn.feature_extraction.text import CountVectorizer\ncv = CountVectorizer(strip_accents='unicode')\nX1 = cv.fit_transform([s1])\nX2 = cv.fit_transform([s2])\nprint(\"vectors equal:\", (X1 == X2).all() and X1[0, 0] == 1)\nEOF",
+   "hit": null,
+   "lat_ms": 770.4
+  },
+  {
+   "cmd": "cd /testbed && PYTHONIOENCODING=utf-8 python3 - <<'EOF'\nimport unicodedata\nfrom sklearn.feature_extraction.text import CountVectorizer\n\nprecomposed = 'caf\\u00e9 na\\u00efve'          # precomposed\ndecomposed  = unicodedata.normalize('NFKD', precomposed)  # NFKD form\n\ncv = CountVectorizer(strip_accents='unicode')\nX1 = cv.fit_transform([precomposed])\nX2 = cv.fit_transform([decomposed])\nprint(\"vocabulary (precomposed):\", cv.get_feature_names())\nprint(\"vectors equal:\", (X1 == X2).all())\nassert (X1 == X2).all() and len(cv.get_feature_names()) == 2\nprint(\"OK: precomposed and decomposed docs produce identical vectors\")\nEOF",
+   "hit": null,
+   "lat_ms": 774.1
+  },
+  {
+   "cmd": "cd /testbed && PYTHONIOENCODING=utf-8 python3 - <<'EOF'\nimport numpy as np\nimport unicodedata\nfrom sklearn.feature_extraction.text import CountVectorizer\n\nprecomposed = 'caf\\u00e9 na\\u00efve'\ndecomposed  = unicodedata.normalize('NFKD', precomposed)\n\ncv = CountVectorizer(strip_accents='unicode')\nX1 = cv.fit_transform([precomposed]).toarray()\ncv2 = CountVectorizer(strip_accents='unicode')\nX2 = cv2.fit_transform([decomposed]).toarray()\nprint(\"vocabulary:\", cv.get_feature_names())\nprint(\"equal:\", np.array_equal(X1, X2))\nassert np.array_equal(X1, X2)\nprint(\"OK: precomposed and decomposed docs produce identical vectors\")\nEOF",
+   "hit": null,
+   "lat_ms": 769.8
+  },
+  {
+   "cmd": "cd /testbed && PYTHONIOENCODING=utf-8 python3 -m pytest sklearn/feature_extraction/tests/test_text.py -q 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 1770.1
+  },
+  {
+   "cmd": "cd /testbed && PYTHONIOENCODING=utf-8 python3 -m pytest sklearn/feature_extraction/tests/test_text.py::test_strip_accents -v 2>&1 | tail -5 && git diff",
+   "hit": null,
+   "lat_ms": 1027.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "scikit-learn__scikit-learn-15100",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 7353.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

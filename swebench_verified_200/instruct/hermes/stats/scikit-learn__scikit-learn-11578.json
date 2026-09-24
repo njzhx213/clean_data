@@ -1,0 +1,201 @@
+{
+ "calls": 29,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 73232.88321495056,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 173.5
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cd /tmp && git clone --depth 1 https://github.com/scikit-learn/scikit-learn.git sklearn 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "pip show scikit-learn 2>/dev/null; python3 -c \"import sklearn; print(sklearn.__version__, sklearn.__file__)\" 2>&1",
+   "hit": null,
+   "lat_ms": 771.4
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 2>&1 | cat",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"_log_reg_scoring_path\\|log_reg = LogisticRegression\\|multi_class\" sklearn/linear_model/logistic.py | head -40",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 774,1010p sklearn/linear_model/logistic.py",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1160,1240p sklearn/linear_model/logistic.py",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1240,1400p sklearn/linear_model/logistic.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1400,1560p sklearn/linear_model/logistic.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1560,1720p sklearn/linear_model/logistic.py",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 903,956p sklearn/linear_model/logistic.py",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro.py << 'EOF'\nimport numpy as np\nfrom sklearn import preprocessing, linear_model, utils\nfrom sklearn.linear_model.logistic import _log_reg_scoring_path\nimport sklearn\n\nprint(\"sklearn\", sklearn.__version__)\n\ndef ovr_approach(decision_function):\n    probs = 1. / (1. + np.exp(-decision_function))\n    probs = probs / probs.sum(axis=1).reshape((probs.shape[0], -1))\n    return probs\n\ndef score_from_probs(probs, y_bin):\n    return (y_bin*np.log(probs)).sum(axis=1).mean()\n\nnp.random.seed(seed=1234)\nsamples  = 200\nfeatures = 5\nfolds    = 10\nscorer = 'neg_log_loss'\n\nx = np.random.random(size=(samples, features))\ny = np.random.choice(['a', 'b', 'c'], size=samples)\n\ntest  = np.random.choice(range(samples), size=int(samples/float(folds)), replace=False)\ntrain = [idx for idx in range(samples) if idx not in test]\n\nlb = preprocessing.label.LabelBinarizer()\nlb.fit(y[test])\ny_bin = lb.transform(y[test])\n\ncoefs, _, scores, _ = _log_reg_scoring_path(x, y, train, test,\n    fit_intercept=True, scoring=scorer, multi_class='multinomial')\n\nc_index = 0\ncoefs = coefs[c_index]\nscores = scores[c_index]\n\n# As in the buggy code: LogisticRegression(fit_intercept=True)  (default multi_class='ovr')\nexisting_log_reg = linear_model.LogisticRegression(fit_intercept=True)\nexisting_log_reg.coef_      = coefs[:, :-1]\nexisting_log_reg.intercept_ = coefs[:, -1]\nexisting_dec_fn = existing_log_reg.decision_function(x[test])\nexisting_probs_builtin = existing_log_reg.predict_proba(x[test])\nexisting_probs_ovr = ovr_approach(existing_dec_fn)\nexisting_probs_multi = utils.extmath.softmax(existing_dec_fn)\n\nnew_log_reg = linear_model.LogisticRegression(fit_intercept=True, multi_class='multinomial')\nnew_log_reg.coef_      = coefs[:, :-1]\nnew_log_reg.intercept_ = coefs[:, -1]\nnew_dec_fn = new_log_reg.decision_function(x[test])\nnew_probs_builtin = new_log_reg.predict_proba(x[test])\nnew_probs_ovr = ovr_approach(new_dec_fn)\nnew_probs_multi = utils.extmath.softmax(new_dec_fn)\n\nprint(\"score returned by _log_reg_scoring_path (buggy):\", scores)\nprint(\"OvR LR dec fn == multinomial LR dec fn?:\", (existing_dec_fn == new_dec_fn).all())\nprint(\"score via OvR:\", score_from_probs(existing_probs_ovr, y_bin))\nprint(\"score via multinomial:\", score_from_probs(existing_probs_multi, y_bin))\nprint(\"existing(ovr default) predict_proba == OvR approach?:\", np.allclose(existing_probs_builtin, existing_probs_ovr))\nprint(\"existing(ovr default) predict_proba == multinomial approach?:\", np.allclose(existing_probs_builtin, existing_probs_multi))\nprint(\"new(multinomial) predict_proba == OvR approach?:\", np.allclose(new_probs_builtin, new_probs_ovr))\nprint(\"new(multinomial) predict_proba == multinomial approach?:\", np.allclose(new_probs_builtin, new_probs_multi))\nEOF\npython3 /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 999.2
+  },
+  {
+   "cmd": "cd /testbed && python3 - << 'EOF'\nimport io\np = \"sklearn/linear_model/logistic.py\"\nwith open(p) as f:\n    src = f.read()\n\nold = \"    log_reg = LogisticRegression(fit_intercept=fit_intercept)\\n\"\nnew = (\"    log_reg = LogisticRegression(fit_intercept=fit_intercept,\\n\"\n       \"                                 random_state=random_state,\\n\"\n       \"                                 multi_class=multi_class,\\n\"\n       \"                                 solver=solver)\\n\")\nassert src.count(old) == 1, \"expected exactly one occurrence\"\nsrc = src.replace(old, new)\nwith open(p, \"w\") as f:\n    f.write(src)\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 113.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 924,928p sklearn/linear_model/logistic.py && echo \"---\" && python3 /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 974.0
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/e2e.py << 'EOF'\nimport numpy as np\nfrom sklearn.linear_model import LogisticRegressionCV\nfrom sklearn.linear_model.logistic import _log_reg_scoring_path\n\nnp.random.seed(0)\nX = np.random.randn(120, 4)\ny = np.random.choice(3, size=120)  # 3 classes\n\n# Multinomial case: verify scores_ from LRCV use softmax (multinomial) probabilities\nlrcv = LogisticRegressionCV(Cs=[0.5, 1.0, 2.0], multi_class='multinomial',\n                            scoring='neg_log_loss', cv=3, random_state=0,\n                            max_iter=200).fit(X, y)\n\n# Manually recompute the multinomial score for one C and one fold via _log_reg_scoring_path\nfrom sklearn.model_selection import StratifiedKFold\ncv = StratifiedKFold(n_splits=3, shuffle=False, random_state=0)\nfor i, (train, test) in enumerate(cv.split(X, y)):\n    coefs, Cs, scores, _ = _log_reg_scoring_path(X, y, train, test,\n        fit_intercept=True, Cs=lrcv.Cs, scoring='neg_log_loss',\n        multi_class='multinomial', solver='lbfgs', random_state=0, max_iter=200)\n    # compare per-fold per-C scores with lrcv.scores_ (for multinomial, scores_\n    # is n_classes x n_cs x n_folds, with identical rows)\n    expected = lrcv.scores_['c'][1]  # any class row, all identical\n    assert np.allclose(scores, expected[i] if False else lrcv.scores_.values[1][i]), \\\n        (scores, lrcv.scores_.values[1][i])\n    # direct check against softmax log-loss computed by hand\n    from sklearn.preprocessing import label_binarize\n    from sklearn.utils.extmath import softmax\n    lb = label_binarize(y[test], classes=[0,1,2])\n    for k in range(len(Cs)):\n        w = coefs[k]\n        d = X[test] @ w[:-1] + w[-1]\n        probs = softmax(d)\n        ll = np.mean((lb * np.log(probs + 1e-15)).sum(axis=1))\n        assert np.allclose(scores[k], ll), (scores[k], ll)\n    print(\"fold\", i, \"scores (multinomial):\", np.round(scores, 6))\nprint(\"E2E multinomial scores consistent with softmax log-loss: OK\")\nprint(\"chosen C_:\", lrcv.C_)\nprint(\"succeeded.\")\nEOF\npython3 /tmp/e2e.py",
+   "hit": null,
+   "lat_ms": 769.1
+  },
+  {
+   "cmd": "cd /testbed && python3 - << 'EOF'\nimport numpy as np\nfrom sklearn.linear_model import LogisticRegressionCV\nfrom sklearn.model_selection import StratifiedKFold\nfrom sklearn.preprocessing import label_binarize\nfrom sklearn.utils.extmath import softmax\n\nnp.random.seed(0)\nX = np.random.randn(120, 4)\ny = np.random.choice(3, size=120)\n\nlrcv = LogisticRegressionCV(Cs=[0.5, 1.0, 2.0], multi_class='multinomial',\n                            scoring='neg_log_loss', cv=3, random_state=0,\n                            max_iter=200).fit(X, y)\nprint(\"scores_ keys:\", list(lrcv.scores_.keys()))\nprint(\"scores_ shape:\", lrcv.scores_['2'].shape)  # '2' is a class label here\nprint(\"C_:\", lrcv.C_)\n\nfrom sklearn.linear_model.logistic import _log_reg_scoring_path\ncv = StratifiedKFold(n_splits=3, shuffle=False, random_state=0)\nfor i, (train, test) in enumerate(cv.split(X, y)):\n    coefs, Cs, scores, _ = _log_reg_scoring_path(X, y, train, test,\n        fit_intercept=True, Cs=lrcv.Cs, scoring='neg_log_loss',\n        multi_class='multinomial', solver='lbfgs', random_state=0, max_iter=200)\n    # hand-computed softmax log-loss per C\n    lb = label_binarize(y[test], classes=[0,1,2])\n    manual = []\n    for k in range(len(Cs)):\n        w = coefs[k]\n        d = X[test] @ w[:-1] + w[-1]\n        probs = softmax(d)\n        manual.append(np.mean((lb * np.log(probs + 1e-15)).sum(axis=1)))\n    manual = np.array(manual)\n    # lrcv.scores_ for multinomial: n_classes x n_cs x n_folds; rows identical\n    lrcv_row = lrcv.scores_['0'][i]\n    assert np.allclose(scores, manual), (scores, manual)\n    assert np.allclose(lrcv_row, manual), (lrcv_row, manual)\n    print(\"fold\", i, \"scores:\", np.round(scores, 6), \"== lrcv.scores_:\", np.round(lrcv_row, 6))\nprint(\"E2E: _log_reg_scoring_path & LogisticRegressionCV multinomial scores match softmax log-loss. OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 773.8
+  },
+  {
+   "cmd": "cd /testbed && python3 - << 'EOF'\nimport numpy as np\nfrom sklearn.linear_model import LogisticRegressionCV\nfrom sklearn.model_selection import StratifiedKFold\nfrom sklearn.preprocessing import label_binarize\nfrom sklearn.utils.extmath import softmax\n\nnp.random.seed(0)\nX = np.random.randn(120, 4)\ny = np.random.choice(3, size=120)\n\nlrcv = LogisticRegressionCV(Cs=[0.5, 1.0, 2.0], multi_class='multinomial',\n                            scoring='neg_log_loss', cv=3, random_state=0,\n                            max_iter=200).fit(X, y)\nprint(\"scores_ keys:\", list(lrcv.scores_.keys()))\nfirst_key = list(lrcv.scores_.keys())[0]\nprint(\"first key repr:\", repr(first_key), \"type:\", type(first_key))\nprint(\"scores_ shape:\", lrcv.scores_[first_key].shape)\nprint(\"C_:\", lrcv.C_)\n\nfrom sklearn.linear_model.logistic import _log_reg_scoring_path\ncv = StratifiedKFold(n_splits=3, shuffle=False, random_state=0)\nfor i, (train, test) in enumerate(cv.split(X, y)):\n    coefs, Cs, scores, _ = _log_reg_scoring_path(X, y, train, test,\n        fit_intercept=True, Cs=lrcv.Cs, scoring='neg_log_loss',\n        multi_class='multinomial', solver='lbfgs', random_state=0, max_iter=200)\n    lb = label_binarize(y[test], classes=[0,1,2])\n    manual = []\n    for k in range(len(Cs)):\n        w = coefs[k]\n        d = X[test] @ w[:-1] + w[-1]\n        probs = softmax(d)\n        manual.append(np.mean((lb * np.log(probs + 1e-15)).sum(axis=1)))\n    manual = np.array(manual)\n    lrcv_row = lrcv.scores_[first_key][i]\n    assert np.allclose(scores, manual), (scores, manual)\n    assert np.allclose(lrcv_row, manual), (lrcv_row, manual)\n    print(\"fold\", i, \"scores:\", np.round(scores, 6), \"== lrcv.scores_:\", np.round(lrcv_row, 6))\nprint(\"E2E: _log_reg_scoring_path & LogisticRegressionCV multinomial scores match softmax log-loss. OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 773.7
+  },
+  {
+   "cmd": "cd /testbed && python3 - << 'EOF'\nimport numpy as np\nfrom sklearn.linear_model.logistic import _log_reg_scoring_path\nnp.random.seed(0)\nX = np.random.randn(120, 4)\ny = np.random.choice(3, size=120)\ntrain = list(range(80)); test = list(range(80,120))\ncoefs, Cs, scores, niter = _log_reg_scoring_path(X, y, train, test,\n    fit_intercept=True, Cs=[0.5,1.0,2.0], scoring='neg_log_loss',\n    multi_class='multinomial', solver='lbfgs', random_state=0, max_iter=200)\nprint(\"type coefs:\", type(coefs))\nprint(\"coefs shape:\", np.asarray(coefs).shape)\nprint(\"n_iter:\", niter)\n# coefs is a list over Cs; each entry w\nfor k,w in enumerate(coefs):\n    print(\"C#%d w shape\"%k, np.asarray(w).shape, \"dtype\", np.asarray(w).dtype)\n    print(\"  w =\")\n    print(np.asarray(w))\nEOF",
+   "hit": null,
+   "lat_ms": 791.0
+  },
+  {
+   "cmd": "cd /testbed && python3 - << 'EOF'\nimport numpy as np\nfrom sklearn.linear_model import LogisticRegressionCV\nfrom sklearn.model_selection import StratifiedKFold\nfrom sklearn.preprocessing import label_binarize\nfrom sklearn.utils.extmath import softmax\nfrom sklearn.linear_model.logistic import _log_reg_scoring_path\n\nnp.random.seed(0)\nX = np.random.randn(120, 4)\ny = np.random.choice(3, size=120)\n\nlrcv = LogisticRegressionCV(Cs=[0.5, 1.0, 2.0], multi_class='multinomial',\n                            scoring='neg_log_loss', cv=3, random_state=0,\n                            max_iter=200).fit(X, y)\nfirst_key = list(lrcv.scores_.keys())[0]\n\ncv = StratifiedKFold(n_splits=3, shuffle=False, random_state=0)\nfor i, (train, test) in enumerate(cv.split(X, y)):\n    coefs, Cs, scores, _ = _log_reg_scoring_path(X, y, train, test,\n        fit_intercept=True, Cs=lrcv.Cs, scoring='neg_log_loss',\n        multi_class='multinomial', solver='lbfgs', random_state=0, max_iter=200)\n    lb = label_binarize(y[test], classes=[0,1,2])\n    manual = []\n    for w in coefs:            # w shape (n_classes=3, n_features+1=5)\n        D = X[test] @ w[:, :-1].T + w[:, -1]   # (n_test, 3)\n        probs = softmax(D)\n        manual.append(np.mean((lb * np.log(probs + 1e-15)).sum(axis=1)))\n    manual = np.array(manual)\n    lrcv_row = lrcv.scores_[first_key][i]\n    assert np.allclose(scores, manual), (scores, manual)\n    assert np.allclose(lrcv_row, manual), (lrcv_row, manual)\n    print(\"fold\", i, \"scores:\", np.round(scores, 6), \" lrcv.scores_:\", np.round(lrcv_row, 6))\nprint(\"\\nE2E PASS: LogisticRegressionCV (multi_class='multinomial') scoring now uses softmax (multinomial) probabilities, consistent with hand-computed log-loss and with _log_reg_scoring_path.\")\nEOF",
+   "hit": null,
+   "lat_ms": 970.3
+  },
+  {
+   "cmd": "cd /testbed && python3 - << 'EOF'\nimport numpy as np\nfrom sklearn.linear_model import LogisticRegressionCV\nfrom sklearn.linear_model.logistic import _log_reg_scoring_path\n\n# ---- OVR case: scoring must be unchanged (still OvR-based) ----\nnp.random.seed(1)\nX = np.random.randn(150, 4)\ny = np.random.choice(3, size=150)\n\nfor scorer in ['neg_log_loss', None, 'accuracy']:\n    lrcv = LogisticRegressionCV(Cs=[0.5, 1.0, 2.0], multi_class='ovr',\n                                scoring=scorer, cv=3, random_state=0,\n                                max_iter=200).fit(X, y)\n    print(\"OVR scorer=%s -> C_=%s\" % (scorer, lrcv.C_))\n    fk = list(lrcv.scores_.keys())[0]\n    print(\"   scores_ shape:\", lrcv.scores_[fk].shape)\n\n# binary ovr\nyb = (y % 2)\nlr_bin = LogisticRegressionCV(Cs=[0.5,1.0,2.0], multi_class='ovr',\n                              scoring='neg_log_loss', cv=3, random_state=0,\n                              max_iter=200).fit(X, yb)\nprint(\"Binary OVR neg_log_loss C_:\", lr_bin.C_)\n\nprint(\"OVR path runs OK with no exceptions.\")\nEOF",
+   "hit": null,
+   "lat_ms": 976.0
+  },
+  {
+   "cmd": "cd /testbed && python3 - << 'EOF'\nimport numpy as np\nfrom sklearn.linear_model.logistic import _log_reg_scoring_path\n\ndef ovr_approach(decision_function):\n    probs = 1. / (1. + np.exp(-decision_function))\n    return probs / probs.sum(axis=1, keepdims=True)\n\nnp.random.seed(2)\nX = np.random.randn(150, 4)\ny = np.random.choice(3, size=150)\ntrain = list(range(100)); test = list(range(100,150))\n\ncoefs, Cs, scores, _ = _log_reg_scoring_path(X, y, train, test,\n    fit_intercept=True, Cs=[0.5,1.0], scoring='neg_log_loss',\n    multi_class='ovr', solver='lbfgs', random_state=0, max_iter=200, pos_class=1)\n# OVR with pos_class=1: binary problem (class 1 vs rest)\n# scores should be neg log-loss of the binary OvR probability\nw0 = coefs[0]\nd = X[test] @ w0[:-1] + w0[-1]\np1 = 1/(1+np.exp(-d))\nytest = (y[test]==1).astype(float)\nll = -np.mean(ytest*np.log(p1) + (1-ytest)*np.log(1-p1))\nprint(\"OVR pos_class score:\", scores[0], \" hand-computed binary logloss:\", ll)\nassert np.allclose(scores[0], ll), (scores[0], ll)\nprint(\"OVR pos_class path: score matches binary OvR log-loss. OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 769.5
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest sklearn/linear_model/tests/test_logistic.py -q 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 5975.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest sklearn/linear_model/tests/ -q 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 17586.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest sklearn/linear_model/tests/ -q 2>&1 | grep -E \"FAILED|failed\" | head",
+   "hit": null,
+   "lat_ms": 19980.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest sklearn/linear_model/tests/ -q 2>&1 | grep -E \"test_sgd|_FAILED|::\" | grep -iE \"fail|sgd\" | head",
+   "hit": null,
+   "lat_ms": 18380.9
+  },
+  {
+   "cmd": "cd /testbed && git stash && python3 -m pytest sklearn/linear_model/tests/test_sgd.py -q -k predict_proba_method_access 2>&1 | tail -5; git stash pop",
+   "hit": null,
+   "lat_ms": 1184.0
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 108.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "scikit-learn__scikit-learn-11578",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 73232.9,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

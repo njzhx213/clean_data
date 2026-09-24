@@ -1,0 +1,166 @@
+{
+ "calls": 22,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 5251.727104187012,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 104.9
+  },
+  {
+   "cmd": "find / -path '*django/utils/dateparse*' -name '*.py' 2>/dev/null",
+   "hit": null,
+   "lat_ms": 568.9
+  },
+  {
+   "cmd": "grep -n 'standard_duration_re' -A 12 /testbed/django/utils/dateparse.py | head -30",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport re\n# Verify the bug first\nold = re.compile(\n    r'^'\n    r'(?:(?P<days>-?\\d+) (days?, )?)?'\n    r'((?:(?P<hours>-?\\d+):)(?=\\d+:\\d+))?'\n    r'(?:(?P<minutes>-?\\d+):)?'\n    r'(?P<seconds>-?\\d+)'\n    r'(?:\\.(?P<microseconds>\\d{1,6})\\d{0,6})?'\n    r'\\$'\n)\nfor v in ['-1:00:00', '1 day, 2:30:45', '-2:30:45', '3:04:05.000006', '-1:00:00.000000']:\n    print(repr(v), bool(old.match(v)))\n\"",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom django.utils.dateparse import parse_duration, standard_duration_re\ntests = ['-1:00:00', '-1 day, -2:30:45', '-2:30:45', '3:04:05.000006', '-1:00:00.000000', '1:00:00', '-30:45', '-1:30:45']\nfor v in tests:\n    try:\n        r = parse_duration(v)\n        print(repr(v), '->', r)\n    except Exception as e:\n        print(repr(v), '-> FAIL:', e)\n\"",
+   "hit": null,
+   "lat_ms": 168.1
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\nimport re\n# Exact regex from the ticket (current/broken version)\nold = re.compile(\n    r'^'\n    r'(?:(?P<days>-?\\d+) (days?, )?)?'\n    r'((?:(?P<hours>-?\\d+):)(?=\\d+:\\d+))?'\n    r'(?:(?P<minutes>-?\\d+):)?'\n    r'(?P<seconds>-?\\d+)'\n    r'(?:\\.(?P<microseconds>\\d{1,6})\\d{0,6})?'\n    r'$'\n)\nprint(\"=== OLD (broken) regex ===\")\nfor v in ['-1:00:00', '-2:30:45', '-1:00', '1:30:45', '-1:30:45']:\n    m = old.match(v)\n    print(repr(v), '->', bool(m))\n\n# Fixed regex\nnew = re.compile(\n    r'^'\n    r'(?:(?P<days>-?\\d+) (days?, )?)?'\n    r'((?:(?P<hours>-?\\d+):)(?=-?\\d+:-?\\d+))?'\n    r'(?:(?P<minutes>-?\\d+):)?'\n    r'(?P<seconds>-?\\d+)'\n    r'(?:\\.(?P<microseconds>\\d{1,6})\\d{0,6})?'\n    r'$'\n)\nprint(\"\\n=== NEW (fixed) regex ===\")\nfor v in ['-1:00:00', '-2:30:45', '-1:00', '1:30:45', '-1:30:45']:\n    m = new.match(v)\n    print(repr(v), '->', bool(m))\nEOF",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n '29,37p' django/utils/dateparse.py",
+   "hit": null,
+   "lat_ms": 71.2
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\nimport re\n\nold = re.compile(\n    r'^'\n    r'(?:(?P<days>-?\\d+) (days?, )?)?'\n    r'((?:(?P<hours>-?\\d+):)(?=\\d+:\\d+))?'\n    r'(?:(?P<minutes>-?\\d+):)?'\n    r'(?P<seconds>-?\\d+)'\n    r'(?:\\.(?P<microseconds>\\d{1,6})\\d{0,6})?'\n    r'$'\n)\n\nnew = re.compile(\n    r'^'\n    r'(?:(?P<days>-?\\d+) (days?, )?)?'\n    r'((?:(?P<hours>-?\\d+):)(?=-?\\d+:-?\\d+))?'\n    r'(?:(?P<minutes>-?\\d+):)?'\n    r'(?P<seconds>-?\\d+)'\n    r'(?:\\.(?P<microseconds>\\d{1,6})\\d{0,6})?'\n    r'$'\n)\n\ntests = ['-1:00:00', '-2:30:45', '-1:00', '1:30:45', '-1:30:45',\n         '-1:30', '-1', '1', '-30:45', '30:45', '1:2:3:4', '-1:-2:3']\n\nfor v in tests:\n    mo = old.match(v)\n    mn = new.match(v)\n    old_groups = mo.groupdict() if mo else None\n    new_groups = mn.groupdict() if mn else None\n    diff = \"DIFF\" if old_groups != new_groups else \"same\"\n    print(f\"{v!r:20} old={mo is not None!s:5} new={mn is not None!s:5} {diff}\")\n    if old_groups != new_groups:\n        print(f\"    old_groups: {old_groups}\")\n        print(f\"    new_groups: {new_groups}\")\nEOF",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\ncontent = open('django/utils/dateparse.py').read()\nold = r\\\"r'((?:(?P<hours>-?\\d+):)(?=\\d+:\\d+))?'\\\"\nnew = r\\\"r'((?:(?P<hours>-?\\d+):)(?=-?\\d+:-?\\d+))?'\\\"\nassert content.count(old) == 1, f'Found {content.count(old)} occurrences'\ncontent = content.replace(old, new)\nopen('django/utils/dateparse.py', 'w').write(content)\nprint('Patch applied successfully')\n\"",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '29,37p' django/utils/dateparse.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest django/utils/tests/test_dateparse.py -v 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 198.4
+  },
+  {
+   "cmd": "cd /testbed && find . -path '*test*dateparse*' -o -path '*dateparse*test*' 2>/dev/null | grep -v '.pyc'",
+   "hit": null,
+   "lat_ms": 163.4
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py utils_tests.test_dateparse -v 2 2>&1 | tail -60",
+   "hit": null,
+   "lat_ms": 972.0
+  },
+  {
+   "cmd": "cd /testbed && cat tests/utils_tests/test_dateparse.py",
+   "hit": null,
+   "lat_ms": 113.2
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\nfrom datetime import timedelta\nfrom django.utils.dateparse import parse_duration\n\n# Cases that the fix addresses: negative hours with negative minutes/seconds\ntests = [\n    ('-1:30:45', timedelta(hours=-1, minutes=30, seconds=45)),\n    ('-10:15:30', timedelta(hours=-10, minutes=15, seconds=30)),\n    ('-1:00:00', timedelta(hours=-1)),\n    ('-1 day, -2:30:45', timedelta(days=-1, hours=-2, minutes=-30, seconds=-45)),\n    ('-4 15:30', timedelta(days=-4, minutes=15, seconds=30)),\n    # Positive cases should still work\n    ('1:15:30', timedelta(hours=1, minutes=15, seconds=30)),\n    ('10:15:30', timedelta(hours=10, minutes=15, seconds=30)),\n    ('1 day 0:00:01', timedelta(days=1, seconds=1)),\n    # Edge cases\n    ('-30:45', timedelta(hours=-30, minutes=45)),\n    ('-1:30', timedelta(hours=-1, minutes=30)),\n    ('-15:30', timedelta(minutes=-15, seconds=30)),\n    ('-30.1', timedelta(seconds=-30, milliseconds=-100)),\n]\n\nall_pass = True\nfor source, expected in tests:\n    try:\n        result = parse_duration(source)\n        status = \"PASS\" if result == expected else \"FAIL\"\n        if result != expected:\n            all_pass = False\n        print(f\"{status}  {source!r:30} -> {result!r}  (expected {expected!r})\")\n    except Exception as e:\n        all_pass = False\n        print(f\"ERROR {source!r:30} -> {type(e).__name__}: {e}\")\n\nprint()\nprint(\"ALL PASS\" if all_pass else \"SOME FAILED\")\nEOF",
+   "hit": null,
+   "lat_ms": 168.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n '125,165p' django/utils/dateparse.py",
+   "hit": null,
+   "lat_ms": 116.2
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\nfrom datetime import timedelta\nfrom django.utils.dateparse import parse_duration\n\n# Let's see what the function actually returns for various negative inputs\ntests = [\n    '-1:30:45', '-10:15:30', '-1:00:00',\n    '-4 15:30', '-172800', '-15:30', '-30.1',\n    '-1:15:30',  # existing test\n]\nfor source in tests:\n    try:\n        r = parse_duration(source)\n        print(f\"{source!r:20} -> {r!r}\")\n    except Exception as e:\n        print(f\"{source!r:20} -> ERROR: {e}\")\nEOF",
+   "hit": null,
+   "lat_ms": 168.8
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\n# Find the exact text to modify in the test file\ncontent = open('tests/utils_tests/test_dateparse.py').read()\n\nold_test_negative = \"\"\"    def test_negative(self):\n        test_values = (\n            ('-4 15:30', timedelta(days=-4, minutes=15, seconds=30)),\n            ('-172800', timedelta(days=-2)),\n            ('-15:30', timedelta(minutes=-15, seconds=30)),\n            ('-1:15:30', timedelta(hours=-1, minutes=15, seconds=30)),\n            ('-30.1', timedelta(seconds=-30, milliseconds=-100)),\n        )\"\"\"\n\nnew_test_negative = \"\"\"    def test_negative(self):\n        test_values = (\n            ('-4 15:30', timedelta(days=-4, minutes=15, seconds=30)),\n            ('-172800', timedelta(days=-2)),\n            ('-15:30', timedelta(minutes=-15, seconds=30)),\n            ('-1:15:30', timedelta(hours=-1, minutes=15, seconds=30)),\n            ('-30.1', timedelta(seconds=-30, milliseconds=-100)),\n            ('-1:30:45', timedelta(hours=-1, minutes=30, seconds=45)),\n            ('-1:00:00', timedelta(hours=-1)),\n            ('-10:15:30', timedelta(hours=-10, minutes=15, seconds=30)),\n        )\"\"\"\n\nassert content.count(old_test_negative) == 1, f\"Found {content.count(old_test_negative)} occurrences\"\ncontent = content.replace(old_test_negative, new_test_negative)\nopen('tests/utils_tests/test_dateparse.py', 'w').write(content)\nprint(\"Test file updated successfully\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py utils_tests.test_dateparse -v 2 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 772.3
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 777.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-10999",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 5251.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

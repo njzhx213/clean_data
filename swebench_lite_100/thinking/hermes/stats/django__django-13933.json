@@ -1,0 +1,311 @@
+{
+ "calls": 51,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 16725.122451782227,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 4,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && python3 --version && (python3 -c \"import django; print('installed django:', django.get_version(), django.__file__)\" 2>/dev/null || echo \"no django installed\") && (git --version || true) && (curl -sI https://github.com --max-time 8 | head -n1 || echo \"no network\")",
+   "hit": null,
+   "lat_ms": 297.9
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 | cat && echo \"---STATUS---\" && git status --short | head -20 && echo \"---TAG---\" && git describe --tags 2>/dev/null",
+   "hit": null,
+   "lat_ms": 744.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,80p' django/forms/models.py && echo \"===== ModelChoiceField class =====\" && sed -n \"$(grep -n 'class ModelChoiceField' django/forms/models.py | cut -d: -f1),+75p\" django/forms/models.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"That choice is not one of the available choices\" --include=\"*.py\" --include=\"*.rst\" . | head -30",
+   "hit": null,
+   "lat_ms": 167.8
+  },
+  {
+   "cmd": "cd /testbed && git log --all --oneline | wc -l && git branch -a && echo \"=== modelchoicefield grep ===\" && git log --all --oneline -i --grep=\"ModelChoiceField\" | head -20 && echo \"=== models.py history ===\" && git log --all --oneline -- django/forms/models.py | head -15",
+   "hit": null,
+   "lat_ms": 607.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,80p' tests/model_forms/test_modelchoicefield.py && echo \"=====\" && sed -n '200,240p' tests/model_forms/test_modelchoicefield.py",
+   "hit": null,
+   "lat_ms": 160.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def to_python\\|def _check_values\\|def prepare_value\\|def _coerce_key\\|class ModelMultipleChoiceField\\|class ModelChoiceField\\|raise ValidationError\" django/forms/models.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1100,1140p' django/forms/models.py && echo \"===== 1268-1300 =====\" && sed -n '1268,1300p' django/forms/models.py && echo \"===== 1301-1375 =====\" && sed -n '1301,1375p' django/forms/models.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class Writer\\|class Author\\|class Book\\|class Category\\|class Article\\|def __str__\" tests/model_forms/models.py | head -30",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n -A6 \"invalid_choice\" django/forms/fields.py | head -40",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro_mcf.py <<'EOF'\n\"\"\"Reproduction: ModelChoiceField invalid_choice ValidationError lacks the value.\"\"\"\nimport os\nimport sys\n\nimport django\nfrom django.conf import settings\n\nsys.path.insert(0, '/testbed/tests')\n\nsettings.configure(\n    DEBUG=True,\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'model_forms',\n    ],\n    USE_TZ=True,\n)\ndjango.setup()\n\nfrom django.core.management import call_command\ncall_command('migrate', verbosity=0)\n\nfrom django import forms\nfrom django.core.exceptions import ValidationError\nfrom model_forms.models import Book, Category\n\nCategory.objects.create(name='Entertainment', slug='entertainment', url='entertainment')\nCategory.objects.create(name='A test', slug='test', url='test')\n\nprint('--- comparison ---')\n\nf = forms.ModelChoiceField(Category.objects.all())\nfor bad in ['999', 12345, Book.objects.create()]:\n    try:\n        f.clean(bad)\n        print(f'ModelChoiceField.clean({bad!r}) -> no error (unexpected)')\n    except ValidationError as e:\n        print(f'ModelChoiceField.clean({bad!r}) ->', e.messages)\n\nf2 = forms.ModelMultipleChoiceField(Category.objects.all(), required=False)\ntry:\n    f2.clean([1, 2, 999])\n    print('ModelMultipleChoiceField.clean([1, 2, 999]) -> no error (unexpected)')\nexcept ValidationError as e:\n    print('ModelMultipleChoiceField.clean([1, 2, 999]) ->', e.messages)\n\nf3 = forms.ChoiceField(choices=[('a', 'A')])\ntry:\n    f3.clean('zzz')\n    print(\"ChoiceField.clean('zzz') -> no error (unexpected)\")\nexcept ValidationError as e:\n    print(\"ChoiceField.clean('zzz') ->\", e.messages)\nEOF\npython3 /tmp/repro_mcf.py",
+   "hit": null,
+   "lat_ms": 1170.0
+  },
+  {
+   "cmd": "cd /testbed && ls tests/model_forms/ | head && sed -i 's/call_command(.migrate., verbosity=0)/call_command(\"migrate\", run_syncdb=True, verbosity=0)/' /tmp/repro_mcf.py && python3 /tmp/repro_mcf.py",
+   "hit": null,
+   "lat_ms": 972.2
+  },
+  {
+   "cmd": "python3 /tmp/repro_mcf.py",
+   "hit": null,
+   "lat_ms": 769.8
+  },
+  {
+   "cmd": "cd /testbed && python3 runtests.py model_forms model_formsets admin_widgets 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && ls && echo --- && ls tests | head -20",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed && python3 /tmp/run_tests.py model_forms.modelchoicefield model_forms.tests model_formsets admin_widgets 2>&1 | tail -60",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/run_tests.py <<'EOF'\nimport os, sys\nsys.path.insert(0, '/testbed/tests')\nos.environ['DJANGO_SETTINGS_MODULE'] = 'test_sqlite'\nimport django\ndjango.setup()\nfrom django.test.utils import get_runner\nfrom django.conf import settings\nTestRunner = get_runner(settings)\nrunner = TestRunner(verbosity=1, interactive=False)\nfailures = runner.run_tests(sys.argv[1:])\nsys.exit(1 if failures else 0)\nEOF\nls -la /tmp/run_tests.py",
+   "hit": null,
+   "lat_ms": 68.4
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 /tmp/run_tests.py model_forms.modelchoicefield model_forms.tests model_formsets admin_widgets 2>&1 | tail -70' > /tmp/hermes_bg_proc_cde4d8d6f4a0.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_cde4d8d6f4a0.exit ) & echo $! > /tmp/hermes_bg_proc_cde4d8d6f4a0.pid && cat /tmp/hermes_bg_proc_cde4d8d6f4a0.pid",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_cde4d8d6f4a0.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_cde4d8d6f4a0.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_cde4d8d6f4a0.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cd /testbed && ls docs/releases/ | tail -8 && grep -rn \"That choice is not one\" docs/ | head",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /testbed && git cat-file -e HEAD~1:runtests.py && echo exists && git show HEAD~1:runtests.py > runtests.py && head -30 runtests.py",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /testbed && git log --format='%H %P %s' -3 | cat && echo --- && git ls-tree HEAD~1 --name-only | head -30",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /testbed && git log --all --oneline --follow -- runtests.py | head -5 && echo --- && grep -n \"runtests\" MANIFEST.in",
+   "hit": null,
+   "lat_ms": 266.7
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"runtests\" docs/developing/ 2>/dev/null | head -5; echo ---; cat tests/test_sqlite.py 2>/dev/null | head -40; echo ---; ls tests/ | wc -l; ls tests/",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /testbed && head -60 tests/runtests.py",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 tests/runtests.py model_forms.modelchoicefield model_forms.tests model_formsets admin_widgets forms_tests 2>&1 | tail -80' > /tmp/hermes_bg_proc_3bf15a80dbed.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_3bf15a80dbed.exit ) & echo $! > /tmp/hermes_bg_proc_3bf15a80dbed.pid && cat /tmp/hermes_bg_proc_3bf15a80dbed.pid",
+   "hit": null,
+   "lat_ms": 2170.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_3bf15a80dbed.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_3bf15a80dbed.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_3bf15a80dbed.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"That choice is not one\" django/ | grep -v test; echo \"exit: $?\"",
+   "hit": null,
+   "lat_ms": 253.6
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 tests/runtests.py model_forms.modelchoicefield model_forms.tests model_formsets admin_widgets forms_tests > /tmp/test_out.txt 2>&1; echo \"EXIT=$?\" >> /tmp/test_out.txt' > /tmp/hermes_bg_proc_f498e2baa5af.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_f498e2baa5af.exit ) & echo $! > /tmp/hermes_bg_proc_f498e2baa5af.pid && cat /tmp/hermes_bg_proc_f498e2baa5af.pid",
+   "hit": null,
+   "lat_ms": 2176.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f498e2baa5af.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f498e2baa5af.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f498e2baa5af.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n '40,70p' tests/model_forms/test_modelchoicefield.py && echo \"===== 1660-1690 in tests.py =====\" && sed -n '1665,1685p' tests/model_forms/tests.py && echo \"===== model_formsets 1740-1770 =====\" && sed -n '1740,1770p' tests/model_formsets/tests.py && echo \"===== admin_widgets 235-258 =====\" && sed -n '235,258p' tests/admin_widgets/tests.py",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "grep -n \"^FAILED\\|^OK\\|^Ran \\|EXIT=\" /tmp/test_out.txt | head && echo ===== && grep -n \"^FAIL:\\|^ERROR:\" /tmp/test_out.txt | head -40",
+   "hit": null,
+   "lat_ms": 117.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n '89,106p' /tmp/test_out.txt",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py model_forms.test_modelchoicefield > /tmp/test_out2.txt 2>&1; grep -n \"^Ran \\|^FAILED\\|^OK\\|^FAIL:\\|^ERROR:\" /tmp/test_out2.txt | head -20",
+   "hit": null,
+   "lat_ms": 973.2
+  },
+  {
+   "cmd": "cd /testbed && grep -A2 \"AssertionError\" /tmp/test_out2.txt | head -20",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && grep -rln \"not one of the available choices\" tests/ | sort",
+   "hit": null,
+   "lat_ms": 225.9
+  },
+  {
+   "cmd": "cd /testbed && grep -n -B3 -A8 \"not one of the available choices\" tests/forms_tests/tests/test_error_messages.py | head -40",
+   "hit": null,
+   "lat_ms": 250.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"available choices\\|ModelChoice\" tests/forms_tests/tests/test_error_messages.py | head",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '280,320p' tests/forms_tests/tests/test_error_messages.py",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "grep -B1 -A3 \"AssertionError\" /tmp/test_out.txt | sed -n '1,40p'",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed && git status --short && echo === && python3 tests/runtests.py model_forms > /tmp/test_out3.txt 2>&1; grep -n \"^Ran \\|^FAILED\\|^OK\\|^FAIL:\\|^ERROR:\" /tmp/test_out3.txt",
+   "hit": null,
+   "lat_ms": 1374.3
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 165.1
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-13933",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 16725.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

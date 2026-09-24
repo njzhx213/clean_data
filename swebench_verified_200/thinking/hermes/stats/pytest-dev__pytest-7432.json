@@ -1,0 +1,826 @@
+{
+ "calls": 154,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 279509.27686691284,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && ls -la / 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "for d in /root /home /workspace /opt /srv; do [ -d \"$d\" ] && find \"$d\" -maxdepth 4 -name \"skipping.py\" -path \"*_pytest*\" 2>/dev/null; done; echo \"---\"; find / -maxdepth 3 -name \"pytest\" -type d 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 168.4
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 2>/dev/null | cat; git status --short 2>/dev/null | head; python --version 2>&1; which python; python -c \"import sys; print(sys.executable)\"",
+   "hit": null,
+   "lat_ms": 167.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,60p' src/_pytest/skipping.py",
+   "hit": null,
+   "lat_ms": 116.5
+  },
+  {
+   "cmd": "cd /testbed && wc -l src/_pytest/skipping.py && grep -n \"def pytest_runtest_makereport\" src/_pytest/skipping.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '200,314p' src/_pytest/skipping.py",
+   "hit": null,
+   "lat_ms": 69.6
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"xfailed_key\\|evaluate_xfail_marks\\|skipped_by_mark_key\" src/ --include=*.py | grep -v \"skipping.py:\" ; echo \"---\"; pip show pytest 2>/dev/null | head -4; python -c \"import pytest; print(pytest.__file__, pytest.__version__)\"",
+   "hit": null,
+   "lat_ms": 571.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n '100,200p' src/_pytest/skipping.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "mkdir -p /tmp/repro && cd /tmp/repro && printf 'import pytest\\n\\n@pytest.mark.skip\\ndef test_skip_location() -> None:\\n    assert 0\\n' > test_it.py && cd /tmp/repro && python -m pytest -rs test_it.py 2>&1 | tail -5; echo \"=== with --runxfail ===\"; python -m pytest -rs --runxfail test_it.py 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 570.7
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"runxfail\" testing/ --include=*.py | head -40",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n '200,370p' testing/test_skipping.py",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport io\n\npath = \"src/_pytest/skipping.py\"\nsrc = open(path).read()\n\n# --- Edit 1: pytest_runtest_call ---\nold_call = '''@hookimpl(hookwrapper=True)\ndef pytest_runtest_call(item: Item) -> Generator[None, None, None]:\n    xfailed = item._store.get(xfailed_key, None)\n    if xfailed is None:\n        item._store[xfailed_key] = xfailed = evaluate_xfail_marks(item)\n\n    if not item.config.option.runxfail:\n        if xfailed and not xfailed.run:\n            xfail(\"[NOTRUN] \" + xfailed.reason)\n\n    yield\n'''\nnew_call = '''@hookimpl(hookwrapper=True)\ndef pytest_runtest_call(item: Item) -> Generator[None, None, None]:\n    if not item.config.option.runxfail:\n        xfailed = item._store.get(xfailed_key, None)\n        if xfailed is None:\n            item._store[xfailed_key] = xfailed = evaluate_xfail_marks(item)\n\n        if xfailed and not xfailed.run:\n            xfail(\"[NOTRUN] \" + xfailed.reason)\n\n    yield\n'''\nassert src.count(old_call) == 1, \"call hook pattern not found exactly once\"\nsrc = src.replace(old_call, new_call)\n\n# --- Edit 2: pytest_runtest_makereport ---\nold_mr = '''        rep.outcome = \"failed\"\n    elif item.config.option.runxfail:\n        pass  # don't interfere\n    elif call.excinfo and isinstance(call.excinfo.value, xfail.Exception):\n'''\nnew_mr = '''        rep.outcome = \"failed\"\n    elif call.excinfo and isinstance(call.excinfo.value, xfail.Exception):\n'''\nassert src.count(old_mr) == 1, \"makereport pattern not found exactly once\"\nsrc = src.replace(old_mr, new_mr)\n\nopen(path, \"w\").write(src)\nprint(\"patched OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cd /testbed && git diff | cat",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /tmp/repro && printf 'import pytest\\n\\n@pytest.mark.skip\\ndef test_skip_location() -> None:\\n    assert 0\\n\\n@pytest.mark.skipif(\"1 == 1\", reason=\"cond skip\")\\ndef test_skipif_location() -> None:\\n    assert 0\\n' > test_it.py && echo \"=== plain -rs ===\" && python -m pytest -rs test_it.py 2>&1 | tail -4 && echo \"=== -rs --runxfail ===\" && python -m pytest -rs --runxfail test_it.py 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 575.7
+  },
+  {
+   "cmd": "mkdir -p /tmp/repro2 && cd /tmp/repro2 && cat > test_xf.py <<'EOF'\nimport pytest\n\n@pytest.mark.xfail(reason=\"expected failure\")\ndef test_xfail_fails():\n    assert 0\n\n@pytest.mark.xfail(reason=\"expected failure\")\ndef test_xfail_passes():\n    assert 1\n\n@pytest.mark.xfail(strict=True, reason=\"strict xpass\")\ndef test_xfail_strict_passes():\n    assert 1\n\n@pytest.mark.xfail(run=False, reason=\"notrun\")\ndef test_xfail_notrun():\n    assert 0\n\ndef test_imperative_xfail():\n    pytest.xfail(\"hello\")\n\ndef test_plain_pass():\n    assert 1\nEOF\necho \"=== without --runxfail ===\" && python -m pytest test_xf.py -rA 2>&1 | tail -12\necho; echo \"=== with --runxfail ===\" && python -m pytest --runxfail test_xf.py -rA 2>&1 | tail -12",
+   "hit": null,
+   "lat_ms": 595.4
+  },
+  {
+   "cmd": "cd /tmp/repro && cat > check_loc.py <<'EOF'\nimport sys\nsys.path.insert(0, \"/testbed/src\")\nimport pytest\n\ndef main(extra_args):\n    plugin = pytest.DontWriteTraceback()  # not needed; just run\n    returncode = pytest.main([\"test_it.py\", \"-rs\", \"-q\", *extra_args])\n    # capture via a hook: collect reports\n    return returncode\n\nclass Collector:\n    def __init__(self):\n        self.reports = []\n    def pytest_runtest_logreport(self, report):\n        if report.when == \"setup\" and report.skipped:\n            self.reports.append((report.location, report.longrepr))\n\nimport conftest as _  # noqa\nEOF\ncat > conftest.py <<'EOF'\nimport pytest\ndef pytest_configure(config):\n    config.pluginmanager.add_hookwrapper_relay = None\nEOF\npython - <<'EOF'\nimport sys\nsys.path.insert(0, \"/testbed/src\")\nimport _pytest.config\nresults = {}\n\nclass Hook:\n    def __init__(self):\n        self.reports = []\n    def pytest_runtest_logreport(self, report):\n        if report.skipped and report.when == \"setup\":\n            self.reports.append((report.location, str(report.longrepr)))\n\nfor args in ([], [\"--runxfail\"]):\n    hook = Hook()\n    # run in a fresh process to avoid config state issues\n    import subprocess\n    code = '''\nimport sys\nsys.path.insert(0, \"/testbed/src\")\nimport pytest\n\nclass Hook:\n    def pytest_runtest_logreport(self, report):\n        if report.skipped and report.when == \"setup\":\n            print(\"LOCATION:\", report.location)\n            print(\"LONGREPR:\", report.longrepr)\n\npytest.main([\"-rs\", \"-q\"] % () + %r + [\"-p\", \"no:cacheprovider\"])\n''' % (args,)\n    p = subprocess.run([sys.executable, \"-c\", code], cwd=\"/tmp/repro\", capture_output=True, text=True)\n    print(\"args=%r stdout:\\n%s\" % (args, p.stdout.strip()))\n    print(p.stderr.strip()[:500])\n    print(\"=\" * 40)\nEOF",
+   "hit": null,
+   "lat_ms": 163.9
+  },
+  {
+   "cmd": "cd /tmp/repro && cat > check_loc.py <<'EOF'\nimport sys\nsys.path.insert(0, \"/testbed/src\")\nimport pytest\n\nclass Hook:\n    def pytest_runtest_logreport(self, report):\n        if report.skipped and report.when == \"setup\":\n            print(\"LOCATION:\", report.location)\n            print(\"LONGREPR:\", report.longrepr)\n\nextra = sys.argv[1:]\npytest.main([\"-q\", \"-rs\", \"-p\", \"no:cacheprovider\", \"test_it.py\"] + extra + [\"-W\", \"ignore\"], plugins=[Hook()])\nEOF\necho \"=== no flag ===\"; python check_loc.py\necho \"=== --runxfail ===\"; python check_loc.py --runxfail",
+   "hit": null,
+   "lat_ms": 422.8
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py testing/test_runner.py testing/test_unittest.py -x -q -p no:cacheprovider 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 7375.9
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/acceptance_test.py testing/test_reports.py testing/test_terminal.py testing/test_mark.py -q -p no:cacheprovider 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 14410.0
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest testing/acceptance_test.py testing/test_reports.py testing/test_terminal.py testing/test_mark.py -q -p no:cacheprovider 2>&1 | tail -6; git stash pop && git diff --stat | cat",
+   "hit": null,
+   "lat_ms": 14799.9
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python -m pytest testing -q -p no:cacheprovider -x --ignore=testing/test_zipimport.py 2>&1 | tail -30 > /tmp/full_run_with_fix.log; echo \"EXIT: $?\" >> /tmp/full_run_with_fix.log' > /tmp/hermes_bg_proc_8b9f650130a0.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_8b9f650130a0.exit ) & echo $! > /tmp/hermes_bg_proc_8b9f650130a0.pid && cat /tmp/hermes_bg_proc_8b9f650130a0.pid",
+   "hit": null,
+   "lat_ms": 1773.7
+  },
+  {
+   "cmd": "cd /testbed && ls changelog/ | sort -n | tail -8",
+   "hit": null,
+   "lat_ms": 582.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_8b9f650130a0.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_8b9f650130a0.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_8b9f650130a0.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /testbed && cat changelog/7383.bugfix.rst changelog/7360.bugfix.rst",
+   "hit": null,
+   "lat_ms": 72.0
+  },
+  {
+   "cmd": "cd /testbed && printf 'Fixed ``--runxfail`` breaking the reporting of the location of ``pytest.mark.skip`` and ``pytest.mark.skipif``: the skip location now correctly points to the test itself instead of a file inside pytest.' > changelog/7431.bugfix.rst && cat changelog/7431.bugfix.rst",
+   "hit": null,
+   "lat_ms": 75.0
+  },
+  {
+   "cmd": "mkdir -p /tmp/repro3 && cd /tmp/repro3 && cat > test_both.py <<'EOF'\nimport pytest\n\n@pytest.mark.skip(reason=\"skip reason\")\n@pytest.mark.xfail(strict=True, reason=\"xfail reason\")\ndef test_skip_and_xfail():\n    assert 0\nEOF\necho \"=== plain -rs ===\"; python -m pytest -rs test_both.py 2>&1 | tail -4\necho \"=== --runxfail -rs ===\"; python -m pytest --runxfail -rs test_both.py 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 570.2
+  },
+  {
+   "cmd": "cat /tmp/full_run_with_fix.log",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python -m pytest testing -q -p no:cacheprovider --ignore=testing/test_junitxml.py 2>&1 | tail -40 > /tmp/full_with_fix.log; echo \"EXIT: $?\" >> /tmp/full_with_fix.log' > /tmp/hermes_bg_proc_93ddd71494a9.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_93ddd71494a9.exit ) & echo $! > /tmp/hermes_bg_proc_93ddd71494a9.pid && cat /tmp/hermes_bg_proc_93ddd71494a9.pid",
+   "hit": null,
+   "lat_ms": 2170.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_93ddd71494a9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_93ddd71494a9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_93ddd71494a9.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n '227,312p' src/_pytest/skipping.py",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "cat /tmp/full_with_fix.log",
+   "hit": null,
+   "lat_ms": 602.8
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport ast, pathlib, importlib\nmissing = {}\nfor p in sorted(pathlib.Path(\"testing\").rglob(\"*.py\")):\n    tree = ast.parse(p.read_text())\n    for node in ast.walk(tree):\n        names = []\n        if isinstance(node, ast.Import):\n            names = [a.name.split(\".\")[0] for a in node.names]\n        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:\n            names = [node.module.split(\".\")[0]]\n        for n in names:\n            if n in (\"_pytest\", \"pytest\", \"testing\", \"py\", \"attr\", \"argparsing\"):\n                continue\n            try:\n                importlib.import_module(n)\n            except Exception:\n                missing.setdefault(n, set()).add(str(p))\nfor n, files in sorted(missing.items()):\n    print(n, \"->\", sorted(files)[:3])\nEOF",
+   "hit": null,
+   "lat_ms": 570.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"import xdist\\|importorskip\" testing/python/fixtures.py | head -5; grep -n \"typing_extensions\" testing/test_compat.py | head -3; grep -n \"import xdist\" testing/deprecated_test.py testing/test_config.py",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python -m pytest testing -q -p no:cacheprovider --ignore=testing/test_junitxml.py --ignore=testing/python/metafunc.py 2>&1 | tail -50 > /tmp/full_with_fix.log; echo \"DONE\" >> /tmp/full_with_fix.log' > /tmp/hermes_bg_proc_4726ef195192.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_4726ef195192.exit ) & echo $! > /tmp/hermes_bg_proc_4726ef195192.pid && cat /tmp/hermes_bg_proc_4726ef195192.pid",
+   "hit": null,
+   "lat_ms": 2171.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def reportinfo\\|def _report_location\\|def location\" src/_pytest/nodes.py src/_pytest/python.py src/_pytest/reports.py | cat",
+   "hit": null,
+   "lat_ms": 122.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '318,340p' src/_pytest/python.py && echo ---- && sed -n '360,395p' src/_pytest/reports.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def getfslineno\" -A 45 src/_pytest/compat.py | head -60",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"def getfslineno\" src/ | cat",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1160,1230p' src/_pytest/_code/code.py",
+   "hit": null,
+   "lat_ms": 116.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"location\" src/_pytest/reports.py | head -20",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /tmp/repro && cat -n test_it.py && python - <<'EOF'\nimport sys\nsys.path.insert(0, \"/testbed/src\")\nsys.path.insert(0, \"/tmp/repro\")\nimport _pytest._code.code as c\nimport test_it\nf = test_it.test_skip_location\nprint(\"co_firstlineno:\", f.__code__.co_firstlineno)\nprint(\"Code.firstlineno:\", c.Code(f).firstlineno)\nEOF",
+   "hit": null,
+   "lat_ms": 250.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "mkdir -p /tmp/issuefile && cd /tmp/issuefile && printf 'import pytest\\n@pytest.mark.skip\\ndef test_skip_location() -> None:\\n    assert 0\\n' > test_it.py && cat -n test_it.py && echo \"=== plain ===\" && python -m pytest -rs test_it.py 2>&1 | tail -3 && echo \"=== --runxfail ===\" && python -m pytest -rs --runxfail test_it.py 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 378.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_4726ef195192.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_4726ef195192.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/full_with_fix.log",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing -q -p no:cacheprovider --ignore=testing/test_junitxml.py --ignore=testing/python/metafunc.py > /tmp/full_with_fix_full.log 2>&1; echo \"EXIT: $?\" >> /tmp/full_with_fix_full.log; tail -1 /tmp/full_with_fix_full.log",
+   "hit": null,
+   "lat_ms": 108048.4
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest testing -q -p no:cacheprovider --ignore=testing/test_junitxml.py --ignore=testing/python/metafunc.py > /tmp/full_baseline_full.log 2>&1; echo \"EXIT: $?\" >> /tmp/full_baseline_full.log; git stash pop && tail -1 /tmp/full_baseline_full.log",
+   "hit": null,
+   "lat_ms": 106662.4
+  },
+  {
+   "cmd": "grep -E \"^(FAILED|ERROR)\" /tmp/full_baseline_full.log | sort > /tmp/base_failures.txt; grep -E \"^(FAILED|ERROR)\" /tmp/full_with_fix_full.log | sort > /tmp/fix_failures.txt; echo \"baseline: $(wc -l < /tmp/base_failures.txt) | with fix: $(wc -l < /tmp/fix_failures.txt)\"; echo \"=== diff (baseline vs fix) ===\"; diff /tmp/base_failures.txt /tmp/fix_failures.txt && echo \"IDENTICAL FAILURE SETS\"; echo; grep -E \"^[0-9]+ (failed|passed)|=.*(failed|passed)\" /tmp/full_baseline_full.log | tail -1; grep -E \"=.*(failed|passed).*in \" /tmp/full_with_fix_full.log | tail -1",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /tmp/issuefile && echo \"=== issue repro: plain -rs ===\" && python -m pytest -rs test_it.py 2>&1 | grep SKIPPED && echo \"=== issue repro: -rs --runxfail ===\" && python -m pytest -rs --runxfail test_it.py 2>&1 | grep SKIPPED",
+   "hit": null,
+   "lat_ms": 386.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py -q -p no:cacheprovider 2>&1 | tail -2 && echo \"=== FINAL DIFF ===\" && git diff | cat && git status --short",
+   "hit": null,
+   "lat_ms": 3372.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pytest-dev__pytest-7432",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 279509.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

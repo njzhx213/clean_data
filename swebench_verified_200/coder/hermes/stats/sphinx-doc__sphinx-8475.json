@@ -1,0 +1,336 @@
+{
+ "calls": 56,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 28307.00397491455,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.py\" | xargs grep -l \"TooManyRedirects\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.py\" | xargs grep -l \"check_link\\|head_request\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 164.8
+  },
+  {
+   "cmd": "ls -la /testbed",
+   "hit": null,
+   "lat_ms": 762.2
+  },
+  {
+   "cmd": "find /testbed/sphinx -type f -name \"*.py\" | xargs grep -l \"linkcheck\\|HEAD\" 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 140.3
+  },
+  {
+   "cmd": "cat /testbed/sphinx/builders/linkcheck.py",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "cat /testbed/sphinx/util/requests.py",
+   "hit": null,
+   "lat_ms": 68.3
+  },
+  {
+   "cmd": "grep -r \"TooManyRedirects\" /testbed --include=\"*.py\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "find /testbed/tests -name \"*linkcheck*\" -o -name \"*link*\" | head -20",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cat /testbed/tests/test_build_linkcheck.py | head -200",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cat /testbed/tests/test_build_linkcheck.py | tail -n +200",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "python3 -c \"import requests; print(requests.exceptions.TooManyRedirects.__mro__)\"",
+   "hit": null,
+   "lat_ms": 565.2
+  },
+  {
+   "cmd": "python3 -c \"import requests; print(requests.exceptions.HTTPError.__mro__)\"",
+   "hit": null,
+   "lat_ms": 250.9
+  },
+  {
+   "cmd": "sed -n '110,145p' /testbed/sphinx/builders/linkcheck.py",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "sed -n '127,180p' /testbed/sphinx/builders/linkcheck.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "sed -n '180,210p' /testbed/sphinx/builders/linkcheck.py",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "python3 -c \"import requests.exceptions; print([x for x in dir(requests.exceptions) if 'Redirect' in x or 'Timeout' in x or 'Connection' in x])\"",
+   "hit": null,
+   "lat_ms": 250.5
+  },
+  {
+   "cmd": "cat /testbed/tests/test_build_linkcheck.py | grep -A 30 \"make_redirect_handler\"",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cat > /tmp/test_toomanyredirects.py << 'EOF'\n\"\"\"Test case for TooManyRedirects handling in linkcheck\"\"\"\nimport http.server\nimport textwrap\n\n# Add testbed to path\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\n\nfrom tests.utils import http_server\nimport pytest\nimport sphinx\n\n# We need to create a handler that:\n# 1. Causes infinite redirects with HEAD (or too many redirects)\n# 2. Works fine with GET\n\nclass InfiniteRedirectHeadHandler(http.server.BaseHTTPRequestHandler):\n    \"\"\"Handler that causes infinite redirects on HEAD but works on GET\"\"\"\n    \n    def do_HEAD(self):\n        # Always redirect with HEAD - this will cause TooManyRedirects\n        self.send_response(302, \"Found\")\n        self.send_header(\"Location\", \"http://localhost:7778/\")\n        self.end_headers()\n    \n    def do_GET(self):\n        # GET works fine - returns 200\n        self.send_response(200, \"OK\")\n        self.end_headers()\n    \n    def log_date_time_string(self):\n        \"\"\"Strip date and time from logged messages for assertions.\"\"\"\n        return \"\"\n\ndef test_toomanyredirects_fallback_to_get():\n    \"\"\"Test that TooManyRedirects with HEAD falls back to GET\"\"\"\n    import tempfile\n    import os\n    from pathlib import Path\n    \n    # Create a temporary directory for the test\n    with tempfile.TemporaryDirectory() as tmpdir:\n        tmpdir = Path(tmpdir)\n        \n        # Create conf.py\n        (tmpdir / 'conf.py').write_text(textwrap.dedent('''\\\n            project = 'Test'\n            extensions = []\n        '''))\n        \n        # Create index.rst with a link that causes infinite redirects on HEAD\n        (tmpdir / 'index.rst').write_text(textwrap.dedent('''\\\n            Test\n            ====\n\n            See `this link <http://localhost:7778/>`_.\n        '''))\n        \n        # Build with linkcheck\n        from sphinx.application import Sphinx\n        app = Sphinx(\n            srcdir=str(tmpdir),\n            confdir=str(tmpdir),\n            outdir=str(tmpdir / '_build'),\n            doctreedir=str(tmpdir / '_build' / '.doctrees'),\n            buildername='linkcheck',\n            confoverrides={},\n            status=None,\n            warning=None,\n            freshenv=True,\n            warningiserror=False,\n            tags=[],\n            verbosity=0,\n            parallel=1,\n        )\n        \n        # Start the test server in background\n        import threading\n        import time\n        \n        class RedirectOnceHandler(http.server.BaseHTTPRequestHandler):\n            def do_HEAD(self):\n                # HEAD causes redirect loop\n                self.send_response(302, \"Found\")\n                self.send_header(\"Location\", \"http://localhost:7778/\")\n                self.end_headers()\n            \n            def do_GET(self):\n                # GET works fine\n                self.send_response(200, \"OK\")\n                self.end_headers()\n            \n            def log_date_time_string(self):\n                return \"\"\n        \n        # Start server\n        from http.server import HTTPServer\n        server = HTTPServer(('localhost', 7778), RedirectOnceHandler)\n        server_thread = threading.Thread(target=server.serve_forever, daemon=True)\n        server_thread.start()\n        \n        # Give server time to start\n        time.sleep(0.5)\n        \n        # Run linkcheck\n        app.build()\n        \n        # Check results\n        content = (tmpdir / '_build' / 'output.txt').read_text()\n        print(\"Output:\", content)\n        \n        # The link should be working (via GET fallback)\n        # Currently it will be broken because TooManyRedirects isn't caught\n        assert 'working' in content.lower() or 'redirect' in content.lower(), \\\n            f\"Expected working or redirected, got: {content}\"\n        \n        server.shutdown()\n\nif __name__ == '__main__':\n    test_toomanyredirects_fallback_to_get()\n    print(\"Test passed!\")\nEOF\npython3 /tmp/test_toomanyredirects.py",
+   "hit": null,
+   "lat_ms": 1971.4
+  },
+  {
+   "cmd": "cat /testbed/sphinx/builders/linkcheck.py | head -30",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "cat > /tmp/fix.py << 'EOF'\nimport sys\n\n# Read the file\nwith open('/testbed/sphinx/builders/linkcheck.py', 'r') as f:\n    content = f.read()\n\n# 1. Update the import to include TooManyRedirects\nold_import = \"from requests.exceptions import HTTPError\"\nnew_import = \"from requests.exceptions import HTTPError, TooManyRedirects\"\n\ncontent = content.replace(old_import, new_import)\n\n# 2. Update the except clause to also catch TooManyRedirects\n# The current code has:\n# except HTTPError:\n#     # retry with GET request if that fails, some servers\n#     # don't like HEAD requests.\n#     response = requests.get(...)\n#\n# We need to change it to:\n# except (HTTPError, TooManyRedirects):\n#     # retry with GET request if that fails, some servers\n#     # don't like HEAD requests.\n#     response = requests.get(...)\n\nold_except = \"\"\"                    except HTTPError:\n                        # retry with GET request if that fails, some servers\n                        # don't like HEAD requests.\n                        response = requests.get(req_url, stream=True, config=self.app.config,\n                                                auth=auth_info, **kwargs)\n                        response.raise_for_status()\"\"\"\n\nnew_except = \"\"\"                    except (HTTPError, TooManyRedirects):\n                        # retry with GET request if that fails, some servers\n                        # don't like HEAD requests.\n                        response = requests.get(req_url, stream=True, config=self.app.config,\n                                                auth=auth_info, **kwargs)\n                        response.raise_for_status()\"\"\"\n\ncontent = content.replace(old_except, new_except)\n\n# Write the file\nwith open('/testbed/sphinx/builders/linkcheck.py', 'w') as f:\n    f.write(content)\n\nprint(\"Fix applied successfully!\")\nEOF\npython3 /tmp/fix.py",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "head -25 /testbed/sphinx/builders/linkcheck.py",
+   "hit": null,
+   "lat_ms": 68.4
+  },
+  {
+   "cmd": "sed -n '145,165p' /testbed/sphinx/builders/linkcheck.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "sed -n '165,195p' /testbed/sphinx/builders/linkcheck.py",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "python3 /tmp/test_toomanyredirects.py",
+   "hit": null,
+   "lat_ms": 1172.1
+  },
+  {
+   "cmd": "cat > /tmp/test_toomanyredirects2.py << 'EOF'\n\"\"\"Test case for TooManyRedirects handling in linkcheck\"\"\"\nimport http.server\nimport textwrap\nimport tempfile\nimport time\nimport threading\nfrom pathlib import Path\n\n# Add testbed to path\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\n\nfrom http.server import HTTPServer\n\nclass RedirectLoopHeadHandler(http.server.BaseHTTPRequestHandler):\n    \"\"\"Handler that causes redirect loop on HEAD but works on GET\"\"\"\n    \n    def do_HEAD(self):\n        # Always redirect with HEAD - this will cause TooManyRedirects\n        self.send_response(302, \"Found\")\n        self.send_header(\"Location\", \"http://localhost:7779/\")\n        self.end_headers()\n    \n    def do_GET(self):\n        # GET works fine\n        self.send_response(200, \"OK\")\n        self.end_headers()\n    \n    def log_date_time_string(self):\n        return \"\"\n\ndef test_toomanyredirects_fallback_to_get():\n    \"\"\"Test that TooManyRedirects with HEAD falls back to GET\"\"\"\n    with tempfile.TemporaryDirectory() as tmpdir:\n        tmpdir = Path(tmpdir)\n        \n        # Create conf.py\n        (tmpdir / 'conf.py').write_text(textwrap.dedent('''\\\n            project = 'Test'\n            extensions = []\n        '''))\n        \n        # Create index.rst with a link that causes infinite redirects on HEAD\n        (tmpdir / 'index.rst').write_text(textwrap.dedent('''\\\n            Test\n            ====\n\n            See `this link <http://localhost:7779/>`_.\n        '''))\n        \n        # Start server\n        server = HTTPServer(('localhost', 7779), RedirectLoopHeadHandler)\n        server_thread = threading.Thread(target=server.serve_forever, daemon=True)\n        server_thread.start()\n        \n        # Give server time to start\n        time.sleep(0.5)\n        \n        # Build with linkcheck\n        from sphinx.application import Sphinx\n        app = Sphinx(\n            srcdir=str(tmpdir),\n            confdir=str(tmpdir),\n            outdir=str(tmpdir / '_build'),\n            doctreedir=str(tmpdir / '_build' / '.doctrees'),\n            buildername='linkcheck',\n            confoverrides={},\n            status=None,\n            warning=None,\n            freshenv=True,\n            warningiserror=False,\n            tags=[],\n            verbosity=0,\n            parallel=1,\n        )\n        \n        # Run linkcheck\n        app.build()\n        \n        # Check results\n        content = (tmpdir / '_build' / 'output.txt').read_text()\n        print(\"Output:\", repr(content))\n        \n        content_json = (tmpdir / '_build' / 'output.json').read_text()\n        print(\"JSON output:\", content_json)\n        \n        # The link should be working (via GET fallback)\n        if content:\n            print(\"\\nResult:\", \"PASS\" if \"working\" in content.lower() or \"redirect\" in content.lower() else \"FAIL\")\n        else:\n            print(\"\\nResult: Empty output - checking JSON\")\n            if '\"status\": \"working\"' in content_json:\n                print(\"Result: PASS - Working in JSON\")\n            else:\n                print(\"Result: FAIL - Not working in JSON\")\n        \n        server.shutdown()\n\nif __name__ == '__main__':\n    test_toomanyredirects_fallback_to_get()\nEOF\npython3 /tmp/test_toomanyredirects2.py",
+   "hit": null,
+   "lat_ms": 1771.1
+  },
+  {
+   "cmd": "cat > /tmp/test_toomanyredirects3.py << 'EOF'\n\"\"\"Test case for TooManyRedirects handling in linkcheck - with output to file\"\"\"\nimport http.server\nimport textwrap\nimport tempfile\nimport time\nimport threading\nfrom pathlib import Path\n\n# Add testbed to path\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\n\nfrom http.server import HTTPServer\n\nclass RedirectLoopHeadHandler(http.server.BaseHTTPRequestHandler):\n    \"\"\"Handler that causes redirect loop on HEAD but works on GET\"\"\"\n    \n    def do_HEAD(self):\n        self.send_response(302, \"Found\")\n        self.send_header(\"Location\", \"http://localhost:7780/\")\n        self.end_headers()\n    \n    def do_GET(self):\n        self.send_response(200, \"OK\")\n        self.end_headers()\n    \n    def log_date_time_string(self):\n        return \"\"\n\ndef test_toomanyredirects_fallback_to_get():\n    \"\"\"Test that TooManyRedirects with HEAD falls back to GET\"\"\"\n    with tempfile.TemporaryDirectory() as tmpdir:\n        tmpdir = Path(tmpdir)\n        \n        # Create conf.py\n        (tmpdir / 'conf.py').write_text(textwrap.dedent('''\\\n            project = 'Test'\n            extensions = []\n        '''))\n        \n        # Create index.rst\n        (tmpdir / 'index.rst').write_text(textwrap.dedent('''\\\n            Test\n            ====\n\n            See `this link <http://localhost:7780/>`_.\n        '''))\n        \n        # Start server\n        server = HTTPServer(('localhost', 7780), RedirectLoopHeadHandler)\n        server_thread = threading.Thread(target=server.serve_forever, daemon=True)\n        server_thread.start()\n        time.sleep(0.5)\n        \n        # Build with linkcheck - quiet mode\n        from sphinx.application import Sphinx\n        app = Sphinx(\n            srcdir=str(tmpdir),\n            confdir=str(tmpdir),\n            outdir=str(tmpdir / '_build'),\n            doctreedir=str(tmpdir / '_build' / '.doctrees'),\n            buildername='linkcheck',\n            confoverrides={},\n            status=None,\n            warning=None,\n            freshenv=True,\n            warningiserror=False,\n            tags=[],\n            verbosity=0,  # Quiet\n            parallel=1,\n        )\n        \n        # Redirect stdout to see what's printed\n        import io\n        from contextlib import redirect_stdout, redirect_stderr\n        \n        f_out = io.StringIO()\n        f_err = io.StringIO()\n        \n        with redirect_stdout(f_out), redirect_stderr(f_err):\n            app.build()\n        \n        stdout = f_out.getvalue()\n        stderr = f_err.getvalue()\n        \n        print(\"=== STDOUT ===\")\n        print(stdout)\n        print(\"\\n=== STDERR ===\")\n        print(stderr)\n        \n        # Check results\n        content_txt = (tmpdir / '_build' / 'output.txt').read_text()\n        content_json = (tmpdir / '_build' / 'output.json').read_text()\n        \n        print(\"\\n=== output.txt ===\")\n        print(repr(content_txt))\n        print(\"\\n=== output.json ===\")\n        print(content_json)\n        \n        server.shutdown()\n\nif __name__ == '__main__':\n    test_toomanyredirects_fallback_to_get()\nEOF\npython3 /tmp/test_toomanyredirects3.py 2>&1",
+   "hit": null,
+   "lat_ms": 2222.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_linkcheck.py -v 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 1570.3
+  },
+  {
+   "cmd": "cat /testbed/tests/test_build_linkcheck.py | grep -A 20 \"test_defaults\"",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_linkcheck.py::test_follows_redirects_on_HEAD tests/test_build_linkcheck.py::test_follows_redirects_on_GET tests/test_build_linkcheck.py::test_raises_for_invalid_status tests/test_build_linkcheck.py::test_auth_header_uses_first_match tests/test_build_linkcheck.py::test_auth_header_no_match -v",
+   "hit": null,
+   "lat_ms": 970.7
+  },
+  {
+   "cmd": "cat >> /testbed/tests/test_build_linkcheck.py << 'EOF'\n\n\ndef make_infinitely_redirecting_head_handler():\n    \"\"\"Handler that causes infinite redirects with HEAD but works with GET\"\"\"\n    class InfiniteRedirectHeadHandler(http.server.BaseHTTPRequestHandler):\n        def do_HEAD(self):\n            # HEAD always redirects - this will cause TooManyRedirects\n            self.send_response(302, \"Found\")\n            self.send_header(\"Location\", \"http://localhost:7790/\")\n            self.end_headers()\n\n        def do_GET(self):\n            # GET works fine\n            self.send_response(200, \"OK\")\n            self.end_headers()\n\n        def log_date_time_string(self):\n            \"\"\"Strip date and time from logged messages for assertions.\"\"\"\n            return \"\"\n\n    return InfiniteRedirectHeadHandler\n\n\n@pytest.mark.sphinx('linkcheck', testroot='linkcheck-localserver', freshenv=True)\ndef test_infinitely_redirecting_head_fallback_to_get(app, capsys):\n    \"\"\"Test that TooManyRedirects with HEAD falls back to GET\"\"\"\n    with http_server(make_infinitely_redirecting_head_handler()):\n        app.builder.build_all()\n    content = (app.outdir / 'output.txt').read_text()\n    assert content == (\n        \"index.rst:1: [redirected with Found] \"\n        \"http://localhost:7790/ to http://localhost:7790/\\n\"\n    )\nEOF\n",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_linkcheck.py::test_infinitely_redirecting_head_fallback_to_get -v",
+   "hit": null,
+   "lat_ms": 971.6
+  },
+  {
+   "cmd": "cat /testbed/tests/roots/test-linkcheck-localserver/index.rst",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "tail -30 /testbed/tests/test_build_linkcheck.py",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cat > /tmp/fix_test.py << 'EOF'\n# Remove the last test and add the corrected one\nwith open('/testbed/tests/test_build_linkcheck.py', 'r') as f:\n    content = f.read()\n\n# Find where to cut off\ncut_off = content.find('\\n\\ndef make_infinitely_redirecting_head_handler():')\nif cut_off > 0:\n    content = content[:cut_off]\n\n# Add the corrected test\nnew_test = '''\n\ndef make_infinitely_redirecting_head_handler():\n    \"\"\"Handler that causes infinite redirects with HEAD but works with GET\"\"\"\n    class InfiniteRedirectHeadHandler(http.server.BaseHTTPRequestHandler):\n        def do_HEAD(self):\n            # HEAD always redirects - this will cause TooManyRedirects\n            self.send_response(302, \"Found\")\n            self.send_header(\"Location\", \"http://localhost:7777/\")\n            self.end_headers()\n\n        def do_GET(self):\n            # GET works fine\n            self.send_response(200, \"OK\")\n            self.end_headers()\n\n        def log_date_time_string(self):\n            \"\"\"Strip date and time from logged messages for assertions.\"\"\"\n            return \"\"\n\n    return InfiniteRedirectHeadHandler\n\n\n@pytest.mark.sphinx('linkcheck', testroot='linkcheck-localserver', freshenv=True)\ndef test_infinitely_redirecting_head_fallback_to_get(app, capsys):\n    \"\"\"Test that TooManyRedirects with HEAD falls back to GET\"\"\"\n    with http_server(make_infinitely_redirecting_head_handler()):\n        app.builder.build_all()\n    content = (app.outdir / 'output.txt').read_text()\n    # The link is redirected and works because GET fallback succeeds\n    assert content == (\n        \"index.rst:1: [redirected with Found] \"\n        \"http://localhost:7777/ to http://localhost:7777/\\\\n\"\n    )\n'''\n\ncontent += new_test\n\nwith open('/testbed/tests/test_build_linkcheck.py', 'w') as f:\n    f.write(content)\n\nprint(\"Test updated!\")\nEOF\npython3 /tmp/fix_test.py",
+   "hit": null,
+   "lat_ms": 120.2
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_linkcheck.py::test_infinitely_redirecting_head_fallback_to_get -v",
+   "hit": null,
+   "lat_ms": 972.2
+  },
+  {
+   "cmd": "cat > /tmp/fix_test2.py << 'EOF'\n# Remove the last test and add the corrected one\nwith open('/testbed/tests/test_build_linkcheck.py', 'r') as f:\n    content = f.read()\n\n# Find where to cut off\ncut_off = content.find('\\n\\ndef make_infinitely_redirecting_head_handler():')\nif cut_off > 0:\n    content = content[:cut_off]\n\n# Add the corrected test\nnew_test = '''\n\ndef make_infinitely_redirecting_head_handler():\n    \"\"\"Handler that causes infinite redirects with HEAD but works with GET\"\"\"\n    class InfiniteRedirectHeadHandler(http.server.BaseHTTPRequestHandler):\n        def do_HEAD(self):\n            # HEAD always redirects - this will cause TooManyRedirects\n            self.send_response(302, \"Found\")\n            self.send_header(\"Location\", \"http://localhost:7777/\")\n            self.end_headers()\n\n        def do_GET(self):\n            # GET works fine and redirects to same URL (loop detected by requests library)\n            self.send_response(302, \"Found\")\n            self.send_header(\"Location\", \"http://localhost:7777/\")\n            self.end_headers()\n\n        def log_date_time_string(self):\n            \"\"\"Strip date and time from logged messages for assertions.\"\"\"\n            return \"\"\n\n    return InfiniteRedirectHeadHandler\n\n\n@pytest.mark.sphinx('linkcheck', testroot='linkcheck-localserver', freshenv=True)\ndef test_infinitely_redirecting_head_fallback_to_get(app, capsys):\n    \"\"\"Test that TooManyRedirects with HEAD falls back to GET\"\"\"\n    with http_server(make_infinitely_redirecting_head_handler()):\n        app.builder.build_all()\n    content = (app.outdir / 'output.txt').read_text()\n    # The link check should NOT be broken - GET fallback should handle TooManyRedirects\n    # Since the response URL equals the request URL, it's \"working\"\n    assert content == ''\n'''\n\ncontent += new_test\n\nwith open('/testbed/tests/test_build_linkcheck.py', 'w') as f:\n    f.write(content)\n\nprint(\"Test updated!\")\nEOF\npython3 /tmp/fix_test2.py",
+   "hit": null,
+   "lat_ms": 163.2
+  },
+  {
+   "cmd": "cat > /tmp/test_redirect.py << 'EOF'\nimport http.server\nimport threading\nimport time\nimport requests\n\nclass InfiniteRedirectHandler(http.server.BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(302, \"Found\")\n        self.send_header(\"Location\", \"http://localhost:7791/\")\n        self.end_headers()\n    \n    def log_date_time_string(self):\n        return \"\"\n\n# Start server\nserver = http.server.HTTPServer(('localhost', 7791), InfiniteRedirectHandler)\nserver_thread = threading.Thread(target=server.serve_forever, daemon=True)\nserver_thread.start()\ntime.sleep(0.5)\n\n# Test with redirects\ntry:\n    response = requests.get('http://localhost:7791/', allow_redirects=True, timeout=2)\n    print(f\"Final URL: {response.url}\")\n    print(f\"Status: {response.status_code}\")\n    print(f\"History: {response.history}\")\nexcept requests.exceptions.TooManyRedirects as e:\n    print(f\"TooManyRedirects: {e}\")\nexcept Exception as e:\n    print(f\"Exception: {e}\")\n\nserver.shutdown()\nEOF\npython3 /tmp/test_redirect.py",
+   "hit": null,
+   "lat_ms": 1376.4
+  },
+  {
+   "cmd": "cat > /tmp/test_with_json.py << 'EOF'\nimport http.server\nimport textwrap\nimport tempfile\nimport time\nimport threading\nfrom pathlib import Path\nimport json\n\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\n\nfrom http.server import HTTPServer\n\nclass InfiniteRedirectHeadHandler(http.server.BaseHTTPRequestHandler):\n    def do_HEAD(self):\n        self.send_response(302, \"Found\")\n        self.send_header(\"Location\", \"http://localhost:7792/\")\n        self.end_headers()\n    \n    def do_GET(self):\n        # This will also loop, so let's make it work after 1 redirect\n        if self.path == \"/?done\":\n            self.send_response(200, \"OK\")\n        else:\n            self.send_response(302, \"Found\")\n            self.send_header(\"Location\", \"http://localhost:7792/?done\")\n        self.end_headers()\n    \n    def log_date_time_string(self):\n        return \"\"\n\nwith tempfile.TemporaryDirectory() as tmpdir:\n    tmpdir = Path(tmpdir)\n    \n    (tmpdir / 'conf.py').write_text(\"project = 'Test'\\nextensions = []\\n\")\n    (tmpdir / 'index.rst').write_text(\"`link <http://localhost:7792/>`_\\n\")\n    \n    server = HTTPServer(('localhost', 7792), InfiniteRedirectHeadHandler)\n    server_thread = threading.Thread(target=server.serve_forever, daemon=True)\n    server_thread.start()\n    time.sleep(0.5)\n    \n    from sphinx.application import Sphinx\n    app = Sphinx(\n        srcdir=str(tmpdir),\n        confdir=str(tmpdir),\n        outdir=str(tmpdir / '_build'),\n        doctreedir=str(tmpdir / '_build' / '.doctrees'),\n        buildername='linkcheck',\n        confoverrides={},\n        status=None,\n        warning=None,\n        freshenv=True,\n        warningiserror=False,\n        tags=[],\n        verbosity=0,\n        parallel=1,\n    )\n    \n    app.build()\n    \n    content_txt = (tmpdir / '_build' / 'output.txt').read_text()\n    content_json = (tmpdir / '_build' / 'output.json').read_text()\n    \n    print(\"=== output.txt ===\")\n    print(repr(content_txt))\n    \n    print(\"\\n=== output.json ===\")\n    print(content_json)\n    \n    for line in content_json.strip().split('\\n'):\n        if line:\n            print(json.dumps(json.loads(line), indent=2))\n    \n    server.shutdown()\nEOF\npython3 /tmp/test_with_json.py 2>&1 | grep -v \"^127.0.0.1\"",
+   "hit": null,
+   "lat_ms": 1770.9
+  },
+  {
+   "cmd": "sed -n '150,185p' /testbed/sphinx/builders/linkcheck.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat > /tmp/fix_test3.py << 'EOF'\n# Remove the last test and add the corrected one\nwith open('/testbed/tests/test_build_linkcheck.py', 'r') as f:\n    content = f.read()\n\n# Find where to cut off\ncut_off = content.find('\\n\\ndef make_infinitely_redirecting_head_handler():')\nif cut_off > 0:\n    content = content[:cut_off]\n\n# Add the corrected test\nnew_test = '''\n\ndef make_head_redirects_get_works_handler():\n    \"\"\"Handler that causes redirect with HEAD but works with GET\"\"\"\n    class HeadRedirectsGetWorksHandler(http.server.BaseHTTPRequestHandler):\n        redirect_count = 0\n        \n        def do_HEAD(self):\n            # HEAD redirects to a different URL once, then works\n            HeadRedirectsGetWorksHandler.redirect_count += 1\n            if HeadRedirectsGetWorksHandler.redirect_count <= 1:\n                self.send_response(302, \"Found\")\n                self.send_header(\"Location\", \"http://localhost:7793/redirected\")\n                self.end_headers()\n            else:\n                # This shouldn't happen since we should fallback to GET\n                self.send_response(200, \"OK\")\n                self.end_headers()\n\n        def do_GET(self):\n            # GET just returns 200 OK without redirects\n            self.send_response(200, \"OK\")\n            self.end_headers()\n\n        def log_date_time_string(self):\n            \"\"\"Strip date and time from logged messages for assertions.\"\"\"\n            return \"\"\n\n    return HeadRedirectsGetWorksHandler\n\n\n@pytest.mark.sphinx('linkcheck', testroot='linkcheck-localserver', freshenv=True)\ndef test_toomanyredirects_head_fallback_to_get(app, capsys):\n    \"\"\"Test that TooManyRedirects with HEAD falls back to GET and succeeds\"\"\"\n    with http_server(make_head_redirects_get_works_handler()):\n        app.builder.build_all()\n    \n    # Check JSON output\n    content_json = (app.outdir / 'output.json').read_text()\n    rows = [json.loads(x) for x in content_json.splitlines()]\n    \n    # The link should be working (via GET fallback after HEADTooManyRedirects)\n    assert rows[0][\"status\"] == \"working\"\n    assert rows[0][\"uri\"] == \"http://localhost:7777/\"\n'''\n\ncontent += new_test\n\nwith open('/testbed/tests/test_build_linkcheck.py', 'w') as f:\n    f.write(content)\n\nprint(\"Test updated!\")\nEOF\npython3 /tmp/fix_test3.py",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_linkcheck.py::test_toomanyredirects_head_fallback_to_get -v 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 971.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_linkcheck.py::test_toomanyredirects_head_fallback_to_get -v 2>&1 | grep -A 30 \"FAILED\\|AssertionError\"",
+   "hit": null,
+   "lat_ms": 972.7
+  },
+  {
+   "cmd": "cat > /tmp/fix_test4.py << 'EOF'\n# Remove the last test and add the corrected one\nwith open('/testbed/tests/test_build_linkcheck.py', 'r') as f:\n    content = f.read()\n\n# Find where to cut off\ncut_off = content.find('\\n\\ndef make_head_redirects_get_works_handler():')\nif cut_off > 0:\n    content = content[:cut_off]\n\n# Add the corrected test\nnew_test = '''\n\ndef make_head_redirects_get_works_handler():\n    \"\"\"Handler that causes redirect with HEAD but works with GET\"\"\"\n    class HeadRedirectsGetWorksHandler(http.server.BaseHTTPRequestHandler):\n        redirect_count = 0\n        \n        def do_HEAD(self):\n            # HEAD redirects to a different URL once, then works\n            HeadRedirectsGetWorksHandler.redirect_count += 1\n            if HeadRedirectsGetWorksHandler.redirect_count <= 1:\n                self.send_response(302, \"Found\")\n                self.send_header(\"Location\", \"http://localhost:7777/redirected\")\n                self.end_headers()\n            else:\n                # This shouldn't happen since we should fallback to GET\n                self.send_response(200, \"OK\")\n                self.end_headers()\n\n        def do_GET(self):\n            # GET just returns 200 OK without redirects\n            self.send_response(200, \"OK\")\n            self.end_headers()\n\n        def log_date_time_string(self):\n            \"\"\"Strip date and time from logged messages for assertions.\"\"\"\n            return \"\"\n\n    return HeadRedirectsGetWorksHandler\n\n\n@pytest.mark.sphinx('linkcheck', testroot='linkcheck-localserver', freshenv=True)\ndef test_toomanyredirects_head_fallback_to_get(app, capsys):\n    \"\"\"Test that TooManyRedirects with HEAD falls back to GET and succeeds\"\"\"\n    with http_server(make_head_redirects_get_works_handler()):\n        app.builder.build_all()\n    \n    # Check JSON output\n    content_json = (app.outdir / 'output.json').read_text()\n    rows = [json.loads(x) for x in content_json.splitlines()]\n    \n    # The link should be working (via GET fallback after HEADTooManyRedirects)\n    assert rows[0][\"status\"] == \"working\"\n    assert rows[0][\"uri\"] == \"http://localhost:7777/\"\n'''\n\ncontent += new_test\n\nwith open('/testbed/tests/test_build_linkcheck.py', 'w') as f:\n    f.write(content)\n\nprint(\"Test updated!\")\nEOF\npython3 /tmp/fix_test4.py",
+   "hit": null,
+   "lat_ms": 134.8
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_linkcheck.py::test_toomanyredirects_head_fallback_to_get -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 973.8
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_linkcheck.py::test_toomanyredirects_head_fallback_to_get -v 2>&1 | grep -A 20 \"FAILED\\|AssertionError\\|status\\|uri\"",
+   "hit": null,
+   "lat_ms": 975.2
+  },
+  {
+   "cmd": "cat > /tmp/fix_test5.py << 'EOF'\n# Remove the last test and add the corrected one\nwith open('/testbed/tests/test_build_linkcheck.py', 'r') as f:\n    content = f.read()\n\n# Find where to cut off\ncut_off = content.find('\\n\\ndef make_head_redirects_get_works_handler():')\nif cut_off > 0:\n    content = content[:cut_off]\n\n# Add the corrected test\nnew_test = '''\n\ndef make_head_toomanyredirects_get_works_handler():\n    \"\"\"Handler that causes TooManyRedirects with HEAD but works with GET\"\"\"\n    class HeadTooManyRedirectsGetWorksHandler(http.server.BaseHTTPRequestHandler):\n        redirect_count = 0\n        \n        def do_HEAD(self):\n            # HEAD always redirects to itself - this will cause TooManyRedirects\n            HeadTooManyRedirectsGetWorksHandler.redirect_count += 1\n            self.send_response(302, \"Found\")\n            self.send_header(\"Location\", \"http://localhost:7777/\")\n            self.end_headers()\n\n        def do_GET(self):\n            # GET just returns 200 OK - no redirects\n            self.send_response(200, \"OK\")\n            self.end_headers()\n\n        def log_date_time_string(self):\n            \"\"\"Strip date and time from logged messages for assertions.\"\"\"\n            return \"\"\n\n    return HeadTooManyRedirectsGetWorksHandler\n\n\n@pytest.mark.sphinx('linkcheck', testroot='linkcheck-localserver', freshenv=True)\ndef test_toomanyredirects_head_fallback_to_get(app, capsys):\n    \"\"\"Test that TooManyRedirects with HEAD falls back to GET and succeeds\"\"\"\n    with http_server(make_head_toomanyredirects_get_works_handler()):\n        app.builder.build_all()\n    \n    # Check JSON output\n    content_json = (app.outdir / 'output.json').read_text()\n    rows = [json.loads(x) for x in content_json.splitlines()]\n    \n    # The link should be working (via GET fallback after HEADTooManyRedirects)\n    assert rows[0][\"status\"] == \"working\"\n    assert rows[0][\"uri\"] == \"http://localhost:7777/\"\n'''\n\ncontent += new_test\n\nwith open('/testbed/tests/test_build_linkcheck.py', 'w') as f:\n    f.write(content)\n\nprint(\"Test updated!\")\nEOF\npython3 /tmp/fix_test5.py",
+   "hit": null,
+   "lat_ms": 165.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_linkcheck.py::test_toomanyredirects_head_fallback_to_get -v 2>&1 | grep -A 20 \"status\\|uri\\|FAILED\\|PASSED\"",
+   "hit": null,
+   "lat_ms": 970.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_linkcheck.py::test_toomanyredirects_head_fallback_to_get -v 2>&1 | grep -E \"captured|127.0.0.1|OK|HEAD|GET\"",
+   "hit": null,
+   "lat_ms": 770.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_linkcheck.py::test_toomanyredirects_head_fallback_to_get -v --tb=short 2>&1 | tail -60",
+   "hit": null,
+   "lat_ms": 971.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_linkcheck.py -v -k \"not test_defaults and not test_anchors_ignored and not test_defaults_json and not test_linkcheck_request_headers\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1373.4
+  },
+  {
+   "cmd": "head -25 /testbed/sphinx/builders/linkcheck.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "sed -n '165,180p' /testbed/sphinx/builders/linkcheck.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "tail -60 /testbed/tests/test_build_linkcheck.py",
+   "hit": null,
+   "lat_ms": 108.7
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "sphinx-doc__sphinx-8475",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 28307.0,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,711 @@
+{
+ "calls": 131,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 32535.90703010559,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 114.5
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "find /home -name \"base.py\" -path \"*/django/core/handlers/*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "find / -name \"base.py\" -path \"*/django/core/handlers/*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 772.5
+  },
+  {
+   "cmd": "cat /testbed/django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 168.6
+  },
+  {
+   "cmd": "find /testbed -path \"*/tests/*\" -name \"*.py\" | xargs grep -l \"MiddlewareNotUsed\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 571.1
+  },
+  {
+   "cmd": "cat /testbed/tests/middleware_exceptions/tests.py",
+   "hit": null,
+   "lat_ms": 68.6
+  },
+  {
+   "cmd": "ls -la /testbed/tests/middleware_exceptions/",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "cat /testbed/tests/middleware_exceptions/middleware.py",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "sed -n '40,75p' /testbed/django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline --all | grep -i \"middleware\" | head -20",
+   "hit": null,
+   "lat_ms": 165.4
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline --all | grep -i \"async\" | head -20",
+   "hit": null,
+   "lat_ms": 379.9
+  },
+  {
+   "cmd": "cd /testbed && git show 825ce75fae --stat",
+   "hit": null,
+   "lat_ms": 73.4
+  },
+  {
+   "cmd": "cd /testbed && grep -r \"MiddlewareNotUsed\" --include=\"*.py\" tests/ | grep -v \".pyc\" | head -20",
+   "hit": null,
+   "lat_ms": 164.4
+  },
+  {
+   "cmd": "cd /testbed && find . -path \"./tests/*\" -name \"*.py\" | xargs grep -l \"async_client\" | head -10",
+   "hit": null,
+   "lat_ms": 165.0
+  },
+  {
+   "cmd": "cd /testbed && grep -A 30 \"test_sync_middleware_async\" tests/middleware_exceptions/tests.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "sed -n '32,85p' /testbed/django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cat > /testbed/test_middleware_not_used_async.py << 'EOF'\n\"\"\"\nTest to reproduce the MiddlewareNotUsed issue in ASGI context.\n\nThe issue: When MiddlewareNotUsed is raised, the handler variable has already\nbeen modified by adapt_method_mode(), causing the middleware chain to be\n\"poisoned\" from that point onwards.\n\"\"\"\nimport asyncio\nimport os\nimport sys\nimport django\n\n# Setup Django\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tests.middleware_exceptions.settings')\nsys.path.insert(0, '/testbed')\ndjango.setup()\n\nfrom django.conf import settings\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\nfrom django.test import override_settings\nfrom django.test.async_client import AsyncClient\n\n\n# Create a middleware that raises MiddlewareNotUsed\nclass MiddlewareNotUsedMiddleware:\n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"This middleware is not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\n# Create a synchronous middleware that should work\nclass SimpleSyncMiddleware:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    def __call__(self, request):\n        response = self.get_response(request)\n        response['X-Test'] = 'sync-middleware'\n        return response\n\n\n# Create an async middleware\nclass SimpleAsyncMiddleware:\n    sync_capable = False\n    async_capable = True\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    async def __call__(self, request):\n        response = await self.get_response(request)\n        response['X-Test'] = 'async-middleware'\n        return response\n\n\n# Create an async-capable middleware (can handle both sync and async)\nclass SyncAndAsyncMiddleware:\n    sync_capable = True\n    async_capable = True\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    async def __call__(self, request):\n        response = await self.get_response(request)\n        response['X-Test'] = 'sync-async-middleware'\n        return response\n\n\nasync def test_middleware_not_used_before_async_middleware():\n    \"\"\"\n    Test that MiddlewareNotUsed before an async middleware doesn't cause issues.\n    \n    The bug: When MiddlewareNotUsedMiddleware raises MiddlewareNotUsed,\n    the handler has already been adapted by adapt_method_mode().\n    This poisoned handler is then passed to SimpleAsyncMiddleware,\n    causing the chain to fail.\n    \"\"\"\n    with override_settings(\n        MIDDLEWARE=[\n            'test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'test_middleware_not_used_async.SimpleAsyncMiddleware',\n        ]\n    ):\n        client = AsyncClient()\n        try:\n            response = await client.get('/middleware_exceptions/view/')\n            print(f\"Response status: {response.status_code}\")\n            print(f\"Response headers: {dict(response.items)}\")\n            print(f\"Response content: {response.content}\")\n            print(\"TEST PASSED: Async middleware worked correctly after MiddlewareNotUsed\")\n        except Exception as e:\n            print(f\"TEST FAILED: {type(e).__name__}: {e}\")\n            import traceback\n            traceback.print_exc()\n\n\nasync def test_middleware_not_used_before_sync_middleware():\n    \"\"\"\n    Test that MiddlewareNotUsed before a sync middleware works correctly.\n    \"\"\"\n    with override_settings(\n        MIDDLEWARE=[\n            'test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'test_middleware_not_used_async.SimpleSyncMiddleware',\n        ]\n    ):\n        client = AsyncClient()\n        try:\n            response = await client.get('/middleware_exceptions/view/')\n            print(f\"Response status: {response.status_code}\")\n            print(f\"Response headers: {dict(response.items)}\")\n            print(f\"Response content: {response.content}\")\n            print(\"TEST PASSED: Sync middlew",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed && python test_middleware_not_used_async.py 2>&1",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "ls /testbed/tests/middleware_exceptions/",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat /testbed/tests/middleware_exceptions/urls.py",
+   "hit": null,
+   "lat_ms": 120.0
+  },
+  {
+   "cmd": "find /testbed -name \"settings.py\" -path \"*/tests/*\" | head -10",
+   "hit": null,
+   "lat_ms": 169.1
+  },
+  {
+   "cmd": "ls /testbed/tests/ | grep -i setting",
+   "hit": null,
+   "lat_ms": 72.3
+  },
+  {
+   "cmd": "head -50 /testbed/tests/admin_scripts/settings.py 2>/dev/null || head -50 /testbed/tests/settings.py 2>/dev/null || ls /testbed/*.py | head -5",
+   "hit": null,
+   "lat_ms": 145.7
+  },
+  {
+   "cmd": "ls /testbed/*.py",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "cat /testbed/tox.ini 2>/dev/null | head -50 || cat /testbed/Makefile 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "ls /testbed/tests/runtests.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cd /testbed/tests && cat > test_middleware_not_used_async.py << 'EOF'\n\"\"\"\nTest to reproduce the MiddlewareNotUsed issue in ASGI context.\n\"\"\"\nimport os\nimport sys\nimport django\n\n# Setup Django\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'admin_scripts.settings')\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\ndjango.setup()\n\nfrom django.conf import settings\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\nfrom django.test import override_settings\nfrom django.test.async_client import AsyncClient\n\n\n# Create a middleware that raises MiddlewareNotUsed\nclass MiddlewareNotUsedMiddleware:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"This middleware is not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\n# Create a synchronous middleware that should work\nclass SimpleSyncMiddleware:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    def __call__(self, request):\n        response = self.get_response(request)\n        response['X-Test'] = 'sync-middleware'\n        return response\n\n\n# Create an async middleware\nclass SimpleAsyncMiddleware:\n    sync_capable = False\n    async_capable = True\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    async def __call__(self, request):\n        response = await self.get_response(request)\n        response['X-Test'] = 'async-middleware'\n        return response\n\n\nasync def test_middleware_not_used_before_async_middleware():\n    \"\"\"\n    Test that MiddlewareNotUsed before an async middleware doesn't cause issues.\n    \"\"\"\n    with override_settings(\n        MIDDLEWARE=[\n            'test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'test_middleware_not_used_async.SimpleAsyncMiddleware',\n        ]\n    ):\n        from django.test.async_client import AsyncClient\n        client = AsyncClient()\n        try:\n            response = await client.get('/middleware_exceptions/view/')\n            print(f\"Response status: {response.status_code}\")\n            print(f\"Response headers: {dict(response.items)}\")\n            print(f\"Response content: {response.content}\")\n            print(\"TEST PASSED: Async middleware worked correctly after MiddlewareNotUsed\")\n        except Exception as e:\n            print(f\"TEST FAILED: {type(e).__name__}: {e}\")\n            import traceback\n            traceback.print_exc()\n\n\nif __name__ == '__main__':\n    print(\"=\" * 80)\n    print(\"Testing MiddlewareNotUsed with async middleware in ASGI context\")\n    print(\"=\" * 80)\n    \n    print(\"\\n1. Testing MiddlewareNotUsed before async middleware:\")\n    import asyncio\n    asyncio.run(test_middleware_not_used_before_async_middleware())\nEOF\npython test_middleware_not_used_async.py 2>&1",
+   "hit": null,
+   "lat_ms": 378.4
+  },
+  {
+   "cmd": "cd /testbed/tests && ls admin_scripts/",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "find /testbed/tests -name \"settings.py\" | head -5",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "head -20 /testbed/tests/middleware_exceptions/tests.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat /testbed/tests/runtests.py | head -100",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "grep -n \"MIDDLEWARE\" /testbed/tests/runtests.py | head -10",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "sed -n '140,200p' /testbed/tests/runtests.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python -m pytest middleware_exceptions/tests.py::MiddlewareSyncAsyncTests::test_sync_middleware_async -xvs 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 973.6
+  },
+  {
+   "cmd": "cat > /testbed/tests/middleware_exceptions/test_middleware_not_used_async.py << 'EOF'\n\"\"\"\nTest to reproduce the MiddlewareNotUsed issue in ASGI context.\n\"\"\"\nfrom django.conf import settings\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\nfrom django.test import AsyncTestCase, override_settings\n\nfrom . import middleware as mw\n\n\nclass MiddlewareNotUsedAsyncTests(AsyncTestCase):\n    \"\"\"Test MiddlewareNotUsed works correctly in async context.\"\"\"\n    \n    def tearDown(self):\n        mw.log = []\n    \n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.test_middleware_not_used_async.AsyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_middleware_not_used_before_async_middleware(self):\n        \"\"\"\n        Test that MiddlewareNotUsed before an async middleware doesn't cause issues.\n        \n        The bug: When MiddlewareNotUsedMiddleware raises MiddlewareNotUsed,\n        the handler has already been adapted by adapt_method_mode().\n        This poisoned handler is then passed to AsyncMiddlewareAfterNotUsed,\n        causing the chain to fail with \"TypeError: object HttpResponse can't be used in 'await' expression\".\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n    \n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.test_middleware_not_used_async.SyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_middleware_not_used_before_sync_middleware_async_client(self):\n        \"\"\"\n        Test that MiddlewareNotUsed before a sync middleware works correctly with async client.\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n    \n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware2',\n            'middleware_exceptions.test_middleware_not_used_async.AsyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_multiple_middleware_not_used_before_async_middleware(self):\n        \"\"\"\n        Test multiple middleware raising MiddlewareNotUsed before an async middleware.\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n\n\nclass MiddlewareNotUsedMiddleware:\n    \"\"\"Middleware that raises MiddlewareNotUsed.\"\"\"\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"This middleware is not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass MiddlewareNotUsedMiddleware2:\n    \"\"\"Second middleware that raises MiddlewareNotUsed.\"\"\"\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"This middleware is also not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass AsyncMiddlewareAfterNotUsed:\n    \"\"\"Async middleware that comes after a MiddlewareNotUsed.\"\"\"\n    sync_capable = False\n    async_capable = True\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    async def __call__(self, request):\n        response = await self.get_response(request)\n        response['X-Test'] = 'async-middleware'\n        return response\n\n\nclass SyncMiddlewareAfterNotUsed:\n    \"\"\"Sync middleware that comes",
+   "hit": null,
+   "lat_ms": 68.6
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions.test_middleware_not_used_async 2>&1",
+   "hit": null,
+   "lat_ms": 575.9
+  },
+  {
+   "cmd": "grep -n \"class.*Async\" /testbed/tests/middleware_exceptions/tests.py | head -5",
+   "hit": null,
+   "lat_ms": 90.5
+  },
+  {
+   "cmd": "sed -n '287,310p' /testbed/tests/middleware_exceptions/tests.py",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "grep -n \"from django.test\" /testbed/tests/middleware_exceptions/tests.py | head -5",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cat > /testbed/tests/middleware_exceptions/test_middleware_not_used_async.py << 'EOF'\n\"\"\"\nTest to reproduce the MiddlewareNotUsed issue in ASGI context.\n\"\"\"\nfrom django.conf import settings\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\nfrom django.test import SimpleTestCase, override_settings\n\n\nclass MiddlewareNotUsedAsyncTests(SimpleTestCase):\n    \"\"\"Test MiddlewareNotUsed works correctly in async context.\"\"\"\n    \n    def tearDown(self):\n        from . import middleware as mw\n        mw.log = []\n    \n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.test_middleware_not_used_async.AsyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_middleware_not_used_before_async_middleware(self):\n        \"\"\"\n        Test that MiddlewareNotUsed before an async middleware doesn't cause issues.\n        \n        The bug: When MiddlewareNotUsedMiddleware raises MiddlewareNotUsed,\n        the handler has already been adapted by adapt_method_mode().\n        This poisoned handler is then passed to AsyncMiddlewareAfterNotUsed,\n        causing the chain to fail with \"TypeError: object HttpResponse can't be used in 'await' expression\".\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n    \n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.test_middleware_not_used_async.SyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_middleware_not_used_before_sync_middleware_async_client(self):\n        \"\"\"\n        Test that MiddlewareNotUsed before a sync middleware works correctly with async client.\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n    \n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware2',\n            'middleware_exceptions.test_middleware_not_used_async.AsyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_multiple_middleware_not_used_before_async_middleware(self):\n        \"\"\"\n        Test multiple middleware raising MiddlewareNotUsed before an async middleware.\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n\n\nclass MiddlewareNotUsedMiddleware:\n    \"\"\"Middleware that raises MiddlewareNotUsed.\"\"\"\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"This middleware is not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass MiddlewareNotUsedMiddleware2:\n    \"\"\"Second middleware that raises MiddlewareNotUsed.\"\"\"\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"This middleware is also not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass AsyncMiddlewareAfterNotUsed:\n    \"\"\"Async middleware that comes after a MiddlewareNotUsed.\"\"\"\n    sync_capable = False\n    async_capable = True\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    async def __call__(self, request):\n        response = await self.get_response(request)\n        response['X-Test'] = 'async-middleware'\n        return response\n\n\nclass SyncMiddlewareAfterNotUsed:\n    \"\"\"Sync middleware t",
+   "hit": null,
+   "lat_ms": 98.3
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions.test_middleware_not_used_async 2>&1",
+   "hit": null,
+   "lat_ms": 571.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions.AsyncMiddlewareTests.test_process_template_response -v 2 2>&1",
+   "hit": null,
+   "lat_ms": 612.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions.tests.AsyncMiddlewareTests.test_process_template_response 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 571.2
+  },
+  {
+   "cmd": "sed -n '287,300p' /testbed/tests/middleware_exceptions/tests.py",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "cat > /testbed/tests/middleware_exceptions/test_middleware_not_used_async.py << 'EOF'\n\"\"\"\nTest to reproduce the MiddlewareNotUsed issue in ASGI context.\n\"\"\"\nfrom django.conf import settings\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\nfrom django.test import SimpleTestCase, override_settings\n\nfrom . import middleware as mw\n\n\nclass MiddlewareNotUsedAsyncTests(SimpleTestCase):\n    \"\"\"Test MiddlewareNotUsed works correctly in async context.\"\"\"\n    \n    def tearDown(self):\n        mw.log = []\n    \n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.test_middleware_not_used_async.AsyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_middleware_not_used_before_async_middleware(self):\n        \"\"\"\n        Test that MiddlewareNotUsed before an async middleware doesn't cause issues.\n        \n        The bug: When MiddlewareNotUsedMiddleware raises MiddlewareNotUsed,\n        the handler has already been adapted by adapt_method_mode().\n        This poisoned handler is then passed to AsyncMiddlewareAfterNotUsed,\n        causing the chain to fail with \"TypeError: object HttpResponse can't be used in 'await' expression\".\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n    \n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.test_middleware_not_used_async.SyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_middleware_not_used_before_sync_middleware_async_client(self):\n        \"\"\"\n        Test that MiddlewareNotUsed before a sync middleware works correctly with async client.\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n    \n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware2',\n            'middleware_exceptions.test_middleware_not_used_async.AsyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_multiple_middleware_not_used_before_async_middleware(self):\n        \"\"\"\n        Test multiple middleware raising MiddlewareNotUsed before an async middleware.\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n\n\nclass MiddlewareNotUsedMiddleware:\n    \"\"\"Middleware that raises MiddlewareNotUsed.\"\"\"\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"This middleware is not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass MiddlewareNotUsedMiddleware2:\n    \"\"\"Second middleware that raises MiddlewareNotUsed.\"\"\"\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"This middleware is also not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass AsyncMiddlewareAfterNotUsed:\n    \"\"\"Async middleware that comes after a MiddlewareNotUsed.\"\"\"\n    sync_capable = False\n    async_capable = True\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    async def __call__(self, request):\n        response = await self.get_response(request)\n        response['X-Test'] = 'async-middleware'\n        return response\n\n\nclass SyncMiddlewareAfterNotUsed:\n    \"\"\"Sync middleware that com",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions.tests.MiddlewareNotUsedAsyncTests 2>&1",
+   "hit": null,
+   "lat_ms": 571.1
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedAsyncTests 2>&1",
+   "hit": null,
+   "lat_ms": 571.9
+  },
+  {
+   "cmd": "sed -n '360,380p' /testbed/django/test/utils.py",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "sed -n '180,200p' /testbed/django/test/client.py",
+   "hit": null,
+   "lat_ms": 129.0
+  },
+  {
+   "cmd": "sed -n '185,210p' /testbed/django/test/client.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "sed -n '135,160p' /testbed/django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "sed -n '365,390p' /testbed/django/test/utils.py",
+   "hit": null,
+   "lat_ms": 130.8
+  },
+  {
+   "cmd": "grep -n \"async def inner\" /testbed/django/test/utils.py",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "grep -n \"inner\" /testbed/django/test/utils.py | head -20",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "grep -n \"def inner\" /testbed/django/test/utils.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "sed -n '340,400p' /testbed/django/test/utils.py",
+   "hit": null,
+   "lat_ms": 116.9
+  },
+  {
+   "cmd": "grep -n \"async\" /testbed/django/test/testcases.py | head -30",
+   "hit": null,
+   "lat_ms": 71.4
+  },
+  {
+   "cmd": "sed -n '260,310p' /testbed/django/test/testcases.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "sed -n '287,320p' /testbed/tests/middleware_exceptions/tests.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions.tests.AsyncMiddlewareTests.test_process_template_response 2>&1",
+   "hit": null,
+   "lat_ms": 569.3
+  },
+  {
+   "cmd": "grep -B5 \"async def test_process_template_response\" /testbed/tests/middleware_exceptions/tests.py | head -10",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "cd /testbed/tests && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\nimport django\ndjango.setup()\n\nfrom django.test import SimpleTestCase, override_settings\nfrom django.test.async_client import AsyncClient\n\n# Let's look at what happens when we call a method\nclass TestClass(SimpleTestCase):\n    @override_settings(MIDDLEWARE=[])\n    async def test_something(self):\n        print('In async test')\n        client = AsyncClient()\n        print('Created async client')\n\ntest = TestClass()\nimport asyncio\nasyncio.run(test.test_something())\n\"",
+   "hit": null,
+   "lat_ms": 383.0
+  },
+  {
+   "cmd": "grep -n \"override_settings\" /testbed/django/test/utils.py | head -20",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "sed -n '393,470p' /testbed/django/test/utils.py",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "sed -n '470,500p' /testbed/django/test/utils.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "grep -n \"setUpClass\" /testbed/django/test/testcases.py | head -10",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "sed -n '1180,1220p' /testbed/django/test/testcases.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "sed -n '1520,1600p' /testbed/django/test/testcases.py",
+   "hit": null,
+   "lat_ms": 99.2
+  },
+  {
+   "cmd": "sed -n '175,260p' /testbed/django/test/testcases.py",
+   "hit": null,
+   "lat_ms": 169.8
+  },
+  {
+   "cmd": "cat > /testbed/tests/middleware_exceptions/test_middleware_not_used_async.py << 'EOF'\n\"\"\"\nTest to reproduce the MiddlewareNotUsed issue in ASGI context.\n\"\"\"\nfrom django.conf import settings\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\nfrom django.test import SimpleTestCase, override_settings\n\nfrom . import middleware as mw\n\n\n@override_settings(\n    ROOT_URLCONF='middleware_exceptions.urls',\n)\nclass MiddlewareNotUsedAsyncTests(SimpleTestCase):\n    \"\"\"Test MiddlewareNotUsed works correctly in async context.\"\"\"\n    \n    def tearDown(self):\n        mw.log = []\n    \n    @override_settings(\n        MIDDLEWARE=[\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.test_middleware_not_used_async.AsyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_middleware_not_used_before_async_middleware(self):\n        \"\"\"\n        Test that MiddlewareNotUsed before an async middleware doesn't cause issues.\n        \n        The bug: When MiddlewareNotUsedMiddleware raises MiddlewareNotUsed,\n        the handler has already been adapted by adapt_method_mode().\n        This poisoned handler is then passed to AsyncMiddlewareAfterNotUsed,\n        causing the chain to fail with \"TypeError: object HttpResponse can't be used in 'await' expression\".\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n    \n    @override_settings(\n        MIDDLEWARE=[\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.test_middleware_not_used_async.SyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_middleware_not_used_before_sync_middleware_async_client(self):\n        \"\"\"\n        Test that MiddlewareNotUsed before a sync middleware works correctly with async client.\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n    \n    @override_settings(\n        MIDDLEWARE=[\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.test_middleware_not_used_async.MiddlewareNotUsedMiddleware2',\n            'middleware_exceptions.test_middleware_not_used_async.AsyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_multiple_middleware_not_used_before_async_middleware(self):\n        \"\"\"\n        Test multiple middleware raising MiddlewareNotUsed before an async middleware.\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n\n\nclass MiddlewareNotUsedMiddleware:\n    \"\"\"Middleware that raises MiddlewareNotUsed.\"\"\"\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"This middleware is not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass MiddlewareNotUsedMiddleware2:\n    \"\"\"Second middleware that raises MiddlewareNotUsed.\"\"\"\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"This middleware is also not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass AsyncMiddlewareAfterNotUsed:\n    \"\"\"Async middleware that comes after a MiddlewareNotUsed.\"\"\"\n    sync_capable = False\n    async_capable = True\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    async def __call__(self, request):\n        response = await self.get_response(request)\n        response['X-Test'] = 'async-middleware'\n        return response\n\n\nclass SyncMiddlewareAfterNotUsed:\n    \"\"\"Sync middleware that comes after a MiddlewareNotUsed.\"\"\"\n    sync_capable = True\n    async_capable = False\n ",
+   "hit": null,
+   "lat_ms": 276.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions.test_middleware_not_used_async 2>&1",
+   "hit": null,
+   "lat_ms": 797.8
+  },
+  {
+   "cmd": "sed -n '255,280p' /testbed/django/test/testcases.py",
+   "hit": null,
+   "lat_ms": 174.7
+  },
+  {
+   "cmd": "cd /testbed/tests && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True,\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    MIDDLEWARE=[],\n    TEMPLATES=[],\n    ROOT_URLCONF='middleware_exceptions.urls',\n)\ndjango.setup()\n\nfrom django.test import SimpleTestCase, override_settings\nfrom django.test.async_client import AsyncClient\nimport asyncio\n\n# Let's see what happens with a test\nclass Test(SimpleTestCase):\n    @override_settings(MIDDLEWARE=['middleware_exceptions.middleware.AsyncTemplateResponseMiddleware'])\n    async def test_something(self):\n        print('Inside async test')\n        print(f'Is coroutine function: {asyncio.iscoroutinefunction(self.async_client.get)}')\n        response = await self.async_client.get('/middleware_exceptions/template_response/')\n        print(f'Response: {response}')\n\n# Run the test manually\nimport asyncio\ntest = Test()\ntest._testMethodName = 'test_something'\ntest.setUpClass()\ntry:\n    # The test method will be wrapped\n    from asgiref.sync import async_to_sync\n    wrapped = async_to_sync(test.test_something)\n    asyncio.run(wrapped())\nfinally:\n    test.tearDownClass()\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 385.7
+  },
+  {
+   "cmd": "grep -n \"class AsyncClient\" /testbed/django/test/client.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "sed -n '866,900p' /testbed/django/test/client.py",
+   "hit": null,
+   "lat_ms": 71.9
+  },
+  {
+   "cmd": "cd /testbed/tests && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\nimport os\nos.environ['DJANGO_SETTINGS_MODULE'] = 'settings'\nimport django\ndjango.setup()\n\nfrom django.test import SimpleTestCase\nfrom django.test.async_client import AsyncClient\nimport asyncio\n\n# Let's see what happens with a test\nclass Test(SimpleTestCase):\n    async def test_something(self):\n        print('Inside async test')\n        print('Test passed')\n\n# Run the test manually\ntest = Test()\ntest._testMethodName = 'test_something'\ntest.setUpClass()\ntry:\n    from asgiref.sync import async_to_sync\n    # When we run the test, it's wrapped with async_to_sync\n    wrapped = async_to_sync(test.test_something)\n    print(f'Wrapped is: {wrapped}')\n    print(f'Wrapped is coroutine function: {asyncio.iscoroutinefunction(wrapped)}')\n    asyncio.run(wrapped())\nfinally:\n    test.tearDownClass()\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 284.9
+  },
+  {
+   "cmd": "grep -n \"asyncio.run\" /testbed/tests/runtests.py",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "grep -n \"async\" /testbed/django/test/runner.py | head -30",
+   "hit": null,
+   "lat_ms": 72.5
+  },
+  {
+   "cmd": "grep -n \"runTests\" /testbed/tests/runtests.py",
+   "hit": null,
+   "lat_ms": 138.6
+  },
+  {
+   "cmd": "tail -100 /testbed/tests/runtests.py | head -50",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "tail -30 /testbed/tests/runtests.py",
+   "hit": null,
+   "lat_ms": 119.3
+  },
+  {
+   "cmd": "grep -n \"def django_tests\" /testbed/tests/runtests.py",
+   "hit": null,
+   "lat_ms": 69.9
+  },
+  {
+   "cmd": "sed -n '302,400p' /testbed/tests/runtests.py",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "grep -n \"class.*Runner\" /testbed/django/test/runner.py | head -10",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "sed -n '434,550p' /testbed/django/test/runner.py",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "grep -n \"def __call__\" /testbed/django/test/testcases.py",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "sed -n '239,280p' /testbed/django/test/testcases.py",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\n\n# Let's trace through what happens\nfrom asgiref.sync import async_to_sync\nimport asyncio\n\nasync def my_async_func():\n    print('Inside async function')\n    print(f'In event loop: {asyncio.get_event_loop() is not None}')\n    return 'done'\n\n# Wrap with async_to_sync\nwrapped = async_to_sync(my_async_func)\nprint(f'Wrapped is: {wrapped}')\nprint(f'Wrapped is coroutine function: {asyncio.iscoroutinefunction(wrapped)}')\n\n# Run with asyncio.run - this will fail!\ntry:\n    asyncio.run(wrapped())\nexcept RuntimeError as e:\n    print(f'Error: {e}')\n\n# Run normally - this should work!\nresult = wrapped()\nprint(f'Result: {result}')\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 166.9
+  },
+  {
+   "cmd": "cd /testbed/tests && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\n\n# Let's trace through what happens\nfrom asgiref.sync import async_to_sync\nimport asyncio\n\nasync def my_async_func():\n    print('Inside async function')\n    print(f'In event loop: {asyncio.get_event_loop() is not None}')\n    return 'done'\n\n# Wrap with async_to_sync\nwrapped = async_to_sync(my_async_func)\nprint(f'Wrapped is: {wrapped}')\nprint(f'Wrapped is coroutine function: {asyncio.iscoroutinefunction(wrapped)}')\n\n# Create an event loop and run\nloop = asyncio.new_event_loop()\nasyncio.set_event_loop(loop)\ntry:\n    # Run the wrapped function - this should work!\n    result = wrapped()\n    print(f'Result: {result}')\nfinally:\n    loop.close()\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 164.8
+  },
+  {
+   "cmd": "sed -n '880,920p' /testbed/django/test/client.py",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "sed -n '31,80p' /testbed/django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "sed -n '82,115p' /testbed/django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 804.9
+  },
+  {
+   "cmd": "cat > /testbed/fix_middleware_not_used.patch << 'EOF'\n--- a/django/core/handlers/base.py\n+++ b/django/core/handlers/base.py\n@@ -53,16 +53,20 @@ class BaseHandler:\nn            else:\n                 middleware_is_async = middleware_can_async\n             try:\n+                # Save the current handler in case MiddlewareNotUsed is raised.\n+                # We need to preserve the handler that will be passed to the\n+                # next middleware in the chain.\n+                prev_handler = handler\n                 # Adapt handler, if needed.\n                 handler = self.adapt_method_mode(\n                     middleware_is_async, handler, handler_is_async,\n                     debug=settings.DEBUG, name='middleware %s' % middleware_path,\n                 )\n                 mw_instance = middleware(handler)\n             except MiddlewareNotUsed as exc:\n                 if settings.DEBUG:\n                     if str(exc):\n                         logger.debug('MiddlewareNotUsed(%r): %s', middleware_path, exc)\n                     else:\n                         logger.debug('MiddlewareNotUsed: %r', middleware_path)\n-                continue\n+                # Restore the handler for the next middleware\n+                handler = prev_handler\n+                continue\n \n             if mw_instance is None:\n                 raise ImproperlyConfigured(\nEOF\n",
+   "hit": null,
+   "lat_ms": 167.2
+  },
+  {
+   "cmd": "sed -n '50,75p' /testbed/django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 117.9
+  },
+  {
+   "cmd": "cat /testbed/django/core/handlers/base.py | head -70",
+   "hit": null,
+   "lat_ms": 75.1
+  },
+  {
+   "cmd": "cp /testbed/django/core/handlers/base.py /testbed/django/core/handlers/base.py.bak",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "cat > /tmp/fix_base.py << 'EOF'\nimport sys\n\n# Read the file\nwith open('/testbed/django/core/handlers/base.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the section\nold_code = '''            try:\n                # Adapt handler, if needed.\n                handler = self.adapt_method_mode(\n                    middleware_is_async, handler, handler_is_async,\n                    debug=settings.DEBUG, name='middleware %s' % middleware_path,\n                )\n                mw_instance = middleware(handler)\n            except MiddlewareNotUsed as exc:\n                if settings.DEBUG:\n                    if str(exc):\n                        logger.debug('MiddlewareNotUsed(%r): %s', middleware_path, exc)\n                    else:\n                        logger.debug('MiddlewareNotUsed: %r', middleware_path)\n                continue'''\n\nnew_code = '''            try:\n                # Save the current handler in case MiddlewareNotUsed is raised.\n                # We need to preserve the handler that will be passed to the\n                # next middleware in the chain.\n                prev_handler = handler\n                # Adapt handler, if needed.\n                handler = self.adapt_method_mode(\n                    middleware_is_async, handler, handler_is_async,\n                    debug=settings.DEBUG, name='middleware %s' % middleware_path,\n                )\n                mw_instance = middleware(handler)\n            except MiddlewareNotUsed as exc:\n                if settings.DEBUG:\n                    if str(exc):\n                        logger.debug('MiddlewareNotUsed(%r): %s', middleware_path, exc)\n                    else:\n                        logger.debug('MiddlewareNotUsed: %r', middleware_path)\n                # Restore the handler for the next middleware\n                handler = prev_handler\n                continue'''\n\nif old_code in content:\n    content = content.replace(old_code, new_code)\n    with open('/testbed/django/core/handlers/base.py', 'w') as f:\n        f.write(content)\n    print(\"Fix applied successfully!\")\nelse:\n    print(\"Could not find the code to replace!\")\n    sys.exit(1)\nEOF\npython /tmp/fix_base.py",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "sed -n '50,75p' /testbed/django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions.test_middleware_not_used_async 2>&1",
+   "hit": null,
+   "lat_ms": 571.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions 2>&1",
+   "hit": null,
+   "lat_ms": 770.7
+  },
+  {
+   "cmd": "cat >> /testbed/tests/middleware_exceptions/tests.py << 'EOF'\n\n\nclass MiddlewareNotUsedAsyncTests(SimpleTestCase):\n    \"\"\"Test that MiddlewareNotUsed works correctly in async context.\"\"\"\n\n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'middleware_exceptions.tests.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.tests.AsyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_middleware_not_used_before_async_middleware(self):\n        \"\"\"\n        Test that MiddlewareNotUsed before an async middleware doesn't cause issues.\n        \n        Regression test for #31928 - When MiddlewareNotUsed is raised, the handler\n        variable was overwritten by adapt_method_mode, causing the middleware chain\n        to be \"poisoned\" from that point onwards.\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n\n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'middleware_exceptions.tests.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.tests.SyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_middleware_not_used_before_sync_middleware_async_client(self):\n        \"\"\"\n        Test that MiddlewareNotUsed before a sync middleware works correctly with async client.\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n\n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'middleware_exceptions.tests.MiddlewareNotUsedMiddleware',\n            'middleware_exceptions.tests.MiddlewareNotUsedMiddleware2',\n            'middleware_exceptions.tests.AsyncMiddlewareAfterNotUsed',\n        ]\n    )\n    async def test_multiple_middleware_not_used_before_async_middleware(self):\n        \"\"\"\n        Test multiple middleware raising MiddlewareNotUsed before an async middleware.\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n\n\nclass MiddlewareNotUsedMiddleware:\n    \"\"\"Middleware that raises MiddlewareNotUsed.\"\"\"\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"This middleware is not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass MiddlewareNotUsedMiddleware2:\n    \"\"\"Second middleware that raises MiddlewareNotUsed.\"\"\"\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"This middleware is also not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass AsyncMiddlewareAfterNotUsed:\n    \"\"\"Async middleware that comes after a MiddlewareNotUsed.\"\"\"\n    sync_capable = False\n    async_capable = True\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    async def __call__(self, request):\n        response = await self.get_response(request)\n        response['X-Test'] = 'async-middleware'\n        return response\n\n\nclass SyncMiddlewareAfterNotUsed:\n    \"\"\"Sync middleware that comes after a MiddlewareNotUsed.\"\"\"\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    def __call__(self, request):\n        response = self.get_response(request)\n        response['X-Test'] = 'sync-middleware'\n        return response\nEOF\n",
+   "hit": null,
+   "lat_ms": 115.1
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions 2>&1",
+   "hit": null,
+   "lat_ms": 770.5
+  },
+  {
+   "cmd": "rm /testbed/tests/middleware_exceptions/test_middleware_not_used_async.py",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py handlers 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 771.1
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py async 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 775.3
+  },
+  {
+   "cmd": "sed -n '32,85p' /testbed/django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "grep -n \"MiddlewareNotUsed\" /testbed/django/core/handlers/*.py",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "ls /testbed/django/core/handlers/*.py",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "grep -n \"load_middleware\" /testbed/django/core/handlers/asgi.py",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "sed -n '120,150p' /testbed/django/core/handlers/asgi.py",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "grep -n \"load_middleware\" /testbed/django/core/handlers/wsgi.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "sed -n '120,140p' /testbed/django/core/handlers/wsgi.py",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cat > /testbed/test_edge_cases.py << 'EOF'\n\"\"\"\nTest edge cases for the MiddlewareNotUsed fix.\n\"\"\"\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\n\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings')\n\nimport django\ndjango.setup()\n\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\nfrom django.core.handlers.base import BaseHandler\n\n\nclass MockRequest:\n    pass\n\n\nclass MockResponse:\n    pass\n\n\nclass MiddlewareNotUsedMiddleware1:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"Middleware 1 not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass MiddlewareNotUsedMiddleware2:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"Middleware 2 not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass MiddlewareNotUsedMiddleware3:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"Middleware 3 not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass WorkingMiddleware:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    def __call__(self, request):\n        response = self.get_response(request)\n        response['X-Test'] = 'working-middleware'\n        return response\n\n\nclass AsyncWorkingMiddleware:\n    sync_capable = False\n    async_capable = True\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    async def __call__(self, request):\n        response = await self.get_response(request)\n        response['X-Test'] = 'async-working-middleware'\n        return response\n\n\nclass TestHandler(BaseHandler):\n    def _get_response(self, request):\n        return HttpResponse('OK')\n    \n    async def _get_response_async(self, request):\n        return HttpResponse('OK')\n\n\ndef test_multiple_middleware_not_used_sync():\n    \"\"\"Test multiple middleware raising MiddlewareNotUsed with sync handler.\"\"\"\n    print(\"Testing multiple MiddlewareNotUsed with sync handler...\")\n    \n    handler = TestHandler()\n    \n    # Set up a simple settings\n    from django.conf import settings\n    settings.MIDDLEWARE = [\n        'test_edge_cases.MiddlewareNotUsedMiddleware1',\n        'test_edge_cases.MiddlewareNotUsedMiddleware2',\n        'test_edge_cases.MiddlewareNotUsedMiddleware3',\n        'test_edge_cases.WorkingMiddleware',\n    ]\n    \n    handler.load_middleware(is_async=False)\n    \n    # The middleware chain should be a sync function\n    from django.http import HttpRequest\n    request = HttpRequest()\n    request.path = '/test/'\n    \n    response = handler._middleware_chain(request)\n    print(f\"  Response: {response}\")\n    print(f\"  Response content: {response.content}\")\n    print(f\"  Response X-Test: {response.get('X-Test')}\")\n    assert response['X-Test'] == 'working-middleware', \"WorkingMiddleware should have run\"\n    print(\"  PASSED!\")\n\n\nasync def test_multiple_middleware_not_used_async():\n    \"\"\"Test multiple middleware raising MiddlewareNotUsed with async handler.\"\"\"\n    print(\"Testing multiple MiddlewareNotUsed with async handler...\")\n    \n    handler = TestHandler()\n    \n    # Set up a simple settings\n    from django.conf import settings\n    settings.MIDDLEWARE = [\n        'test_edge_cases.MiddlewareNotUsedMiddleware1',\n        'test_edge_cases.MiddlewareNotUsedMiddleware2',\n        'test_edge_cases.MiddlewareNotUsedMiddleware3',\n        'test_edge_cases.AsyncWorkingMiddleware',\n    ]\n    \n    handler.load_middleware(is_async=True)\n    \n    # The middleware chain should be an async function\n    from django.http import HttpRequest\n    request = HttpRequest()\n    request.path = '/test/'\n    \n    response = aw",
+   "hit": null,
+   "lat_ms": 449.7
+  },
+  {
+   "cmd": "cat > /testbed/tests/test_edge_cases.py << 'EOF'\n\"\"\"\nTest edge cases for the MiddlewareNotUsed fix.\n\"\"\"\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\nfrom django.core.handlers.base import BaseHandler\nfrom django.test import SimpleTestCase, override_settings\n\n\nclass MiddlewareNotUsedMiddleware1:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"Middleware 1 not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass MiddlewareNotUsedMiddleware2:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"Middleware 2 not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass MiddlewareNotUsedMiddleware3:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"Middleware 3 not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass WorkingMiddleware:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    def __call__(self, request):\n        response = self.get_response(request)\n        response['X-Test'] = 'working-middleware'\n        return response\n\n\nclass AsyncWorkingMiddleware:\n    sync_capable = False\n    async_capable = True\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    async def __call__(self, request):\n        response = await self.get_response(request)\n        response['X-Test'] = 'async-working-middleware'\n        return response\n\n\nclass TestHandler(BaseHandler):\n    def _get_response(self, request):\n        return HttpResponse('OK')\n    \n    async def _get_response_async(self, request):\n        return HttpResponse('OK')\n\n\nclass MiddlewareNotUsedEdgeCasesTests(SimpleTestCase):\n    \"\"\"Test edge cases for MiddlewareNotUsed.\"\"\"\n    \n    @override_settings(MIDDLEWARE=[\n        'tests.test_edge_cases.MiddlewareNotUsedMiddleware1',\n        'tests.test_edge_cases.MiddlewareNotUsedMiddleware2',\n        'tests.test_edge_cases.MiddlewareNotUsedMiddleware3',\n        'tests.test_edge_cases.WorkingMiddleware',\n    ])\n    def test_multiple_middleware_not_used_sync(self):\n        \"\"\"Test multiple middleware raising MiddlewareNotUsed with sync handler.\"\"\"\n        handler = TestHandler()\n        handler.load_middleware(is_async=False)\n        \n        from django.http import HttpRequest\n        request = HttpRequest()\n        request.path = '/test/'\n        \n        response = handler._middleware_chain(request)\n        self.assertEqual(response['X-Test'], 'working-middleware')\n    \n    @override_settings(MIDDLEWARE=[\n        'tests.test_edge_cases.MiddlewareNotUsedMiddleware1',\n        'tests.test_edge_cases.MiddlewareNotUsedMiddleware2',\n        'tests.test_edge_cases.MiddlewareNotUsedMiddleware3',\n        'tests.test_edge_cases.AsyncWorkingMiddleware',\n    ])\n    async def test_multiple_middleware_not_used_async(self):\n        \"\"\"Test multiple middleware raising MiddlewareNotUsed with async handler.\"\"\"\n        handler = TestHandler()\n        handler.load_middleware(is_async=True)\n        \n        from django.http import HttpRequest\n        request = HttpRequest()\n        request.path = '/test/'\n        \n        response = await handler._middleware_chain(request)\n        self.assertEqual(response['X-Test'], 'async-working-middleware')\n    \n    @override_settings(MIDDLEWARE=[\n        'tests.test_edge_cases.MiddlewareNotUsedMiddleware1',\n        'tests.test_edge_cases.AsyncWorkingMiddleware',\n    ])\n    async def test_middleware_not_used_then_async_middleware(self):\n        \"\"\"Test MiddlewareNotUsed followed by a working async middleware.\"\"\"\n        handler = TestHandler()\n        handler.load_middleware(is_async=True)\n        \n        f",
+   "hit": null,
+   "lat_ms": 1016.8
+  },
+  {
+   "cmd": "cat > /testbed/tests/test_issue_scenario.py << 'EOF'\n\"\"\"\nTest the scenario described in the GitHub issue.\n\nThe issue: When MiddlewareNotUsed is raised in an ASGI context, the handler\nvariable is overwritten by adapt_method_mode(), causing the middleware chain\nto be \"poisoned\" from that point onwards. This results in the last middleware\nin the response cycle returning an HttpResponse as a synchronous middleware\nwould, instead of a coroutine that is expected.\n\"\"\"\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\nfrom django.test import SimpleTestCase, override_settings\n\n\nclass DummyMiddleware:\n    \"\"\"\n    This is similar to the middleware mentioned in the issue.\n    It's sync_capable only (not async_capable).\n    \"\"\"\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        # This middleware raises MiddlewareNotUsed\n        raise MiddlewareNotUsed(\"Dummy middleware not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass AsyncMiddleware:\n    \"\"\"\n    This middleware is async_capable and should work in ASGI context.\n    \"\"\"\n    sync_capable = False\n    async_capable = True\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    async def __call__(self, request):\n        # This should be awaited\n        response = await self.get_response(request)\n        response['X-Async'] = 'yes'\n        return response\n\n\nclass TestIssueScenario(SimpleTestCase):\n    \"\"\"Test the scenario from the GitHub issue.\"\"\"\n    \n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'tests.test_issue_scenario.DummyMiddleware',\n            'tests.test_issue_scenario.AsyncMiddleware',\n        ]\n    )\n    async def test_async_middleware_after_middleware_not_used(self):\n        \"\"\"\n        Test that async middleware works correctly after MiddlewareNotUsed.\n        \n        Before the fix, this would fail with:\n        TypeError: object HttpResponse can't be used in 'await' expression\n        \n        The bug was that when DummyMiddleware raised MiddlewareNotUsed,\n        the handler had already been adapted to sync mode, causing the\n        AsyncMiddleware to receive a sync handler instead of an async one.\n        \"\"\"\n        response = await self.async_client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n        self.assertEqual(response['X-Async'], 'yes')\n    \n    @override_settings(\n        ROOT_URLCONF='middleware_exceptions.urls',\n        MIDDLEWARE=[\n            'tests.test_issue_scenario.DummyMiddleware',\n            'tests.test_issue_scenario.AsyncMiddleware',\n        ]\n    )\n    def test_sync_client_with_async_middleware(self):\n        \"\"\"\n        Test that sync client can also work with async middleware after MiddlewareNotUsed.\n        \n        In this case, the async middleware should be adapted to sync mode.\n        \"\"\"\n        response = self.client.get('/middleware_exceptions/view/')\n        self.assertEqual(response.status_code, 200)\n        self.assertEqual(response['X-Async'], 'yes')\nEOF\ncd /testbed/tests && python runtests.py tests.test_issue_scenario 2>&1",
+   "hit": null,
+   "lat_ms": 1332.4
+  },
+  {
+   "cmd": "rm /testbed/tests/test_edge_cases.py /testbed/tests/test_issue_scenario.py /testbed/test_edge_cases.py 2>/dev/null; echo \"Cleanup done\"",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "diff -u /testbed/django/core/handlers/base.py.bak /testbed/django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions 2>&1",
+   "hit": null,
+   "lat_ms": 771.2
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py handlers async 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 772.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py handlers async 2>&1 | grep -E \"(Ran|OK|FAILED)\"",
+   "hit": null,
+   "lat_ms": 971.4
+  },
+  {
+   "cmd": "grep -n \"MiddlewareNotUsedAsyncTests\" /testbed/tests/middleware_exceptions/tests.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "sed -n '344,420p' /testbed/tests/middleware_exceptions/tests.py",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions.tests.MiddlewareNotUsedAsyncTests 2>&1",
+   "hit": null,
+   "lat_ms": 570.4
+  },
+  {
+   "cmd": "cat > /tmp/test_wsgi.py << 'EOF'\nimport sys\nsys.path.insert(0, '/testbed')\nsys.path.insert(0, '/testbed/tests')\n\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings')\n\n# Setup Django before importing\nfrom django.conf import settings\nif not settings.configured:\n    settings.configure(\n        DEBUG=True,\n        DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n        INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n        MIDDLEWARE=[],\n        TEMPLATES=[],\n        ROOT_URLCONF='middleware_exceptions.urls',\n    )\n\nimport django\ndjango.setup()\n\nfrom django.core.exceptions import MiddlewareNotUsed\nfrom django.http import HttpResponse\nfrom django.core.handlers.wsgi import WSGIHandler\nfrom django.test import override_settings\nfrom django.test import RequestFactory\n\n\nclass MiddlewareNotUsedMiddleware:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        raise MiddlewareNotUsed(\"Middleware not used\")\n    \n    def __call__(self, request):\n        return self.get_response(request)\n\n\nclass WorkingMiddleware:\n    sync_capable = True\n    async_capable = False\n    \n    def __init__(self, get_response):\n        self.get_response = get_response\n    \n    def __call__(self, request):\n        response = self.get_response(request)\n        response['X-Test'] = 'working-middleware'\n        return response\n\n\ndef test_wsgi():\n    \"\"\"Test that WSGI handler works correctly with MiddlewareNotUsed.\"\"\"\n    print(\"Testing WSGI handler with MiddlewareNotUsed...\")\n    \n    class TestWSGIHandler(WSGIHandler):\n        def _get_response(self, request):\n            return HttpResponse('OK')\n    \n    with override_settings(MIDDLEWARE=[\n        'test_wsgi.MiddlewareNotUsedMiddleware',\n        'test_wsgi.WorkingMiddleware',\n    ]):\n        handler = TestWSGIHandler()\n        \n        rf = RequestFactory()\n        request = rf.get('/test/')\n        \n        response = handler(request)\n        print(f\"  Response: {response}\")\n        print(f\"  Response content: {response.content}\")\n        print(f\"  Response X-Test: {response.get('X-Test')}\")\n        assert response['X-Test'] == 'working-middleware', \"WorkingMiddleware should have run\"\n        print(\"  PASSED!\")\n\n\nif __name__ == '__main__':\n    test_wsgi()\nEOF\npython /tmp/test_wsgi.py 2>&1",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware_exceptions 2>&1 | grep -E \"(Ran|OK|FAILED)\"",
+   "hit": null,
+   "lat_ms": 772.9
+  },
+  {
+   "cmd": "sed -n '48,75p' /testbed/django/core/handlers/base.py",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "rm /tmp/test_wsgi.py /tmp/fix_base.py 2>/dev/null; rm /testbed/django/core/handlers/base.py.bak 2>/dev/null; echo \"Cleanup done\"",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py middleware 2>&1 | grep -E \"(Ran|OK|FAILED)\"",
+   "hit": null,
+   "lat_ms": 771.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-13810",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 32535.9,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

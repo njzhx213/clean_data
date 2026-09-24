@@ -1,0 +1,236 @@
+{
+ "calls": 36,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 8192.229270935059,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 275.7
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 69.9
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cd /tmp && python3 -c \"\nfrom collections import namedtuple\nimport inspect\n\n# Simulate what Django 3.0's resolve_lookup_value does\nPoint = namedtuple('Point', ['x', 'y'])\npt = Point(1, 2)\n\n# The buggy pattern (Django 3.0): pass iterator to namedtuple constructor\ntry:\n    result = type(pt)(*iter([10, 20]))\n    print('Buggy pattern works?', result)\nexcept TypeError as e:\n    print('Buggy pattern error:', e)\n\n# The fix: expand the iterator\nresult = type(pt)(*iter([10, 20]))\n\"\n",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cd /tmp && python3 -c \"\nfrom collections import namedtuple\n\n# Simulate the exact Django 3.0 pattern: iterating over tuple elements\nPoint = namedtuple('Point', ['x', 'y'])\npt = Point(1, 2)\n\n# Django's code: new_list = [x for x in value] if isinstance(value, (list, tuple)) ... \n# then type(value)(*new_list) or type(value)(new_list)\n# Let me check the actual Django 3.0 code pattern\n# The issue says 'it passes a iterator to it's constructor'\n\n# Test: passing a list (works for namedtuple)\ntry:\n    result = Point([10, 20])\n    print('List arg works:', result)\nexcept TypeError as e:\n    print('List arg error:', e)\n\n# Test: passing a generator/iterator\ntry:\n    result = Point(x for x in [10, 20])\n    print('Generator arg works:', result)\nexcept TypeError as e:\n    print('Generator arg error:', e)\n\n# Test: * expansion (the fix)\nresult = Point(*[10, 20])\nprint('Star expansion works:', result)\n\"\n",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /tmp && python3 -c \"\nfrom collections import namedtuple\nPoint = namedtuple('Point', ['x', 'y'])\npt = Point(1, 2)\n# Django 3.0 pattern: type(value)(new_list) where new_list is a list\n# Actually let me check - maybe it's type(value)(new_iter) where new_iter is an iterator\n# Let me look at the actual Django 3.0 source\n\"\npip show django 2>/dev/null | head -5; pip list 2>/dev/null | grep -i django\n",
+   "hit": null,
+   "lat_ms": 984.9
+  },
+  {
+   "cmd": "cd /testbed && find . -name \"query.py\" -path \"*/sql/*\" | head -5",
+   "hit": null,
+   "lat_ms": 167.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"resolve_lookup_value\" django/db/models/sql/query.py | head -20",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1072,1095p' django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"type(value)(\" django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 115.7
+  },
+  {
+   "cmd": "cd /tmp && python3 -c \"\nfrom collections import namedtuple\nPoint = namedtuple('Point', ['x', 'y'])\npt = Point(1, 2)\n# Simulate the buggy pattern\ntry:\n    result = type(pt)(x for x in [10, 20])\nexcept TypeError as e:\n    print('Bug confirmed:', e)\n# The fix\nresult = type(pt)(*[x for x in [10, 20]])\nprint('Fixed:', result)\n\"\n",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport re\nwith open('django/db/models/sql/query.py', 'r') as f:\n    content = f.read()\n\nold = '''            return type(value)(\n                self.resolve_lookup_value(sub_value, can_reuse, allow_joins)\n                for sub_value in value\n            )'''\n\nnew = '''            return type(value)(*[\n                self.resolve_lookup_value(sub_value, can_reuse, allow_joins)\n                for sub_value in value\n            ])'''\n\nif old in content:\n    content = content.replace(old, new)\n    with open('django/db/models/sql/query.py', 'w') as f:\n        f.write(content)\n    print('Patch applied')\nelse:\n    print('Pattern not found')\n\"\n",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1078,1086p' django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 73.8
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n)\ndjango.setup()\n\nfrom collections import namedtuple\nfrom django.db import connection, models\nfrom django.db.models.sql.query import Query\n\n# Create a test table\nwith connection.schema_editor() as se:\n    class TestModel(models.Model):\n        x = models.IntegerField()\n        y = models.IntegerField()\n        class Meta:\n            app_label = 'test'\n            db_table = 'test_point'\n    se.create_model(TestModel)\n\nPoint = namedtuple('Point', ['x', 'y'])\n\n# This is what fails on 3.0: named tuple as a __range filter value\nqs = TestModel.objects.filter(point__range=(Point(0, 0), Point(10, 10)))\n\" 2>&1 | tail -5\n",
+   "hit": null,
+   "lat_ms": 816.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n)\ndjango.setup()\n\nfrom collections import namedtuple\nfrom django.db import connection, models\nfrom django.db.models.sql.query import Query\n\n# Directly test resolve_lookup_value with a namedtuple\nPoint = namedtuple('Point', ['x', 'y'])\npt = (Point(1, 2), Point(10, 20))\n\n# Simulate what a queryset filter does - call resolve_lookup_value\nfrom django.db.models import Model\nclass DummyModel(models.Model):\n    x = models.IntegerField()\n    class Meta:\n        app_label = 'test'\n        db_table = 'dummy'\n\nq = Query(DummyModel)\nresult = q.resolve_lookup_value(pt, {}, True)\nprint('Result:', result)\nprint('Types:', [type(r).__name__ for r in result])\nassert isinstance(result[0], Point), 'Should preserve namedtuple type'\nassert isinstance(result[1], Point), 'Should preserve namedtuple type'\nprint('SUCCESS: named tuples preserved correctly')\n\"\n",
+   "hit": null,
+   "lat_ms": 384.1
+  },
+  {
+   "cmd": "cd /tmp && python3 -c \"\nfrom collections import namedtuple\nPoint = namedtuple('Point', ['x', 'y'])\n\n# Regular tuple with * expansion\nt = (1, 2, 3)\nprint('tuple(*[1,2]):', type(t)(*[1, 2]))  # (1, 2) - works\n\n# Named tuple with * expansion\npt = (Point(1, 2), Point(3, 4))\nprint('namedtuple(*[a, b]):', type(pt)(*[Point(10, 20), Point(30, 40)]))  # works\n\"\n",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /tmp && python3 -c \"\nfrom collections import namedtuple\nPoint = namedtuple('Point', ['x', 'y'])\n\n# Named tuple with * expansion\nprint('namedtuple(*[a, b]):', Point(*[1, 2]))\n\n# Regular tuple with * expansion\nprint('tuple(*[1, 2]):', tuple(*[1, 2]))\n\"\n",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cd /tmp && python3 -c \"\nfrom collections import namedtuple\nPoint = namedtuple('Point', ['x', 'y'])\n# Test both types work with * expansion\nprint('namedtuple:', Point(*[1, 2]))\nprint('tuple:', tuple(*[1, 2]))\n\"\n",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && git diff django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "cd /testbed && git checkout django/db/models/sql/query.py && sed -n '1077,1085p' django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 139.0
+  },
+  {
+   "cmd": "cd /tmp && python3 -c \"\nfrom collections import namedtuple\nimport sys\nprint('Python:', sys.version)\nPoint = namedtuple('Point', ['x', 'y'])\npt = Point(1, 2)\n# Pass a list as single arg - does it work?\ntry:\n    print('Point([1,2]):', Point([1, 2]))\nexcept TypeError as e:\n    print('Point([1,2]) error:', e)\n# Pass a list as single arg to tuple\ntry:\n    print('tuple([1,2]):', tuple([1, 2]))\nexcept TypeError as e:\n    print('tuple([1,2]) error:', e)\n\"\n",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\nwith open('django/db/models/sql/query.py', 'r') as f:\n    content = f.read()\n\nold = \"\"\"        elif isinstance(value, (list, tuple)):\n            # The items of the iterable may be expressions and therefore need\n            # to be resolved independently.\n            return type(value)(\n                self.resolve_lookup_value(sub_value, can_reuse, allow_joins)\n                for sub_value in value\n            )\"\"\"\n\nnew = \"\"\"        elif isinstance(value, (list, tuple)):\n            # The items of the iterable may be expressions and therefore need\n            # to be resolved independently.\n            resolved = [\n                self.resolve_lookup_value(sub_value, can_reuse, allow_joins)\n                for sub_value in value\n            ]\n            if isinstance(value, tuple) and not isinstance(value, list):\n                # Named tuples don't accept a single iterable argument, so\n                # expand the resolved items as positional arguments.\n                return type(value)(*resolved)\n            return type(value)(resolved)\"\"\"\n\nif old in content:\n    content = content.replace(old, new)\n    with open('django/db/models/sql/query.py', 'w') as f:\n        f.write(content)\n    print('Patch applied')\nelse:\n    print('Pattern not found')\nEOF\n",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1077,1093p' django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /tmp && python3 -c \"\nfrom collections import namedtuple\nPoint = namedtuple('Point', ['x', 'y'])\npt = Point(1, 2)\nresolved = [10, 20]\n# The fix: use * expansion for named tuples\nresult = type(pt)(*resolved)\nprint('Named tuple fix works:', result)\nprint('Type preserved:', type(result).__name__)\n\n# Regular tuples use the old path\nt = (1, 2)\nresult2 = type(t)([10, 20])\nprint('Regular tuple works:', result2)\n\"\n",
+   "hit": null,
+   "lat_ms": 202.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n)\ndjango.setup()\n\nfrom collections import namedtuple\nfrom django.db import models\nfrom django.db.models.sql.query import Query\n\nclass DummyModel(models.Model):\n    x = models.IntegerField()\n    class Meta:\n        app_label = 'test'\n        db_table = 'dummy'\n\nPoint = namedtuple('Point', ['x', 'y'])\nq = Query(DummyModel)\n\n# Test 1: namedtuple as range value\npt = (Point(1, 2), Point(10, 20))\nresult = q.resolve_lookup_value(pt, {}, True)\nprint('Test 1 (namedtuple):', result)\nassert isinstance(result[0], Point), 'First element should be Point'\nassert isinstance(result[1], Point), 'Second element should be Point'\nprint('  PASS: named tuple type preserved')\n\n# Test 2: regular tuple\nrt = (1, 2)\nresult2 = q.resolve_lookup_value(rt, {}, True)\nprint('Test 2 (regular tuple):', result2)\nassert isinstance(result2, tuple)\nprint('  PASS: regular tuple works')\n\n# Test 3: list\nlt = [1, 2]\nresult3 = q.resolve_lookup_value(lt, {}, True)\nprint('Test 3 (list):', result3)\nassert isinstance(result3, list)\nprint('  PASS: list works')\n\n# Test 4: namedtuple with nested tuples\nNested = namedtuple('Nested', ['a', 'b'])\nnested = (Nested((1, 2), (3, 4)),)\nresult4 = q.resolve_lookup_value(nested, {}, True)\nprint('Test 4 (nested):', result4)\nassert isinstance(result4[0], Nested)\nprint('  PASS: nested named tuple works')\n\nprint()\nprint('All tests passed!')\n\"\n",
+   "hit": null,
+   "lat_ms": 382.8
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\nwith open('django/db/models/sql/query.py', 'r') as f:\n    content = f.read()\n\nold = \"\"\"        elif isinstance(value, (list, tuple)):\n            # The items of the iterable may be expressions and therefore need\n            # to be resolved independently.\n            resolved = [\n                self.resolve_lookup_value(sub_value, can_reuse, allow_joins)\n                for sub_value in value\n            ]\n            if isinstance(value, tuple) and not isinstance(value, list):\n                # Named tuples don't accept a single iterable argument, so\n                # expand the resolved items as positional arguments.\n                return type(value)(*resolved)\n            return type(value)(resolved)\"\"\"\n\nnew = \"\"\"        elif isinstance(value, (list, tuple)):\n            # The items of the iterable may be expressions and therefore need\n            # to be resolved independently.\n            resolved = [\n                self.resolve_lookup_value(sub_value, can_reuse, allow_joins)\n                for sub_value in value\n            ]\n            if type(value) is not tuple and isinstance(value, tuple):\n                # Named tuples (and other tuple subclasses) don't accept a\n                # single iterable argument, so expand the resolved items as\n                # positional arguments.\n                return type(value)(*resolved)\n            return type(value)(resolved)\"\"\"\n\nif old in content:\n    content = content.replace(old, new)\n    with open('django/db/models/sql/query.py', 'w') as f:\n        f.write(content)\n    print('Patch applied')\nelse:\n    print('Pattern not found')\nEOF\n",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1077,1095p' django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n)\ndjango.setup()\n\nfrom collections import namedtuple\nfrom django.db import models\nfrom django.db.models.sql.query import Query\n\nclass DummyModel(models.Model):\n    x = models.IntegerField()\n    class Meta:\n        app_label = 'test'\n        db_table = 'dummy'\n\nPoint = namedtuple('Point', ['x', 'y'])\nq = Query(DummyModel)\n\n# Test 1: namedtuple as range value\npt = (Point(1, 2), Point(10, 20))\nresult = q.resolve_lookup_value(pt, {}, True)\nprint('Test 1 (namedtuple):', result)\nassert isinstance(result[0], Point), 'First element should be Point'\nassert isinstance(result[1], Point), 'Second element should be Point'\nprint('  PASS: named tuple type preserved')\n\n# Test 2: regular tuple\nrt = (1, 2)\nresult2 = q.resolve_lookup_value(rt, {}, True)\nprint('Test 2 (regular tuple):', result2)\nassert isinstance(result2, tuple) and type(result2) is tuple\nprint('  PASS: regular tuple works')\n\n# Test 3: list\nlt = [1, 2]\nresult3 = q.resolve_lookup_value(lt, {}, True)\nprint('Test 3 (list):', result3)\nassert isinstance(result3, list)\nprint('  PASS: list works')\n\n# Test 4: empty tuple\nresult4 = q.resolve_lookup_value((), {}, True)\nprint('Test 4 (empty tuple):', result4)\nassert result4 == ()\nprint('  PASS: empty tuple works')\n\n# Test 5: empty named tuple\nEmpty = namedtuple('Empty', [])\nresult5 = q.resolve_lookup_value(Empty(), {}, True)\nprint('Test 5 (empty namedtuple):', result5)\nassert isinstance(result5, Empty)\nprint('  PASS: empty named tuple works')\n\n# Test 6: single-element namedtuple\nOne = namedtuple('One', ['a'])\nresult6 = q.resolve_lookup_value((One(1),), {}, True)\nprint('Test 6 (single namedtuple):', result6)\nassert isinstance(result6[0], One)\nprint('  PASS: single-element named tuple works')\n\nprint()\nprint('All tests passed!')\n\"\n",
+   "hit": null,
+   "lat_ms": 384.4
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest django/db/models/sql/ -x -q 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && python -m django test django.db.models.sql -v 1 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 379.4
+  },
+  {
+   "cmd": "cd /testbed && find . -path ./node_modules -prune -o -name \"tests.py\" -print | grep -E \"(query|lookups|expressions)\" | head -10",
+   "hit": null,
+   "lat_ms": 166.7
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"resolve_lookup_value\\|__range.*namedtuple\\|namedtuple.*range\" tests/ --include=\"*.py\" | head -10",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"range\" tests/querysets/ --include=\"*.py\" -l | head -10",
+   "hit": null,
+   "lat_ms": 73.6
+  },
+  {
+   "cmd": "cd /testbed && find tests/ -name \"*.py\" | xargs grep -l \"def.*range\\|__range\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 249.3
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 1008.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n)\ndjango.setup()\n\nfrom collections import namedtuple\nfrom django.db import connection, models\nfrom django.db.models.sql.query import Query\n\n# Simulate the exact bug: named 2-tuples passed as __range filter args\nPoint = namedtuple('Point', ['x', 'y'])\n\nclass DummyModel(models.Model):\n    x = models.IntegerField()\n    y = models.IntegerField()\n    class Meta:\n        app_label = 'test'\n        db_table = 'dummy'\n\nq = Query(DummyModel)\n\n# The value that used to crash: a tuple of named tuples\nrange_value = (Point(0, 0), Point(10, 10))\nresult = q.resolve_lookup_value(range_value, {}, True)\nprint('Range value resolved:', result)\nprint('Types:', [type(r).__name__ for r in result])\nassert all(isinstance(r, Point) for r in result)\nprint()\nprint('Bug fixed: named tuples as __range arguments no longer error')\n\"\n",
+   "hit": null,
+   "lat_ms": 380.7
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-13590",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 8192.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

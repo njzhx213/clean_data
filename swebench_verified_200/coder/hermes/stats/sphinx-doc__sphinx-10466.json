@@ -1,0 +1,466 @@
+{
+ "calls": 82,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 39705.058097839355,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "python3 --version && pip3 list | grep -E \"sphinx|babel\" 2>/dev/null || pip list | grep -E \"sphinx|babel\"",
+   "hit": null,
+   "lat_ms": 378.1
+  },
+  {
+   "cmd": "python3 -c \"import sphinx; print(sphinx.__file__); import babel; print(babel.__file__)\"",
+   "hit": null,
+   "lat_ms": 163.9
+  },
+  {
+   "cmd": "find /testbed -name \"gettext.py\" -o -name \"catalog.py\" -o -name \"pofile.py\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cat /testbed/sphinx/builders/gettext.py",
+   "hit": null,
+   "lat_ms": 121.8
+  },
+  {
+   "cmd": "cat -n /testbed/sphinx/builders/gettext.py | sed -n '60,85p'",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat -n /testbed/sphinx/builders/gettext.py | sed -n '50,70p'",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "find /testbed -name \"message.pot_t\" -o -name \"*.pot_t\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cat /testbed/sphinx/templates/gettext/message.pot_t",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "find /testbed -path \"*/tests/*\" -name \"*gettext*\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cat /testbed/tests/test_build_gettext.py",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cd /testbed && cat > test_duplicate_locations.py << 'EOF'\n\"\"\"Test for duplicate locations bug in gettext builder.\"\"\"\n\nfrom sphinx.builders.gettext import Catalog, MsgOrigin\n\n\ndef test_catalog_add_duplicate_locations():\n    \"\"\"Test that adding the same origin multiple times doesn't create duplicates.\"\"\"\n    catalog = Catalog()\n    \n    # Add the same message from the same origin multiple times\n    # (simulating what might happen during parsing)\n    origin1 = MsgOrigin(\"test.rst\", 10)\n    catalog.add(\"test message\", origin1)\n    catalog.add(\"test message\", origin1)  # Same origin added again\n    catalog.add(\"test message\", origin1)  # Same origin added a third time\n    \n    # Also add a different origin for the same message\n    origin2 = MsgOrigin(\"test.rst\", 20)\n    catalog.add(\"test message\", origin2)\n    catalog.add(\"test message\", origin2)  # Same origin added again\n    \n    # Check the results\n    messages = list(catalog)\n    assert len(messages) == 1\n    \n    msg = messages[0]\n    print(f\"Message text: {msg.text}\")\n    print(f\"Locations: {msg.locations}\")\n    print(f\"Number of locations: {len(msg.locations)}\")\n    \n    # The key test: locations should be unique\n    # Even though we added origin1 three times and origin2 twice,\n    # we should only have 2 unique locations\n    assert len(msg.locations) == 2, f\"Expected 2 unique locations, got {len(msg.locations)}: {msg.locations}\"\n    \n    # Check for duplicate entries in the locations\n    unique_locations = set(msg.locations)\n    assert len(msg.locations) == len(unique_locations), f\"Duplicate locations found: {msg.locations}\"\n\n\nif __name__ == \"__main__\":\n    test_catalog_add_duplicate_locations()\n    print(\"Test passed!\")\nEOF\npython3 test_duplicate_locations.py",
+   "hit": null,
+   "lat_ms": 381.2
+  },
+  {
+   "cmd": "cd /testbed && cat > test_duplicate_locations2.py << 'EOF'\n\"\"\"Test to understand why duplicates occur - checking if uid is the issue.\"\"\"\n\nfrom sphinx.builders.gettext import Catalog, MsgOrigin\nfrom uuid import uuid4\n\n\ndef test_uid_different():\n    \"\"\"Test if each MsgOrigin has a unique uid.\"\"\"\n    origin1 = MsgOrigin(\"test.rst\", 10)\n    origin2 = MsgOrigin(\"test.rst\", 10)\n    \n    print(f\"Origin1 uid: {origin1.uid}\")\n    print(f\"Origin2 uid: {origin2.uid}\")\n    print(f\"Are uids different? {origin1.uid != origin2.uid}\")\n    \n    # The issue: each MsgOrigin gets a NEW uuid4()\n    # So even if source and line are the same, the uid is different\n    # This means (source, line, uid) tuples are always unique\n\n\ndef test_catalog_with_same_origin_instance():\n    \"\"\"Test adding the same MsgOrigin instance multiple times.\"\"\"\n    catalog = Catalog()\n    \n    origin = MsgOrigin(\"test.rst\", 10)\n    \n    # Add the same instance multiple times\n    catalog.add(\"test message\", origin)\n    catalog.add(\"test message\", origin)\n    \n    messages = list(catalog)\n    msg = messages[0]\n    print(f\"\\nSame instance test:\")\n    print(f\"Locations: {msg.locations}\")\n    print(f\"Number of locations: {len(msg.locations)}\")\n    \n    # Even with the same instance, the uid is the same, so it should add the same entry\n    # But wait - the check is msg not in self.metadata, not (source, line) not in metadata\n\n\ndef test_catalog_metadata():\n    \"\"\"Check the internal metadata structure.\"\"\"\n    catalog = Catalog()\n    \n    origin1 = MsgOrigin(\"test.rst\", 10)\n    catalog.add(\"test message\", origin1)\n    catalog.add(\"test message\", origin1)\n    \n    origin2 = MsgOrigin(\"test.rst\", 20)\n    catalog.add(\"test message\", origin2)\n    \n    print(f\"\\nMetadata structure:\")\n    for msg, entries in catalog.metadata.items():\n        print(f\"Message: {msg}\")\n        for entry in entries:\n            print(f\"  Entry: {entry}\")\n\n\nif __name__ == \"__main__\":\n    test_uid_different()\n    test_catalog_with_same_origin_instance()\n    test_catalog_metadata()\nEOF\npython3 test_duplicate_locations2.py",
+   "hit": null,
+   "lat_ms": 249.4
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"MsgOrigin\" sphinx/builders/gettext.py",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"extract_messages\\|traverse_translatable_index\" sphinx/builders/gettext.py",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"extract_messages\" sphinx/util/nodes.py | head -20",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '252,320p' sphinx/util/nodes.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && cat > test_node_yielding.py << 'EOF'\n\"\"\"Test if the same node can be yielded multiple times.\"\"\"\n\nfrom pathlib import Path\nimport tempfile\nimport shutil\nfrom sphinx.application import Sphinx\n\n\ndef test_duplicate_nodes():\n    \"\"\"Test if the same docutils node gets processed multiple times.\"\"\"\n    \n    # Create a minimal test case\n    with tempfile.TemporaryDirectory() as tmpdir:\n        srcdir = Path(tmpdir) / \"source\"\n        outdir = Path(tmpdir) / \"build\"\n        srcdir.mkdir()\n        \n        # Create a simple RST file\n        (srcdir / \"conf.py\").write_text(\"project = 'test'\\n\")\n        (srcdir / \"index.rst\").write_text(\"\"\"\nTest Document\n=============\n\nSome text with a message.\n\nAnother section\n---------------\n\nMore text with the same message \"Type\" here.\n\"\"\")\n        \n        app = Sphinx(str(srcdir), str(srcdir), str(outdir), str(outdir / \".doctrees\"), \"gettext\")\n        app.build()\n        \n        # Read the generated pot file\n        pot_file = outdir / \"index.pot\"\n        if pot_file.exists():\n            content = pot_file.read_text()\n            print(\"Generated POT content:\")\n            print(content)\n            print(\"\\n\" + \"=\"*60 + \"\\n\")\n            \n            # Count occurrences of \"Type\"\n            lines = content.split('\\n')\n            location_lines = [l for l in lines if l.startswith('#:')]\n            print(f\"Location lines: {len(location_lines)}\")\n            for ll in location_lines:\n                print(f\"  {ll}\")\n            \n            # Check for \"Type\" message\n            if 'msgid \"Type\"' in content:\n                print(\"\\nFound 'Type' msgid\")\n                # Find location lines before this msgid\n                parts = content.split('msgid \"Type\"')\n                if len(parts) > 1:\n                    before = parts[0]\n                    loc_lines = [l for l in before.split('\\n') if l.startswith('#:')]\n                    print(f\"Location lines before 'Type' msgid: {len(loc_lines)}\")\n                    for ll in loc_lines:\n                        print(f\"  {ll}\")\n\n\nif __name__ == \"__main__\":\n    test_duplicate_nodes()\nEOF\npython3 test_node_yielding.py",
+   "hit": null,
+   "lat_ms": 769.7
+  },
+  {
+   "cmd": "cd /testbed && cat > test_nodes_multiple_times.py << 'EOF'\n\"\"\"Test if extract_messages can yield the same node multiple times.\"\"\"\n\nfrom docutils import nodes\nfrom docutils.parsers.rst import Parser\nfrom docutils.utils import new_document\nfrom docutils.frontend import OptionParser\nfrom sphinx.util.nodes import extract_messages\n\n\ndef test_extract_messages_duplicate():\n    \"\"\"Test if extract_messages can produce duplicate results.\"\"\"\n    \n    # Create a document with a translatable node\n    parser = Parser()\n    settings = OptionParser(components=(Parser,)).get_default_values()\n    \n    # Case 1: Node referenced multiple times in the tree\n    rst_text = \"\"\"\nTest\n====\n\nSome text.\n\n.. todo:: This is a todo item\n\"\"\"\n    \n    doc = new_document('<test>', settings)\n    parser.parse(rst_text, doc)\n    \n    print(\"Testing extract_messages on a document:\")\n    print(\"=\"*60)\n    \n    results = list(extract_messages(doc))\n    print(f\"Number of extracted messages: {len(results)}\")\n    \n    for node, msg in results:\n        print(f\"  Node type: {type(node).__name__}, msg: {msg!r}, source: {node.source if hasattr(node, 'source') else 'N/A'}, line: {node.line if hasattr(node, 'line') else 'N/A'}\")\n    \n    # Check for duplicate (source, line) pairs\n    locations = []\n    for node, msg in results:\n        src = getattr(node, 'source', 'N/A')\n        line = getattr(node, 'line', -1)\n        locations.append((src, line))\n    \n    print(f\"\\nUnique locations: {len(set(locations))}\")\n    print(f\"Total locations: {len(locations)}\")\n    \n    if len(locations) != len(set(locations)):\n        print(\"DUPLICATES FOUND!\")\n        from collections import Counter\n        counts = Counter(locations)\n        for loc, count in counts.items():\n            if count > 1:\n                print(f\"  {loc}: {count} times\")\n\n\nif __name__ == \"__main__\":\n    test_extract_messages_duplicate()\nEOF\npython3 test_nodes_multiple_times.py",
+   "hit": null,
+   "lat_ms": 261.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '135,160p' sphinx/builders/gettext.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"\\.uid\\s*=\" sphinx/ --include=\"*.py\" | grep -v test | grep -v \"\\.pyc\" | head -30",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '135,165p' sphinx/builders/gettext.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cd /testbed && cat > test_fix.py << 'EOF'\n\"\"\"Test different fix approaches.\"\"\"\n\nfrom sphinx.builders.gettext import Catalog, MsgOrigin\n\n\ndef original_add(catalog, msg, origin):\n    \"\"\"Original add method - has duplicates.\"\"\"\n    if not hasattr(origin, 'uid'):\n        return\n    if msg not in catalog.metadata:\n        catalog.messages.append(msg)\n        catalog.metadata[msg] = []\n    catalog.metadata[msg].append((origin.source, origin.line, origin.uid))\n\n\ndef fixed_add_v1(catalog, msg, origin):\n    \"\"\"Fix: check if entry already exists before adding.\"\"\"\n    if not hasattr(origin, 'uid'):\n        return\n    if msg not in catalog.metadata:\n        catalog.messages.append(msg)\n        catalog.metadata[msg] = []\n    entry = (origin.source, origin.line, origin.uid)\n    if entry not in catalog.metadata[msg]:\n        catalog.metadata[msg].append(entry)\n\n\ndef fixed_add_v2(catalog, msg, origin):\n    \"\"\"Fix: use set to track unique entries.\"\"\"\n    if not hasattr(origin, 'uid'):\n        return\n    if msg not in catalog.metadata:\n        catalog.messages.append(msg)\n        catalog.metadata[msg] = []\n    entry = (origin.source, origin.line, origin.uid)\n    # Use a set to track unique (source, line, uid) combinations\n    # But we need to maintain insertion order, so we check first\n    if entry not in catalog.metadata[msg]:\n        catalog.metadata[msg].append(entry)\n\n\ndef test_original():\n    catalog = Catalog()\n    \n    origin1 = MsgOrigin(\"test.rst\", 10)\n    original_add(catalog, \"test message\", origin1)\n    original_add(catalog, \"test message\", origin1)\n    \n    messages = list(catalog)\n    msg = messages[0]\n    print(f\"Original - Locations: {msg.locations}\")\n    print(f\"Original - Count: {len(msg.locations)}\")\n\n\ndef test_fixed():\n    catalog = Catalog()\n    \n    origin1 = MsgOrigin(\"test.rst\", 10)\n    fixed_add_v2(catalog, \"test message\", origin1)\n    fixed_add_v2(catalog, \"test message\", origin1)\n    \n    messages = list(catalog)\n    msg = messages[0]\n    print(f\"\\nFixed - Locations: {msg.locations}\")\n    print(f\"Fixed - Count: {len(msg.locations)}\")\n\n\ndef test_mixed_origins():\n    \"\"\"Test with different origins that happen to have same source/line.\"\"\"\n    catalog = Catalog()\n    \n    origin1 = MsgOrigin(\"test.rst\", 10)\n    origin2 = MsgOrigin(\"test.rst\", 10)  # Same source/line, different uid\n    \n    fixed_add_v2(catalog, \"test message\", origin1)\n    fixed_add_v2(catalog, \"test message\", origin2)\n    \n    messages = list(catalog)\n    msg = messages[0]\n    print(f\"\\nMixed origins - Locations: {msg.locations}\")\n    print(f\"Mixed origins - Count: {len(msg.locations)}\")\n    \n    # With the current fix, these would be considered different entries\n    # But the bug report is about duplicate (source, line) pairs\n    # The question is: should (source, line, uid) be unique or just (source, line)?\n\n\nif __name__ == \"__main__\":\n    test_original()\n    test_fixed()\n    test_mixed_origins()\nEOF\npython3 test_fix.py",
+   "hit": null,
+   "lat_ms": 378.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '140,160p' sphinx/builders/gettext.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /testbed && cat > fix_gettext.patch << 'EOF'\n--- a/sphinx/builders/gettext.py\n+++ b/sphinx/builders/gettext.py\n@@ -53,7 +53,9 @@ class Catalog:\n         if msg not in self.metadata:  # faster lookup in hash\n             self.messages.append(msg)\n             self.metadata[msg] = []\n-        self.metadata[msg].append((origin.source, origin.line, origin.uid))  # type: ignore\n+        entry = (origin.source, origin.line, origin.uid)\n+        if entry not in self.metadata[msg]:\n+            self.metadata[msg].append(entry)\n \n     def __iter__(self) -> Generator[Message, None, None]:\n         for message in self.messages:\nEOF\ncat fix_gettext.patch",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "cd /testbed && patch -p1 < fix_gettext.patch",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && python3 test_duplicate_locations.py",
+   "hit": null,
+   "lat_ms": 253.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_gettext.py -xvs 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 2372.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_gettext.py -x 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2771.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '45,65p' sphinx/builders/gettext.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && cat > test_duplicate_locations_final.py << 'EOF'\n\"\"\"Test for duplicate locations bug fix in gettext builder.\"\"\"\n\nimport tempfile\nfrom pathlib import Path\nfrom sphinx.application import Sphinx\nimport pytest\n\n\ndef test_no_duplicate_locations():\n    \"\"\"Test that duplicate locations are not generated in .pot files.\"\"\"\n    \n    with tempfile.TemporaryDirectory() as tmpdir:\n        srcdir = Path(tmpdir) / \"source\"\n        outdir = Path(tmpdir) / \"build\"\n        srcdir.mkdir()\n        \n        # Create a conf.py\n        (srcdir / \"conf.py\").write_text(\"project = 'test'\\n\")\n        \n        # Create an index.rst that will have the same message appear in multiple places\n        # This is a simplified test case - the actual bug happens when the same node\n        # is processed multiple times through different code paths\n        (srcdir / \"index.rst\").write_text(\"\"\"\nTest Document\n=============\n\nThis is a test document.\n\nSection 1\n---------\n\nSome content with a repeated message type.\n\nSection 2\n---------\n\nMore content with the same message type.\n\"\"\")\n        \n        app = Sphinx(str(srcdir), str(srcdir), str(outdir), str(outdir / \".doctrees\"), \"gettext\")\n        app.build()\n        \n        # Read the generated pot file\n        pot_file = outdir / \"index.pot\"\n        assert pot_file.exists(), \"POT file should be created\"\n        \n        content = pot_file.read_text()\n        \n        # Check for duplicate location lines for the same msgid\n        lines = content.split('\\n')\n        \n        # Find all msgids and their associated location lines\n        i = 0\n        while i < len(lines):\n            if lines[i].startswith('#:'):\n                # This is a location line - find all consecutive location lines\n                loc_lines = []\n                while i < len(lines) and lines[i].startswith('#:'):\n                    loc_lines.append(lines[i])\n                    i += 1\n                \n                # Check if this is followed by a msgid\n                if i < len(lines) and lines[i].startswith('msgid'):\n                    msgid = lines[i]\n                    \n                    # Count unique location lines\n                    unique_locs = set(loc_lines)\n                    if len(loc_lines) != len(unique_locs):\n                        print(f\"DUPLICATE LOCATIONS FOUND for {msgid}:\")\n                        for loc in loc_lines:\n                            print(f\"  {loc}\")\n                        assert False, f\"Duplicate locations found for msgid: {msgid}\"\n                \n                # Skip the msgid and msgstr lines\n                while i < len(lines) and not lines[i].startswith('#:'):\n                    i += 1\n            else:\n                i += 1\n\n\ndef test_duplicate_location_same_origin():\n    \"\"\"Test that the same origin is not duplicated.\"\"\"\n    from sphinx.builders.gettext import Catalog, MsgOrigin\n    \n    catalog = Catalog()\n    \n    # Add the same message from the same origin multiple times\n    origin1 = MsgOrigin(\"test.rst\", 10)\n    catalog.add(\"test message\", origin1)\n    catalog.add(\"test message\", origin1)  # Same origin added again\n    catalog.add(\"test message\", origin1)  # Same origin added a third time\n    \n    # Check the results\n    messages = list(catalog)\n    assert len(messages) == 1\n    \n    msg = messages[0]\n    \n    # The key test: locations should be unique\n    unique_locations = set(msg.locations)\n    assert len(msg.locations) == len(unique_locations), \\\n        f\"Duplicate locations found: {msg.locations}\"\n    \n    # We added the same origin 3 times, but should only have 1 location\n    assert len(msg.locations) == 1, \\\n        f\"Expected 1 location, got {len(msg.locations)}: {msg.locations}\"\n\n\ndef test_duplicate_location_different_origins():\n    \"\"\"Test that different origins are not considered duplicates.\"\"\"\n    from sphinx.builders.gettext import Catalog, MsgOrigin\n    \n    catalog = Catalog()\n    \n    # Create two different origins with the same source:line but diff",
+   "hit": null,
+   "lat_ms": 571.5
+  },
+  {
+   "cmd": "cd /testbed && cat > test_original_fix.py << 'EOF'\n\"\"\"Test the original fix suggested by the user - dedupe by (source, line) only.\"\"\"\n\nfrom sphinx.builders.gettext import Catalog, MsgOrigin\n\n\ndef original_user_fix():\n    \"\"\"Test deduplication based on (source, line) only.\"\"\"\n    catalog = Catalog()\n    \n    # Simulate the same node being processed multiple times\n    origin1 = MsgOrigin(\"test.rst\", 10)\n    \n    # Add same origin multiple times (simulating the bug)\n    catalog.add(\"test message\", origin1)\n    catalog.add(\"test message\", origin1)\n    catalog.add(\"test message\", origin1)\n    \n    messages = list(catalog)\n    msg = messages[0]\n    \n    print(f\"Same origin, multiple adds:\")\n    print(f\"  Locations: {msg.locations}\")\n    print(f\"  Count: {len(msg.locations)}\")\n    assert len(msg.locations) == 1, \"Should have 1 location for same origin\"\n\n\ndef test_same_source_line_different_uid():\n    \"\"\"Test what happens when the same source:line has different uids.\"\"\"\n    catalog = Catalog()\n    \n    # This could happen if:\n    # 1. The same node is processed in different ways\n    # 2. Or if we want to dedupe based on source:line regardless of uid\n    \n    # For the user's bug case, the issue is the SAME node appearing multiple times\n    # which means the SAME uid. But with my current fix using (source, line, uid),\n    # the same uid IS deduped correctly.\n    \n    # Let me verify by looking at what happens in the real code...\n    origin1 = MsgOrigin(\"test.rst\", 10)\n    origin2 = MsgOrigin(\"test.rst\", 10)  # Different instance = different uid\n    \n    catalog.add(\"test message\", origin1)\n    catalog.add(\"test message\", origin2)\n    \n    messages = list(catalog)\n    msg = messages[0]\n    \n    print(f\"\\nDifferent origins, same source:line:\")\n    print(f\"  Locations: {msg.locations}\")\n    print(f\"  Count: {len(msg.locations)}\")\n    \n    # The question is: should we dedupe based on (source, line) or (source, line, uid)?\n    # Looking at the bug report, the user wants to dedupe based on (source, line)\n    # because the same logical location shouldn't appear multiple times\n    \n    # However, different nodes at the same source:line might be valid in some edge cases\n    # But looking at the actual code, nodes should have unique uids across the document\n    # So deduping by (source, line) might be the right approach\n\n\nif __name__ == \"__main__\":\n    original_user_fix()\n    test_same_source_line_different_uid()\nEOF\npython3 test_original_fix.py",
+   "hit": null,
+   "lat_ms": 254.2
+  },
+  {
+   "cmd": "cd /testbed && cat > test_check_original_behavior.py << 'EOF'\n\"\"\"Check the original behavior before my fix.\"\"\"\n\n# Simulate the original code\nclass CatalogOriginal:\n    def __init__(self):\n        self.messages = []\n        self.metadata = {}\n    \n    def add(self, msg, origin):\n        if not hasattr(origin, 'uid'):\n            return\n        if msg not in self.metadata:\n            self.messages.append(msg)\n            self.metadata[msg] = []\n        # Original: no check for duplicates\n        self.metadata[msg].append((origin.source, origin.line, origin.uid))\n\n\nclass CatalogFixed:\n    def __init__(self):\n        self.messages = []\n        self.metadata = {}\n    \n    def add(self, msg, origin):\n        if not hasattr(origin, 'uid'):\n            return\n        if msg not in self.metadata:\n            self.messages.append(msg)\n            self.metadata[msg] = []\n        # Fixed: check for duplicates\n        entry = (origin.source, origin.line, origin.uid)\n        if entry not in self.metadata[msg]:\n            self.metadata[msg].append(entry)\n\n\nclass MsgOrigin:\n    def __init__(self, source, line):\n        self.source = source\n        self.line = line\n        self.uid = \"same_uid_for_same_node\"\n\n\ndef test_original():\n    catalog = CatalogOriginal()\n    origin = MsgOrigin(\"test.rst\", 10)\n    \n    catalog.add(\"msg\", origin)\n    catalog.add(\"msg\", origin)\n    \n    entries = catalog.metadata[\"msg\"]\n    print(f\"Original behavior: {entries}\")\n    print(f\"  Count: {len(entries)}\")\n    print(f\"  Has duplicates: {len(entries) != len(set(entries))}\")\n\n\ndef test_fixed():\n    catalog = CatalogFixed()\n    origin = MsgOrigin(\"test.rst\", 10)\n    \n    catalog.add(\"msg\", origin)\n    catalog.add(\"msg\", origin)\n    \n    entries = catalog.metadata[\"msg\"]\n    print(f\"\\nFixed behavior: {entries}\")\n    print(f\"  Count: {len(entries)}\")\n    print(f\"  Has duplicates: {len(entries) != len(set(entries))}\")\n\n\nif __name__ == \"__main__\":\n    test_original()\n    test_fixed()\nEOF\npython3 test_check_original_behavior.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed && cat > test_real_scenario.py << 'EOF'\n\"\"\"Test the real scenario: same node in toctree and main doctree.\"\"\"\n\nimport tempfile\nfrom pathlib import Path\nfrom sphinx.application import Sphinx\nfrom docutils import nodes\nfrom sphinx import addnodes\n\n\ndef test_real_doc_with_toctree():\n    \"\"\"Test a document with toctree to see if same nodes are processed multiple times.\"\"\"\n    \n    with tempfile.TemporaryDirectory() as tmpdir:\n        srcdir = Path(tmpdir) / \"source\"\n        outdir = Path(tmpdir) / \"build\"\n        srcdir.mkdir()\n        \n        # Create a conf.py\n        (srcdir / \"conf.py\").write_text(\"project = 'test'\\n\")\n        \n        # Create an index.rst with a toctree\n        (srcdir / \"index.rst\").write_text(\"\"\"\nTest Document\n=============\n\n.. toctree::\n\n   page1\n   page2\n\nIndex content.\n\"\"\")\n        \n        # Create page1.rst\n        (srcdir / \"page1.rst\").write_text(\"\"\"\nPage 1\n======\n\nSome content here.\n\"\"\")\n        \n        # Create page2.rst\n        (srcdir / \"page2.rst\").write_text(\"\"\"\nPage 2\n======\n\nMore content here.\n\"\"\")\n        \n        app = Sphinx(str(srcdir), str(srcdir), str(outdir), str(outdir / \".doctrees\"), \"gettext\")\n        app.build()\n        \n        # Check the generated POT file\n        pot_file = outdir / \"index.pot\"\n        assert pot_file.exists(), \"POT file should be created\"\n        \n        content = pot_file.read_text()\n        print(\"Generated POT file content:\")\n        print(content)\n        print(\"\\n\" + \"=\"*60 + \"\\n\")\n        \n        # Count occurrences of each location line\n        lines = content.split('\\n')\n        location_counts = {}\n        \n        for line in lines:\n            if line.startswith('#:'):\n                if line not in location_counts:\n                    location_counts[line] = 0\n                location_counts[line] += 1\n        \n        print(\"Location line counts:\")\n        for loc, count in location_counts.items():\n            if count > 1:\n                print(f\"  {loc}: DUPLICATE (count={count})\")\n            else:\n                print(f\"  {loc}: OK\")\n        \n        # Check for duplicates\n        duplicates = {k: v for k, v in location_counts.items() if v > 1}\n        if duplicates:\n            print(f\"\\nDUPLICATES FOUND: {duplicates}\")\n            assert False, \"Location lines should not be duplicated\"\n        else:\n            print(\"\\nNo duplicates found - test passed!\")\n\n\nif __name__ == \"__main__\":\n    test_real_doc_with_toctree()\nEOF\npython3 test_real_scenario.py",
+   "hit": null,
+   "lat_ms": 578.6
+  },
+  {
+   "cmd": "cd /testbed && cat >> tests/test_build_gettext.py << 'EOF'\n\n\n@pytest.mark.sphinx('gettext', srcdir='root-gettext')\ndef test_no_duplicate_locations(app):\n    \"\"\"Test that the same location is not duplicated in the output.\"\"\"\n    app.builder.build_all()\n    \n    # Check the generated POT files\n    for pot_file in app.outdir.glob('*.pot'):\n        content = pot_file.read_text(encoding='utf8')\n        lines = content.split('\\n')\n        \n        # Find all msgids and their associated location lines\n        i = 0\n        while i < len(lines):\n            if lines[i].startswith('#:'):\n                # Collect consecutive location lines\n                loc_lines = []\n                while i < len(lines) and lines[i].startswith('#:'):\n                    loc_lines.append(lines[i])\n                    i += 1\n                \n                # Check if the next line is a msgid\n                if i < len(lines) and lines[i].startswith('msgid'):\n                    # Check for duplicate location lines\n                    unique_locs = set(loc_lines)\n                    assert len(loc_lines) == len(unique_locs), \\\n                        f\"Duplicate locations found in {pot_file.name}: {loc_lines}\"\n                    \n                    # Skip the msgid and msgstr lines\n                    while i < len(lines) and not lines[i].startswith('#:'):\n                        i += 1\n            else:\n                i += 1\nEOF\n",
+   "hit": null,
+   "lat_ms": 88.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_gettext.py::test_no_duplicate_locations -xvs 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 1380.3
+  },
+  {
+   "cmd": "cd /testbed && tail -50 tests/test_build_gettext.py",
+   "hit": null,
+   "lat_ms": 119.2
+  },
+  {
+   "cmd": "cd /testbed && sed -i 's/app.outdir.glob/app.outdir.glob/' tests/test_build_gettext.py && python3 -c \"\nimport os\n# Fix the test to use os.listdir instead of glob\nlines = open('tests/test_build_gettext.py').read()\n# Replace glob with a simple os.listdir approach\nlines = lines.replace(\n    'for pot_file in app.outdir.glob(\\\"*.pot\\\"):',\n    'for pot_file_name in os.listdir(app.outdir):'\n)\nlines = lines.replace(\n    '    content = pot_file.read_text(encoding=\\\"utf8\\\")',\n    '    content = (app.outdir / pot_file_name).read_text(encoding=\\\"utf8\\\")'\n)\nwith open('tests/test_build_gettext.py', 'w') as f:\n    f.write(lines)\n\"",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cd /testbed && tail -50 tests/test_build_gettext.py",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/fix_test.py << 'EOF'\n# Read the test file\ncontent = open('tests/test_build_gettext.py').read()\n\n# Find the test_no_duplicate_locations function and replace it\nimport re\n\nnew_test = '''@pytest.mark.sphinx('gettext', srcdir='root-gettext')\ndef test_no_duplicate_locations(app):\n    \"\"\"Test that the same location is not duplicated in the output.\"\"\"\n    import os\n    app.builder.build_all()\n    \n    # Check the generated POT files\n    for pot_file_name in os.listdir(app.outdir):\n        if not pot_file_name.endswith('.pot'):\n            continue\n        pot_file = app.outdir / pot_file_name\n        content = pot_file.read_text(encoding='utf8')\n        lines = content.split('\\\\n')\n        \n        # Find all msgids and their associated location lines\n        i = 0\n        while i < len(lines):\n            if lines[i].startswith('#:'):\n                # Collect consecutive location lines\n                loc_lines = []\n                while i < len(lines) and lines[i].startswith('#:'):\n                    loc_lines.append(lines[i])\n                    i += 1\n                \n                # Check if the next line is a msgid\n                if i < len(lines) and lines[i].startswith('msgid'):\n                    # Check for duplicate location lines\n                    unique_locs = set(loc_lines)\n                    assert len(loc_lines) == len(unique_locs), \\\\\n                        f\"Duplicate locations found in {pot_file_name}: {loc_lines}\"\n                    \n                    # Skip the msgid and msgstr lines\n                    while i < len(lines) and not lines[i].startswith('#:'):\n                        i += 1\n            else:\n                i += 1\n'''\n\n# Find and replace the function\npattern = r'@pytest\\.mark\\.sphinx\\(\\'gettext\\', srcdir=\\'root-gettext\\'\\)\\ndef test_no_duplicate_locations\\(app\\):.*?(?=\\n@|\\n\\nclass|\\Z)'\ncontent = re.sub(pattern, new_test, content, flags=re.DOTALL)\n\nwith open('tests/test_build_gettext.py', 'w') as f:\n    f.write(content)\n\nprint(\"Test updated!\")\nEOF\npython3 /tmp/fix_test.py",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cd /testbed && tail -60 tests/test_build_gettext.py",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_gettext.py::test_no_duplicate_locations -xvs 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 571.4
+  },
+  {
+   "cmd": "cd /testbed && tail -30 tests/test_build_gettext.py",
+   "hit": null,
+   "lat_ms": 71.9
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/fix_test2.py << 'EOF'\n# Read the test file\ncontent = open('tests/test_build_gettext.py').read()\n\n# Replace the broken part - the split('\\n') should be on one line\ncontent = content.replace(\n    \"lines = content.split('\\\\n')\",\n    \"lines = content.split('\\\\n')\"\n)\n\n# Let me rewrite the entire test properly\nimport re\n\nold_pattern = r'''@pytest\\.mark\\.sphinx\\('gettext', srcdir='root-gettext'\\)\ndef test_no_duplicate_locations\\(app\\):\n    \"\"\"Test that the same location is not duplicated in the output\\.\"\"\"\n    import os\n    app\\.builder\\.build_all\\(\\)\n    \n    # Check the generated POT files\n    for pot_file_name in os\\.listdir\\(app\\.outdir\\):\n        if not pot_file_name\\.endswith\\('\\.pot'\\):\n            continue\n        pot_file = app\\.outdir / pot_file_name\n        content = pot_file\\.read_text\\(encoding='utf8'\\)\n        lines = content\\.split\\('\\\\\\\\n'\\)\n        \n        # Find all msgids and their associated location lines\n        i = 0\n        while i < len\\(lines\\):\n            if lines\\[i\\]\\.startswith\\('#:'\\):\n                # Collect consecutive location lines\n                loc_lines = \\[\\]\n                while i < len\\(lines\\) and lines\\[i\\]\\.startswith\\('#:'\\):\n                    loc_lines\\.append\\(lines\\[i\\]\\)\n                    i \\+= 1\n                \n                # Check if the next line is a msgid\n                if i < len\\(lines\\) and lines\\[i\\]\\.startswith\\('msgid'\\):\n                    # Check for duplicate location lines\n                    unique_locs = set\\(loc_lines\\)\n                    assert len\\(loc_lines\\) == len\\(unique_locs\\), \\\\\n                        f\"Duplicate locations found in {pot_file_name}: {loc_lines}\"\n                    \n                    # Skip the msgid and msgstr lines\n                    while i < len\\(lines\\) and not lines\\[i\\]\\.startswith\\('#:'\\):\n                        i \\+= 1\n            else:\n                i \\+= 1'''\n\nnew_test = '''@pytest.mark.sphinx('gettext', srcdir='root-gettext')\ndef test_no_duplicate_locations(app):\n    \"\"\"Test that the same location is not duplicated in the output.\"\"\"\n    import os\n    app.builder.build_all()\n\n    # Check the generated POT files\n    for pot_file_name in os.listdir(app.outdir):\n        if not pot_file_name.endswith('.pot'):\n            continue\n        pot_file = app.outdir / pot_file_name\n        content = pot_file.read_text(encoding='utf8')\n        lines = content.split('\\\\n')\n\n        # Find all msgids and their associated location lines\n        i = 0\n        while i < len(lines):\n            if lines[i].startswith('#:'):\n                # Collect consecutive location lines\n                loc_lines = []\n                while i < len(lines) and lines[i].startswith('#:'):\n                    loc_lines.append(lines[i])\n                    i += 1\n\n                # Check if the next line is a msgid\n                if i < len(lines) and lines[i].startswith('msgid'):\n                    # Check for duplicate location lines\n                    unique_locs = set(loc_lines)\n                    assert len(loc_lines) == len(unique_locs), \\\\\n                        \"Duplicate locations found in {}: {}\".format(pot_file_name, loc_lines)\n\n                    # Skip the msgid and msgstr lines\n                    while i < len(lines) and not lines[i].startswith('#:'):\n                        i += 1\n            else:\n                i += 1'''\n\ncontent = re.sub(old_pattern, new_test, content, flags=re.DOTALL)\n\nwith open('tests/test_build_gettext.py', 'w') as f:\n    f.write(content)\n\nprint(\"Test fixed!\")\nEOF\npython3 /tmp/fix_test2.py",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_gettext.py::test_no_duplicate_locations -xvs 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 574.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '195,210p' tests/test_build_gettext.py | cat -A",
+   "hit": null,
+   "lat_ms": 117.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '201p' tests/test_build_gettext.py",
+   "hit": null,
+   "lat_ms": 68.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '202p' tests/test_build_gettext.py",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\ncontent = open('tests/test_build_gettext.py').read()\n\n# Fix the broken split('\\\\n') that got split across lines\ncontent = content.replace(\n    \"lines = content.split('\\n')\",\n    \"lines = content.split('\\\\n')\"\n)\n\n# Write back\nwith open('tests/test_build_gettext.py', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed!\")\nEOF\npython3 -m pytest tests/test_build_gettext.py::test_no_duplicate_locations -xvs 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1376.2
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_gettext.py::test_no_duplicate_locations -xvs 2>&1 | grep -A 20 \"objects.pot\"",
+   "hit": null,
+   "lat_ms": 1785.7
+  },
+  {
+   "cmd": "cd /testbed && cat -n sphinx/builders/gettext.py | sed -n '48,60p'",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\nfrom sphinx.builders.gettext import Catalog, MsgOrigin\n\ncatalog = Catalog()\n\n# Test: Same origin added twice\norigin = MsgOrigin(\"test.txt\", 0)\nprint(f\"Origin uid: {origin.uid}\")\n\ncatalog.add(\"test message\", origin)\ncatalog.add(\"test message\", origin)\n\nmessages = list(catalog)\nmsg = messages[0]\n\nprint(f\"Locations: {msg.locations}\")\nprint(f\"Unique locations: {len(set(msg.locations))}\")\nprint(f\"Total locations: {len(msg.locations)}\")\n\n# Now test with same source:line but different uids (different MsgOrigin instances)\norigin2 = MsgOrigin(\"test.txt\", 0)\nprint(f\"\\nOrigin2 uid: {origin2.uid}\")\nprint(f\"Same uid? {origin.uid == origin2.uid}\")\n\ncatalog2 = Catalog()\ncatalog2.add(\"test message\", origin)\ncatalog2.add(\"test message\", origin2)\n\nmessages2 = list(catalog2)\nmsg2 = messages2[0]\n\nprint(f\"\\nLocations with different origins: {msg2.locations}\")\nprint(f\"Total locations: {len(msg2.locations)}\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 258.2
+  },
+  {
+   "cmd": "cd /testbed && ls tests/roots/ | grep objects",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "cd /testbed && find tests -name \"objects.txt\" -o -name \"objects.rst\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "cd /testbed && cat tests/roots/test-root/objects.txt",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && find tests/roots/test-root -name \"*.rst\" | head -10",
+   "hit": null,
+   "lat_ms": 82.6
+  },
+  {
+   "cmd": "cd /testbed && find tests/roots/test-root -type f | head -20",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "cd /testbed && ls -la tests/roots/test-root/",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\n# Let me trace through the actual build process to understand the duplicates\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom pathlib import Path\nfrom sphinx.application import Sphinx\nimport tempfile\n\nwith tempfile.TemporaryDirectory() as tmpdir:\n    srcdir = Path(tmpdir) / \"source\"\n    outdir = Path(tmpdir) / \"build\"\n    srcdir.mkdir()\n    \n    # Copy test-root\n    import shutil\n    shutil.copytree(\"tests/roots/test-root\", str(srcdir))\n    \n    app = Sphinx(str(srcdir), str(srcdir), str(outdir), str(outdir / \".doctrees\"), \"gettext\")\n    \n    # Monkey-patch the add method to trace calls\n    from sphinx.builders.gettext import Catalog\n    original_add = Catalog.add\n    \n    def traced_add(self, msg, origin):\n        import traceback\n        if \"objects.txt\" in str(getattr(origin, 'source', '')):\n            print(f\"\\n=== Adding message: {msg[:50]!r}\")\n            print(f\"   Source: {origin.source}\")\n            print(f\"   Line: {origin.line}\")\n            print(f\"   UID: {origin.uid}\")\n            print(\"   Traceback:\")\n            traceback.print_stack(limit=10)\n        return original_add(self, msg, origin)\n    \n    Catalog.add = traced_add\n    \n    app.build()\n    \n    # Check objects.pot\n    pot_file = outdir / \"objects.pot\"\n    if pot_file.exists():\n        content = pot_file.read_text()\n        lines = [l for l in content.split('\\n') if l.startswith('#:')]\n        print(f\"\\n\\nObjects.pot location lines ({len(lines)} total):\")\n        for line in lines:\n            print(f\"  {line}\")\n        \n        # Check for duplicates\n        from collections import Counter\n        counts = Counter(lines)\n        for line, count in counts.items():\n            if count > 1:\n                print(f\"  DUPLICATE: {line} (count={count})\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 248.9
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\n# Let me trace through the actual build process to understand the duplicates\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom pathlib import Path\nfrom sphinx.application import Sphinx\nimport tempfile\n\nwith tempfile.TemporaryDirectory() as tmpdir:\n    srcdir = Path(tmpdir) / \"source\"\n    outdir = Path(tmpdir) / \"build\"\n    srcdir.mkdir()\n    \n    # Copy test-root\n    import shutil\n    shutil.copytree(\"tests/roots/test-root\", str(srcdir), dirs_exist_ok=True)\n    \n    app = Sphinx(str(srcdir), str(srcdir), str(outdir), str(outdir / \".doctrees\"), \"gettext\")\n    \n    # Monkey-patch the add method to trace calls\n    from sphinx.builders.gettext import Catalog\n    original_add = Catalog.add\n    \n    call_count = [0]\n    \n    def traced_add(self, msg, origin):\n        call_count[0] += 1\n        src = getattr(origin, 'source', '')\n        if \"objects.txt\" in src and call_count[0] <= 20:\n            print(f\"Call {call_count[0]}: Adding msg={msg[:30]!r}, src={src}, line={origin.line}, uid={origin.uid[:8]}...\")\n        return original_add(self, msg, origin)\n    \n    Catalog.add = traced_add\n    \n    app.build()\n    \n    print(f\"\\n\\nTotal add() calls: {call_count[0]}\")\n    \n    # Check objects.pot\n    pot_file = outdir / \"objects.pot\"\n    if pot_file.exists():\n        content = pot_file.read_text()\n        lines = [l for l in content.split('\\n') if l.startswith('#:')]\n        print(f\"\\nObjects.pot location lines ({len(lines)} total):\")\n        for line in lines:\n            print(f\"  {line}\")\n        \n        # Check for duplicates\n        from collections import Counter\n        counts = Counter(lines)\n        print(f\"\\nUnique locations: {len(counts)}\")\n        for line, count in counts.items():\n            if count > 1:\n                print(f\"  DUPLICATE: {line} (count={count})\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 1170.7
+  },
+  {
+   "cmd": "cd /testbed && cat -n sphinx/builders/gettext.py | sed -n '48,60p'",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\ncontent = open('sphinx/builders/gettext.py').read()\n\n# Find and replace the add method\nold_code = '''        if msg not in self.metadata:  # faster lookup in hash\n            self.messages.append(msg)\n            self.metadata[msg] = []\n        entry = (origin.source, origin.line, origin.uid)\n        if entry not in self.metadata[msg]:\n            self.metadata[msg].append(entry)'''\n\nnew_code = '''        if msg not in self.metadata:  # faster lookup in hash\n            self.messages.append(msg)\n            self.metadata[msg] = []\n        # Deduplicate based on (source, line) only\n        # This prevents the same location from appearing multiple times\n        location = (origin.source, origin.line)\n        if location not in [(s, l) for s, l, u in self.metadata[msg]]:\n            self.metadata[msg].append((origin.source, origin.line, origin.uid))'''\n\ncontent = content.replace(old_code, new_code)\n\nwith open('sphinx/builders/gettext.py', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed!\")\nEOF\ncat -n sphinx/builders/gettext.py | sed -n '48,65p'",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\n# Test the updated fix\nfrom sphinx.builders.gettext import Catalog, MsgOrigin\n\ncatalog = Catalog()\n\n# Test 1: Same origin added multiple times\norigin = MsgOrigin(\"test.txt\", 0)\ncatalog.add(\"test message\", origin)\ncatalog.add(\"test message\", origin)\ncatalog.add(\"test message\", origin)\n\nmessages = list(catalog)\nmsg = messages[0]\n\nprint(f\"Test 1 - Same origin added 3 times:\")\nprint(f\"  Locations: {msg.locations}\")\nprint(f\"  Count: {len(msg.locations)}\")\nassert len(msg.locations) == 1, \"Should have 1 location for same origin\"\n\n# Test 2: Different origins with same source:line\ncatalog2 = Catalog()\norigin1 = MsgOrigin(\"test.txt\", 0)\norigin2 = MsgOrigin(\"test.txt\", 0)\norigin3 = MsgOrigin(\"test.txt\", 5)\n\ncatalog2.add(\"test message\", origin1)\ncatalog2.add(\"test message\", origin2)\ncatalog2.add(\"test message\", origin3)\n\nmessages2 = list(catalog2)\nmsg2 = messages2[0]\n\nprint(f\"\\nTest 2 - Different origins with same source:line:\")\nprint(f\"  Locations: {msg2.locations}\")\nprint(f\"  Count: {len(msg2.locations)}\")\n# With the new fix, (source, line) is the unique key, so we should have 2 unique locations\nassert len(msg2.locations) == 2, f\"Should have 2 unique locations, got {len(msg2.locations)}\"\n\nprint(\"\\nAll tests passed!\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 382.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_gettext.py::test_no_duplicate_locations -xvs 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1371.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_gettext.py -x 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 2972.8
+  },
+  {
+   "cmd": "cd /testbed && python3 test_duplicate_locations_final.py",
+   "hit": null,
+   "lat_ms": 1488.4
+  },
+  {
+   "cmd": "cd /testbed && cat -n sphinx/builders/gettext.py | sed -n '48,70p'",
+   "hit": null,
+   "lat_ms": 120.8
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\ncontent = open('sphinx/builders/gettext.py').read()\n\n# Optimize the fix to use a set for tracking unique locations\nold_code = '''    def add(self, msg: str, origin: Union[Element, \"MsgOrigin\"]) -> None:\n        if not hasattr(origin, 'uid'):\n            # Nodes that are replicated like todo don't have a uid,\n            # however i18n is also unnecessary.\n            return\n        if msg not in self.metadata:  # faster lookup in hash\n            self.messages.append(msg)\n            self.metadata[msg] = []\n        # Deduplicate based on (source, line) only\n        # This prevents the same location from appearing multiple times\n        location = (origin.source, origin.line)\n        if location not in [(s, l) for s, l, u in self.metadata[msg]]:\n            self.metadata[msg].append((origin.source, origin.line, origin.uid))'''\n\nnew_code = '''    def add(self, msg: str, origin: Union[Element, \"MsgOrigin\"]) -> None:\n        if not hasattr(origin, 'uid'):\n            # Nodes that are replicated like todo don't have a uid,\n            # however i18n is also unnecessary.\n            return\n        if msg not in self.metadata:  # faster lookup in hash\n            self.messages.append(msg)\n            self.metadata[msg] = []\n        # Deduplicate based on (source, line) only\n        # This prevents the same location from appearing multiple times\n        # when the same node is processed multiple times\n        location = (origin.source, origin.line)\n        if location not in {(s, l) for s, l, u in self.metadata[msg]}:\n            self.metadata[msg].append((origin.source, origin.line, origin.uid))'''\n\ncontent = content.replace(old_code, new_code)\n\nwith open('sphinx/builders/gettext.py', 'w') as f:\n    f.write(content)\n\nprint(\"Optimized!\")\nEOF\ncat -n sphinx/builders/gettext.py | sed -n '48,70p'",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\ncontent = open('sphinx/builders/gettext.py').read()\n\n# A better fix: track unique locations in a separate data structure\nold_code = '''class Catalog:\n    \"\"\"Catalog of translatable messages.\"\"\"\n\n    def __init__(self) -> None:\n        self.messages: List[str] = []  # retain insertion order, a la OrderedDict\n\n        # msgid -> file, line, uid\n        self.metadata: Dict[str, List[Tuple[str, int, str]]] = OrderedDict()\n\n    def add(self, msg: str, origin: Union[Element, \"MsgOrigin\"]) -> None:\n        if not hasattr(origin, 'uid'):\n            # Nodes that are replicated like todo don't have a uid,\n            # however i18n is also unnecessary.\n            return\n        if msg not in self.metadata:  # faster lookup in hash\n            self.messages.append(msg)\n            self.metadata[msg] = []\n        # Deduplicate based on (source, line) only\n        # This prevents the same location from appearing multiple times\n        # when the same node is processed multiple times\n        location = (origin.source, origin.line)\n        if location not in {(s, l) for s, l, u in self.metadata[msg]}:\n            self.metadata[msg].append((origin.source, origin.line, origin.uid))'''\n\nnew_code = '''class Catalog:\n    \"\"\"Catalog of translatable messages.\"\"\"\n\n    def __init__(self) -> None:\n        self.messages: List[str] = []  # retain insertion order, a la OrderedDict\n\n        # msgid -> file, line, uid\n        self.metadata: Dict[str, List[Tuple[str, int, str]]] = OrderedDict()\n        # Track unique locations per message for O(1) duplicate checking\n        self._locations: Dict[str, Set[Tuple[str, int]]] = {}\n\n    def add(self, msg: str, origin: Union[Element, \"MsgOrigin\"]) -> None:\n        if not hasattr(origin, 'uid'):\n            # Nodes that are replicated like todo don't have a uid,\n            # however i18n is also unnecessary.\n            return\n        if msg not in self.metadata:  # faster lookup in hash\n            self.messages.append(msg)\n            self.metadata[msg] = []\n            self._locations[msg] = set()\n        # Deduplicate based on (source, line) only\n        # This prevents the same location from appearing multiple times\n        # when the same node is processed multiple times\n        location = (origin.source, origin.line)\n        if location not in self._locations[msg]:\n            self.metadata[msg].append((origin.source, origin.line, origin.uid))\n            self._locations[msg].add(location)'''\n\ncontent = content.replace(old_code, new_code)\n\nwith open('sphinx/builders/gettext.py', 'w') as f:\n    f.write(content)\n\nprint(\"Better optimization!\")\nEOF\ncat -n sphinx/builders/gettext.py | sed -n '40,75p'",
+   "hit": null,
+   "lat_ms": 163.6
+  },
+  {
+   "cmd": "cd /testbed && head -20 sphinx/builders/gettext.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_gettext.py -x 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 3181.7
+  },
+  {
+   "cmd": "cd /testbed && python3 test_duplicate_locations_final.py",
+   "hit": null,
+   "lat_ms": 573.2
+  },
+  {
+   "cmd": "cd /testbed && python3 test_duplicate_locations.py",
+   "hit": null,
+   "lat_ms": 258.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_gettext.py tests/test_util_nodes.py -x 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 3587.2
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\n\"\"\"Simulate the bug scenario from the bug report.\"\"\"\n\nimport tempfile\nfrom pathlib import Path\nfrom sphinx.application import Sphinx\n\n\ndef test_bug_scenario():\n    \"\"\"Test the exact scenario from the bug report.\"\"\"\n    \n    with tempfile.TemporaryDirectory() as tmpdir:\n        srcdir = Path(tmpdir) / \"source\"\n        outdir = Path(tmpdir) / \"build\"\n        srcdir.mkdir()\n        \n        # Create a conf.py\n        (srcdir / \"conf.py\").write_text(\"project = 'test'\\n\")\n        \n        # Create an index.rst with a toctree\n        (srcdir / \"index.rst\").write_text(\"\"\"\nTest Document\n=============\n\n.. toctree::\n\n   page1\n   page2\n\nSome text with \"Type\" here.\n\"\"\")\n        \n        # Create page1.rst\n        (srcdir / \"page1.rst\").write_text(\"\"\"\nPage 1\n======\n\nThis document has \"Type\" appearing again.\n\"\"\")\n        \n        # Create page2.rst\n        (srcdir / \"page2.rst\").write_text(\"\"\"\nPage 2\n======\n\nMore content. \"Type\" appears here too.\n\"\"\")\n        \n        app = Sphinx(str(srcdir), str(srcdir), str(outdir), str(outdir / \".doctrees\"), \"gettext\")\n        app.build()\n        \n        # Check the generated POT file\n        pot_file = outdir / \"index.pot\"\n        assert pot_file.exists(), \"POT file should be created\"\n        \n        content = pot_file.read_text()\n        \n        print(\"Generated POT file:\")\n        print(content)\n        print(\"\\n\" + \"=\"*60 + \"\\n\")\n        \n        # Look for \"Type\" msgid and check its locations\n        lines = content.split('\\n')\n        \n        # Find all location lines for \"Type\"\n        type_msg_start = None\n        type_locations = []\n        \n        for i, line in enumerate(lines):\n            if line == 'msgid \"Type\"':\n                type_msg_start = i\n                # Look backwards for location lines\n                j = i - 1\n                while j >= 0 and lines[j].startswith('#:'):\n                    type_locations.append(lines[j])\n                    j -= 1\n                break\n        \n        print(f\"Found 'Type' msgid at line {type_msg_start}\")\n        print(f\"Location lines for 'Type':\")\n        for loc in type_locations:\n            print(f\"  {loc}\")\n        \n        # Check for duplicates\n        unique_locs = set(type_locations)\n        if len(type_locations) != len(unique_locs):\n            print(f\"\\nDUPLICATE LOCATIONS FOUND!\")\n            print(f\"Total: {len(type_locations)}, Unique: {len(unique_locs)}\")\n            from collections import Counter\n            counts = Counter(type_locations)\n            for loc, count in counts.items():\n                if count > 1:\n                    print(f\"  {loc}: {count} times\")\n            assert False, \"Duplicate locations should not exist\"\n        else:\n            print(f\"\\nNo duplicate locations - test passed!\")\n\n\nif __name__ == \"__main__\":\n    test_bug_scenario()\nEOF\n",
+   "hit": null,
+   "lat_ms": 580.2
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'EOF'\n\"\"\"Test that the fix actually prevents duplicate locations.\"\"\"\n\nfrom sphinx.builders.gettext import Catalog, MsgOrigin\n\n\ndef test_real_duplicate_scenario():\n    \"\"\"\n    Simulate the exact scenario from the bug report where the same node \n    is processed multiple times (e.g., in both toctree and main doctree).\n    \"\"\"\n    catalog = Catalog()\n    \n    # Create the same origin (simulating the same node being processed multiple times)\n    origin = MsgOrigin(\"manual/modeling/hair.rst\", 0)\n    \n    # Add the same message multiple times (simulating the bug)\n    catalog.add(\"Type\", origin)\n    catalog.add(\"Type\", origin)\n    catalog.add(\"Type\", origin)\n    \n    messages = list(catalog)\n    msg = messages[0]\n    \n    print(f\"Test: Same origin added 3 times\")\n    print(f\"  Message: {msg.text}\")\n    print(f\"  Locations: {msg.locations}\")\n    print(f\"  Count: {len(msg.locations)}\")\n    \n    # Should only have 1 unique location\n    assert len(msg.locations) == 1, f\"Expected 1 location, got {len(msg.locations)}\"\n    \n    # Verify it's the correct location\n    assert msg.locations[0] == (\"manual/modeling/hair.rst\", 0)\n    \n    print(\"\\nTest passed! Duplicates are properly eliminated.\")\n\n\ndef test_multiple_nodes_same_line():\n    \"\"\"Test multiple different nodes at the same line.\"\"\"\n    catalog = Catalog()\n    \n    # Create different origins with same source:line (different uids)\n    origin1 = MsgOrigin(\"test.rst\", 0)\n    origin2 = MsgOrigin(\"test.rst\", 0)\n    origin3 = MsgOrigin(\"test.rst\", 0)\n    \n    # Add the same message from different origins\n    catalog.add(\"Type\", origin1)\n    catalog.add(\"Type\", origin2)\n    catalog.add(\"Type\", origin3)\n    \n    messages = list(catalog)\n    msg = messages[0]\n    \n    print(f\"\\nTest: Different origins with same source:line\")\n    print(f\"  Message: {msg.text}\")\n    print(f\"  Locations: {msg.locations}\")\n    print(f\"  Count: {len(msg.locations)}\")\n    \n    # Should only have 1 unique location (source, line)\n    # Since all have the same source:line\n    assert len(msg.locations) == 1, f\"Expected 1 location, got {len(msg.locations)}\"\n    \n    print(\"\\nTest passed! Multiple nodes at same location are deduped.\")\n\n\ndef test_different_lines():\n    \"\"\"Test nodes at different lines.\"\"\"\n    catalog = Catalog()\n    \n    origin1 = MsgOrigin(\"test.rst\", 0)\n    origin2 = MsgOrigin(\"test.rst\", 10)\n    origin3 = MsgOrigin(\"test.rst\", 0)  # Same as origin1\n    \n    catalog.add(\"Type\", origin1)\n    catalog.add(\"Type\", origin2)\n    catalog.add(\"Type\", origin3)\n    \n    messages = list(catalog)\n    msg = messages[0]\n    \n    print(f\"\\nTest: Different lines with some duplicates\")\n    print(f\"  Message: {msg.text}\")\n    print(f\"  Locations: {msg.locations}\")\n    print(f\"  Count: {len(msg.locations)}\")\n    \n    # Should have 2 unique locations\n    assert len(msg.locations) == 2, f\"Expected 2 locations, got {len(msg.locations)}\"\n    \n    print(\"\\nTest passed! Different lines are kept separate.\")\n\n\nif __name__ == \"__main__\":\n    test_real_duplicate_scenario()\n    test_multiple_nodes_same_line()\n    test_different_lines()\n    print(\"\\n\" + \"=\"*60)\n    print(\"All tests passed!\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 250.9
+  },
+  {
+   "cmd": "cd /testbed && rm -f test_*.py fix_gettext.patch /tmp/fix_test*.py",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "cd /testbed && cat -n sphinx/builders/gettext.py | sed -n '38,75p'",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "cd /testbed && tail -60 tests/test_build_gettext.py",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_build_gettext.py -xvs 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 3174.6
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "sphinx-doc__sphinx-10466",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 39705.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

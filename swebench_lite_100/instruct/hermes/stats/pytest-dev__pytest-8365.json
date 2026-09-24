@@ -1,0 +1,171 @@
+{
+ "calls": 23,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 5396.681785583496,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "find / -name \"pathlib.py\" -path \"*_pytest*\" 2>/dev/null | head -5; find / -type d -name \"_pytest\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 969.4
+  },
+  {
+   "cmd": "cd /testbed && ls && git log --oneline -5",
+   "hit": null,
+   "lat_ms": 114.9
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"basetemp\" src/_pytest --include=\"*.py\" | head -30",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '95,140p' src/_pytest/tmpdir.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"get_user\\|getpass\" src/_pytest/tmpdir.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,30p' src/_pytest/tmpdir.py && echo ---- && sed -n '145,165p' src/_pytest/tmpdir.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"tmpdir_factory\" testing/acceptance_test.py | head -20; grep -rn \"def get_user\" testing/ | head",
+   "hit": null,
+   "lat_ms": 119.8
+  },
+  {
+   "cmd": "cd /testbed && grep -rln \"tmp_path_factory\\|basetemp\" testing/ | head",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && cat testing/test_tmpdir.py",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"get_user\" src/ testing/ | grep -v \".pyc\"",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n '102,125p' src/_pytest/tmpdir.py && echo ==== && ls changelog/ | head",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "cd /testbed && cat changelog/8061.bugfix.rst && echo ==== && sed -n '1,20p' src/_pytest/tmpdir.py",
+   "hit": null,
+   "lat_ms": 179.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\nsrc = open('src/_pytest/tmpdir.py').read()\n\n# 1) add re import already present; add the user regex constant after imports\nold = '''from _pytest.fixtures import fixture\nfrom _pytest.fixtures import FixtureRequest\nfrom _pytest.monkeypatch import MonkeyPatch\n'''\nnew = '''from _pytest.fixtures import fixture\nfrom _pytest.fixtures import FixtureRequest\nfrom _pytest.monkeypatch import MonkeyPatch\n\n# A regex to replace characters in usernames that are invalid in filesystem paths.\nUSER_REGEX = re.compile(r'[^0-9a-zA-Z]')\n'''\nassert old in src\nsrc = src.replace(old, new, 1)\n\n# 2) use it in getbasetemp\nold2 = '''            user = get_user() or \"unknown\"'''\nnew2 = '''            user = get_user() or \"unknown\"\n            user = USER_REGEX.sub(\"_\", user)'''\nassert old2 in src\nsrc = src.replace(old2, new2, 1)\n\nopen('src/_pytest/tmpdir.py','w').write(src)\nprint(\"done\")\nEOF",
+   "hit": null,
+   "lat_ms": 168.4
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nsrc = open('testing/test_tmpdir.py').read()\n\n# add a test after test_tmpdir_fallback_tox_env\nold = '''def test_tmpdir_factory(pytester: Pytester) -> None:'''\nnew = '''def test_tmpdir_factory(pytester: Pytester) -> None:'''\n# insert new tests before TestNumberedDir instead\nold = '''class TestNumberedDir:'''\nnew = '''def test_tmpdir_with_illegal_chars_in_username(pytester: Pytester, monkeypatch) -> None:\n    \"\"\"Test that tmpdir works even when the username contains characters that\n    are illegal in directory names (e.g. a Windows domain user 'contoso\\\\\\\\john_doe'\n    when logging in via SSH, #8640).\n    \"\"\"\n    monkeypatch.setattr(\n        \"getpass.getuser\", lambda: \"contoso\\\\\\\\john_doe\", raising=False\n    )\n    pytester.makepyfile(\n        \"\"\"\n        def test_some(tmpdir):\n            assert tmpdir.isdir()\n    \"\"\"\n    )\n    reprec = pytester.inline_run()\n    reprec.assertoutcome(passed=1)\n\n\ndef test_get_user_illegal_chars():\n    \"\"\"get_user() should return a user name with illegal characters replaced.\"\"\"\n    import _pytest.tmpdir as t\n\n    with mock.patch(\"getpass.getuser\", return_value=\"contoso\\\\\\\\john_doe\"):\n        assert t.get_user() == \"contoso_john_doe\"\n\n\nclass TestNumberedDir:'''\nassert old in src\nsrc = src.replace(old, new, 1)\n\n# add mock import\nold = '''import os\nimport stat\nimport sys'''\nnew = '''import os\nimport stat\nimport sys\nfrom unittest import mock'''\nassert old in src\nsrc = src.replace(old, new, 1)\n\nopen('testing/test_tmpdir.py','w').write(src)\nprint(\"done\")\nEOF",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && echo 'Fixed crash when the user name (e.g. when logging in via SSH into Windows, yielding a domain user like ``contoso\\\\john_doe``) contains characters that are illegal in file system paths: such characters are now replaced with an underscore when computing the temporary directory (issue 8640).' > changelog/8640.bugfix.rst && cat changelog/8640.bugfix.rst",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_tmpdir.py -x -q 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 575.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nsrc = open('testing/test_tmpdir.py').read()\nold = '''def test_get_user_illegal_chars():\n    \"\"\"get_user() should return a user name with illegal characters replaced.\"\"\"\n    import _pytest.tmpdir as t\n\n    with mock.patch(\"getpass.getuser\", return_value=\"contoso\\\\\\\\john_doe\"):\n        assert t.get_user() == \"contoso_john_doe\"\n\n\nclass TestNumberedDir:'''\nnew = '''class TestNumberedDir:'''\nassert old in src\nsrc = src.replace(old, new, 1)\nopen('testing/test_tmpdir.py','w').write(src)\nprint(\"done\")\nEOF\npython -m pytest testing/test_tmpdir.py -q 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 776.7
+  },
+  {
+   "cmd": "cd /testbed && mkdir -p /tmp/repro && cd /tmp/repro && printf 'def test_tmpdir(tmpdir):\\n    pass\\n' > test_tmp.py && LOGNAME='contoso\\\\john_doe' USER='contoso\\\\john_doe' python -m pytest test_tmp.py -q 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 249.0
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 170.0
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nsrc = open('testing/test_tmpdir.py').read()\nsrc = src.replace('''import sys\nfrom unittest import mock\n''', '''import sys\n''', 1)\nopen('testing/test_tmpdir.py','w').write(src)\nEOF\npython -m pytest testing/test_tmpdir.py -q 2>&1 | tail -2",
+   "hit": null,
+   "lat_ms": 781.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pytest-dev__pytest-8365",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 5396.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

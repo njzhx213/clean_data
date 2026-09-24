@@ -1,0 +1,471 @@
+{
+ "calls": 83,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 15211.881875991821,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "pwd; echo \"---home---\"; echo $HOME; echo \"---existing project dirs---\"; ls -d ~/projects ~/work ~/src /srv/app 2>/dev/null",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "mkdir -p /testbed/proxy_fix && ls -la /testbed",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /testbed && head -3 README.md; echo \"---git---\"; git log --oneline -3 2>/dev/null; echo \"---version---\"; cat requests/__init__.py | grep -i \"__version__\" | head -1",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def prepend_scheme_if_needed\" requests/utils.py; echo \"---\"; sed -n '/def prepend_scheme_if_needed/,/^def /p' requests/utils.py | head -40",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nfrom urllib3.util.url import parse_url\np = parse_url('http://user:pass@host:8080/path?q=1#f')\nprint('netloc  :', repr(p.netloc))\nprint('auth    :', repr(p.auth))\nprint('host    :', repr(p.host))\nprint('port    :', repr(p.port))\n# check .url / .request_uri and whether auth is in netloc\nprint('url     :', repr(p.url))\n\"",
+   "hit": null,
+   "lat_ms": 167.5
+  },
+  {
+   "cmd": "cd /testbed && python3 - << 'PYEOF'\nimport re\npath = \"requests/utils.py\"\nsrc = open(path).read()\n\nold = '''    netloc = parsed.netloc\n    if not netloc:\n        netloc, path = path, netloc\n\n    if scheme is None:\n        scheme = new_scheme\n    if path is None:\n        path = ''\n\n    return urlunparse((scheme, netloc, path, '', query, fragment))'''\n\nnew = '''    netloc = parsed.netloc\n    if not netloc:\n        netloc, path = path, netloc\n\n    # Preserve any userinfo (user:pass) embedded in the original URL.\n    # parse_url().netloc excludes the userinfo component (it is stored\n    # separately on .auth), so recombine it here. Without this, proxy\n    # credentials in the URL are silently stripped, which breaks proxy\n    # authentication for CONNECT tunnels (false 407 responses).\n    if parsed.auth:\n        netloc = parsed.auth + \"@\" + netloc\n\n    if scheme is None:\n        scheme = new_scheme\n    if path is None:\n        path = ''\n\n    return urlunparse((scheme, netloc, path, '', query, fragment))'''\n\nassert old in src, \"pattern not found\"\nsrc = src.replace(old, new, 1)\nopen(path, \"w\").write(src)\nprint(\"patched prepend_scheme_if_needed in requests/utils.py\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 115.0
+  },
+  {
+   "cmd": "cd /testbed && git diff requests/utils.py; echo \"=== how is requests installed? ===\"; python3 -c \"import requests; print(requests.__file__)\"",
+   "hit": null,
+   "lat_ms": 250.5
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nfrom requests.utils import prepend_scheme_if_needed as f\nprint('with auth  :', f('http://user:pass@host:8080/', 'http'))\nprint('no auth    :', f('http://host:8080/', 'http'))\nprint('no scheme  :', f('host:8080/', 'http'))\nprint('no port    :', f('http://user:pass@host/', 'http'))\nprint('path+query :', f('http://u:p@host:1/p?q=1', 'http'))\n\"",
+   "hit": null,
+   "lat_ms": 254.5
+  },
+  {
+   "cmd": "cd /testbed && git stash && python3 -c \"from requests.utils import prepend_scheme_if_needed as f; print('ORIGINAL no-scheme:', f('host:8080/', 'http'))\" ; git stash pop && echo \"--- restored ---\" && git diff --stat",
+   "hit": null,
+   "lat_ms": 249.9
+  },
+  {
+   "cmd": "cd /tmp && cat > auth_proxy_tls.py << 'PYEOF'\nimport socket, threading, base64, ssl, subprocess, tempfile\nVALID_USER, VALID_PASS = \"user\", \"pass\"\ncert, key = tempfile.mktemp(), tempfile.mktemp()\nsubprocess.run([\"openssl\",\"req\",\"-x509\",\"-newkey\",\"rsa:2048\",\"-nodes\",\n    \"-keyout\",key,\"-out\",cert,\"-days\",\"1\",\"-subj\",\"/CN=127.0.0.1\"], capture_output=True)\ndef handle(conn, addr):\n    try:\n        data = b\"\"\n        while b\"\\r\\n\\r\\n\" not in data:\n            chunk = conn.recv(4096)\n            if not chunk: break\n            data += chunk\n        request = data.decode(\"latin-1\")\n        lines = request.split(\"\\r\\n\")\n        start = lines[0]\n        headers = {}\n        for line in lines[1:]:\n            if \":\" in line:\n                k,v = line.split(\":\",1); headers[k.strip().lower()] = v.strip()\n        if start.startswith(\"CONNECT\"):\n            expected = \"Basic \" + base64.b64encode(f\"{VALID_USER}:{VALID_PASS}\".encode()).decode()\n            if headers.get(\"proxy-authorization\",\"\") != expected:\n                conn.sendall(b\"HTTP/1.0 407 Proxy Authentication Required\\r\\nProxy-Authenticate: Basic\\r\\n\\r\\n\"); return\n            conn.sendall(b\"HTTP/1.0 200 Connection established\\r\\n\\r\\n\")\n            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER); ctx.load_cert_chain(cert, key)\n            tconn = ctx.wrap_socket(conn, server_side=True)\n            try:\n                while True:\n                    c = tconn.recv(4096)\n                    if not c: break\n                    tconn.sendall(b\"HTTP/1.0 200 OK\\r\\nContent-Length: 2\\r\\n\\r\\nok\"); break\n            except ssl.SSLError: pass\n            try: tconn.close()\n            except: pass\n        else:\n            conn.sendall(b\"HTTP/1.0 200 OK\\r\\nContent-Length: 2\\r\\n\\r\\nok\")\n    except Exception: pass\n    finally:\n        try: conn.close()\n        except: pass\ndef main():\n    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n    s.bind((\"127.0.0.1\", 0)); s.listen(50)\n    print(f\"PORT {s.getsockname()[1]}\", flush=True)\n    while True:\n        c,a = s.accept(); threading.Thread(target=handle, args=(c,a), daemon=True).start()\nmain()\nPYEOF\necho \"proxy script ready\"",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /tmp && python3 auth_proxy_tls.py' > /tmp/hermes_bg_proc_41fd8d70a739.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_41fd8d70a739.exit ) & echo $! > /tmp/hermes_bg_proc_41fd8d70a739.pid && cat /tmp/hermes_bg_proc_41fd8d70a739.pid",
+   "hit": null,
+   "lat_ms": 2171.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cd /testbed && python3 - << 'PYEOF'\nimport warnings, requests\nwarnings.filterwarnings(\"ignore\")\nprint(\"requests from:\", requests.__file__)\n\nPORT = 46707\n# THE USER'S EXACT ORIGINAL CODE PATTERN:\nproxies = {\n    \"http\":  f\"http://user:pass@127.0.0.1:{PORT}/\",\n    \"https\": f\"http://user:pass@127.0.0.1:{PORT}/\",\n}\nr = requests.get(\"https://example.org/\", proxies=proxies, timeout=5, verify=False)\nprint(\"STATUS:\", r.status_code)\nPYEOF",
+   "hit": null,
+   "lat_ms": 248.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /testbed && git stash >/dev/null 2>&1 && echo \"=== WITHOUT patch (original v2.27.0) ===\" && python3 -c \"\nimport warnings, requests; warnings.filterwarnings('ignore')\np={'http':'http://user:pass@127.0.0.1:46707/','https':'http://user:pass@127.0.0.1:46707/'}\ntry:\n    r=requests.get('https://example.org/',proxies=p,timeout=5,verify=False); print('STATUS:',r.status_code)\nexcept Exception as e: print('FAILED:','407' if '407' in str(e) else str(e)[:80])\n\"\ngit stash pop >/dev/null 2>&1 && echo \"=== WITH patch (fixed) ===\" && python3 -c \"\nimport warnings, requests; warnings.filterwarnings('ignore')\np={'http':'http://user:pass@127.0.0.1:46707/','https':'http://user:pass@127.0.0.1:46707/'}\nr=requests.get('https://example.org/',proxies=p,timeout=5,verify=False); print('STATUS:',r.status_code)\n\"",
+   "hit": null,
+   "lat_ms": 377.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 162.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/test_utils.py -q 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 578.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /testbed && git stash >/dev/null 2>&1 && echo \"=== BASELINE (no patch) ===\" && python3 -m pytest tests/test_utils.py -q 2>&1 | tail -3; git stash pop >/dev/null 2>&1 && echo \"=== restashed fix, now WITH patch ===\" && python3 -m pytest tests/test_utils.py -q 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 972.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 99.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/ -q -k \"proxy\" 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 775.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== baseline (no patch) proxy tests ===\" && git stash >/dev/null 2>&1 && python3 -m pytest tests/ -q -k \"proxy\" 2>&1 | tail -2 && git stash pop >/dev/null 2>&1 && echo \"=== with patch ===\" && python3 -m pytest tests/test_requests.py::TestRequests::test_proxy_authorization_preserved_on_request tests/ -q -k \"proxy\" 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 1169.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest \"tests/test_requests.py::TestRequests::test_proxy_authorization_preserved_on_request\" -v 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 380.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /testbed && git stash >/dev/null 2>&1 && echo \"=== BASELINE ===\" && python3 -m pytest \"tests/test_requests.py::TestRequests::test_proxy_authorization_preserved_on_request\" 2>&1 | tail -3 && git stash pop >/dev/null 2>&1 && echo \"(patch restored)\"",
+   "hit": null,
+   "lat_ms": 569.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cd /testbed && git add requests/utils.py && git commit -q -m \"Fix proxy auth 407: preserve userinfo in prepend_scheme_if_needed\n\nparse_url().netloc excludes the userinfo component (it is stored separately\non .auth), so rebuilding the proxy URL from .netloc silently stripped\nuser:pass before Proxy-Authorization was computed, causing a false 407 on\nCONNECT tunnels. Recombine parsed.auth into netloc so credentials survive.\n\nVerified: user's original code (creds in proxy URL) went 407 -> 200.\ntests/test_utils.py: 193 passed, identical to baseline.\" && git log --oneline -1 && echo \"--- final diff ---\" && git show --stat HEAD",
+   "hit": null,
+   "lat_ms": 117.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 162.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_41fd8d70a739.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_41fd8d70a739.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "psf__requests-6028",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 15211.9,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

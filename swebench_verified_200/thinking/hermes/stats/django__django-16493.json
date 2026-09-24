@@ -1,0 +1,276 @@
+{
+ "calls": 44,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 31284.498691558838,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 68.4
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && ls -la / && ls -la ~ 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "ls -la /testbed && git -C /testbed log --oneline -5 2>/dev/null | cat && git -C /testbed status 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 571.3
+  },
+  {
+   "cmd": "grep -n \"storage\" /testbed/django/db/models/fields/files.py | head -40",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "grep -rn \"31941\" /testbed/django /testbed/tests /testbed/docs 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 251.1
+  },
+  {
+   "cmd": "sed -n 225,315p /testbed/django/db/models/fields/files.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "sed -n 1,20p /testbed/django/__init__.py | grep -n \"VERSION\\|__version__\"; grep -rn \"_storage_callable\\|storage=default_storage\\|storage is not default_storage\" /testbed/tests --include=*.py -l | head",
+   "hit": null,
+   "lat_ms": 165.0
+  },
+  {
+   "cmd": "grep -rn \"deconstruct\" /testbed/tests/model_fields/tests.py | head -20",
+   "hit": null,
+   "lat_ms": 186.5
+  },
+  {
+   "cmd": "grep -rn \"deconstruct\" /testbed/tests/files/tests.py | head; echo ---; grep -rln \"deconstruct\" /testbed/tests --include=*.py | xargs grep -ln \"storage\" | head -20",
+   "hit": null,
+   "lat_ms": 166.7
+  },
+  {
+   "cmd": "grep -n \"class \\|def test\" /testbed/tests/file_storage/tests.py | head -60",
+   "hit": null,
+   "lat_ms": 71.4
+  },
+  {
+   "cmd": "sed -n 1,48p /testbed/tests/file_storage/tests.py; echo ============; sed -n 728,900p /testbed/tests/file_storage/tests.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cat /testbed/tests/file_storage/models.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "grep -n \"def __instancecheck__\\|def __eq__\\|def __call__\" /testbed/django/utils/functional.py; grep -n \"default_storage\" /testbed/django/core/files/storage/__init__.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "mkdir -p /tmp/repro && cat > /tmp/repro/repro.py <<'EOF'\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    DEBUG=True,\n    DATABASES={},\n    INSTALLED_APPS=[\"django.contrib.contenttypes\", \"django.contrib.auth\"],\n    DEFAULT_FILE_STORAGE=\"django.core.files.storage.FileSystemStorage\",\n)\ndjango.setup()\n\nimport random\nfrom django.core.files.storage import FileSystemStorage, default_storage\nfrom django.db import models\n\nother_storage = FileSystemStorage(location=\"/media/other\")\n\ndef get_storage():\n    return random.choice([default_storage, other_storage])\n\nclass MyModel(models.Model):\n    my_file = models.FileField(storage=get_storage)\n\nfield = MyModel._meta.get_field(\"my_file\")\nfor i in range(6):\n    name, path, args, kwargs = field.deconstruct()\n    print(f\"run {i}: storage kwarg present = {'storage' in kwargs!s:5}  value={kwargs.get('storage')!r}\")\nEOF\npython /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 780.5
+  },
+  {
+   "cmd": "sed -n 25,55p /testbed/django/core/files/storage/__init__.py",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "cd /tmp/repro && python - <<'EOF'\nimport re\nsrc = open('repro.py').read()\nsrc = src.replace('class MyModel(models.Model):\\n    my_file = models.FileField(storage=get_storage)',\n'''class MyModel(models.Model):\n    my_file = models.FileField(storage=get_storage)\n\n    class Meta:\n        app_label = \"repro\"\n''')\nopen('repro.py','w').write(src)\nEOF\npython repro.py",
+   "hit": null,
+   "lat_ms": 382.8
+  },
+  {
+   "cmd": "cat > /tmp/repro/repro.py <<'EOF'\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    DEBUG=True,\n    DATABASES={},\n    INSTALLED_APPS=[\"django.contrib.contenttypes\", \"django.contrib.auth\"],\n    DEFAULT_FILE_STORAGE=\"django.core.files.storage.FileSystemStorage\",\n)\ndjango.setup()\n\nfrom django.core.files.storage import FileSystemStorage, default_storage\nfrom django.db import models\n\nother_storage = FileSystemStorage(location=\"/media/other\")\n\ndef get_storage():\n    return default_storage  # callable that returns default_storage\n\ndef get_other():\n    return other_storage\n\nclass MyModel(models.Model):\n    class Meta:\n        app_label = \"repro\"\n    default_case = models.FileField(storage=default_storage)\n    none_case = models.FileField()\n    other_case = models.FileField(storage=other_storage)\n    callable_other = models.FileField(storage=get_other)\n    callable_default = models.FileField(storage=get_storage)\n\ndef show(label, field):\n    name, path, args, kwargs = field.deconstruct()\n    present = \"storage\" in kwargs\n    print(f\"{label:20} storage kwarg: {present!s:5}  value={kwargs.get('storage')!r}\")\n    return present\n\nok = True\nok &= show(\"default_storage obj \", MyModel._meta.get_field(\"default_case\")) is False\nok &= show(\"no storage          \", MyModel._meta.get_field(\"none_case\")) is False\nok &= show(\"other storage obj   \", MyModel._meta.get_field(\"other_case\")) is True\nok &= show(\"callable->other     \", MyModel._meta.get_field(\"callable_other\")) is True\nok &= show(\"callable->default   \", MyModel._meta.get_field(\"callable_default\")) is True\nprint(\"\\nPASS\" if ok else \"\\nFAIL: 'callable->default' should include the storage kwarg (the callable)\")\nEOF\npython /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 379.8
+  },
+  {
+   "cmd": "sed -n 292,302p /testbed/django/db/models/fields/files.py",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = \"django/db/models/fields/files.py\"\nsrc = open(path).read()\nold = \"\"\"        kwargs[\"upload_to\"] = self.upload_to\n        if self.storage is not default_storage:\n            kwargs[\"storage\"] = getattr(self, \"_storage_callable\", self.storage)\n        return name, path, args, kwargs\"\"\"\nnew = \"\"\"        kwargs[\"upload_to\"] = self.upload_to\n        if (\n            self.storage is not default_storage\n            or getattr(self, \"_storage_callable\", None) is not None\n        ):\n            kwargs[\"storage\"] = getattr(self, \"_storage_callable\", self.storage)\n        return name, path, args, kwargs\"\"\"\nassert src.count(old) == 1, \"pattern not found exactly once\"\nopen(path, \"w\").write(src.replace(old, new))\nprint(\"patched\")\nEOF\nsed -n 292,305p django/db/models/fields/files.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "python /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 380.8
+  },
+  {
+   "cmd": "mkdir -p /tmp/migproj/proj /tmp/migproj/migapp && cd /tmp/migproj\ncat > manage.py <<'EOF'\nimport os, sys\nif __name__ == \"__main__\":\n    os.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"proj.settings\")\n    from django.core.management import execute_from_command_line\n    execute_from_command_line(sys.argv)\nEOF\ncat > proj/__init__.py <<'EOF'\nEOF\ncat > proj/settings.py <<'EOF'\nimport sys\nINSTALLED_APPS = [\n    \"django.contrib.contenttypes\",\n    \"django.contrib.auth\",\n    \"migapp\",\n]\nDATABASES = {\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \":memory:\"}}\nDEFAULT_FILE_STORAGE = \"django.core.files.storage.FileSystemStorage\"\nMEDIA_ROOT = \"/tmp/migproj/media\"\nUSE_TZ = True\nsys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\nEOF\ncat > migapp/__init__.py <<'EOF'\nEOF\ncat > migapp/models.py <<'EOF'\nimport random\n\nfrom django.core.files.storage import FileSystemStorage, default_storage\nfrom django.db import models\n\nother_storage = FileSystemStorage(location='/media/other')\n\ndef get_storage():\n    return random.choice([default_storage, other_storage])\n\nclass MyModel(models.Model):\n    my_file = models.FileField(storage=get_storage)\nEOF\nfor i in 1 2 3 4 5 6; do\n  rm -rf migapp/migrations/0001_initial.py\n  python manage.py makemigrations migapp --no-color >/dev/null 2>&1\n  grep -H \"storage=\" migapp/migrations/0001_initial.py || echo \"run $i: storage kwarg OMITTED\"\ndone",
+   "hit": null,
+   "lat_ms": 970.2
+  },
+  {
+   "cmd": "cd /tmp/migproj && rm -rf migapp/migrations && python manage.py makemigrations migapp 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 249.7
+  },
+  {
+   "cmd": "cd /tmp/migproj && python - <<'EOF'\nsrc = open(\"proj/settings.py\").read().replace(\"import sys\", \"import os, sys\")\nopen(\"proj/settings.py\", \"w\").write(src)\nEOF\nfor i in 1 2 3 4 5 6; do\n  rm -f migapp/migrations/0001_initial.py\n  python manage.py makemigrations migapp --no-color >/dev/null 2>&1\n  grep -H \"storage=\" migapp/migrations/0001_initial.py || echo \"run $i: storage kwarg OMITTED\"\ndone",
+   "hit": null,
+   "lat_ms": 2372.3
+  },
+  {
+   "cmd": "cd /testbed && git stash && cd /tmp/migproj && for i in 1 2 3 4 5 6; do\n  rm -f migapp/migrations/0001_initial.py\n  python manage.py makemigrations migapp --no-color >/dev/null 2>&1\n  grep -H \"storage=\" migapp/migrations/0001_initial.py >/dev/null && echo \"run $i: storage INCLUDED\" || echo \"run $i: storage kwarg OMITTED\"\ndone; cd /testbed && git stash pop && git diff --stat",
+   "hit": null,
+   "lat_ms": 2772.6
+  },
+  {
+   "cmd": "ls /testbed/tests/file_storage/ /testbed/tests/file_storage/migrations/ 2>/dev/null; grep -rn \"deconstruct\" /testbed/tests/file_storage/ | head",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -rn \"def test_deconstruct\" /testbed/tests --include=*.py | grep -i \"field\" | head -20",
+   "hit": null,
+   "lat_ms": 113.8
+  },
+  {
+   "cmd": "sed -n 995,1060p /testbed/tests/file_storage/tests.py",
+   "hit": null,
+   "lat_ms": 76.4
+  },
+  {
+   "cmd": "awk 'NR>=950 && NR<=1020' /testbed/tests/file_storage/tests.py | grep -n \"^class\\|def test\" ; grep -n \"^class\" /testbed/tests/file_storage/tests.py | sed -n 10,30p",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "sed -n 964,1019p /testbed/tests/file_storage/tests.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = \"tests/file_storage/tests.py\"\nsrc = open(path).read()\nold = \"\"\"    def test_deconstruction(self):\n        \\\"\\\"\\\"\n        Deconstructing gives the original callable, not the evaluated value.\n        \\\"\\\"\\\"\n        obj = Storage()\n        *_, kwargs = obj._meta.get_field(\"storage_callable\").deconstruct()\n        storage = kwargs[\"storage\"]\n        self.assertIs(storage, callable_storage)\n\"\"\"\nnew = \"\"\"    def test_deconstruction(self):\n        \\\"\\\"\\\"\n        Deconstructing gives the original callable, not the evaluated value.\n        \\\"\\\"\\\"\n        obj = Storage()\n        *_, kwargs = obj._meta.get_field(\"storage_callable\").deconstruct()\n        storage = kwargs[\"storage\"]\n        self.assertIs(storage, callable_storage)\n\n    def test_deconstruction_callable_returning_default_storage(self):\n        \\\"\\\"\\\"\n        A storage callable that returns default_storage must still be\n        deconstructed to the callable, not omitted.\n        \\\"\\\"\\\"\n\n        def get_storage():\n            return default_storage\n\n        field = FileField(storage=get_storage)\n        *_, kwargs = field.deconstruct()\n        self.assertIs(kwargs[\"storage\"], get_storage)\n\n    def test_deconstruction_default_storage_omitted(self):\n        # The storage kwarg is omitted when the default storage is used,\n        # either explicitly or implicitly (see #31941).\n        for field in (FileField(), FileField(storage=default_storage)):\n            with self.subTest(field=field):\n                *_, kwargs = field.deconstruct()\n                self.assertNotIn(\"storage\", kwargs)\n\"\"\"\nassert src.count(old) == 1, \"pattern not found exactly once\"\nopen(path, \"w\").write(src.replace(old, new))\nprint(\"tests added\")\nEOF",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py file_storage.FieldCallableFileStorageTests -v 2 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 574.0
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py file_storage.tests.FieldCallableFileStorageTests -v 2 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 381.5
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py file_storage 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 1573.3
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py file_storage 2>&1 | grep -E \"^(OK|FAILED|Ran |ERROR|FAIL:)\" ",
+   "hit": null,
+   "lat_ms": 1583.0
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py model_fields files 2>&1 | grep -E \"^(OK|FAILED|Ran |ERROR:|FAIL:)\"",
+   "hit": null,
+   "lat_ms": 1172.0
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations.test_autodetector 2>&1 | grep -E \"^(OK|FAILED|Ran |ERROR:|FAIL:)\"",
+   "hit": null,
+   "lat_ms": 571.6
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py migrations 2>&1 | grep -E \"^(OK|FAILED|Ran |ERROR:|FAIL:)\"",
+   "hit": null,
+   "lat_ms": 5774.9
+  },
+  {
+   "cmd": "cd /testbed && awk 'length > 79 {print FILENAME\":\"FNR\": \"length\" chars\"}' django/db/models/fields/files.py tests/file_storage/tests.py; echo \"line-length check done\"; python -m flake8 --version 2>/dev/null && python -m flake8 django/db/models/fields/files.py tests/file_storage/tests.py || echo \"flake8 not available\"",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1019,1045p tests/file_storage/tests.py && echo --- && git diff",
+   "hit": null,
+   "lat_ms": 198.3
+  },
+  {
+   "cmd": "cd /tmp/repro && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(DEBUG=True, DATABASES={}, INSTALLED_APPS=[])\ndjango.setup()\n\nfrom django.core.files.storage import FileSystemStorage, default_storage\nfrom django.db.models import FileField\n\nother = FileSystemStorage(location=\"/media/other\")\n\ndef get_storage():\n    return default_storage\n\n# Round-trip: deconstruct -> reconstruct\nf = FileField(storage=get_storage)\nname, path, args, kwargs = f.deconstruct()\nf2 = FileField(*args, **kwargs)\nassert f2._storage_callable is get_storage, \"round-trip lost the callable\"\nassert f2.deconstruct() == f.deconstruct(), \"round-trip not stable\"\nprint(\"round-trip callable -> default_storage: OK\")\n\n# Round-trip: explicit default storage stays omitted\nf = FileField(storage=default_storage)\nname, path, args, kwargs = f.deconstruct()\nassert \"storage\" not in kwargs\nf2 = FileField(*args, **kwargs)\nassert f2.storage is default_storage\nprint(\"round-trip default_storage omitted: OK\")\n\n# ImageField inherits the fix too\nfrom django.db.models import ImageField\nf = ImageField(storage=get_storage)\n*_, kwargs = f.deconstruct()\nassert kwargs[\"storage\"] is get_storage\nprint(\"ImageField: OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 251.0
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"FileField\" tests/migrations/ --include=*.py -l | head -5; grep -rn \"storage\" tests/migrations/test_autodetector.py | head",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py file_storage model_fields files migrations 2>&1 | grep -E \"^(OK|FAILED|Ran |ERROR:|FAIL:)\"",
+   "hit": null,
+   "lat_ms": 7375.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-16493",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 31284.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,1221 @@
+{
+ "calls": 233,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 57660.55655479431,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "python3 --version; pip3 --version; whoami; pwd",
+   "hit": null,
+   "lat_ms": 376.7
+  },
+  {
+   "cmd": "ls /testbed; echo ---; git -C /testbed log --oneline -5 2>/dev/null | cat; echo ---; git -C /testbed status 2>/dev/null | head -20; echo ---; python3 -c \"import sphinx; print(sphinx.__version__, sphinx.__file__)\" 2>&1",
+   "hit": null,
+   "lat_ms": 379.6
+  },
+  {
+   "cmd": "grep -n \"version\" /testbed/sphinx/__init__.py | head -5; echo ---; pip list 2>/dev/null | grep -iE \"sphinx|pytest|docutils|jinja|pygments|babel|alabaster\" ; echo ---; git -C /testbed log -1 --format=\"%H %ad\" | cat",
+   "hit": null,
+   "lat_ms": 380.0
+  },
+  {
+   "cmd": "mkdir -p /tmp/repro/docs /tmp/repro/sample_package\ncat > /tmp/repro/sample_package/__init__.py <<'EOF'\nclass Square:\n    \"\"\"A class representing a square figure.\"\"\"\n\n    def __init__(self, width: int, height: int) -> None:\n        self.width = width\n        self.height = height\nEOF\ncat > /tmp/repro/docs/index.rst <<'EOF'\nWelcome to sphinx-issue-9575's documentation!\n=============================================\n\n.. autoclass:: sample_package.Square\n   :members:\n\n.. toctree::\n   :maxdepth: 2\n   :caption: Contents:\n\nIndices and tables\n==================\n\n* :ref:`genindex`\n* :ref:`modindex`\n* :ref:`search`\nEOF\ncat > /tmp/repro/docs/conf.py <<'EOF'\nimport os\nimport sys\nsys.path.insert(0, os.path.abspath('..'))\n\nproject = 'sphinx-issue-9575'\ncopyright = '2021, Jakub Kuczys'\nauthor = 'Jakub Kuczys'\n\nextensions = [\n    'sphinx.ext.autodoc',\n]\n\ntemplates_path = ['_templates']\nexclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']\n\nhtml_theme = 'alabaster'\nhtml_static_path = ['_static']\n\nautodoc_typehints = \"description\"\nEOF\nmkdir -p /tmp/repro/docs/_static\ncd /tmp/repro/docs && python3 -m sphinx -b html . _build 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 969.4
+  },
+  {
+   "cmd": "cd /tmp/repro/docs && grep -oE '<dt[^>]*id=\"sample_package.Square\"[^>]*>.*?</dt>' _build/index.html | head -2; echo ===; python3 - <<'EOF'\nimport re\nhtml = open('_build/index.html').read()\n# extract the region around \"sample_package.Square\" class header\ni = html.find('id=\"sample_package.Square\"')\nprint(html[i-200:i+900])\nEOF",
+   "hit": null,
+   "lat_ms": 164.9
+  },
+  {
+   "cmd": "cd /tmp/repro/docs && python3 - <<'EOF'\nhtml = open('_build/index.html').read()\ni = html.find('<dl class=\"py class\">')\nj = html.find('</dl>', i)\n# find the matching outer </dl>\ndepth = 0\nk = i\nwhile True:\n    k = html.find('<dl', k+1)\n    if k == -1: break\n    depth += 1\n    k2 = html.find('</dl>', k)\n    if k2 == -1: break\n# simpler: print region\nprint(html[i:i+3000])\nEOF",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "grep -n \"Return type\" /testbed/sphinx/ext/autodoc/__init__.py | head -20; echo ===; grep -n \"autodoc_typehints\" /testbed/sphinx/ext/autodoc/__init__.py | head -40",
+   "hit": null,
+   "lat_ms": 68.6
+  },
+  {
+   "cmd": "grep -n \"def add_content\\|def format_args\\|def get_object_members\\|def generate\\|^class \\|def analyse\" /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 117.7
+  },
+  {
+   "cmd": "sed -n '1411,1800p' /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "grep -rn \"'description'\" /testbed/sphinx/ext/autodoc/*.py | head; echo ===; sed -n '560,610p' /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cat /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "grep -rn \"autodoc-process-signature\" /testbed/sphinx/ | head; echo ===; sed -n '864,960p' /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "sed -n '440,540p' /testbed/sphinx/ext/autodoc/__init__.py",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "grep -n \"def signature\" /testbed/sphinx/util/inspect.py; echo ===; sed -n \"$(grep -n 'def signature' /testbed/sphinx/util/inspect.py | head -1 | cut -d: -f1),+45p\" /testbed/sphinx/util/inspect.py; echo ===; python3 - <<'EOF'\nimport sys\nsys.path.insert(0, '/tmp/repro')\nimport inspect as stdinspect\nfrom sphinx.util import inspect as sphinx_inspect\nimport sample_package\nSquare = sample_package.Square\nprint(\"stdlib:\", stdinspect.signature(Square))\nprint(\"stdlib return_annotation:\", stdinspect.signature(Square).return_annotation)\nprint(\"sphinx:\", sphinx_inspect.signature(Square))\ns = sphinx_inspect.signature(Square)\nprint(\"sphinx return_annotation:\", s.return_annotation)\nprint(\"is empty:\", s.return_annotation is sphinx_inspect.Parameter.empty)\nprint(\"init sig:\", sphinx_inspect.signature(Square.__init__))\nEOF",
+   "hit": null,
+   "lat_ms": 248.8
+  },
+  {
+   "cmd": "grep -rn \"9575\" /testbed/tests/ /testbed/CHANGES 2>/dev/null | head; echo ===; grep -rln \"typehints\" /testbed/tests/test_ext_autodoc/ | head",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "ls /testbed/tests/ | head -50; echo ===; ls /testbed/tests/roots | grep -i autodoc | head -30",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "grep -n \"autodoc_typehints\" /testbed/tests/test_ext_autodoc_configs.py | head -30; echo ===; grep -rn \"def test\" /testbed/tests/test_ext_autodoc_configs.py | head -40",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "sed -n '1020,1160p' /testbed/tests/test_ext_autodoc_configs.py",
+   "hit": null,
+   "lat_ms": 176.1
+  },
+  {
+   "cmd": "git -C /testbed log --oneline -3 -- tests/test_ext_autodoc_configs.py | cat; echo ===; git -C /testbed log -1 --format=\"%H %ad %s\" --diff-filter=A -- tests/test_ext_autodoc_configs.py | cat; echo ===; grep -n \"_ClassWithDocumentedInit\" /testbed/tests/roots/test-ext-autodoc/target/typehints.py; echo ===; sed -n \"$(grep -n '_ClassWithDocumentedInit' /testbed/tests/roots/test-ext-autodoc/target/typehints.py | head -1 | cut -d: -f1),+15p\" /testbed/tests/roots/test-ext-autodoc/target/typehints.py",
+   "hit": null,
+   "lat_ms": 167.6
+  },
+  {
+   "cmd": "sed -n '1,120p' /testbed/CHANGES",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "sed -n '880,1020p' /testbed/tests/test_ext_autodoc_configs.py",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "sed -n '1,140p' /testbed/tests/roots/test-ext-autodoc/target/typehints.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "sed -n '594,730p' /testbed/tests/test_ext_autodoc_configs.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "grep -n \"typehints\" /testbed/tests/roots/test-ext-autodoc/index.rst; echo ===; sed -n \"$(grep -n 'target.typehints' /testbed/tests/roots/test-ext-autodoc/index.rst | head -1 | cut -d: -f1),+40p\" /testbed/tests/roots/test-ext-autodoc/index.rst",
+   "hit": null,
+   "lat_ms": 140.6
+  },
+  {
+   "cmd": "sed -n '1302,1510p' /testbed/tests/test_ext_autodoc_configs.py",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "grep -rn \"Return type\" /testbed/tests/test_ext_autodoc*.py | head -40; echo ===; grep -c \"Return type\" /testbed/tests/test_ext_autodoc_configs.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /tmp/repro/docs && sed -i 's/autodoc_typehints = \"description\"/autodoc_typehints = \"both\"/' conf.py && rm -rf _build && python3 -m sphinx -b html . _build >/dev/null 2>&1 && python3 - <<'EOF'\nhtml = open('_build/index.html').read()\ni = html.find('<dl class=\"py class\">')\nprint(html[i:i+1200])\nEOF",
+   "hit": null,
+   "lat_ms": 803.7
+  },
+  {
+   "cmd": "cd /tmp/repro/docs && python3 - <<'EOF'\nhtml = open('_build/index.html').read()\ni = html.find('<dl class=\"py class\">')\nseg = html[i:i+2000]\nprint('Return type in class block:', 'Return type' in seg)\nimport re\nm = re.search(r'<dt class=\"field-even\">Return type.*?</dd>', seg, re.S)\nprint(m.group(0) if m else 'no rtype field')\nEOF",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport re\npath = 'sphinx/ext/autodoc/typehints.py'\nsrc = open(path).read()\n\nold = \"\"\"    try:\n        if callable(obj):\n            annotations = app.env.temp_data.setdefault('annotations', {})\n            annotation = annotations.setdefault(name, OrderedDict())\n            sig = inspect.signature(obj, type_aliases=app.config.autodoc_type_aliases)\n            for param in sig.parameters.values():\n                if param.annotation is not param.empty:\n                    annotation[param.name] = typing.stringify(param.annotation, mode)\n            if sig.return_annotation is not sig.empty:\n                annotation['return'] = typing.stringify(sig.return_annotation, mode)\n    except (TypeError, ValueError):\n        pass\"\"\"\n\nnew = \"\"\"    try:\n        if callable(obj):\n            annotations = app.env.temp_data.setdefault('annotations', {})\n            annotation = annotations.setdefault(name, OrderedDict())\n            sig = inspect.signature(obj, type_aliases=app.config.autodoc_type_aliases)\n            for param in sig.parameters.values():\n                if param.annotation is not param.empty:\n                    annotation[param.name] = typing.stringify(param.annotation, mode)\n            if sig.return_annotation is not sig.empty and not isinstance(obj, type):\n                # Do not record the return annotation of the constructor\n                # (__init__/__new__/__call__) as the return annotation of the\n                # class itself; the signature of a class never includes a\n                # return annotation.  refs: #9575\n                annotation['return'] = typing.stringify(sig.return_annotation, mode)\n    except (TypeError, ValueError):\n        pass\"\"\"\n\nassert old in src, \"pattern not found\"\nsrc = src.replace(old, new)\nopen(path, 'w').write(src)\nprint(\"patched\")\nEOF\nsed -n '14,35p' /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 144.0
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\npath = 'sphinx/ext/autodoc/typehints.py'\nsrc = open(path).read()\nold = \"\"\"            if sig.return_annotation is not sig.empty and not isinstance(obj, type):\n                # Do not record the return annotation of the constructor\n                # (__init__/__new__/__call__) as the return annotation of the\n                # class itself; the signature of a class never includes a\n                # return annotation.  refs: #9575\n                annotation['return'] = typing.stringify(sig.return_annotation, mode)\"\"\"\nnew = \"\"\"            # Do not record the return annotation of the constructor\n            # (__init__, __new__, __call__) as the return annotation of the\n            # class itself: the signature of a class never includes a return\n            # annotation (refs: #9575)\n            if sig.return_annotation is not sig.empty and not isinstance(obj, type):\n                annotation['return'] = typing.stringify(sig.return_annotation, mode)\"\"\"\nassert old in src\nsrc = src.replace(old, new)\nopen(path, 'w').write(src)\nprint(\"ok\")\nEOF\nsed -n '14,36p' /testbed/sphinx/ext/autodoc/typehints.py",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /tmp/repro/docs && sed -i 's/autodoc_typehints = \"both\"/autodoc_typehints = \"description\"/' conf.py && rm -rf _build && python3 -m sphinx -b html . _build >/dev/null 2>&1 && python3 - <<'EOF'\nimport re\nhtml = open('_build/index.html').read()\ni = html.find('<dl class=\"py class\">')\nseg = html[i:i+2500]\ndt_end = seg.find('</dt>')\nprint(\"=== class signature line ===\")\nprint(re.sub(r'<[^>]+>', '', seg[:dt_end]).strip())\nprint()\nprint(\"=== class description ===\")\nprint(re.sub(r'<[^>]+>', '', seg[dt_end:dt_end+1500]).strip()[:600])\nprint()\nprint(\"Return type present in class block:\", 'Return type' in seg)\nEOF",
+   "hit": null,
+   "lat_ms": 770.6
+  },
+  {
+   "cmd": "cd /tmp/repro/docs && sed -i 's/autodoc_typehints = \"description\"/autodoc_typehints = \"both\"/' conf.py && rm -rf _build && python3 -m sphinx -b html . _build >/dev/null 2>&1 && python3 - <<'EOF'\nimport re\nhtml = open('_build/index.html').read()\ni = html.find('<dl class=\"py class\">')\nseg = html[i:i+2500]\ndt_end = seg.find('</dt>')\nprint(\"=== both mode: class signature line ===\")\nprint(re.sub(r'<[^>]+>', '', seg[:dt_end]).strip())\nprint(\"Return type present in class block:\", 'Return type' in seg)\nEOF\necho \"=== with :special-members: __init__ (description mode) ===\"\nsed -i 's/autodoc_typehints = \"both\"/autodoc_typehints = \"description\"/; s/:members:/:members:\\n   :special-members: __init__/' conf.py\nrm -rf _build && python3 -m sphinx -b html . _build >/dev/null 2>&1\npython3 - <<'EOF'\nimport re\nhtml = open('_build/index.html').read()\n# class section\ni = html.find('id=\"sample_package.Square\"')\nj = html.find('id=\"sample_package.Square.__init__\"')\ncls = html[i:j]\nprint(\"class block has 'Return type':\", 'Return type' in cls)\n# __init__ section\nk = html.find('</dd>', j)\ninit = html[j:k]\nprint(\"__init__ block has 'Return type':\", 'Return type' in init)\ntxt = re.sub(r'<[^>]+>', '', init)\nprint(txt.strip()[:400])\nEOF",
+   "hit": null,
+   "lat_ms": 1370.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/test_ext_autodoc_configs.py -x -q 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1771.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description_with_documented_init -q 2>&1 | grep -E \"^E \" | head -40",
+   "hit": null,
+   "lat_ms": 769.5
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 -m pytest tests/test_ext_autodoc_configs.py tests/test_ext_autodoc.py tests/test_ext_autodoc_autoclass.py tests/test_ext_autodoc_autofunction.py tests/test_ext_autodoc_autodata.py tests/test_ext_autodoc_autoproperty.py tests/test_ext_autodoc_automodule.py tests/test_ext_autodoc_events.py tests/test_ext_autodoc_configs.py -q 2>&1 | tail -15' > /tmp/hermes_bg_proc_a1a92b8a5d11.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_a1a92b8a5d11.exit ) & echo $! > /tmp/hermes_bg_proc_a1a92b8a5d11.pid && cat /tmp/hermes_bg_proc_a1a92b8a5d11.pid",
+   "hit": null,
+   "lat_ms": 2171.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a1a92b8a5d11.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a1a92b8a5d11.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a1a92b8a5d11.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a1a92b8a5d11.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a1a92b8a5d11.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_a1a92b8a5d11.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_a1a92b8a5d11.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "grep -rn \"autodoc_typehints\" /testbed/tests/test_ext_autodoc.py /testbed/tests/test_ext_autodoc_autoclass.py /testbed/tests/test_ext_autodoc_autofunction.py /testbed/tests/test_ext_autodoc_autodata.py /testbed/tests/test_ext_autodoc_autoproperty.py /testbed/tests/test_ext_autodoc_automodule.py /testbed/tests/test_ext_autodoc_events.py 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\npath = 'CHANGES'\nsrc = open(path).read()\nold = \"\"\"Release 5.1.0 (in development)\n==============================\n\nDependencies\n------------\n\nIncompatible changes\n--------------------\n\nDeprecated\n----------\n\nFeatures added\n--------------\n\nBugs fixed\n----------\n\nTesting\n--------\"\"\"\nnew = \"\"\"Release 5.1.0 (in development)\n==============================\n\nDependencies\n------------\n\nIncompatible changes\n--------------------\n\nDeprecated\n----------\n\nFeatures added\n--------------\n\nBugs fixed\n----------\n\n* #9575: autodoc: ``autodoc_typehints = \"description\"`` and\n  ``autodoc_typehints = \"both\"`` no longer add the return annotation of the\n  constructor (``__init__``, ``__new__`` or ``__call__``) as the return type\n  of a class in its description\n\nTesting\n--------\"\"\"\nassert old in src\nsrc = src.replace(old, new, 1)\nopen(path, 'w').write(src)\nprint(\"ok\")\nEOF\nsed -n '1,25p' /testbed/CHANGES",
+   "hit": null,
+   "lat_ms": 221.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/test_ext_autodoc_configs.py tests/test_ext_autodoc.py tests/test_ext_autodoc_autoclass.py tests/test_ext_autodoc_autofunction.py tests/test_ext_autodoc_autodata.py tests/test_ext_autodoc_autoproperty.py tests/test_ext_autodoc_automodule.py tests/test_ext_autodoc_events.py -q 2>&1 | tail -12; echo \"PIPELINE_EXIT=$?\"",
+   "hit": null,
+   "lat_ms": 7173.8
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/test_ext_autodoc.py::test_autodoc -q 2>&1 | grep -E \"^E|assert\" | head -30",
+   "hit": null,
+   "lat_ms": 771.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest \"tests/test_ext_autodoc.py::test_autodoc\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 811.9
+  },
+  {
+   "cmd": "cd /testbed && git stash && python3 -m pytest tests/test_ext_autodoc_configs.py tests/test_ext_autodoc.py -q 2>&1 | tail -6; git stash pop",
+   "hit": null,
+   "lat_ms": 5777.6
+  },
+  {
+   "cmd": "mkdir -p /tmp/edge/docs/_static /tmp/edge/pkg\ncat > /tmp/edge/pkg/__init__.py <<'EOF'\nclass NewAnnotation:\n    def __new__(cls, i: int) -> 'NewAnnotation':\n        pass\n\nclass MyError(Exception):\n    \"\"\"A custom error.\"\"\"\n\n    def __init__(self, msg: str) -> None:\n        super().__init__(msg)\n\ndef func(x: int) -> str:\n    \"\"\"A function.\"\"\"\n    return str(x)\nEOF\ncat > /tmp/edge/docs/index.rst <<'EOF'\nEdge cases\n==========\n\n.. autoclass:: pkg.NewAnnotation\n   :members:\n\n.. autoclass:: pkg.MyError\n   :members:\n\n.. autofunction:: pkg.func\nEOF\ncat > /tmp/edge/docs/conf.py <<'EOF'\nimport os\nimport sys\nsys.path.insert(0, os.path.abspath('..'))\nproject = 'edge'\nextensions = ['sphinx.ext.autodoc']\nhtml_theme = 'alabaster'\nhtml_static_path = ['_static']\nautodoc_typehints = \"description\"\nEOF\ncd /tmp/edge/docs && python3 -m sphinx -b text . _build >/dev/null 2>&1 && sed -n '1,60p' _build/index.txt",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/test_domain_py.py -q 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 2575.6
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 -m pytest tests/ -q -x --ignore=tests/js --deselect \"tests/test_ext_autodoc.py::test_autodoc\" 2>&1 | tail -6 > /tmp/fullsuite.log; echo \"DONE exit=$?\" >> /tmp/fullsuite.log' > /tmp/hermes_bg_proc_adbb379e7b1a.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_adbb379e7b1a.exit ) & echo $! > /tmp/hermes_bg_proc_adbb379e7b1a.pid && cat /tmp/hermes_bg_proc_adbb379e7b1a.pid",
+   "hit": null,
+   "lat_ms": 2223.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_adbb379e7b1a.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_adbb379e7b1a.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_adbb379e7b1a.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_adbb379e7b1a.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_adbb379e7b1a.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_adbb379e7b1a.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_adbb379e7b1a.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_adbb379e7b1a.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_adbb379e7b1a.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_adbb379e7b1a.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_adbb379e7b1a.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_adbb379e7b1a.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill 738 2>/dev/null",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_adbb379e7b1a.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_adbb379e7b1a.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_adbb379e7b1a.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "grep -rln \"autodoc_typehints\" /testbed/tests/roots/ 2>/dev/null; echo \"---\"; grep -rn \"autodoc_typehints\" /testbed/tests/roots/ 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 170.3
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 -m pytest tests/ -q --ignore=tests/js -p no:cacheprovider 2>&1 | tail -25 > /tmp/fixed_suite.log 2>&1; echo \"exit=$?\" >> /tmp/fixed_suite.log; echo ALLDONE' > /tmp/hermes_bg_proc_7bdf101df703.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_7bdf101df703.exit ) & echo $! > /tmp/hermes_bg_proc_7bdf101df703.pid && cat /tmp/hermes_bg_proc_7bdf101df703.pid",
+   "hit": null,
+   "lat_ms": 2172.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 188.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 798.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 585.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 387.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 391.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 404.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 267.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 71.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 73.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_7bdf101df703.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 71.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_7bdf101df703.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cat /tmp/fixed_suite.log",
+   "hit": null,
+   "lat_ms": 151.8
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && git stash && python3 -m pytest tests/ -q --ignore=tests/js -p no:cacheprovider 2>&1 | tail -25 > /tmp/base_suite.log 2>&1; echo \"exit=$?\" >> /tmp/base_suite.log; git stash pop; echo ALLDONE' > /tmp/hermes_bg_proc_f6530f910747.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_f6530f910747.exit ) & echo $! > /tmp/hermes_bg_proc_f6530f910747.pid && cat /tmp/hermes_bg_proc_f6530f910747.pid",
+   "hit": null,
+   "lat_ms": 2171.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 74.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 73.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 78.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 71.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 162.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 69.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 74.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_f6530f910747.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_f6530f910747.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "grep \"^FAILED\" /tmp/base_suite.log | sort > /tmp/base_failures.txt; grep \"^FAILED\" /tmp/fixed_suite.log | sort > /tmp/fixed_failures.txt; echo \"=== baseline failures ===\"; cat /tmp/base_failures.txt; echo; echo \"=== diff (baseline vs fixed) ===\"; diff /tmp/base_failures.txt /tmp/fixed_failures.txt; echo \"diff_exit=$?\"; tail -2 /tmp/base_suite.log",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "cd /testbed && git status --short && git diff --stat && echo \"=== final repro (description mode, exact issue project) ===\" && cd /tmp/repro/docs && sed -i 's/autodoc_typehints = \"description\"/autodoc_typehints = \"description\"/; /special-members/d' conf.py && grep -n \"autodoc_typehints\" conf.py && rm -rf _build && python3 -m sphinx -b text . _build >/dev/null 2>&1 && cat _build/index.txt",
+   "hit": null,
+   "lat_ms": 577.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "sphinx-doc__sphinx-10449",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 57660.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

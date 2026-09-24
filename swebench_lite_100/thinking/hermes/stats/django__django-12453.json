@@ -1,0 +1,251 @@
+{
+ "calls": 39,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 1153152.8058052063,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 4,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== sort_dependencies ===\" && sed -n '1,200p' django/core/serializers/base.py | grep -n \"def sort_dependencies\" && awk '/^def sort_dependencies/,/^def [a-z]/' django/core/serializers/base.py | head -120",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"def sort_dependencies\" django/ && echo ---- && grep -n \"import\\|^from\" django/core/serializers/__init__.py | head",
+   "hit": null,
+   "lat_ms": 249.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '140,215p' django/core/serializers/__init__.py",
+   "hit": null,
+   "lat_ms": 114.4
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== test_transactiontestcase.py ===\" && cat tests/test_utils/test_transactiontestcase.py && echo \"=== test_utils/models.py ===\" && cat tests/test_utils/models.py && echo \"=== sqlite3 features: foreign keys ===\" && grep -n \"foreign_key\\|supports_foreign\" django/db/backends/sqlite3/features.py django/db/backends/base/features.py",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '890,1040p' django/test/testcases.py",
+   "hit": null,
+   "lat_ms": 88.2
+  },
+  {
+   "cmd": "cd /testbed && git branch -a && git stash list && git log --all --oneline | head -5 | cat && ls tests/test_utils/ && python -c \"import sys; print(sys.version)\" && pip list 2>/dev/null | grep -i -E \"sqlite|psycopg|mysql\" ; python -c \"import sqlite3; print('sqlite', sqlite3.sqlite_version)\"",
+   "hit": null,
+   "lat_ms": 571.1
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python tests/runtests.py test_utils backends 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 570295.1
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python tests/runtests.py test_utils backends > /tmp/baseline.log 2>&1; echo \"exit=$?\"; grep -E \"^(Ran|OK|FAILED|ERROR)\" /tmp/baseline.log; tail -3 /tmp/baseline.log",
+   "hit": null,
+   "lat_ms": 570290.3
+  },
+  {
+   "cmd": "cd /testbed && timeout 300 python tests/runtests.py test_utils > /tmp/baseline_utils.log 2>&1; echo \"exit=$?\"; grep -E \"^(Ran|OK|FAILED|ERROR)\" /tmp/baseline_utils.log",
+   "hit": null,
+   "lat_ms": 970.6
+  },
+  {
+   "cmd": "python3 - <<'EOF'\nimport sqlite3\ncon = sqlite3.connect(':memory:')\ncon.execute('PRAGMA foreign_keys=ON')\ncon.execute('CREATE TABLE parent (id INTEGER PRIMARY KEY)')\ncon.execute('CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id))')\ncon.execute('BEGIN')\ntry:\n    con.execute('INSERT INTO child (id, parent_id) VALUES (1, 999)')\n    print('STEP1: child insert inside tx -> OK (FK check deferred)')\nexcept sqlite3.IntegrityError as e:\n    print('STEP1: child insert inside tx -> IntegrityError:', e)\ncon.execute('INSERT INTO parent (id) VALUES (999)')\ntry:\n    con.execute('COMMIT')\n    print('STEP2: COMMIT -> OK')\nexcept sqlite3.IntegrityError as e:\n    print('STEP2: COMMIT -> IntegrityError:', e)\nprint('child rows:', con.execute('SELECT * FROM child').fetchall())\nEOF",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && cat > tests/test_utils/zz_verify_deserialize.py <<'EOF'\nimport json\n\nfrom django.db import IntegrityError, connection\nfrom django.test import TestCase\n\nfrom .models import Car\n\n\nclass DeserializeDBFromStringAtomicityTests(TestCase):\n    \"\"\"\n    Regression test: deserialize_db_from_string() must run inside a\n    transaction, so that a failure while restoring the serialized database\n    contents (e.g. an integrity error when an object is saved before the\n    object it references) does not leave the database partially restored.\n    \"\"\"\n\n    def test_deserialize_db_from_string_atomic(self):\n        # A dump where the second object violates a constraint (duplicate\n        # primary key), so deserialization fails partway through.\n        data = (\n            json.dumps({\n                \"model\": \"test_utils.car\", \"pk\": 1,\n                \"fields\": {\"name\": \"first\"},\n            }) + \"\\n\" +\n            json.dumps({\n                \"model\": \"test_utils.car\", \"pk\": 1,\n                \"fields\": {\"name\": \"second\"},\n            }) + \"\\n\"\n        )\n        with self.assertRaises(IntegrityError):\n            connection.creation.deserialize_db_from_string(data)\n        # No partially restored data may be left behind.\n        self.assertFalse(Car.objects.exists())\n\n    def test_deserialize_db_from_string_restores_data(self):\n        # Sanity check: a valid dump is fully restored.\n        data = json.dumps({\n            \"model\": \"test_utils.car\", \"pk\": 1,\n            \"fields\": {\"name\": \"batmobile\"},\n        }) + \"\\n\"\n        connection.creation.deserialize_db_from_string(data)\n        self.assertEqual(Car.objects.count(), 1)\n        self.assertEqual(Car.objects.get().name, \"batmobile\")\nEOF\ntimeout 300 python tests/runtests.py test_utils.zz_verify_deserialize -v 2 2>&1 | tail -12",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "cd /testbed && timeout 300 python tests/runtests.py test_utils.zz_verify_deserialize -v 2 > /tmp/verify_fixed.log 2>&1; echo \"exit=$?\"; grep -E \"test_deserialize|OK|FAILED|ERROR|Ran \" /tmp/verify_fixed.log",
+   "hit": null,
+   "lat_ms": 577.3
+  },
+  {
+   "cmd": "grep -B2 -A15 \"^ERROR: test_deserialize_db_from_string_atomic\" /tmp/verify_fixed.log | head -40",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && cat > tests/test_utils/zz_verify_deserialize.py <<'EOF'\nimport json\n\nfrom django.db import IntegrityError, connection\nfrom django.test import TestCase\n\nfrom .models import Car\n\n\nclass DeserializeDBFromStringAtomicityTests(TestCase):\n    \"\"\"\n    Regression test: deserialize_db_from_string() must run inside a\n    transaction, so that a failure while restoring the serialized database\n    contents (e.g. an integrity error when an object is saved before the\n    object it references) does not leave the database partially restored.\n    \"\"\"\n\n    def test_deserialize_db_from_string_atomic(self):\n        # A dump where the second object violates a constraint (duplicate\n        # primary key), so deserialization fails partway through.\n        data = json.dumps([\n            {\"model\": \"test_utils.car\", \"pk\": 1, \"fields\": {\"name\": \"first\"}},\n            {\"model\": \"test_utils.car\", \"pk\": 1, \"fields\": {\"name\": \"second\"}},\n        ])\n        with self.assertRaises(IntegrityError):\n            connection.creation.deserialize_db_from_string(data)\n        # No partially restored data may be left behind.\n        self.assertFalse(Car.objects.exists())\n\n    def test_deserialize_db_from_string_restores_data(self):\n        # Sanity check: a valid dump is fully restored.\n        data = json.dumps([\n            {\"model\": \"test_utils.car\", \"pk\": 1, \"fields\": {\"name\": \"batmobile\"}},\n        ])\n        connection.creation.deserialize_db_from_string(data)\n        self.assertEqual(Car.objects.count(), 1)\n        self.assertEqual(Car.objects.get().name, \"batmobile\")\nEOF\ntimeout 300 python tests/runtests.py test_utils.zz_verify_deserialize -v 2 > /tmp/verify_fixed.log 2>&1; echo \"exit=$?\"; grep -E \"test_deserialize|OK|FAILED|ERROR|Ran \" /tmp/verify_fixed.log | head",
+   "hit": null,
+   "lat_ms": 568.7
+  },
+  {
+   "cmd": "grep -A20 \"^FAIL: test_deserialize_db_from_string_atomic\" /tmp/verify_fixed.log | head -30",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /testbed && awk '/def _save_table/,/def _do_update/' django/db/models/base.py | head -75",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "cd /testbed && cat > tests/test_utils/zz_verify_deserialize.py <<'EOF'\nimport json\n\nfrom django.db import IntegrityError, models, connection\nfrom django.test import TestCase\n\nfrom .models import Car\n\n\nclass ValueRequired(models.Model):\n    value = models.IntegerField(null=False)\n\n\nclass DeserializeDBFromStringAtomicityTests(TestCase):\n    \"\"\"\n    Regression test: deserialize_db_from_string() must run inside a\n    transaction, so that a failure while restoring the serialized database\n    contents (e.g. an integrity error when an object is saved before the\n    object it references) does not leave the database partially restored.\n    \"\"\"\n\n    def test_deserialize_db_from_string_atomic(self):\n        # A dump where the second object violates a NOT NULL constraint, so\n        # deserialization fails partway through.\n        data = json.dumps([\n            {\"model\": \"test_utils.car\", \"pk\": 1, \"fields\": {\"name\": \"first\"}},\n            {\"model\": \"test_utils.valuerequired\", \"pk\": 1, \"fields\": {\"value\": None}},\n        ])\n        with self.assertRaises(IntegrityError):\n            connection.creation.deserialize_db_from_string(data)\n        # No partially restored data may be left behind.\n        self.assertFalse(Car.objects.exists())\n        self.assertFalse(ValueRequired.objects.exists())\n\n    def test_deserialize_db_from_string_restores_data(self):\n        # Sanity check: a valid dump is fully restored.\n        data = json.dumps([\n            {\"model\": \"test_utils.car\", \"pk\": 1, \"fields\": {\"name\": \"batmobile\"}},\n        ])\n        connection.creation.deserialize_db_from_string(data)\n        self.assertEqual(Car.objects.count(), 1)\n        self.assertEqual(Car.objects.get().name, \"batmobile\")\nEOF\ntimeout 300 python tests/runtests.py test_utils.zz_verify_deserialize -v 2 > /tmp/verify_fixed.log 2>&1; echo \"exit=$?\"; grep -E \"test_deserialize|OK|FAILED|ERROR|Ran \" /tmp/verify_fixed.log | head",
+   "hit": null,
+   "lat_ms": 569.5
+  },
+  {
+   "cmd": "cd /testbed && git stash && timeout 300 python tests/runtests.py test_utils.zz_verify_deserialize -v 2 > /tmp/verify_prefix.log 2>&1; echo \"exit=$?\"; git stash pop && grep -E \"test_deserialize|OK|FAILED|Ran |IntegrityError|AssertionError|Car.objects\" /tmp/verify_prefix.log | head -15",
+   "hit": null,
+   "lat_ms": 971.5
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"deserialize_db_from_string\\|serialize_db_to_string\" --include=\"*.py\" django/ tests/ | grep -v \"zz_verify\"",
+   "hit": null,
+   "lat_ms": 164.9
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python tests/runtests.py backends > /tmp/regress_backends.log 2>&1; echo \"backends exit=$?\"' > /tmp/hermes_bg_proc_88ea7b8d0228.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_88ea7b8d0228.exit ) & echo $! > /tmp/hermes_bg_proc_88ea7b8d0228.pid && cat /tmp/hermes_bg_proc_88ea7b8d0228.pid",
+   "hit": null,
+   "lat_ms": 1170.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_88ea7b8d0228.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_88ea7b8d0228.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_88ea7b8d0228.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python tests/runtests.py test_utils migration_test_data_persistence test_sqlite > /tmp/regress_fast.log 2>&1; echo \"exit=$?\"; grep -E \"^(Ran|OK|FAILED|ERROR)\" /tmp/regress_fast.log",
+   "hit": null,
+   "lat_ms": 974.9
+  },
+  {
+   "cmd": "cd /testbed && grep -iE \"no tests|found|label\" /tmp/regress_fast.log | head; ls tests/test_sqlite.py tests/migration_test_data_persistence/ 2>&1 | head",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed && timeout 240 python tests/runtests.py test_sqlite > /tmp/t1.log 2>&1; echo \"exit=$?\"; grep -E \"^(Ran|OK|FAILED)\" /tmp/t1.log",
+   "hit": null,
+   "lat_ms": 577.7
+  },
+  {
+   "cmd": "cd /testbed && head -60 tests/test_sqlite.py && grep -c \"def test\" tests/test_sqlite.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && timeout 300 python tests/runtests.py migration_test_data_persistence > /tmp/t2.log 2>&1; echo \"exit=$?\"; grep -E \"^(Ran|OK|FAILED|ERROR)\" /tmp/t2.log",
+   "hit": null,
+   "lat_ms": 774.5
+  },
+  {
+   "cmd": "grep -E \"^(Ran|OK|FAILED|ERROR)\" /tmp/regress_backends.log",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "grep -cE \"Cloning test database\" /tmp/regress_backends.log; grep -E \"clone|Cloning\" /tmp/regress_backends.log | head -5; tail -6 /tmp/regress_backends.log",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && timeout 400 python tests/runtests.py serialization flush loaddata dumpdata > /tmp/regress_ser.log 2>&1; echo \"exit=$?\"; grep -E \"^(Ran|OK|FAILED|ERROR)\" /tmp/regress_ser.log",
+   "hit": null,
+   "lat_ms": 575.6
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== progress dots (last 2000 chars) ===\" && tail -c 2000 /tmp/regress_backends.log && echo && echo \"=== count of clone lines ===\" && grep -c \"Cloning test database\" /tmp/regress_backends.log && echo \"=== any FAILED/ERROR? ===\" && grep -E \"^(FAILED|ERROR|FAIL:|ERROR:)\" /tmp/regress_backends.log | head",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "grep -B2 -A8 \"^ERROR: serialization\" /tmp/regress_ser.log | head -20; ls -d /testbed/tests/serialization /testbed/tests/flush 2>&1",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | grep -iE \"serial|flush|load|dump\"",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && rm tests/test_utils/zz_verify_deserialize.py && rm -f tests/test_utils/__pycache__/zz_verify_deserialize*.pyc && git status --short && git diff",
+   "hit": null,
+   "lat_ms": 250.2
+  },
+  {
+   "cmd": "cd /testbed && timeout 400 python tests/runtests.py test_utils migration_test_data_persistence backends > /tmp/final.log 2>&1; echo \"exit=$?\"; grep -E \"^(Ran|OK|FAILED|ERROR)\" /tmp/final.log",
+   "hit": null,
+   "lat_ms": 974.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-12453",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 1153152.8,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

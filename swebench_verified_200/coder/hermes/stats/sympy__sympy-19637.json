@@ -1,0 +1,186 @@
+{
+ "calls": 26,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 8631.841897964478,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 68.6
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "python3 -c \"import sympy; print(sympy.__version__)\"",
+   "hit": null,
+   "lat_ms": 1426.3
+  },
+  {
+   "cmd": "python3 -c \"from sympy.core.sympify import kernS; import inspect; print(inspect.getsource(kernS))\" 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 572.2
+  },
+  {
+   "cmd": "python3 -c \"\ntext = '(2*x)/(x-1)'\nprint('Has spaces:', ' ' in text)\nprint('Characters:', set(text))\n\"",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "python3 << 'EOF'\nimport string\nfrom random import choice\nfrom sympy.core.sympify import sympify, SympifyError\nfrom sympy.core.symbol import Symbol\n\ndef kernS_fixed(s):\n    \"\"\"Fixed version of kernS that handles the case when there are no spaces.\"\"\"\n    hit = False\n    quoted = '\"' in s or \"'\" in s\n    kern = ''  # Initialize kern outside the conditional\n    \n    if '(' in s and not quoted:\n        if s.count('(') != s.count(\")\"):\n            raise SympifyError('unmatched left parenthesis')\n\n        # strip all space from s\n        s = ''.join(s.split())\n        olds = s\n        # step 1. turn potential 2-arg Muls into 3-arg versions\n        s = s.replace('*(', '* *(')\n        # 1b. close up exponentials\n        s = s.replace('** *', '**')\n        # 2. handle the implied multiplication of a negated parenthesized expression\n        target = '-( *('\n        s = s.replace('-(', target)\n        # 2b: double the matching closing parenthesis\n        i = nest = 0\n        while True:\n            j = s.find(target, i)\n            if j == -1:\n                break\n            j += len(target) - 1\n            for j in range(j, len(s)):\n                if s[j] == \"(\":\n                    nest += 1\n                elif s[j] == \")\":\n                    nest -= 1\n                if nest == 0:\n                    break\n            s = s[:j] + \")\" + s[j:]\n            i = j + 2  # the first char after 2nd )\n        if ' ' in s:\n            # get a unique kern\n            kern = '_'\n            while kern in s:\n                kern += choice(string.ascii_letters + string.digits)\n            s = s.replace(' ', kern)\n        hit = kern in s\n\n    for i in range(2):\n        try:\n            expr = sympify(s)\n            break\n        except TypeError:\n            if hit:\n                s = olds\n                hit = False\n                continue\n            expr = sympify(s)\n\n    if not hit:\n        return expr\n\n    rep = {Symbol(kern): 1}\n    def _clear(expr):\n        if isinstance(expr, (list, tuple, set)):\n            return type(expr)([_clear(e) for e in expr])\n        if hasattr(expr, 'subs'):\n            return expr.subs(rep, hack2=True)\n        return expr\n    expr = _clear(expr)\n    return expr\n\n# Test with your input\ntext = \"(2*x)/(x-1)\"\nexpr = kernS_fixed(text)\nprint(f\"Input: {text}\")\nprint(f\"Result: {expr}\")\nprint(f\"Type: {type(expr)}\")\n\n# Also test the examples from the docstring\nprint(\"\\nTest from docstring:\")\nprint(f\"kernS_fixed('2*(x + y)') = {kernS_fixed('2*(x + y)')}\")\nprint(f\"kernS_fixed('-(x + 1)') = {kernS_fixed('-(x + 1)')}\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 574.0
+  },
+  {
+   "cmd": "python3 -c \"from sympy.core.sympify import kernS; import inspect; import os; print(os.path.dirname(inspect.getfile(kernS)))\"",
+   "hit": null,
+   "lat_ms": 577.5
+  },
+  {
+   "cmd": "grep -n \"def kernS\" /testbed/sympy/core/sympify.py",
+   "hit": null,
+   "lat_ms": 158.6
+  },
+  {
+   "cmd": "sed -n '442,530p' /testbed/sympy/core/sympify.py",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "sed -i '475a\\    kern = \"\"' /testbed/sympy/core/sympify.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "sed -n '470,520p' /testbed/sympy/core/sympify.py",
+   "hit": null,
+   "lat_ms": 164.0
+  },
+  {
+   "cmd": "cd /testbed && git diff sympy/core/sympify.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && git checkout sympy/core/sympify.py",
+   "hit": null,
+   "lat_ms": 200.8
+  },
+  {
+   "cmd": "sed -n '468,520p' /testbed/sympy/core/sympify.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "python3 << 'EOF'\nwith open('/testbed/sympy/core/sympify.py', 'r') as f:\n    lines = f.readlines()\n\n# Find the line with \"hit = False\" in kernS function\n# The fix should add \"kern = ''\" right after \"quoted = ...\" line\n# in the kernS function\n\nin_kernS = False\nfor i, line in enumerate(lines):\n    if 'def kernS(s):' in line:\n        in_kernS = True\n        print(f\"Found kernS at line {i+1}\")\n    if in_kernS and 'quoted = ' in line:\n        print(f\"Found quoted assignment at line {i+1}: {line.rstrip()}\")\n        # Insert kern = '' after this line\n        lines.insert(i+1, '    kern = \"\"\\n')\n        break\n\nwith open('/testbed/sympy/core/sympify.py', 'w') as f:\n    f.writelines(lines)\n\nprint(\"Fixed!\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "sed -n '468,520p' /testbed/sympy/core/sympify.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "python3 -c \"\nfrom sympy.core.sympify import kernS\n\n# Test with the original failing input\ntext = '(2*x)/(x-1)'\nexpr = kernS(text)\nprint(f'Input: {text}')\nprint(f'Result: {expr}')\nprint(f'Type: {type(expr)}')\n\n# Test from docstring\nprint()\nprint('Test from docstring:')\nprint(f\\\"kernS('2*(x + y)') = {kernS('2*(x + y)')}\\\")\nprint(f\\\"kernS('-(x + 1)') = {kernS('-(x + 1)')}\\\")\n\"",
+   "hit": null,
+   "lat_ms": 574.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sympy/core/tests/test_sympify.py -xvs -k kern 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 127.5
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy.core.tests.test_sympify import *\n# Run the test function if it exists\nimport inspect\nimport sympy.core.tests.test_sympify as test_mod\n\n# Find all test functions\nfor name in dir(test_mod):\n    if name.startswith('test_'):\n        obj = getattr(test_mod, name)\n        if callable(obj):\n            print(f'Found: {name}')\n\"",
+   "hit": null,
+   "lat_ms": 568.9
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy.core.tests.test_sympify import test_kernS\ntest_kernS()\nprint('test_kernS passed!')\n\"",
+   "hit": null,
+   "lat_ms": 593.1
+  },
+  {
+   "cmd": "grep -A 30 \"def test_kernS\" /testbed/sympy/core/tests/test_sympify.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "python3 -c \"\nfrom sympy.core.sympify import kernS\nfrom sympy.abc import x, y\n\n# Test various inputs that don't have spaces\ntest_cases = [\n    '(2*x)/(x-1)',           # Original failing case\n    '2*(x+y)',               # No spaces, has parentheses\n    'x-y',                   # No spaces, no parentheses\n    '(a+b)*(c+d)',           # Multiple parens, no spaces\n    'x',                     # Single variable\n    '1+2',                   # Numbers only\n    '-(x+1)',                # Negative with parens, no spaces\n    'x**2+1',                # Power\n]\n\nfor tc in test_cases:\n    try:\n        result = kernS(tc)\n        print(f'kernS(\\\"{tc}\\\") = {result}')\n    except Exception as e:\n        print(f'kernS(\\\"{tc}\\\") ERROR: {e}')\n\"",
+   "hit": null,
+   "lat_ms": 570.5
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nfrom sympy.core.tests import test_sympify\n\n# Run all tests in the module\ntest_functions = [getattr(test_sympify, name) for name in dir(test_sympify) \n                  if name.startswith('test_') and callable(getattr(test_sympify, name))]\n\nfailed = []\nfor tf in test_functions:\n    try:\n        tf()\n    except Exception as e:\n        failed.append((tf.__name__, str(e)))\n\nif failed:\n    print('FAILED tests:')\n    for name, err in failed:\n        print(f'  {name}: {err}')\nelse:\n    print(f'All {len(test_functions)} tests passed!')\n\"",
+   "hit": null,
+   "lat_ms": 768.7
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sympy.core.tests.test_sympify import (\n    test_kernS, test_sympify1, test_sympify2, test_sympify3, test_sympify4,\n    test_issue_3218, test_issue_3538, test_issue_3595, test_issue_3982,\n    test_issue_4133, test_issue_4788, test_issue_4798_None, test_issue_4988_builtins,\n    test_issue_5939, test_issue_6046, test_issue_6540_6552, test_issue_8821_highprec_from_str,\n    test_issue_16859, test_lambda, test_lambda_raises, test_geometry, test_int_float,\n    test_sympify_Fraction, test_sympify_bool, test_sympify_factorial, test_sympify_float,\n    test_sympify_function, test_sympify_text, test_sympifyit, test_sympyify_iterables\n)\n\ntests = [\n    test_kernS, test_sympify1, test_sympify2, test_sympify3, test_sympify4,\n    test_issue_3218, test_issue_3538, test_issue_3595, test_issue_3982,\n    test_issue_4133, test_issue_4788, test_issue_4798_None, test_issue_4988_builtins,\n    test_issue_5939, test_issue_6046, test_issue_6540_6552, test_issue_8821_highprec_from_str,\n    test_issue_16859, test_lambda, test_geometry, test_int_float,\n    test_sympify_Fraction, test_sympify_bool, test_sympify_factorial, test_sympify_float,\n    test_sympify_function, test_sympify_text, test_sympifyit, test_sympyify_iterables\n]\n\npassed = 0\nfailed = []\nfor tf in tests:\n    try:\n        tf()\n        passed += 1\n    except Exception as e:\n        failed.append((tf.__name__, str(e)))\n\nprint(f'Passed: {passed}/{len(tests)}')\nif failed:\n    print('Failed:')\n    for name, err in failed:\n        print(f'  {name}: {err}')\n\"",
+   "hit": null,
+   "lat_ms": 574.8
+  },
+  {
+   "cmd": "cd /testbed && git diff sympy/core/sympify.py",
+   "hit": null,
+   "lat_ms": 108.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "sympy__sympy-19637",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 8631.8,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

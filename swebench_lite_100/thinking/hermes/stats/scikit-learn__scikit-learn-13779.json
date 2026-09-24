@@ -1,0 +1,136 @@
+{
+ "calls": 16,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 8484.728574752808,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "find / -name \"_voting.py\" -path \"*ensemble*\" 2>/dev/null; pwd",
+   "hit": null,
+   "lat_ms": 770.4
+  },
+  {
+   "cmd": "ls /testbed && find / -name \"_voting.py\" 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 571.7
+  },
+  {
+   "cmd": "ls /testbed/sklearn/ensemble/ | head -30 && python -c \"import sklearn; print(sklearn.__version__, sklearn.__file__)\"",
+   "hit": null,
+   "lat_ms": 383.2
+  },
+  {
+   "cmd": "grep -n \"sample_weight\" /testbed/sklearn/ensemble/voting.py | head -40",
+   "hit": null,
+   "lat_ms": 114.7
+  },
+  {
+   "cmd": "sed -n '1,110p' /testbed/sklearn/ensemble/voting.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "grep -n -A 12 \"def has_fit_parameter\" /testbed/sklearn/utils/validation.py",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport numpy as np\nfrom sklearn.datasets import load_iris\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.ensemble import RandomForestClassifier, VotingClassifier\n\nX, y = load_iris(return_X_y=True)\nvoter = VotingClassifier(estimators=[('lr', LogisticRegression()),\n                                     ('rf', RandomForestClassifier())])\nvoter.fit(X, y, sample_weight=np.ones(y.shape))\nvoter.set_params(lr=None)\nvoter.fit(X, y, sample_weight=np.ones(y.shape))\n\"",
+   "hit": null,
+   "lat_ms": 970.3
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\npath = 'sklearn/ensemble/voting.py'\nsrc = open(path).read()\nold = \"\"\"        if sample_weight is not None:\n            for name, step in self.estimators:\n                if not has_fit_parameter(step, 'sample_weight'):\n                    raise ValueError('Underlying estimator \\\\'%s\\\\' does not'\n                                     ' support sample weights.' % name)\"\"\"\nnew = \"\"\"        if sample_weight is not None:\n            for name, step in self.estimators:\n                if (step is not None and\n                        not has_fit_parameter(step, 'sample_weight')):\n                    raise ValueError('Underlying estimator \\\\'%s\\\\' does not'\n                                     ' support sample weights.' % name)\"\"\"\nassert old in src, \"pattern not found\"\nsrc = src.replace(old, new)\nopen(path, 'w').write(src)\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && python -W ignore -c \"\nimport numpy as np\nfrom sklearn.datasets import load_iris, load_diabetes\nfrom sklearn.linear_model import LogisticRegression, LinearRegression\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.ensemble import RandomForestClassifier, VotingClassifier, VotingRegressor\n\n# Original repro from the issue\nX, y = load_iris(return_X_y=True)\nvoter = VotingClassifier(estimators=[('lr', LogisticRegression()),\n                                     ('rf', RandomForestClassifier())])\nvoter.fit(X, y, sample_weight=np.ones(y.shape))\nvoter.set_params(lr=None)\nvoter.fit(X, y, sample_weight=np.ones(y.shape))\nprint('1. issue repro passes')\n\n# Error case: non-None estimator without sample_weight support must still raise\nvoter2 = VotingClassifier(estimators=[('dt', DecisionTreeClassifier()),\n                                      ('lr', LogisticRegression())])\ntry:\n    voter2.fit(X, y, sample_weight=np.ones(y.shape))\n    print('2. FAIL: expected ValueError')\nexcept ValueError as e:\n    print('2. ValueError raised as expected:', e)\n\n# Regressor variant with None estimator\nXd, yd = load_diabetes(return_X_y=True)\nvr = VotingRegressor(estimators=[('lr', LinearRegression()),\n                                 ('dt', DecisionTreeClassifier())])\nvr.fit(Xd, yd, sample_weight=np.ones(yd.shape))\nvr.set_params(lr=None)\nvr.fit(Xd, yd, sample_weight=np.ones(yd.shape))\nprint('3. VotingRegressor with None estimator + sample_weight passes')\n\n# All-None still raises\nvoter3 = VotingClassifier(estimators=[('lr', None), ('rf', None)])\ntry:\n    voter3.fit(X, y, sample_weight=np.ones(y.shape))\n    print('4. FAIL: expected ValueError')\nexcept ValueError as e:\n    print('4. All-None raises ValueError as expected:', e)\n\"",
+   "hit": null,
+   "lat_ms": 970.9
+  },
+  {
+   "cmd": "grep -n -B3 -A8 \"sample weights\" /testbed/sklearn/ensemble/tests/test_voting.py | head -50",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed && python -W ignore -c \"\nimport numpy as np\nfrom sklearn.datasets import load_iris\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.neighbors import KNeighborsClassifier\nfrom sklearn.ensemble import VotingClassifier\n\nX, y = load_iris(return_X_y=True)\nsample_weight = np.ones(y.shape)\n\n# negative case with KNN (no sample_weight support)\neclf = VotingClassifier(estimators=[('lr', LogisticRegression()),\n                                    ('knn', KNeighborsClassifier())])\ntry:\n    eclf.fit(X, y, sample_weight)\n    print('FAIL: expected ValueError')\nexcept ValueError as e:\n    print('OK ValueError:', e)\n\n# negative case with a None estimator alongside an unsupported one\neclf2 = VotingClassifier(estimators=[('none', None),\n                                     ('knn', KNeighborsClassifier())])\ntry:\n    eclf2.fit(X, y, sample_weight)\n    print('FAIL: expected ValueError')\nexcept ValueError as e:\n    print('OK ValueError (None + KNN):', e)\n\"",
+   "hit": null,
+   "lat_ms": 769.3
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sklearn/ensemble/tests/test_voting.py -q -W ignore 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 2772.2
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 448.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "scikit-learn__scikit-learn-13779",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 8484.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

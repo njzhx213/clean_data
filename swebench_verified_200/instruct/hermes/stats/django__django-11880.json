@@ -1,0 +1,181 @@
+{
+ "calls": 25,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 8579.051494598389,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "python3 -c \"import django; print(django.__version__, django.__file__)\"",
+   "hit": null,
+   "lat_ms": 163.0
+  },
+  {
+   "cmd": "sed -n 180,220p /testbed/django/forms/fields.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cat > /tmp/repro.py <<'EOF'\nimport copy, django\nfrom django import forms\n\nclass MyForm(forms.Form):\n    name = forms.CharField(error_messages={'required': 'original'})\n\nf1 = MyForm()\nf2 = MyForm()\n\n# Modify error message on one instance's field\nf1.fields['name'].error_messages['required'] = 'changed'\n\nprint(\"f2 error message after modifying f1:\", f2.fields['name'].error_messages['required'])\nassert f2.fields['name'].error_messages['required'] == 'original', \"BUG: shared error_messages dict\"\nprint(\"OK\")\nEOF\ncd /testbed && python3 /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 378.9
+  },
+  {
+   "cmd": "cat > /tmp/repro.py <<'EOF'\nimport copy, django\nfrom django.conf import settings\nsettings.configure(USE_I18N=False)\ndjango.setup()\nfrom django import forms\n\nclass MyForm(forms.Form):\n    name = forms.CharField(error_messages={'required': 'original'})\n\nf1 = MyForm()\nf2 = MyForm()\n\n# Modify error message on one instance's field\nf1.fields['name'].error_messages['required'] = 'changed'\n\nprint(\"f2 error message after modifying f1:\", f2.fields['name'].error_messages['required'])\nassert f2.fields['name'].error_messages['required'] == 'original', \"BUG: shared error_messages dict\"\n\n# Also verify deep-copying a field directly\nfield = MyForm.base_fields['name']\nfield2 = copy.deepcopy(field)\nfield2.error_messages['required'] = 'changed2'\nprint(\"original after deepcopy-mod:\", field.error_messages['required'])\nassert field.error_messages['required'] == 'original'\nprint(\"OK\")\nEOF\ncd /testbed && python3 /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 575.0
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 && git status --short | head",
+   "hit": null,
+   "lat_ms": 413.6
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport re\npath = 'django/forms/fields.py'\nsrc = open(path).read()\nold = \"\"\"    def __deepcopy__(self, memo):\n        result = copy.copy(self)\n        memo[id(self)] = result\n        result.widget = copy.deepcopy(self.widget, memo)\n        result.validators = self.validators[:]\n        return result\"\"\"\nnew = \"\"\"    def __deepcopy__(self, memo):\n        result = copy.copy(self)\n        memo[id(self)] = result\n        result.widget = copy.deepcopy(self.widget, memo)\n        result.validators = self.validators[:]\n        result.error_messages = copy.deepcopy(self.error_messages, memo)\n        return result\"\"\"\nassert src.count(old) == 1\nopen(path, 'w').write(src.replace(old, new))\nprint(\"patched\")\nEOF\npython3 /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 576.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"__deepcopy__\\|def test_deepcopy\\|deepcopy\" tests/forms_tests/fields_tests/test_field.py | head; grep -rn \"deepcopy\" tests/forms_tests/*.py | head",
+   "hit": null,
+   "lat_ms": 69.6
+  },
+  {
+   "cmd": "cd /testbed && ls tests/forms_tests/ && grep -n \"deepcopy\" tests/forms_tests/test_form.py tests/forms_tests/test_fields.py 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 95.9
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"deepcopy\" tests/forms_tests/ | head",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n 2895,2930p tests/forms_tests/tests/test_forms.py",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class.*Test\\|^class\" tests/forms_tests/tests/test_forms.py | awk -F: '$1 < 2895' | tail -3",
+   "hit": null,
+   "lat_ms": 113.5
+  },
+  {
+   "cmd": "cd /testbed && awk 'NR<=2895 && /^class [A-Z]/ {line=NR\": \"$0} END{print line}' tests/forms_tests/tests/test_forms.py",
+   "hit": null,
+   "lat_ms": 125.0
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\npath = 'tests/forms_tests/tests/test_forms.py'\nsrc = open(path).read()\nold = \"\"\"        field = ChoicesField()\n        field2 = copy.deepcopy(field)\n        self.assertIsInstance(field2, ChoicesField)\n        self.assertIsNot(field2.fields, field.fields)\n        self.assertIsNot(field2.fields[0].choices, field.fields[0].choices)\n\n    def test_multivalue_initial_data(self):\"\"\"\nnew = \"\"\"        field = ChoicesField()\n        field2 = copy.deepcopy(field)\n        self.assertIsInstance(field2, ChoicesField)\n        self.assertIsNot(field2.fields, field.fields)\n        self.assertIsNot(field2.fields[0].choices, field.fields[0].choices)\n\n    def test_deepcopy_error_messages(self):\n        \\\"\\\"\\\"\n        Deep-copying a Field (e.g. when instantiating a Form) must not share\n        the error_messages dict between the original and the copy (#32543).\n        \\\"\\\"\\\"\n        field = CharField(error_messages={\"required\": \"original\"})\n        field2 = copy.deepcopy(field)\n        field2.error_messages[\"required\"] = \"changed\"\n        self.assertEqual(field.error_messages[\"required\"], \"original\")\n\n    def test_multivalue_initial_data(self):\"\"\"\nassert src.count(old) == 1\nopen(path, 'w').write(src.replace(old, new))\nprint(\"patched test\")\nEOF",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /testbed && PYTHONUTF8=1 python3 - <<'EOF'\npath = 'tests/forms_tests/tests/test_forms.py'\nsrc = open(path, encoding='utf-8').read()\nold = \"\"\"        field = ChoicesField()\n        field2 = copy.deepcopy(field)\n        self.assertIsInstance(field2, ChoicesField)\n        self.assertIsNot(field2.fields, field.fields)\n        self.assertIsNot(field2.fields[0].choices, field.fields[0].choices)\n\n    def test_multivalue_initial_data(self):\"\"\"\nnew = \"\"\"        field = ChoicesField()\n        field2 = copy.deepcopy(field)\n        self.assertIsInstance(field2, ChoicesField)\n        self.assertIsNot(field2.fields, field.fields)\n        self.assertIsNot(field2.fields[0].choices, field.fields[0].choices)\n\n    def test_deepcopy_error_messages(self):\n        \\\"\\\"\\\"\n        Deep-copying a Field (e.g. when instantiating a Form) must not share\n        the error_messages dict between the original and the copy (#32543).\n        \\\"\\\"\\\"\n        field = CharField(error_messages={\"required\": \"original\"})\n        field2 = copy.deepcopy(field)\n        field2.error_messages[\"required\"] = \"changed\"\n        self.assertEqual(field.error_messages[\"required\"], \"original\")\n\n    def test_multivalue_initial_data(self):\"\"\"\nassert src.count(old) == 1\nopen(path, 'w', encoding='utf-8').write(src.replace(old, new))\nprint(\"patched test\")\nEOF",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cd /testbed && PYTHONUTF8=1 python3 -m django test forms_tests.tests.test_forms.FormsTestCase.test_deepcopy_error_messages --verbosity 2 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 381.7
+  },
+  {
+   "cmd": "cd /testbed && head -30 runtests.py 2>/dev/null; ls tests/*.py | head",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "cd /testbed && PYTHONUTF8=1 python3 tests/runtests.py forms_tests.tests.test_forms.FormsTestCase.test_deepcopy_error_messages --verbosity 2 2>&1 | tail -12",
+   "hit": null,
+   "lat_ms": 579.7
+  },
+  {
+   "cmd": "cd /testbed && PYTHONUTF8=1 python3 tests/runtests.py forms_tests 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 1371.7
+  },
+  {
+   "cmd": "cd /testbed && PYTHONUTF8=1 python3 tests/runtests.py forms_tests 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR)\" ",
+   "hit": null,
+   "lat_ms": 1172.2
+  },
+  {
+   "cmd": "cd /testbed && PYTHONUTF8=1 python3 tests/runtests.py forms_tests.tests.tests.FormsModelTestCase.test_unicode_filename 2>&1 | grep -A 15 \"ERROR\"",
+   "hit": null,
+   "lat_ms": 577.2
+  },
+  {
+   "cmd": "cd /testbed && git stash && PYTHONUTF8=1 python3 tests/runtests.py forms_tests.tests.tests.FormsModelTestCase.test_unicode_filename 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR)\"; git stash pop",
+   "hit": null,
+   "lat_ms": 1012.1
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 108.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-11880",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 8579.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

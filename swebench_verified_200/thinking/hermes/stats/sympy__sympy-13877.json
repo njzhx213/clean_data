@@ -1,0 +1,221 @@
+{
+ "calls": 33,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 44264.317989349365,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 74.6
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "python3 -V && pip -V && python3 -c \"import sympy; print(sympy.__version__)\" 2>/dev/null || echo \"no sympy\"",
+   "hit": null,
+   "lat_ms": 1369.0
+  },
+  {
+   "cmd": "mkdir -p /tmp/detbug && cd /tmp/detbug && cat > repro.py <<'EOF'\nfrom sympy import *\nfrom sympy.abc import a\n\ndef f(n):\n    return det(Matrix([[i + a*j for i in range(n)] for j in range(n)]))\n\nfor n in (1, 2, 3, 4, 5):\n    try:\n        print(\"f(%d) =\" % n, f(n))\n    except Exception as e:\n        print(\"f(%d) raised %s: %s\" % (n, type(e).__name__, e))\n\ntry:\n    print(\"f(6) =\", f(6))\nexcept Exception as e:\n    import traceback\n    traceback.print_exc()\nEOF\npython3 repro.py",
+   "hit": null,
+   "lat_ms": 1172.8
+  },
+  {
+   "cmd": "cd /testbed/sympy/matrices && sed -n '190,230p' matrices.py && echo '=====' && sed -n '2030,2090p' matrices.py",
+   "hit": null,
+   "lat_ms": 115.0
+  },
+  {
+   "cmd": "cd /testbed/sympy/matrices && sed -n '175,190p' matrices.py && echo '=====' && grep -rn \"_find_pivot\" /testbed/sympy/matrices/*.py | head -20",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed/sympy/matrices && sed -n '168,216p' matrices.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nfrom sympy import *\na = Symbol('a')\nprint('bool(S.Zero) =', bool(S.Zero))\nprint('bool(Symbol) =', bool(a))\nprint('bool(nan) =', bool(S.NaN))\nprint('Zero/Zero =', S.Zero/S.Zero)\ntry:\n    print('x/Zero =', Symbol('x')/S.Zero)\nexcept Exception as e:\n    print('x/Zero raised', type(e).__name__, e)\ntry:\n    print('nan/Zero =', S.NaN/S.Zero)\nexcept Exception as e:\n    print('nan/Zero raised', type(e).__name__, e)\n\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 572.2
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > instrument.py <<'EOF'\nimport sympy\nfrom sympy import *\nimport sympy.matrices.matrices as mm\n\norig = mm.MatrixBase._eval_det_bareiss\n\ndef instrumented(self):\n    S_ = sympy.S\n    def _find_pivot(l):\n        for pos, val in enumerate(l):\n            if val:\n                return (pos, val, None, None)\n        return (None, None, None, None)\n\n    depth = [0]\n    def bareiss(mat):\n        depth[0] += 1\n        d = depth[0]\n        if mat.rows == 0:\n            print(f\"  L{d}: empty mat -> 1\"); depth[0] -= 1; return S_.One\n        elif mat.rows == 1:\n            print(f\"  L{d}: 1x1 mat, entry = {mat[0,0]!r}\")\n            depth[0] -= 1\n            return mat[0, 0]\n        pivot_pos, pivot_val, _, _ = _find_pivot(mat[:, 0])\n        print(f\"  L{d}: {mat.rows}x{mat.cols} mat, col0 = {[x for x in mat[:,0]]}\")\n        if pivot_pos is None:\n            print(f\"  L{d}: no pivot in col 0 -> return 0\")\n            depth[0] -= 1\n            return S_.Zero\n        print(f\"  L{d}: pivot_pos={pivot_pos}, pivot_val={pivot_val!r}, cumm(prev)={cumm!r}\")\n        sign = (-1) ** (pivot_pos % 2)\n        rows = list(i for i in range(mat.rows) if i != pivot_pos)\n        cols = list(range(mat.cols))\n        tmp_mat = mat.extract(rows, cols)\n        def entry(i, j):\n            ret = (pivot_val*tmp_mat[i, j + 1] - mat[pivot_pos, j + 1]*tmp_mat[i, 0]) / cumm\n            if not ret.is_Atom:\n                cancel(ret)\n            return ret\n        nxt = self._new(mat.rows - 1, mat.cols - 1, entry)\n        print(f\"  L{d}: next mat = {nxt.tolist()}\")\n        depth[0] -= 1\n        return sign*bareiss(nxt)\n\n    cumm = [1]\n    def bareiss(mat, cumm=1):\n        # rebind with local cumm\n        return bareiss_inner(mat, cumm)\n\n    def bareiss_inner(mat, cumm):\n        d = len(stack)\n        stack.append(cumm)\n        if mat.rows == 0:\n            print(f\"  L{d}: empty -> 1\"); stack.pop(); return S_.One\n        elif mat.rows == 1:\n            print(f\"  L{d}: 1x1, entry = {mat[0,0]!r} (cumm={cumm!r})\")\n            stack.pop()\n            return mat[0, 0]\n        pivot_pos, pivot_val, _, _ = _find_pivot(mat[:, 0])\n        print(f\"  L{d}: {mat.rows}x{mat.cols}, col0={[x for x in mat[:,0]]}, cumm={cumm!r}\")\n        if pivot_pos is None:\n            print(f\"  L{d}: NO pivot -> return 0\"); stack.pop(); return S_.Zero\n        sign = (-1) ** (pivot_pos % 2)\n        rows = list(i for i in range(mat.rows) if i != pivot_pos)\n        cols = list(range(mat.cols))\n        tmp_mat = mat.extract(rows, cols)\n        def entry(i, j):\n            ret = (pivot_val*tmp_mat[i, j + 1] - mat[pivot_pos, j + 1]*tmp_mat[i, 0]) / cumm\n            if not ret.is_Atom:\n                cancel(ret)\n            return ret\n        nxt = self._new(mat.rows - 1, mat.cols - 1, entry)\n        print(f\"  L{d}: -> next {mat.rows-1}x{mat.cols-1} = {nxt.tolist()}\")\n        stack.pop()\n        return sign*bareiss_inner(nxt, pivot_val)\n\n    stack = []\n    result = cancel(bareiss_inner(self, 1))\n    print(\"RESULT:\", result)\n    return result\n\nmm.MatrixBase._eval_det_bareiss = instrumented\n\nfrom sympy.abc import a\ndef f(n):\n    return det(Matrix([[i + a*j for i in range(n)] for j in range(n)]))\n\nprint(\"=== f(5) ===\")\nprint(f(5))\nprint(\"=== f(6) ===\")\ntry:\n    print(f(6))\nexcept Exception as e:\n    print(\"RAISED\", type(e).__name__, e)\nEOF\npython3 instrument.py 2>&1 | grep -v Warning",
+   "hit": null,
+   "lat_ms": 379.1
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > instrument.py <<'EOF'\nimport sys\nimport sympy\nfrom sympy import *\nmm = sys.modules['sympy.matrices.matrices']\nS_ = sympy.S\n\ndef instrumented(self):\n    def _find_pivot(l):\n        for pos, val in enumerate(l):\n            if val:\n                return (pos, val, None, None)\n        return (None, None, None, None)\n\n    def bareiss_inner(mat, cumm, d):\n        if mat.rows == 0:\n            print(f\"  L{d}: empty -> 1\"); return S_.One\n        elif mat.rows == 1:\n            print(f\"  L{d}: 1x1, entry = {mat[0,0]!r} (cumm={cumm!r})\")\n            return mat[0, 0]\n        pivot_pos, pivot_val, _, _ = _find_pivot(mat[:, 0])\n        print(f\"  L{d}: {mat.rows}x{mat.cols}, col0={[str(x) for x in mat[:,0]]}, cumm={cumm!r}\")\n        if pivot_pos is None:\n            print(f\"  L{d}: NO pivot -> return 0\"); return S_.Zero\n        sign = (-1) ** (pivot_pos % 2)\n        rows = list(i for i in range(mat.rows) if i != pivot_pos)\n        cols = list(range(mat.cols))\n        tmp_mat = mat.extract(rows, cols)\n        def entry(i, j):\n            ret = (pivot_val*tmp_mat[i, j + 1] - mat[pivot_pos, j + 1]*tmp_mat[i, 0]) / cumm\n            if not ret.is_Atom:\n                cancel(ret)\n            return ret\n        nxt = self._new(mat.rows - 1, mat.cols - 1, entry)\n        print(f\"  L{d}: pivot_pos={pivot_pos}, pivot_val={str(pivot_val)!r} -> next{mat.rows-1}x{mat.cols-1}={[str(x) for x in nxt]}\")\n        return sign*bareiss_inner(nxt, pivot_val, d + 1)\n\n    result = cancel(bareiss_inner(self, 1, 1))\n    print(\"RESULT:\", result)\n    return result\n\nmm.MatrixBase._eval_det_bareiss = instrumented\n\nfrom sympy.abc import a\ndef f(n):\n    return det(Matrix([[i + a*j for i in range(n)] for j in range(n)]))\n\nprint(\"=== f(5) ===\")\nprint(f(5))\nprint(\"=== f(6) ===\")\ntry:\n    print(f(6))\nexcept Exception as e:\n    print(\"RAISED\", type(e).__name__, e)\nEOF\npython3 instrument.py 2>&1 | grep -v -E \"Warning|collections\"",
+   "hit": null,
+   "lat_ms": 1370.8
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > instrument2.py <<'EOF'\nimport sys\nimport sympy\nfrom sympy import *\nmm = sys.modules['sympy.matrices.matrices']\nS_ = sympy.S\n\ndef instrumented(self):\n    def _find_pivot(l):\n        for pos, val in enumerate(l):\n            if val:\n                return (pos, val, None, None)\n        return (None, None, None, None)\n\n    def bareiss_inner(mat, cumm, d):\n        if mat.rows == 0:\n            print(f\"  L{d}: empty -> 1\"); return S_.One\n        if mat.rows == 1:\n            e = mat[0, 0]\n            print(f\"  L{d}: 1x1 entry: has_nan={e.has(S_.NaN)} has_zoo={e.has(S_.Zoo)}; simplify={cancel(e) if not e.is_Atom else e}\")\n            return e\n        pivot_pos, pivot_val, _, _ = _find_pivot(mat[:, 0])\n        try:\n            cumm_s = cancel(cumm) if not cumm.is_Atom else cumm\n        except Exception:\n            cumm_s = '?'\n        print(f\"  L{d}: {mat.rows}x{mat.cols}  cumm={cumm_s}  (cumm.has(Zoo)={cumm.has(S_.Zoo)}, has(NaN)={cumm.has(S_.NaN)})\")\n        if pivot_pos is None:\n            print(f\"  L{d}: NO pivot -> 0\"); return S_.Zero\n        sign = (-1) ** (pivot_pos % 2)\n        rows = list(i for i in range(mat.rows) if i != pivot_pos)\n        cols = list(range(mat.cols))\n        tmp_mat = mat.extract(rows, cols)\n        def entry(i, j):\n            ret = (pivot_val*tmp_mat[i, j + 1] - mat[pivot_pos, j + 1]*tmp_mat[i, 0]) / cumm\n            tag = \"\"\n            try:\n                if not ret.is_Atom:\n                    tag = f\" simplify={cancel(ret)}\"\n            except Exception as ex:\n                tag = f\" simplify RAISED {type(ex).__name__}\"\n            if ret.has(S_.NaN) or ret.has(S_.Zoo):\n                tag += \"  ** CONTAINS NaN/ZOO **\"\n            print(f\"      entry({i},{j}){tag}\")\n            if not ret.is_Atom:\n                cancel(ret)\n            return ret\n        nxt = self._new(mat.rows - 1, mat.cols - 1, entry)\n        return sign*bareiss_inner(nxt, pivot_val, d + 1)\n\n    result = cancel(bareiss_inner(self, 1, 1))\n    print(\"RESULT:\", result)\n    return result\n\nmm.MatrixBase._eval_det_bareiss = instrumented\n\nfrom sympy.abc import a\ndef f(n):\n    return det(Matrix([[i + a*j for i in range(n)] for j in range(n)]))\n\nprint(\"=== f(5) ===\")\nprint(f(5))\nprint(\"=== f(6) ===\")\ntry:\n    print(f(6))\nexcept Exception as e:\n    print(\"RAISED\", type(e).__name__, e)\nEOF\npython3 instrument2.py 2>&1 | grep -v -E \"Warning|collections\"",
+   "hit": null,
+   "lat_ms": 570.1
+  },
+  {
+   "cmd": "cd /tmp/detbug && python3 -u instrument2.py > out2.txt 2>&1; echo \"exit=$?\"; wc -l out2.txt; head -50 out2.txt",
+   "hit": null,
+   "lat_ms": 574.8
+  },
+  {
+   "cmd": "cat /testbed/sympy/matrices/expressions/determinant.py && grep -n \"_eval_determinant\\|def det\" /testbed/sympy/matrices/matrices.py | head",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > instrument3.py <<'EOF'\nimport sys, traceback\nimport sympy\nfrom sympy import *\nmm = sys.modules['sympy.matrices.matrices']\nS_ = sympy.S\n\ndef instrumented(self):\n    def _find_pivot(l):\n        for pos, val in enumerate(l):\n            if val:\n                return (pos, val, None, None)\n        return (None, None, None, None)\n\n    def bareiss_inner(mat, cumm, d):\n        if mat.rows == 0:\n            print(f\"  L{d}: empty -> 1\"); return S_.One\n        if mat.rows == 1:\n            e = mat[0, 0]\n            try:\n                cs = cancel(e) if not e.is_Atom else e\n            except Exception as ex:\n                cs = f\"cancel RAISED {type(ex).__name__}: {ex}\"\n            print(f\"  L{d}: 1x1 entry: has_nan={e.has(S_.NaN)} has_zoo={e.has(S_.Zoo)}; simplify={cs}\")\n            return e\n        pivot_pos, pivot_val, _, _ = _find_pivot(mat[:, 0])\n        try:\n            cumm_s = cancel(cumm) if not cumm.is_Atom else cumm\n        except Exception:\n            cumm_s = '?'\n        print(f\"  L{d}: {mat.rows}x{mat.cols}  cumm_simplify={cumm_s}\")\n        if pivot_pos is None:\n            print(f\"  L{d}: NO pivot -> 0\"); return S_.Zero\n        sign = (-1) ** (pivot_pos % 2)\n        rows = list(i for i in range(mat.rows) if i != pivot_pos)\n        cols = list(range(mat.cols))\n        tmp_mat = mat.extract(rows, cols)\n        def entry(i, j):\n            ret = (pivot_val*tmp_mat[i, j + 1] - mat[pivot_pos, j + 1]*tmp_mat[i, 0]) / cumm\n            tag = \"\"\n            try:\n                if not ret.is_Atom:\n                    tag = f\" simplify={cancel(ret)}\"\n            except Exception as ex:\n                tag = f\" simplify RAISED {type(ex).__name__}: {ex}\"\n            if ret.has(S_.NaN) or ret.has(S_.Zoo):\n                tag += \"  ** CONTAINS NaN/ZOO **\"\n            print(f\"      entry({i},{j}){tag}\")\n            if not ret.is_Atom:\n                cancel(ret)\n            return ret\n        nxt = self._new(mat.rows - 1, mat.cols - 1, entry)\n        return sign*bareiss_inner(nxt, pivot_val, d + 1)\n\n    result = cancel(bareiss_inner(self, 1, 1))\n    print(\"RESULT:\", result)\n    return result\n\nmm.MatrixBase._eval_det_bareiss = instrumented\n\nfrom sympy.abc import a\nM = Matrix([[i + a*j for i in range(5)] for j in range(5)])\nprint(\"calling _eval_det_bareiss directly on 5x5:\")\nprint(M._eval_det_bareiss())\nprint(\"calling on 6x6:\")\nM6 = Matrix([[i + a*j for i in range(6)] for j in range(6)])\nprint(M6._eval_det_bareiss())\nEOF\npython3 -u instrument3.py 2>&1 | grep -v -E \"DeprecationWarning|from collections\"",
+   "hit": null,
+   "lat_ms": 571.4
+  },
+  {
+   "cmd": "cd /tmp/detbug && python3 -c \"\nimport sympy\nprint(hasattr(sympy.S, 'ComplexInfinity'))\nprint(sympy.S.ComplexInfinity)\n\" 2>/dev/null && sed -i 's/S_\\.Zoo/S_.ComplexInfinity/g' instrument3.py && python3 -u instrument3.py 2>&1 | grep -v -E \"DeprecationWarning|from collections|class OrderedSet\"",
+   "hit": null,
+   "lat_ms": 2171.7
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > instrument4.py <<'EOF'\nimport sys\nimport sympy\nfrom sympy import *\nfrom sympy.printing import srepr\nmm = sys.modules['sympy.matrices.matrices']\nS_ = sympy.S\nZOO = S_.ComplexInfinity\n\ndef short(x, n=110):\n    s = srepr(x)\n    return s if len(s) <= n else s[:n] + \"...\"\n\ndef instrumented(self):\n    def _find_pivot(l):\n        for pos, val in enumerate(l):\n            if val:\n                return (pos, val, None, None)\n        return (None, None, None, None)\n\n    def bareiss_inner(mat, cumm, d):\n        if mat.rows == 0:\n            return S_.One\n        if mat.rows == 1:\n            e = mat[0, 0]\n            print(f\"  L{d} 1x1: has_nan={e.has(S_.NaN)}  srepr={short(e)}\")\n            return e\n        for i in range(mat.rows):\n            for j in range(mat.cols):\n                e = mat[i, j]\n                if e.has(S_.NaN) or e.has(ZOO) or e.has(S_.Zero):\n                    print(f\"  L{d} mat[{i},{j}] SPECIAL: has_nan={e.has(S_.NaN)} has_zoo={e.has(ZOO)} has_S.Zero={e.has(S_.Zero)}  srepr={short(e)}\")\n        pivot_pos, pivot_val, _, _ = _find_pivot(mat[:, 0])\n        if pivot_pos is None:\n            return S_.Zero\n        sign = (-1) ** (pivot_pos % 2)\n        rows = list(i for i in range(mat.rows) if i != pivot_pos)\n        cols = list(range(mat.cols))\n        tmp_mat = mat.extract(rows, cols)\n        def entry(i, j):\n            ret = (pivot_val*tmp_mat[i, j + 1] - mat[pivot_pos, j + 1]*tmp_mat[i, 0]) / cumm\n            if ret.has(S_.NaN) or ret.has(ZOO) or ret is S_.Zero:\n                print(f\"  L{d}-> entry({i},{j}) RAW ret SPECIAL: srepr={short(ret, 200)}\")\n            if not ret.is_Atom:\n                try:\n                    cv = cancel(ret)\n                    if cv.has(S_.NaN) or cv.has(ZOO):\n                        print(f\"  L{d}-> entry({i},{j}) cancel(ret)={cv}  (but raw ret is returned!)\")\n                except Exception as ex:\n                    print(f\"  L{d}-> entry({i},{j}) cancel RAISED {type(ex).__name__}: {ex}\")\n            return ret\n        nxt = self._new(mat.rows - 1, mat.cols - 1, entry)\n        return sign*bareiss_inner(nxt, pivot_val, d + 1)\n\n    return cancel(bareiss_inner(self, 1, 1))\n\nmm.MatrixBase._eval_det_bareiss = instrumented\n\nfrom sympy.abc import a\nM6 = Matrix([[i + a*j for i in range(6)] for j in range(6)])\ntry:\n    print(M6._eval_det_bareiss())\nexcept Exception as e:\n    print(\"RAISED\", type(e).__name__, e)\nEOF\npython3 -u instrument4.py 2>&1 | grep -v -E \"DeprecationWarning|from collections|class OrderedSet\"",
+   "hit": null,
+   "lat_ms": 1371.2
+  },
+  {
+   "cmd": "sed -n '1140,1205p' /testbed/sympy/core/exprtools.py",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > instrument5.py <<'EOF'\nimport sys\nimport sympy\nfrom sympy import *\nfrom sympy.printing import srepr\nmm = sys.modules['sympy.matrices.matrices']\nS_ = sympy.S\nZOO = S_.ComplexInfinity\n\ncaptured = []\n\ndef instrumented(self):\n    def _find_pivot(l):\n        for pos, val in enumerate(l):\n            if val:\n                return (pos, val, None, None)\n        return (None, None, None, None)\n\n    def bareiss_inner(mat, cumm, d):\n        if mat.rows == 0:\n            return S_.One\n        if mat.rows == 1:\n            return mat[0, 0]\n        pivot_pos, pivot_val, _, _ = _find_pivot(mat[:, 0])\n        if pivot_pos is None:\n            return S_.Zero\n        sign = (-1) ** (pivot_pos % 2)\n        rows = list(i for i in range(mat.rows) if i != pivot_pos)\n        cols = list(range(mat.cols))\n        tmp_mat = mat.extract(rows, cols)\n        def entry(i, j):\n            ret = (pivot_val*tmp_mat[i, j + 1] - mat[pivot_pos, j + 1]*tmp_mat[i, 0]) / cumm\n            captured.append((d, i, j, ret))\n            if not ret.is_Atom:\n                cancel(ret)\n            return ret\n        nxt = self._new(mat.rows - 1, mat.cols - 1, entry)\n        return sign*bareiss_inner(nxt, pivot_val, d + 1)\n\n    return cancel(bareiss_inner(self, 1, 1))\n\nmm.MatrixBase._eval_det_bareiss = instrumented\n\nfrom sympy.abc import a\nM6 = Matrix([[i + a*j for i in range(6)] for j in range(6)])\ntry:\n    M6._eval_det_bareiss()\nexcept TypeError:\n    pass\n\n# the last captured entry is the one that crashed in cancel()\nd, i, j, ret = captured[-1]\nprint(\"crashing entry from level\", d, f\"entry({i},{j})\")\nprint(\"has nan:\", ret.has(S_.NaN), \"has zoo:\", ret.has(ZOO), \"has Zero:\", ret.has(S_.Zero))\nprint(\"num terms:\", len(ret.as_numer_denom()[0].as_ordered_terms()) if hasattr(ret.as_numer_denom()[0], 'as_ordered_terms') else '?')\nnum, den = ret.as_numer_denom()\nprint(\"numerator srepr len:\", len(srepr(num)))\nprint(\"denominator srepr len:\", len(srepr(den)))\nimport pickle\nwith open('crash_expr.srepr', 'w') as f:\n    f.write(srepr(ret))\nprint(\"saved to crash_expr.srepr\")\nEOF\npython3 -u instrument5.py 2>&1 | grep -v -E \"DeprecationWarning|from collections|class OrderedSet\"",
+   "hit": null,
+   "lat_ms": 1171.5
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > bisect1.py <<'EOF'\nfrom sympy import *\nfrom sympy.printing import srepr\nfrom sympy.core.sympify import sympify\n\nwith open('crash_expr.srepr') as f:\n    s = f.read()\nE = eval(s)  # srepr is eval-able in sympy namespace\nprint(\"E ok, len\", len(srepr(E)))\n\nnum, den = E.as_numer_denom()\nprint(\"num, den ok\")\n\ndef try_cancel(expr, label):\n    try:\n        r = cancel(expr)\n        print(f\"{label}: cancel -> {str(r)[:80]}  has_nan={r.has(S.NaN)}\")\n        return r\n    except Exception as ex:\n        print(f\"{label}: cancel RAISED {type(ex).__name__}: {ex}\")\n        return None\n\ndef try_ft(expr, label):\n    try:\n        r = factor_terms(expr, radical=True)\n        print(f\"{label}: factor_terms -> has_nan={r.has(S.NaN)} same={r==expr}\")\n        return r\n    except Exception as ex:\n        print(f\"{label}: factor_terms RAISED {type(ex).__name__}: {ex}\")\n        return None\n\ntry_ft(E, \"E\")\ntry_cancel(E, \"E\")\nEOF\npython3 -u bisect1.py 2>&1 | grep -v -E \"DeprecationWarning|from collections|class OrderedSet\"",
+   "hit": null,
+   "lat_ms": 971.1
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > bisect2.py <<'EOF'\nfrom sympy import *\nfrom sympy.printing import srepr\n\nwith open('crash_expr.srepr') as f:\n    E = eval(f.read())\n\ndef crashes(expr):\n    try:\n        factor_terms(expr, radical=True)\n        return False\n    except TypeError:\n        return True\n    except Exception:\n        return None\n\nprint(\"E crashes:\", crashes(E), \"is_Mul:\", E.is_Mul, \"is_Add:\", E.is_Add)\nprint(\"E.args count:\", len(E.args))\nfor k, arg in enumerate(E.args):\n    c = crashes(arg)\n    print(f\"arg[{k}]: crashes={c} type={type(arg).__name__} len={len(srepr(arg))} is_Mul={arg.is_Mul} is_Add={arg.is_Add}\")\nEOF\npython3 -u bisect2.py 2>&1 | grep -v -E \"DeprecationWarning|from collections|class OrderedSet\"",
+   "hit": null,
+   "lat_ms": 969.7
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > bisect3.py <<'EOF'\nfrom sympy import *\nfrom sympy.printing import srepr\n\nwith open('crash_expr.srepr') as f:\n    E = eval(f.read())\nA = E.args[2]  # the big Add\nprint(\"Add terms:\", len(Add.make_args(A)))\nterms = Add.make_args(A)\nfor k, t in enumerate(terms):\n    try:\n        factor_terms(t, radical=True)\n        c = \"ok\"\n    except TypeError:\n        c = \"CRASH\"\n    except Exception as e:\n        c = f\"other {type(e).__name__}\"\n    print(f\"term[{k}]: {c} type={type(t).__name__} is_Mul={t.is_Mul} len={len(srepr(t))}\")\n    if t.is_Mul:\n        for m, f2 in enumerate(t.args):\n            try:\n                factor_terms(f2, radical=True)\n                c2 = \"ok\"\n            except TypeError:\n                c2 = \"CRASH\"\n            except Exception as e:\n                c2 = f\"other {type(e).__name__}\"\n            print(f\"   term[{k}].arg[{m}]: {c2} type={type(f2).__name__} len={len(srepr(f2))}\")\n# save terms\nfor k, t in enumerate(terms):\n    with open(f'term{k}.srepr', 'w') as f:\n        f.write(srepr(t))\nEOF\npython3 -u bisect3.py 2>&1 | grep -v -E \"DeprecationWarning|from collections|class OrderedSet\"",
+   "hit": null,
+   "lat_ms": 970.3
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > bisect4.py <<'EOF'\nfrom sympy import *\nfrom sympy.printing import srepr\n\nterms = [eval(open(f'term{k}.srepr').read()) for k in (0, 1)]\nfor k, t in enumerate(terms):\n    c, rest = t.as_coeff_Mul()\n    print(f\"term[{k}].as_coeff_Mul() -> coeff={c!r}  coeff_type={type(c).__name__}\")\n    print(f\"   coeff < 0 test:\", end=\" \")\n    try:\n        print(bool(c < 0))\n    except Exception as e:\n        print(f\"RAISED {type(e).__name__}: {e}\")\n    # now each factor's as_coeff_Mul\n    for m, f in enumerate(t.args):\n        cf, rf = f.as_coeff_Mul()\n        flag = \"\"\n        try:\n            cf < 0\n        except Exception as e:\n            flag = f\"  ** <0 RAISED {type(e).__name__} **\"\n        print(f\"   factor[{m}] ({type(f).__name__}): as_coeff_Mul coeff={cf!r}{flag}\")\nEOF\npython3 -u bisect4.py 2>&1 | grep -v -E \"DeprecationWarning|from collections|class OrderedSet\"",
+   "hit": null,
+   "lat_ms": 570.9
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > bisect5.py <<'EOF'\nfrom sympy import *\nfrom sympy.printing import srepr\n\nterms = [eval(open(f'term{k}.srepr').read()) for k in (0, 1)]\n\ndef ft(x):\n    try:\n        return factor_terms(x, radical=True)\n    except Exception as e:\n        return f\"<raised {type(e).__name__}: {e}>\"\n\nfor k, t in enumerate(terms):\n    cont, prim = t.as_content_primitive(radical=True)\n    print(f\"term[{k}]: content={cont!r}  content has_nan={cont.has(S.NaN)}\")\n    for m, f in enumerate(t.args):\n        r = ft(f)\n        if isinstance(r, str):\n            print(f\"   factor[{m}]: {r}\")\n        else:\n            bad = r.has(S.NaN) or r.has(S.ComplexInfinity)\n            print(f\"   factor[{m}] ({type(f).__name__}): result has_nan/zoo={bad} changed={r != f}\")\n            if bad:\n                print(f\"      INPUT : {srepr(f)[:150]}\")\n                print(f\"      OUTPUT: {srepr(r)[:150]}\")\nEOF\npython3 -u bisect5.py 2>&1 | grep -v -E \"DeprecationWarning|from collections|class OrderedSet\"",
+   "hit": null,
+   "lat_ms": 774.5
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > trace_do.py <<'EOF'\nfrom sympy import *\nfrom sympy.core.sympify import sympify\nfrom sympy.core.exprtools import _keep_coeff\nfrom sympy.concrete.summations import Sum\nfrom sympy.simplify.simplify import factor_sum\nfrom sympy.core.logic import iterable\nfrom sympy.core.exprtools import gcd_terms\n\ndef do(expr, depth=0):\n    pad = \"  \" * depth\n    is_iterable = iterable(expr)\n    if not isinstance(expr, Basic) or expr.is_Atom:\n        if is_iterable:\n            return type(expr)([do(i, depth+1) for i in expr])\n        return expr\n    if expr.is_Pow or expr.is_Function or is_iterable or not hasattr(expr, 'args_cnc'):\n        args = expr.args\n        newargs = tuple([do(i, depth+1) for i in args])\n        if newargs == args:\n            return expr\n        print(f\"{pad}POW/FUNC {str(expr)[:60]!r} -> rebuilt from {len(args)} args\")\n        rv = expr.func(*newargs)\n        print(f\"{pad}   result: {str(rv)[:80]!r} has_nan={rv.has(S.NaN)}\")\n        return rv\n    if isinstance(expr, Sum):\n        return factor_sum(expr)\n    cont, p = expr.as_content_primitive(radical=True, clear=False)\n    print(f\"{pad}EXPR {str(expr)[:60]!r}: cont={str(cont)[:40]!r}, p.is_Add={p.is_Add}\")\n    if p.is_Add:\n        list_args = [do(a, depth+1) for a in Add.make_args(p)]\n        for a in list_args:\n            try:\n                c = a.as_coeff_Mul()[0]\n                flag = f\" coeff={str(c)[:30]!r}\"\n            except Exception:\n                flag = \" (coeff raised?)\"\n            print(f\"{pad}   list_arg has_nan={a.has(S.NaN)} has_zoo={a.has(S.ComplexInfinity)}{flag}\")\n        if all(a.as_coeff_Mul()[0] < 0 for a in list_args):\n            print(f\"{pad}   flipping signs\")\n            cont = -cont\n            list_args = [-a for a in list_args]\n        special = {}\n        for i, a in enumerate(list_args):\n            b, e = a.as_base_exp()\n            if e.is_Mul and e != Mul(*e.args):\n                list_args[i] = Dummy()\n                special[list_args[i]] = a\n        p = Add._from_args(list_args)\n        print(f\"{pad}   Add._from_args -> {str(p)[:60]!r} has_nan={p.has(S.NaN)}\")\n        p = gcd_terms(p, isprimitive=True, clear=False, fraction=False).xreplace(special)\n        print(f\"{pad}   gcd_terms -> {str(p)[:60]!r} has_nan={p.has(S.NaN)} has_zoo={p.has(S.ComplexInfinity)}\")\n    elif p.args:\n        p = p.func(*[do(a, depth+1) for a in p.args])\n        print(f\"{pad}   rebuilt: {str(p)[:60]!r} has_nan={p.has(S.NaN)} has_zoo={p.has(S.ComplexInfinity)}\")\n    rv = _keep_coeff(cont, p, clear=False, sign=True)\n    print(f\"{pad}   FINAL: {str(rv)[:60]!r} has_nan={rv.has(S.NaN)} has_zoo={rv.has(S.ComplexInfinity)}\")\n    return rv\n\nterms = [eval(open(f'term{k}.srepr').read()) for k in (0, 1)]\nbigadd = Add(*terms)\ntry:\n    r = do(bigadd)\n    print(\"RESULT:\", str(r)[:80], \"has_nan:\", r.has(S.NaN))\nexcept Exception as e:\n    print(\"RAISED\", type(e).__name__, e)\nEOF\npython3 -u trace_do.py 2>&1 | grep -v -E \"DeprecationWarning|from collections|class OrderedSet\"",
+   "hit": null,
+   "lat_ms": 377.9
+  },
+  {
+   "cmd": "head -40 /testbed/sympy/core/exprtools.py | grep -n \"import\" && sed -n '1155,1165p' /testbed/sympy/core/exprtools.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /tmp/detbug && sed -i 's/from sympy.core.logic import iterable/from sympy.core.compatibility import iterable/' trace_do.py && python3 -u trace_do.py 2>&1 | grep -v -E \"DeprecationWarning|from collections|class OrderedSet\" | head -80",
+   "hit": null,
+   "lat_ms": 776.7
+  },
+  {
+   "cmd": "cd /tmp/detbug && python3 -c \"\nfrom sympy import *\nz = zoo\nprint('0*zoo =', S.Zero*z)\nprint('zoo*zoo =', z*z)\nprint('zoo - zoo =', z - z)\nprint('1/0 =', S.One/S.Zero)\nprint('0/0 =', S.Zero/S.Zero)\n\" 2>/dev/null && cat > get_f5.py <<'EOF'\nimport sys\nimport sympy\nfrom sympy import *\nmm = sys.modules['sympy.matrices.matrices']\nS_ = sympy.S\n\ndef instrumented(self):\n    def _find_pivot(l):\n        for pos, val in enumerate(l):\n            if val:\n                return (pos, val, None, None)\n        return (None, None, None, None)\n    def bareiss_inner(mat, cumm, d):\n        if mat.rows == 0:\n            return S_.One\n        if mat.rows == 1:\n            captured['e'] = mat[0, 0]\n            return mat[0, 0]\n        pivot_pos, pivot_val, _, _ = _find_pivot(mat[:, 0])\n        if pivot_pos is None:\n            return S_.Zero\n        sign = (-1) ** (pivot_pos % 2)\n        rows = list(i for i in range(mat.rows) if i != pivot_pos)\n        tmp_mat = mat.extract(rows, list(range(mat.cols)))\n        def entry(i, j):\n            ret = (pivot_val*tmp_mat[i, j + 1] - mat[pivot_pos, j + 1]*tmp_mat[i, 0]) / cumm\n            if not ret.is_Atom:\n                cancel(ret)\n            return ret\n        nxt = self._new(mat.rows - 1, mat.cols - 1, entry)\n        return sign*bareiss_inner(nxt, pivot_val, d + 1)\n    return cancel(bareiss_inner(self, 1, 1))\n\ncaptured = {}\nmm.MatrixBase._eval_det_bareiss = instrumented\nfrom sympy.abc import a\nM5 = Matrix([[i + a*j for i in range(5)] for j in range(5)])\nr = M5._eval_det_bareiss()\nprint(\"f(5) =\", r)\ne = captured['e']\nfrom sympy.core.exprtools import factor_terms\ntry:\n    f = factor_terms(e, radical=True)\n    print(\"factor_terms(1x1 entry):\", str(f)[:60], \" has_nan:\", f.has(S_.NaN))\nexcept Exception as ex:\n    print(\"factor_terms RAISED\", type(ex).__name__, ex)\ntry:\n    c = cancel(e)\n    print(\"cancel(1x1 entry):\", c)\nexcept Exception as ex:\n    print(\"cancel RAISED\", type(ex).__name__, ex)\nEOF\npython3 -u get_f5.py 2>&1 | grep -v -E \"DeprecationWarning|from collections|class OrderedSet\"",
+   "hit": null,
+   "lat_ms": 974.0
+  },
+  {
+   "cmd": "cd /tmp/detbug && python3 -c \"\nfrom sympy import *\nfrom sympy.abc import a\nfor n in (5, 6):\n    M = Matrix([[i + a*j for i in range(n)] for j in range(n)])\n    print('n=%d: rank=%s, det at a=2 = %s' % (n, M.rank(), M.subs(a, 2).det()))\n    print('  BERKOWITZ det:', M.det(method='BERKOWITZ'))\n\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 1970.7
+  },
+  {
+   "cmd": "python3 -m venv /tmp/detbug/venv-new && /tmp/detbug/venv-new/bin/pip -q install sympy 2>&1 | tail -1; /tmp/detbug/venv-new/bin/python -c \"import sympy; print('new sympy:', sympy.__version__)\"",
+   "hit": null,
+   "lat_ms": 10376.1
+  },
+  {
+   "cmd": "cd /tmp/detbug && python3 -c \"\nfrom sympy import *\nfrom sympy.abc import a\nfor n in (5, 6):\n    M = Matrix([[i + a*j for i in range(n)] for j in range(n)])\n    b = M.det(method='BERKOWITZ')\n    print('n=%d: BERKOWITZ det simplified = %s' % (n, simplify(b)))\n\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 12186.2
+  },
+  {
+   "cmd": "pip -q install --no-index 2>&1 | head -1; timeout 8 python3 -c \"import urllib.request; print(urllib.request.urlopen('https://pypi.org', timeout=5).status)\" 2>&1 | tail -1",
+   "hit": null,
+   "lat_ms": 573.4
+  },
+  {
+   "cmd": "cd /tmp/detbug && cat > fixed.py <<'EOF'\nimport sys\nimport sympy\nfrom sympy import *\nmm = sys.modules['sympy.matrices.matrices']\nS_ = sympy.S\n\ndef fixed(self):\n    def _find_pivot(l):\n        for pos, val in enumerate(l):\n            if cancel(val) != 0:          # FIX 1: mathematical zero test\n                return (pos, val, None, None)\n        return (None, None, None, None)\n\n    def bareiss(mat, cumm=1):\n        if not mat.rows:\n            return 1\n        if mat.rows == 1:\n            return mat[0, 0]\n        pivot_pos, pivot_val, _, _ = _find_pivot(mat[:, 0])\n        if pivot_pos is None:\n            return S_.Zero                # trailing column identically zero -> det 0\n        sign = (-1) ** (pivot_pos % 2)\n        rows = list(i for i in range(mat.rows) if i != pivot_pos)\n        tmp_mat = mat.extract(rows, list(range(mat.cols)))\n        def entry(i, j):\n            ret = (pivot_val*tmp_mat[i, j + 1] - mat[pivot_pos, j + 1]*tmp_mat[i, 0]) / cumm\n            if not ret.is_Atom:\n                return cancel(ret)        # FIX 2: actually use the canceled entry\n            return ret\n        return sign*bareiss(self._new(mat.rows - 1, mat.cols - 1, entry), pivot_val)\n    return cancel(bareiss(self))\n\nmm.MatrixBase._eval_det_bareiss = fixed\nfrom sympy.abc import a\nfor n in range(1, 8):\n    M = Matrix([[i + a*j for i in range(n)] for j in range(n)])\n    print(\"f(%d) =\" % n, M._eval_det_bareiss())\nEOF\npython3 -u fixed.py 2>&1 | grep -v -E \"DeprecationWarning|from collections|class OrderedSet\"",
+   "hit": null,
+   "lat_ms": 570.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "sympy__sympy-13877",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 44264.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

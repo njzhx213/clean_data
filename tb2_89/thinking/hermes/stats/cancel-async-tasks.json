@@ -1,0 +1,146 @@
+{
+ "calls": 18,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 58040.38405418396,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 2,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "rm -rf /app/test_outputs.py /app/tests/test.sh /app/tests/test_outputs.py /app/solution /app/test_outputs.py /app/tests/test.sh /app/tests/test_outputs.py /app/solution 2>/dev/null; true",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "find /app -maxdepth 6 \\( -name \"solve.sh\" \\) -print 2>/dev/null; find /app -maxdepth 6 \\( -name \"test.sh\" \\) -print 2>/dev/null; find /app -maxdepth 6 \\( -name \"test_outputs.py\" \\) -print 2>/dev/null; find /workspace -maxdepth 6 \\( -name \"solve.sh\" \\) -print 2>/dev/null; find /workspace -maxdepth 6 \\( -name \"test.sh\" \\) -print 2>/dev/null; find /workspace -maxdepth 6 \\( -name \"test_outputs.py\" \\) -print 2>/dev/null; find /task -maxdepth 6 \\( -name \"solve.sh\" \\) -print 2>/dev/null; find /task -maxdepth 6 \\( -name \"test.sh\" \\) -print 2>/dev/null; find /task -maxdepth 6 \\( -name \"test_outputs.py\" \\) -print 2>/dev/null; find /tests -maxdepth 6 \\( -name \"solve.sh\" \\) -print 2>/dev/null; find /tests -maxdepth 6 \\( -name \"test.sh\" \\) -print 2>/dev/null; find /tests -maxdepth 6 \\( -name \"test_outputs.py\" \\) -print 2>/dev/null; echo \"__END__\"",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && python3 --version && which python3 && ls -la /app 2>/dev/null || echo \"NO /app yet\"",
+   "hit": null,
+   "lat_ms": 1936.4
+  },
+  {
+   "cmd": "cat > /app/run.py << 'EOF'\n\"\"\"Bounded-concurrency runner for async jobs.\n\nProvides :func:`run_tasks`, which runs a list of async callables with at most\n``max_concurrent`` of them executing at the same time.\n\nCancellation-friendly: if the running task is cancelled (for example because\nthe user pressed Ctrl+C and ``asyncio.run`` translated that into a\n``CancelledError`` for the main task), every job that has already started is\ngiven the chance to run its cleanup code (``try/finally``, ``async with``,\n``except*``, ...) to completion before the cancellation is propagated back to\nthe caller.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport asyncio\nfrom typing import Awaitable, Callable\n\n__all__ = [\"run_tasks\"]\n\nTaskFactory = Callable[[], Awaitable[None]]\n\n\nasync def run_tasks(\n    tasks: list[TaskFactory],\n    max_concurrent: int,\n) -> None:\n    \"\"\"Run ``tasks`` with at most ``max_concurrent`` concurrent at a time.\n\n    Parameters\n    ----------\n    tasks:\n        Iterable of zero-argument async callables.  Each one is invoked and\n        awaited exactly once, in list order.\n    max_concurrent:\n        Maximum number of tasks that may be executing simultaneously.\n        Must be at least 1.\n\n    Returns\n    -------\n    None\n        When every task has finished.\n\n    Raises\n    ------\n    ValueError\n        If ``max_concurrent`` < 1.\n    Exception\n        If any task raises an exception, that exception propagates.  All tasks\n        that have already started are allowed to finish (their cleanup code\n        runs) before the exception is re-raised.  This also applies when this\n        coroutine itself is cancelled (e.g. via KeyboardInterrupt /\n        ``task.cancel()``): in-flight tasks run their cleanup first, and the\n        ``CancelledError`` is re-raised afterwards.\n    \"\"\"\n    if max_concurrent < 1:\n        raise ValueError(\"max_concurrent must be >= 1\")\n\n    if not tasks:\n        return\n\n    semaphore = asyncio.Semaphore(max_concurrent)\n\n    async def _run_one(fn: TaskFactory) -> None:\n        async with semaphore:\n            await fn()\n\n    children: list[asyncio.Task[None]] = [\n        asyncio.create_task(_run_one(fn), name=f\"run_tasks[{i}]\")\n        for i, fn in enumerate(tasks)\n    ]\n\n    try:\n        # Wait for everything to finish normally.\n        await asyncio.gather(*children)\n    except BaseException:\n        # We were interrupted: either a task raised, or *we* were cancelled\n        # (CancelledError from Ctrl+C / task.cancel()).  In both cases the\n        # outer await above has already cancelled every still-running child,\n        # so their ``finally`` / ``async with`` cleanup is now in flight.\n        # Wait for all of them to actually complete before propagating, so\n        # cleanup code always gets to run.\n        try:\n            await asyncio.gather(*children, return_exceptions=True)\n        finally:\n            raise\nEOF\npython3 -c \"import ast; ast.parse(open('/app/run.py').read()); print('run.py parses OK')\"",
+   "hit": null,
+   "lat_ms": 2565.3
+  },
+  {
+   "cmd": "mkdir -p /app/tests && cat > /app/tests/test_normal.py << 'EOF'\n\"\"\"Normal completion + concurrency-limit checks.\"\"\"\nimport asyncio\nimport sys\nsys.path.insert(0, \"/app\")\nfrom run import run_tasks\n\nevents = []\nrunning = 0\nmax_running = 0\n\nasync def job(i):\n    global running, max_running\n    running += 1\n    max_running = max(max_running, running)\n    try:\n        await asyncio.sleep(0.05 + (i % 3) * 0.02)\n        events.append(f\"done:{i}\")\n    finally:\n        running -= 1\n\nasync def main():\n    await run_tasks([lambda i=i: job(i) for i in range(10)], 3)\n    assert max_running <= 3, f\"limit violated: {max_running}\"\n    assert max_running == 3, f\"never reached the limit? {max_running}\"\n    assert sorted(events) == sorted(f\"done:{i}\" for i in range(10)), events\n    # empty list is fine\n    await run_tasks([], 3)\n    print(\"NORMAL OK: max_running =\", max_running, \"events =\", len(events))\n\nasyncio.run(main())\nEOF\ncat > /app/tests/test_cancel.py << 'EOF'\n\"\"\"Programmatic cancellation: cleanup must still run.\"\"\"\nimport asyncio\nimport sys\nsys.path.insert(0, \"/app\")\nfrom run import run_tasks\n\ncleanup = []\n\nasync def job(i):\n    try:\n        print(f\"job {i} start\", flush=True)\n        await asyncio.sleep(30)\n    finally:\n        cleanup.append(i)\n        print(f\"job {i} CLEANUP\", flush=True)\n\nasync def main():\n    rt = asyncio.create_task(run_tasks([lambda i=i: job(i) for i in range(5)], 2))\n    await asyncio.sleep(0.5)   # 2 jobs in flight, 3 queued\n    rt.cancel()\n    try:\n        await rt\n        raise AssertionError(\"expected CancelledError to propagate\")\n    except asyncio.CancelledError:\n        print(\"CancelledError propagated OK\", flush=True)\n    assert sorted(cleanup) == [0, 1], f\"expected cleanup of in-flight jobs 0,1 got {cleanup}\"\n    print(f\"CANCEL OK: cleanup ran for jobs {sorted(cleanup)}\")\n\nasyncio.run(main())\nEOF\npython3 /app/tests/test_normal.py && python3 /app/tests/test_cancel.py",
+   "hit": null,
+   "lat_ms": 3062.7
+  },
+  {
+   "cmd": "cat > /app/tests/sigint_driver.py << 'EOF'\nimport signal\nimport subprocess\nimport sys\nimport time\n\nproc = subprocess.Popen(\n    [sys.executable, \"/app/tests/sigint_target.py\"],\n    stdout=subprocess.PIPE,\n    stderr=subprocess.STDOUT,\n    text=True,\n)\ntime.sleep(1.5)\nproc.send_signal(signal.SIGINT)\ntry:\n    out, _ = proc.communicate(timeout=15)\nexcept subprocess.TimeoutExpired:\n    proc.kill()\n    out, _ = proc.communicate()\n    print(\"!!! target hung, killed after SIGINT\")\nprint(\"--- exit code:\", proc.returncode)\nprint(\"--- target output:\")\nprint(out)\nEOF\nrm -rf /tmp/sigint_markers\npython3 /app/tests/sigint_driver.py\necho \"--- marker files:\"\nls /tmp/sigint_markers",
+   "hit": null,
+   "lat_ms": 3609.0
+  },
+  {
+   "cmd": "cat > /app/tests/sigint_target.py << 'EOF'\nimport asyncio\nimport os\nimport sys\nsys.path.insert(0, \"/app\")\nfrom run import run_tasks\n\nMARK = \"/tmp/sigint_markers\"\nos.makedirs(MARK, exist_ok=True)\nfor f in os.listdir(MARK):\n    os.remove(os.path.join(MARK, f))\n\nasync def job(i):\n    with open(f\"{MARK}/started_{i}\", \"w\") as f:\n        f.write(\"1\")\n    try:\n        await asyncio.sleep(60)\n        print(f\"job {i} finished normally\", flush=True)\n    finally:\n        with open(f\"{MARK}/cleanup_{i}\", \"w\") as f:\n            f.write(\"1\")\n        print(f\"job {i} CLEANUP RAN\", flush=True)\n\nasync def main():\n    print(\"running tasks...\", flush=True)\n    await run_tasks([lambda i=i: job(i) for i in range(4)], 2)\n    print(\"main returned normally\", flush=True)\n\nasyncio.run(main())\nEOF\nls -la /app/tests/\nrm -rf /tmp/sigint_markers\npython3 /app/tests/sigint_driver.py\necho \"--- marker files:\"\nls /tmp/sigint_markers",
+   "hit": null,
+   "lat_ms": 3582.1
+  },
+  {
+   "cmd": "cat > /app/tests/baseline_driver.py << 'EOF'\nimport signal, subprocess, sys, time\n\ndef probe(name, code):\n    proc = subprocess.Popen([sys.executable, \"-c\", code],\n                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)\n    time.sleep(1.5)\n    proc.send_signal(signal.SIGINT)\n    try:\n        out, _ = proc.communicate(timeout=10)\n    except subprocess.TimeoutExpired:\n        proc.kill(); out, _ = proc.communicate()\n        print(f\"{name}: HUNG after SIGINT\")\n        return\n    print(f\"{name}: exit={proc.returncode}\")\n    print(\"  \" + \"\\n  \".join(out.strip().splitlines()[-4:]) if out.strip() else \"  (no output)\")\n\nprobe(\"plain time.sleep\", \"import time; time.sleep(30)\")\nprobe(\"asyncio.run(sleep)\", \"import asyncio; asyncio.run(asyncio.sleep(30))\")\nEOF\npython3 /app/tests/baseline_driver.py\nsed -n '95,130p' /usr/local/lib/python3.13/asyncio/runners.py",
+   "hit": null,
+   "lat_ms": 5319.0
+  },
+  {
+   "cmd": "cat > /app/run.py << 'EOF'\n\"\"\"Bounded-concurrency runner for async jobs.\n\nProvides :func:`run_tasks`, which runs a list of async callables with at most\n``max_concurrent`` of them executing at the same time.\n\nCancellation-friendly: if the running task is cancelled (for example because\nthe user pressed Ctrl+C and ``asyncio.run`` translated that into a\n``CancelledError`` for the main task), every job that has already started is\ngiven the chance to run its cleanup code (``try/finally``, ``async with``,\n...) to completion before the cancellation is propagated back to the caller.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport asyncio\nfrom typing import Awaitable, Callable\n\n__all__ = [\"run_tasks\"]\n\n\nasync def run_tasks(\n    tasks: list[Callable[[], Awaitable[None]]],\n    max_concurrent: int,\n) -> None:\n    \"\"\"Run ``tasks`` with at most ``max_concurrent`` concurrent at a time.\n\n    Parameters\n    ----------\n    tasks:\n        List of zero-argument async callables.  Each one is invoked and\n        awaited exactly once, in list order.\n    max_concurrent:\n        Maximum number of tasks that may be executing simultaneously.\n        Must be at least 1.\n\n    Returns\n    -------\n    None\n        When every task has finished.\n\n    Raises\n    ------\n    ValueError\n        If ``max_concurrent`` < 1.\n    BaseException\n        If any task raises, or if this coroutine itself is cancelled (e.g.\n        via KeyboardInterrupt / ``task.cancel()``), the exception is\n        re-raised -- but only *after* every task that has already started has\n        been allowed to run its cleanup code (``finally`` blocks,\n        ``async with`` exits, ...) to completion.\n    \"\"\"\n    if max_concurrent < 1:\n        raise ValueError(\"max_concurrent must be >= 1\")\n\n    if not tasks:\n        return\n\n    semaphore = asyncio.Semaphore(max_concurrent)\n\n    async def _run_one(fn: Callable[[], Awaitable[None]]) -> None:\n        async with semaphore:\n            await fn()\n\n    children: list[asyncio.Task[None]] = [\n        asyncio.create_task(_run_one(fn), name=f\"run_tasks[{i}]\")\n        for i, fn in enumerate(tasks)\n    ]\n\n    try:\n        # Wait for everything to finish normally.\n        await asyncio.gather(*children)\n    except BaseException:\n        # We were interrupted: either a task raised an exception, or *we*\n        # were cancelled (CancelledError from Ctrl+C / task.cancel()).\n        # In the cancellation case the outer await above has already\n        # cancelled every still-running child, so their ``finally`` /\n        # ``async with`` cleanup is now in flight.  Wait for all of them to\n        # actually complete before propagating, so cleanup code always gets\n        # to run.\n        try:\n            await asyncio.gather(*children, return_exceptions=True)\n        finally:\n            raise\nEOF\ncat > /app/tests/test_exception.py << 'EOF'\n\"\"\"Task raises: exception propagates AND other in-flight tasks still clean up.\"\"\"\nimport asyncio\nimport sys\nsys.path.insert(0, \"/app\")\nfrom run import run_tasks\n\ncleanup = []\n\nasync def good(i):\n    try:\n        print(f\"good {i} start\", flush=True)\n        await asyncio.sleep(30)\n    finally:\n        cleanup.append(i)\n        print(f\"good {i} CLEANUP\", flush=True)\n\nasync def bad():\n    await asyncio.sleep(0.1)\n    raise RuntimeError(\"boom\")\n\nasync def main():\n    tasks = [lambda: good(0), lambda: good(1), lambda: bad,\n             lambda: good(2), lambda: good(3)]\n    try:\n        await run_tasks(tasks, 2)\n        raise AssertionError(\"expected RuntimeError\")\n    except RuntimeError as e:\n        assert str(e) == \"boom\"\n        print(\"RuntimeError propagated OK\")\n    assert sorted(cleanup) == [0, 1, 2, 3], f\"got {cleanup}\"\n    print(f\"EXCEPTION OK: cleanup ran for {sorted(cleanup)}\")\n\nasyncio.run(main())\nEOF\npython3 /app/tests/test_exception.py",
+   "hit": null,
+   "lat_ms": 5868.3
+  },
+  {
+   "cmd": "WAIT 8",
+   "hit": null,
+   "lat_ms": 8061.7
+  },
+  {
+   "cmd": "KEYS C-c",
+   "hit": null,
+   "lat_ms": 1132.9
+  },
+  {
+   "cmd": "cat > /app/tests/test_exception.py << 'EOF'\n\"\"\"Task raises: exception propagates AND other in-flight tasks still finish/clean up.\"\"\"\nimport asyncio\nimport sys\nsys.path.insert(0, \"/app\")\nfrom run import run_tasks\n\ncleanup = []\n\nasync def good(i):\n    try:\n        print(f\"good {i} start\", flush=True)\n        await asyncio.sleep(0.5)\n    finally:\n        cleanup.append(i)\n        print(f\"good {i} CLEANUP\", flush=True)\n\nasync def bad():\n    await asyncio.sleep(0.1)\n    raise RuntimeError(\"boom\")\n\nasync def main():\n    tasks = [lambda: bad, lambda: good(0), lambda: good(1), lambda: good(2)]\n    try:\n        await run_tasks(tasks, 2)\n        raise AssertionError(\"expected RuntimeError\")\n    except RuntimeError as e:\n        assert str(e) == \"boom\"\n        print(\"RuntimeError propagated OK\")\n    assert sorted(cleanup) == [0, 1, 2], f\"got {cleanup}\"\n    print(f\"EXCEPTION OK: cleanup ran for {sorted(cleanup)}\")\n\nasyncio.run(main())\nEOF\npython3 /app/tests/test_exception.py",
+   "hit": null,
+   "lat_ms": 3008.9
+  },
+  {
+   "cmd": "sed -i 's/lambda: bad, /lambda: bad(), /' /app/tests/test_exception.py && python3 /app/tests/test_exception.py",
+   "hit": null,
+   "lat_ms": 3032.8
+  },
+  {
+   "cmd": "cd /app && cat > /tmp/final_check.py << 'EOF'\nimport asyncio, inspect, sys\n\n# 1. Exact import form the user asked for (cwd=/app)\nfrom run import run_tasks\nprint(\"1. 'from run import run_tasks' OK\")\n\n# 2. It is an async function\nassert inspect.iscoroutinefunction(run_tasks), \"run_tasks must be async\"\nprint(\"2. iscoroutinefunction OK\")\n\n# 3. Signature\nsig = inspect.signature(run_tasks)\nprint(\"3. signature:\", sig)\nassert list(sig.parameters) == [\"tasks\", \"max_concurrent\"]\nassert sig.parameters[\"max_concurrent\"].annotation is int\n\n# 4. max_concurrent < 1 -> ValueError\nasync def noop():\n    await asyncio.sleep(0)\nasync def main():\n    for bad_val in (0, -1):\n        try:\n            await run_tasks([noop], bad_val)\n            raise AssertionError(f\"no ValueError for {bad_val}\")\n        except ValueError:\n            pass\n    print(\"4. ValueError for max_concurrent<1 OK\")\n\n    # 5. max_concurrent larger than task count\n    n = 0\n    async def cnt():\n        nonlocal n\n        n += 1\n        await asyncio.sleep(0.01)\n    await run_tasks([lambda: cnt() for _ in range(5)], 50)\n    assert n == 5\n    print(\"5. max_concurrent > len(tasks) OK\")\n\nasyncio.run(main())\nprint(\"ALL FINAL CHECKS PASSED\")\nEOF\npython3 /tmp/final_check.py\necho \"=== re-running full suite ===\"\npython3 /app/tests/test_normal.py\npython3 /app/tests/test_cancel.py\npython3 /app/tests/test_exception.py\nrm -rf /tmp/sigint_markers\npython3 /app/tests/sigint_driver.py | tail -5\nls /tmp/sigint_markers",
+   "hit": null,
+   "lat_ms": 5840.3
+  },
+  {
+   "cmd": "cd /app && python3 -c \"from run import run_tasks; print('import via -c from /app:', run_tasks)\" && cp /tmp/final_check.py /app/final_check.py && python3 final_check.py && rm /app/final_check.py",
+   "hit": null,
+   "lat_ms": 2444.9
+  },
+  {
+   "cmd": "sed -i '/^from __future__ import annotations$/,+1d' /app/run.py && head -20 /app/run.py && python3 /tmp/final_check.py 2>&1 | head -3; cp /tmp/final_check.py /app/final_check.py && python3 final_check.py && rm /app/final_check.py",
+   "hit": null,
+   "lat_ms": 2446.0
+  },
+  {
+   "cmd": "cat /app/run.py && echo \"=================== FULL SUITE ===================\" && python3 /app/tests/test_normal.py && python3 /app/tests/test_cancel.py && python3 /app/tests/test_exception.py && rm -rf /tmp/sigint_markers && python3 /app/tests/sigint_driver.py > /tmp/driver_out.txt 2>&1; grep -E \"CLEANUP RAN|running tasks\" /tmp/driver_out.txt; echo \"--- markers after real SIGINT:\"; ls /tmp/sigint_markers; echo \"--- final import check:\"; cd /app && python3 -c \"from run import run_tasks; import inspect; print('OK:', inspect.signature(run_tasks))\"",
+   "hit": null,
+   "lat_ms": 5890.0
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "cancel-async-tasks",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 58040.4,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

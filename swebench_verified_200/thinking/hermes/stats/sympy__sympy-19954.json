@@ -1,0 +1,431 @@
+{
+ "calls": 75,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 49780.44772148132,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 4,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 117.1
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "python3 -V; pip3 -V; uname -m; id -un",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "curl -fsSL -o /tmp/perm_groups_161.py https://raw.githubusercontent.com/sympy/sympy/v1.6.1/sympy/combinatorics/perm_groups.py; echo \"curl_exit=$?\"; wc -l /tmp/perm_groups_161.py",
+   "hit": null,
+   "lat_ms": 166.4
+  },
+  {
+   "cmd": "pip3 list 2>/dev/null | grep -i -E \"sympy|mpmath|numpy|scipy\"; echo ---; python3 -c \"import sympy; print(sympy.__version__, sympy.__file__)\" 2>&1",
+   "hit": null,
+   "lat_ms": 1572.3
+  },
+  {
+   "cmd": "timeout 60 pip3 install --quiet sympy==1.6.1 2>&1 | tail -5; echo \"pip_exit=$?\"",
+   "hit": null,
+   "lat_ms": 8005.7
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 2>/dev/null | cat; git status --short 2>/dev/null | head; grep -n \"def minimal_blocks\\|def sylow_subgroup\\|def block_system\\|def is_transitive\" sympy/combinatorics/perm_groups.py",
+   "hit": null,
+   "lat_ms": 380.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n '2133,2260p' sympy/combinatorics/perm_groups.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '4258,4400p' sympy/combinatorics/perm_groups.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nfrom sympy.combinatorics import DihedralGroup\nG = DihedralGroup(18)\nS2 = G.sylow_subgroup(p=2)\nprint('ok', S2)\n\" 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 572.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def minimal_block\\b\\|def minimal_block(\" sympy/combinatorics/perm_groups.py && sed -n \"$(grep -n 'def minimal_block(' sympy/combinatorics/perm_groups.py | head -1 | cut -d: -f1),+120p\" sympy/combinatorics/perm_groups.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "mkdir -p /tmp/dbg && cat > /tmp/dbg/dbg1.py <<'EOF'\nfrom sympy.combinatorics.perm_groups import PermutationGroup\nfrom sympy.combinatorics import DihedralGroup\n\nG = DihedralGroup(18)\n\ndef _number_blocks(blocks):\n    n = len(blocks)\n    appeared = {}\n    m = 0\n    b = [None]*n\n    for i in range(n):\n        if blocks[i] not in appeared:\n            appeared[blocks[i]] = m\n            b[i] = m\n            m += 1\n        else:\n            b[i] = appeared[blocks[i]]\n    return tuple(b), m\n\ndef mb_debug(randomized=True):\n    if not G.is_transitive():\n        return False\n    blocks = []\n    num_blocks = []\n    rep_blocks = []\n    if randomized:\n        v = G.schreier_vector(0)\n        random_stab_gens = []\n        for i in range(len(G)):\n            random_stab_gens.append(G.random_stab(0, v))\n        stab = PermutationGroup(random_stab_gens)\n    else:\n        stab = G.stabilizer(0)\n    print(\"stab order:\", stab.order(), \"gens:\", len(stab.generators))\n    orbits = stab.orbits()\n    print(\"orbits:\", [sorted(o) for o in orbits])\n    for orb in orbits:\n        x = orb.pop()\n        if x != 0:\n            block = G.minimal_block([0, x])\n            num_block, m = _number_blocks(block)\n            rep = {j for j in range(G.degree) if num_block[j] == 0}\n            minimal = True\n            to_remove = []\n            for i, r in enumerate(rep_blocks):\n                print(f\"  i={i} r={sorted(r)} rep={sorted(rep)}\")\n                if len(r) > len(rep) and rep.issubset(r):\n                    print(\"    -> DEL i=%d num_blocks_len=%d rep_blocks_len=%d\" % (i, len(num_blocks), len(rep_blocks)))\n                    del num_blocks[i], blocks[i]\n                    to_remove.append(rep_blocks[i])\n                elif len(r) < len(rep) and r.issubset(rep):\n                    minimal = False\n                    print(\"    -> not minimal, break\")\n                    break\n            rep_blocks = [r for r in rep_blocks if r not in to_remove]\n            if minimal and num_block not in num_blocks:\n                blocks.append(block)\n                num_blocks.append(num_block)\n                rep_blocks.append(rep)\n                print(\"  ADDED, now nb=%d rb=%d\" % (len(num_blocks), len(rep_blocks)))\n            else:\n                print(\"  not added; minimal=%s dup=%s\" % (minimal, num_block in num_blocks))\n    return blocks\n\nimport random\nrandom.seed(1)\ntry:\n    r = mb_debug(randomized=True)\n    print(\"RESULT:\", [list(b) for b in r] if r is not False else r)\nexcept IndexError as e:\n    print(\"INDEXERROR:\", e)\nEOF\ncd /testbed && python3 /tmp/dbg/dbg1.py 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 573.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def random_stab\\|def random(\" sympy/combinatorics/perm_groups.py | head; sed -n \"$(grep -n 'def random_stab' sympy/combinatorics/perm_groups.py | head -1 | cut -d: -f1),+45p\" sympy/combinatorics/perm_groups.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport random\nfrom sympy.combinatorics import DihedralGroup\nfrom sympy.combinatorics.perm_groups import PermutationGroup\nG = DihedralGroup(18)\nprint(\"order:\", G.order(), \"stab order:\", G.stabilizer(0).order())\nv = G.schreier_vector(0)\nvals = [G.random_stab(0, v) for _ in range(36)]\nfrom collections import Counter\nc = Counter(str(x.cyclic_form()) for x in vals)\nprint(\"identity count:\", c.get('()', 0), \"of\", len(vals))\nprint(dict(c))\n# check stabilizer elements\ns = G.stabilizer(0)\nprint(\"stab elements:\", [str(x.cyclic_form()) for x in s])\n# is PermutationGroup(vals) == stabilizer?\nH = PermutationGroup(vals)\nprint(\"random stab group order:\", H.order())\nEOF",
+   "hit": null,
+   "lat_ms": 569.3
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nfrom sympy.combinatorics import DihedralGroup\nfrom sympy.combinatorics.perm_groups import PermutationGroup\nG = DihedralGroup(18)\nv = G.schreier_vector(0)\nvals = [G.random_stab(0, v) for _ in range(36)]\nfrom collections import Counter\nc = Counter(repr(x) for x in vals)\nprint(\"identity count:\", c.get('(18)!', 0), \"of\", len(vals))\nprint(dict(c))\ns = G.stabilizer(0)\nprint(\"stab elements:\", [repr(x) for x in s])\nH = PermutationGroup(vals)\nprint(\"random stab group order:\", H.order())\n# distribution over 10000 draws\nimport random\nrandom.seed(42)\nc2 = Counter(repr(G.random_stab(0, v)) for _ in range(10000))\nprint(\"10000 draws:\", dict(c2))\nEOF",
+   "hit": null,
+   "lat_ms": 3371.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"minimal_block\\|sylow\" sympy/combinatorics/tests/test_perm_groups.py | head -30",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '495,525p' sympy/combinatorics/tests/test_perm_groups.py && echo ===== && sed -n '855,910p' sympy/combinatorics/tests/test_perm_groups.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 -m pytest sympy/combinatorics/tests/test_perm_groups.py -q 2>&1 | tail -30' > /tmp/hermes_bg_proc_cb38ab437b54.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_cb38ab437b54.exit ) & echo $! > /tmp/hermes_bg_proc_cb38ab437b54.pid && cat /tmp/hermes_bg_proc_cb38ab437b54.pid",
+   "hit": null,
+   "lat_ms": 254.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_cb38ab437b54.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_cb38ab437b54.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_cb38ab437b54.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nfrom sympy.combinatorics import DihedralGroup, SymmetricGroup\nfrom sympy.combinatorics.perm_groups import PermutationGroup\nimport random\nD6 = DihedralGroup(6)\nfor seed in range(8):\n    random.seed(seed)\n    try:\n        r = D6.minimal_blocks()\n        print(\"seed\", seed, \"->\", [list(map(int, b)) for b in r])\n    except Exception as e:\n        print(\"seed\", seed, \"-> ERROR\", type(e).__name__)\nprint(\"randomized=False:\", [list(map(int, b)) for b in D6.minimal_blocks(randomized=False)])\nprint(\"S5:\", SymmetricGroup(5).minimal_blocks())\nEOF",
+   "hit": null,
+   "lat_ms": 569.0
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\npath = 'sympy/combinatorics/perm_groups.py'\nsrc = open(path).read()\n\nold = \"\"\"                minimal = True\n                to_remove = []\n                for i, r in enumerate(rep_blocks):\n                    if len(r) > len(rep) and rep.issubset(r):\n                        # i-th block system is not minimal\n                        del num_blocks[i], blocks[i]\n                        to_remove.append(rep_blocks[i])\n                    elif len(r) < len(rep) and r.issubset(rep):\n                        # the system being checked is not minimal\n                        minimal = False\n                        break\n                # remove non-minimal representative blocks\n                rep_blocks = [r for r in rep_blocks if r not in to_remove]\n\n                if minimal and num_block not in num_blocks:\n                    blocks.append(block)\n                    num_blocks.append(num_block)\n                    rep_blocks.append(rep)\n\"\"\"\n\nnew = \"\"\"                minimal = True\n                to_remove = []\n                for i, r in enumerate(rep_blocks):\n                    if len(r) > len(rep) and rep.issubset(r):\n                        # i-th block system is not minimal\n                        to_remove.append(i)\n                    elif len(r) < len(rep) and r.issubset(rep):\n                        # the system being checked is not minimal\n                        minimal = False\n                        break\n                if minimal:\n                    # remove non-minimal representative blocks;\n                    # the indices are applied in reverse order\n                    # since deleting an entry would invalidate\n                    # the other indices\n                    for i in reversed(to_remove):\n                        del num_blocks[i], blocks[i]\n                        del rep_blocks[i]\n                    if num_block not in num_blocks:\n                        blocks.append(block)\n                        num_blocks.append(num_block)\n                        rep_blocks.append(rep)\n\"\"\"\n\nassert src.count(old) == 1, \"pattern not found exactly once: %d\" % src.count(old)\nopen(path, 'w').write(src.replace(old, new))\nprint(\"patched OK\")\nEOF\npython3 -m py_compile sympy/combinatorics/perm_groups.py && echo \"compiles OK\"",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport random\nfrom sympy.combinatorics import DihedralGroup\nfrom sympy.combinatorics.perm_groups import PermutationGroup\nfrom sympy.ntheory.factor_ import multiplicity\n\ndef check(G, p, expect_order):\n    for seed in range(30):\n        random.seed(seed)\n        S = G.sylow_subgroup(p)\n        assert isinstance(S, PermutationGroup), (seed, type(S))\n        assert S.order() == expect_order, (seed, S.order())\n        # every element must be a p-element\n        for g in S:\n            assert g.order() in (1,) or g.order() % p == 0, (seed, g.order())\n        assert S.is_subgroup(G)\n    return \"OK: order %d stable over 30 seeds\" % expect_order\n\nG18 = DihedralGroup(18)\nprint(\"D18 minimal_blocks:\", [list(map(int, b)) for b in G18.minimal_blocks()])\nprint(\"D18 sylow 2:\", check(G18, 2, 4))\nprint(\"D18 sylow 3:\", check(G18, 3, 9))\n\nG50 = DihedralGroup(2*25)\nprint(\"D50 minimal_blocks count:\", len(G50.minimal_blocks()))\nprint(\"D50 sylow 2:\", check(G50, 2, 4))\nprint(\"D50 sylow 5:\", check(G50, 5, 25))\n\n# also check with randomized=False explicitly\nG18.sylow_subgroup(2, )  # default\nimport sympy.combinatorics.perm_groups as pg\nprint(\"non-randomized D18 minimal_blocks:\", [list(map(int,b)) for b in G18.minimal_blocks(randomized=False)])\nS = G18.sylow_subgroup(2)\nprint(\"default sylow2 order:\", S.order(), \"gens:\", [str(g.cyclic_form()) for g in S.generators])\nEOF",
+   "hit": null,
+   "lat_ms": 7973.7
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 - <<'\"'\"'EOF'\"'\"'\nimport random\nfrom sympy.combinatorics import DihedralGroup, SymmetricGroup, AlternatingGroup\nfrom sympy.combinatorics.perm_groups import PermutationGroup\nfrom sympy.combinatorics.generators import cyclic_group\nfrom sympy.combinatorics.permutations import Permutation\n\n# 1) docstring cases\nD6 = DihedralGroup(6)\nfor seed in range(20):\n    random.seed(seed)\n    assert D6.minimal_blocks() == [[0, 1, 0, 1, 0, 1], [0, 1, 2, 0, 1, 2]], seed\nprint(\"D6 minimal_blocks: OK (20 seeds)\")\n\nassert SymmetricGroup(5).minimal_blocks() == [[0]*5]\nprint(\"S5 minimal_blocks: OK\")\n\nP = PermutationGroup(Permutation(0, 3))\nassert P.minimal_blocks() == False\nprint(\"intransitive -> False: OK\")\n\n# 2) dihedral sweep: order of Sylow p of D_n (order 2n) must be p**mult\nfrom sympy.ntheory import factorint\ndef sylow_order_expected(n, p):  # |D_{2n}| = 2n\n    f = factorint(2*n)\n    return p**f.get(p, 0)\n\nok = 0\nfor n in [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 15, 16, 18, 20, 24, 25, 2*25, 21, 27, 30]:\n    D = DihedralGroup(n)\n    for p, e in factorint(2*n).items():\n        for seed in range(5):\n            random.seed(seed + 1000)\n            S = D.sylow_subgroup(p)\n            assert S.order() == p**e, (n, p, seed, S.order())\n            assert S.is_subgroup(D)\n            for g in S:\n                assert g.order() % p == 0 or g.order() == 1\n        ok += 1\nprint(\"dihedral sweep: OK (%d group/prime combos, 5 seeds each)\" % ok)\n\n# 3) some non-dihedral groups\nfor G, p, e in [(SymmetricGroup(10), 2, 2**8), (SymmetricGroup(10), 3, 3**4),\n                (SymmetricGroup(10), 5, 5**2), (SymmetricGroup(6), 2, 2**4),\n                (AlternatingGroup(6), 2, 2**3), (AlternatingGroup(5), 2, 4),\n                (PermutationGroup(Permutation(1, 5)(2, 4), Permutation(0, 1, 2, 3, 4, 5)), 2, 4),\n                (PermutationGroup(Permutation(1, 5)(2, 4), Permutation(0, 1, 2, 3, 4, 5), Permutation(0, 2)), 3, 9),\n                (PermutationGroup(Permutation(1, 5)(2, 4), Permutation(0, 1, 2, 3, 4, 5), Permutation(0, 2)), 2, 8)]:\n    for seed in range(5):\n        random.seed(seed + 2000)\n        S = G.sylow_subgroup(p)\n        assert S.order() == e, (G, p, seed, S.order(), e)\n        assert S.is_subgroup(G)\nprint(\"non-dihedral groups: OK\")\nprint(\"ALL GOOD\")\nEOF' > /tmp/hermes_bg_proc_2bf3181b9f96.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_2bf3181b9f96.exit ) & echo $! > /tmp/hermes_bg_proc_2bf3181b9f96.pid && cat /tmp/hermes_bg_proc_2bf3181b9f96.pid",
+   "hit": null,
+   "lat_ms": 569.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2bf3181b9f96.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_2bf3181b9f96.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_2bf3181b9f96.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python3 -m sympy.testing.runtests -v sympy/combinatorics/tests/test_perm_groups.py::test_minimal_blocks sympy/combinatorics/tests/test_perm_groups.py::test_minimal_block sympy/combinatorics/tests/test_perm_groups.py::test_sylow_subgroup 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 571.0
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python3 bin/test -v combinatorics:tests.test_perm_groups:minimal 2>&1 | tail -15; echo ===; timeout 570 python3 bin/test combinatorics:tests.test_perm_groups 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 1571.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport sympy.combinatorics.tests.test_perm_groups as t\nprint('import ok')\nprint([n for n in dir(t) if 'minimal' in n or 'sylow' in n])\n\" 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 570.8
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 - <<'\"'\"'EOF'\"'\"'\nimport random\nfrom sympy.combinatorics import DihedralGroup, SymmetricGroup, AlternatingGroup\nfrom sympy.combinatorics.perm_groups import PermutationGroup\nfrom sympy.combinatorics.permutations import Permutation\n\n# 1) docstring cases\nD6 = DihedralGroup(6)\nfor seed in range(20):\n    random.seed(seed)\n    assert D6.minimal_blocks() == [[0, 1, 0, 1, 0, 1], [0, 1, 2, 0, 1, 2]], seed\nprint(\"D6 minimal_blocks: OK (20 seeds)\")\n\nassert SymmetricGroup(5).minimal_blocks() == [[0]*5]\nprint(\"S5 minimal_blocks: OK\")\n\nP = PermutationGroup(Permutation(0, 3))\nassert P.minimal_blocks() == False\nprint(\"intransitive -> False: OK\")\n\n# 2) dihedral sweep: order of Sylow p of D_n (order 2n) must be p**mult\nfrom sympy.ntheory import factorint\nok = 0\nfor n in [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 15, 16, 18, 20, 24, 25, 2*25, 21, 27, 30]:\n    D = DihedralGroup(n)\n    for p, e in factorint(2*n).items():\n        for seed in range(5):\n            random.seed(seed + 1000)\n            S = D.sylow_subgroup(p)\n            assert S.order() == p**e, (n, p, seed, S.order())\n            assert S.is_subgroup(D)\n            for g in S:\n                assert g.order() % p == 0 or g.order() == 1\n        ok += 1\nprint(\"dihedral sweep: OK (%d group/prime combos, 5 seeds each)\" % ok)\n\n# 3) some non-dihedral groups\nfor G, p, e in [(SymmetricGroup(10), 2, 2**8), (SymmetricGroup(10), 3, 3**4),\n                (SymmetricGroup(10), 5, 5**2), (SymmetricGroup(6), 2, 2**4),\n                (AlternatingGroup(6), 2, 2**3), (AlternatingGroup(5), 2, 4),\n                (PermutationGroup(Permutation(1, 5)(2, 4), Permutation(0, 1, 2, 3, 4, 5)), 2, 4),\n                (PermutationGroup(Permutation(1, 5)(2, 4), Permutation(0, 1, 2, 3, 4, 5), Permutation(0, 2)), 3, 9),\n                (PermutationGroup(Permutation(1, 5)(2, 4), Permutation(0, 1, 2, 3, 4, 5), Permutation(0, 2)), 2, 8)]:\n    for seed in range(5):\n        random.seed(seed + 2000)\n        S = G.sylow_subgroup(p)\n        assert S.order() == e, (G, p, seed, S.order(), e)\n        assert S.is_subgroup(G)\nprint(\"non-dihedral groups: OK\")\nprint(\"ALL GOOD\")\nEOF' > /tmp/hermes_bg_proc_38b32b86910a.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_38b32b86910a.exit ) & echo $! > /tmp/hermes_bg_proc_38b32b86910a.pid && cat /tmp/hermes_bg_proc_38b32b86910a.pid",
+   "hit": null,
+   "lat_ms": 2170.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_38b32b86910a.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_38b32b86910a.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_38b32b86910a.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python3 bin/test sympy/combinatorics/tests/test_perm_groups.py 2>&1 | tail -12",
+   "hit": null,
+   "lat_ms": 3173.2
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python3 bin/test -v sympy/combinatorics/tests/test_perm_groups.py 2>&1 | grep -E \"sylow|minimal|block|passed|failed\" ",
+   "hit": null,
+   "lat_ms": 3172.8
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python3 - <<'EOF'\nimport time\nfrom sympy.combinatorics import SymmetricGroup, AlternatingGroup\nt0 = time.time()\nG = SymmetricGroup(100)\nS = G.sylow_subgroup(3)\nt1 = time.time()\nprint(\"S100 sylow 3: order\", S.order(), \"in %.2fs\" % (t1-t0))\nassert G.order() % S.order() == 0\nassert G.order()/S.order() % 3 > 0\nt0 = time.time()\nG = AlternatingGroup(100)\nS = G.sylow_subgroup(2)\nt1 = time.time()\nprint(\"A100 sylow 2: order\", S.order(), \"in %.2fs\" % (t1-t0))\nassert G.order() % S.order() == 0\nassert G.order()/S.order() % 2 > 0\nprint(\"HEAVY CASES OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 1169.6
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nfrom sympy.combinatorics import DihedralGroup, PermutationGroup, Permutation\n\nG = DihedralGroup(18)\nS2 = G.sylow_subgroup(p=2)\nprint(\"D18 S2:\", S2, \"| order:\", S2.order())\n\nG = DihedralGroup(2*25)\nS2 = G.sylow_subgroup(p=2)\nprint(\"D50 S2:\", S2, \"| order:\", S2.order())\nprint(\"USER CASES FIXED\")\nEOF",
+   "hit": null,
+   "lat_ms": 574.1
+  },
+  {
+   "cmd": "cd /testbed && git diff | cat",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed && timeout 570 python3 bin/doctest sympy/combinatorics/perm_groups.py 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 1607.6
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 bin/test combinatorics 2>&1 | tail -25' > /tmp/hermes_bg_proc_39f656bce419.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_39f656bce419.exit ) & echo $! > /tmp/hermes_bg_proc_39f656bce419.pid && cat /tmp/hermes_bg_proc_39f656bce419.pid",
+   "hit": null,
+   "lat_ms": 2172.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 80.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_39f656bce419.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_39f656bce419.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_39f656bce419.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_39f656bce419.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_39f656bce419.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_39f656bce419.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_39f656bce419.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_39f656bce419.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_39f656bce419.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_39f656bce419.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_39f656bce419.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_39f656bce419.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_39f656bce419.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -6 -S \"del num_blocks\" -- sympy/combinatorics/perm_groups.py | cat; echo ===; git log --oneline -4 -S \"def minimal_blocks\" -- sympy/combinatorics/perm_groups.py | cat",
+   "hit": null,
+   "lat_ms": 574.7
+  },
+  {
+   "cmd": "cd /testbed && git stash && python3 - <<'EOF'\nimport random\nfrom sympy.combinatorics import DihedralGroup\nfrom sympy.combinatorics.perm_groups import PermutationGroup\n\n# measure: with the ORIGINAL buggy code, how often does the unseeded call fail?\nG = DihedralGroup(18)\nv = G.schreier_vector(0)\ntrivial = full = other = 0\nfor _ in range(60):\n    gens = [G.random_stab(0, v) for _ in range(36)]\n    H = PermutationGroup(gens)\n    o = H.order()\n    if o == 1: trivial += 1\n    elif o == 2: full += 1\n    else: other += 1\nprint(\"over 60 unseeded trials: trivial stab:\", trivial, \"full stab:\", full, \"other:\", other)\n\nfails = 0\nfor _ in range(60):\n    try:\n        G.sylow_subgroup(2)\n    except IndexError:\n        fails += 1\nprint(\"unseeded sylow_subgroup(2) failures on BUGGY code:\", fails, \"/ 60\")\nEOF\ngit stash pop && git diff --stat | cat",
+   "hit": null,
+   "lat_ms": 769.6
+  },
+  {
+   "cmd": "cd /testbed && git stash && cat > /tmp/dbg/dbg2.py <<'EOF'\nfrom sympy.combinatorics.perm_groups import PermutationGroup\nfrom sympy.combinatorics import DihedralGroup\n\nG = DihedralGroup(18)\n\ndef _number_blocks(blocks):\n    n = len(blocks)\n    appeared = {}\n    m = 0\n    b = [None]*n\n    for i in range(n):\n        if blocks[i] not in appeared:\n            appeared[blocks[i]] = m\n            b[i] = m\n            m += 1\n        else:\n            b[i] = appeared[blocks[i]]\n    return tuple(b), m\n\nblocks = []\nnum_blocks = []\nrep_blocks = []\nstab = G.stabilizer(0)\norbits = stab.orbits()\nprint(\"orbits:\", [sorted(o) for o in orbits])\nfor orb in orbits:\n    x = orb.pop()\n    if x != 0:\n        block = G.minimal_block([0, x])\n        num_block, m = _number_blocks(block)\n        rep = {j for j in range(G.degree) if num_block[j] == 0}\n        minimal = True\n        to_remove = []\n        for i, r in enumerate(rep_blocks):\n            if len(r) > len(rep) and rep.issubset(r):\n                print(\"  x=%d: DEL i=%d (len nb=%d, len rb=%d)\" % (x, i, len(num_blocks), len(rep_blocks)))\n                del num_blocks[i], blocks[i]\n                to_remove.append(rep_blocks[i])\n            elif len(r) < len(rep) and r.issubset(rep):\n                minimal = False\n                print(\"  x=%d: not minimal vs r=%s\" % (x, sorted(r)))\n                break\n        rep_blocks = [r for r in rep_blocks if r not in to_remove]\n        if minimal and num_block not in num_blocks:\n            blocks.append(block)\n            num_blocks.append(num_block)\n            rep_blocks.append(rep)\n            print(\"x=%d ADDED rep=%s  (nb=%d rb=%d)\" % (x, sorted(rep), len(num_blocks), len(rep_blocks)))\n        else:\n            print(\"x=%d skip (minimal=%s dup=%s)\" % (x, minimal, num_block in num_blocks))\nprint(\"FINAL nb=%d rb=%d\" % (len(num_blocks), len(rep_blocks)))\nEOF\npython3 /tmp/dbg/dbg2.py; git stash pop",
+   "hit": null,
+   "lat_ms": 570.4
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 - <<'\"'\"'EOF'\"'\"'\nimport random\nfrom sympy.combinatorics import PermutationGroup, Permutation\nfrom sympy.ntheory import factorint\n\nrandom.seed(12345)\ntested = 0\nfor trial in range(400):\n    n = random.randint(2, 8)\n    k = random.randint(1, 4)\n    gens = []\n    for _ in range(k):\n        perm = list(range(n))\n        random.shuffle(perm)\n        gens.append(Permutation(perm))\n    G = PermutationGroup(gens)\n    try:\n        mb = G.minimal_blocks()\n    except Exception as e:\n        print(\"minimal_blocks FAILED trial\", trial, G.degree, [g.cyclic_form for g in G.generators])\n        raise\n    if G.is_transitive():\n        # verify each returned system is a real block system:\n        # every generator must map each block to an equal block\n        if mb:\n            for sys in mb:\n                blocks = []\n                for b in range(max(sys) + 1):\n                    blocks.append([j for j in range(n) if sys[j] == b])\n                for g in G.generators:\n                    for B in blocks:\n                        gB = sorted(g(i) for i in B)\n                        assert any(gB == sorted(C) for C in blocks), (trial, G, sys, g, B)\n        # sylow check\n        try:\n            order = G.order()\n        except Exception:\n            continue\n        for p, e in factorint(order).items():\n            S = G.sylow_subgroup(p)\n            assert S.order() == p**e, (trial, G, p, S.order(), p**e)\n            assert S.is_subgroup(G)\n            for g in S:\n                assert g.order() % p == 0 or g.order() == 1\n        tested += 1\n    else:\n        assert mb == False, (trial, G, mb)\nprint(\"FUZZ OK: %d transitive groups checked (minimal_blocks validity + sylow orders), 400 random groups total\" % tested)\nEOF' > /tmp/hermes_bg_proc_c2deac2b971d.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_c2deac2b971d.exit ) & echo $! > /tmp/hermes_bg_proc_c2deac2b971d.pid && cat /tmp/hermes_bg_proc_c2deac2b971d.pid",
+   "hit": null,
+   "lat_ms": 1369.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_c2deac2b971d.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_c2deac2b971d.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_c2deac2b971d.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "sympy__sympy-19954",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 49780.4,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

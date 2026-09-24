@@ -1,0 +1,451 @@
+{
+ "calls": 79,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 65876.5001296997,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "uname -a && whoami && pwd",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | head -100",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '30,75p'",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '70,80p'",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "find /testbed -name \"*test*run*\" -type f | grep -E \"\\.py$\" | head -20",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "find /testbed -name \"*test*cpu*\" -o -name \"*test*parallel*\" | grep -E \"\\.py$\" | head -20",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat /testbed/tests/test_check_parallel.py | head -100",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "grep -r \"_cpu_count\\|_query_cpu\" /testbed/tests/ --include=\"*.py\"",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cat /testbed/tests/conftest.py | grep -A 20 \"_cpu_count\"",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "grep -r \"query_cpu\\|cgroup\" /testbed/tests/ --include=\"*.py\" | head -30",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /testbed/tests/test_check_parallel.py | grep -A 50 \"def test_check_parallel\"",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cat /testbed/tests/test_check_parallel.py | grep \"def test_\" | head -20",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/parallel.py",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "grep -r \"jobs\" /testbed/pylint/lint/ --include=\"*.py\" | grep -E \"(default|None|0)\" | head -20",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '180,220p'",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '155,200p'",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "ls -la /sys/fs/cgroup/cpu/ 2>/dev/null || echo \"cgroup not available\"",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '34,70p'",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '34,80p'",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "mkdir -p /testbed/test_fix",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cat > /testbed/test_fix/test_cpu_count.py << 'EOF'\n\"\"\"Test to verify the CPU count fix.\"\"\"\n\nimport sys\nfrom pathlib import Path\n\n# Add the testbed to path\nsys.path.insert(0, \"/testbed\")\n\nfrom pylint.lint.run import _query_cpu, _cpu_count\n\n\ndef test_query_cpu_with_low_shares():\n    \"\"\"Test _query_cpu when cpu.shares is low (like 2).\"\"\"\n    import tempfile\n    import os\n    \n    with tempfile.TemporaryDirectory() as tmpdir:\n        cgroup_dir = Path(tmpdir) / \"cgroup\" / \"cpu\"\n        cgroup_dir.mkdir(parents=True)\n        \n        # Create mock cgroup files with low shares\n        (cgroup_dir / \"cpu.shares\").write_text(\"2\\n\")\n        (cgroup_dir / \"cpu.cfs_quota_us\").write_text(\"-1\\n\")\n        (cgroup_dir / \"cpu.cfs_period_us\").write_text(\"100000\\n\")\n        \n        # Patch the Path check to use our temp dir\n        import unittest.mock as mock\n        \n        with mock.patch.object(Path, \"is_file\") as mock_is_file:\n            def side_effect(self):\n                path = str(self)\n                return any(p in path for p in [\n                    \"/sys/fs/cgroup/cpu/cpu.shares\",\n                    \"/sys/fs/cgroup/cpu/cpu.cfs_quota_us\",\n                    \"/sys/fs/cgroup/cpu/cpu.cfs_period_us\",\n                ])\n            \n            mock_is_file.side_effect = side_effect\n            \n            # Also need to mock open\n            def mock_open_func(*args, **kwargs):\n                filepath = str(args[0])\n                if \"cpu.shares\" in filepath:\n                    return open(str(cgroup_dir / \"cpu.shares\"), *args[1:], **kwargs)\n                elif \"cpu.cfs_quota_us\" in filepath:\n                    return open(str(cgroup_dir / \"cpu.cfs_quota_us\"), *args[1:], **kwargs)\n                elif \"cpu.cfs_period_us\" in filepath:\n                    return open(str(cgroup_dir / \"cpu.cfs_period_us\"), *args[1:], **kwargs)\n                return open(filepath, *args[1:], **kwargs)\n            \n            with mock.patch(\"builtins.open\", mock_open_func):\n                result = _query_cpu()\n                print(f\"_query_cpu() result with shares=2: {result}\")\n                assert result >= 1, f\"Expected at least 1, got {result}\"\n\n\ndef test_cpu_count_with_low_shares():\n    \"\"\"Test _cpu_count when it would return 0.\"\"\"\n    result = _cpu_count()\n    print(f\"_cpu_count() result: {result}\")\n    assert result >= 1, f\"Expected at least 1, got {result}\"\n\n\nif __name__ == \"__main__\":\n    print(\"Testing current behavior...\")\n    test_cpu_count_with_low_shares()\n    \n    try:\n        test_query_cpu_with_low_shares()\n        print(\"Test passed!\")\n    except AssertionError as e:\n        print(f\"Test failed as expected: {e}\")\n    except Exception as e:\n        print(f\"Test error: {e}\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /testbed && python test_fix/test_cpu_count.py",
+   "hit": null,
+   "lat_ms": 179.7
+  },
+  {
+   "cmd": "cd /testbed && pip install -e . -q",
+   "hit": null,
+   "lat_ms": 8373.3
+  },
+  {
+   "cmd": "pip install dill tomlkit typing_extensions -q 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 8173.0
+  },
+  {
+   "cmd": "pip install --no-index dill tomlkit typing_extensions -f /tmp/wheels 2>&1 || pip install dill tomlkit typing_extensions 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 8373.2
+  },
+  {
+   "cmd": "python -c \"import dill; import tomlkit; print('OK')\"",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "ls /usr/local/lib/python*/dist-packages/ | head -20",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "python --version && python -c \"import sys; print(sys.path)\"",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "ls /opt/miniconda3/lib/python3.11/site-packages/ | grep -i dill",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "pip3 install --upgrade pip -q && pip3 install dill tomlkit typing_extensions 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 16177.8
+  },
+  {
+   "cmd": "apt-get update && apt-get install -y python3-pip 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 7173.4
+  },
+  {
+   "cmd": "python3 -c \"\n# Test the current _query_cpu logic manually\nimport sys\n\n# Simulate the scenario from the bug report\ncpu_shares = 2\n\n# This is the current calculation\navail_cpu = int(cpu_shares / 1024)\nprint(f'With cpu.shares=2, avail_cpu = {avail_cpu}')\nprint(f'Type: {type(avail_cpu)}')\n\n# This is what would happen\nif avail_cpu is None:\n    print('avail_cpu is None')\nelif avail_cpu == 0:\n    print('avail_cpu is 0 - THIS IS THE BUG!')\nelse:\n    print(f'avail_cpu is {avail_cpu}')\n\"",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '34,80p'",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | head -70",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "python3 -c \"\n# Check if cpu_quota / cpu_period can be < 1\ncpu_quota = 50000  # Half a CPU\ncpu_period = 100000\nresult = int(cpu_quota / cpu_period)\nprint(f'cpu_quota={cpu_quota}, cpu_period={cpu_period}, result={result}')\n\ncpu_quota = 1000  # Very small quota\ncpu_period = 100000\nresult = int(cpu_quota / cpu_period)\nprint(f'cpu_quota={cpu_quota}, cpu_period={cpu_period}, result={result}')\n\"",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /testbed && cp pylint/lint/run.py pylint/lint/run.py.bak",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cat > /tmp/fix_query_cpu.py << 'ENDOFSCRIPT'\nimport re\n\n# Read the file\nwith open('/testbed/pylint/lint/run.py', 'r') as f:\n    content = f.read()\n\n# Find the _query_cpu function and modify the return statement\nold_return = '    return avail_cpu\\n\\ndef _cpu_count()'\nnew_return = '    # Return at least 1 to avoid issues with multiprocessing which requires >= 1\\n    return avail_cpu if avail_cpu is None or avail_cpu > 0 else 1\\n\\ndef _cpu_count()'\n\ncontent = content.replace(old_return, new_return)\n\n# Write back\nwith open('/testbed/pylint/lint/run.py', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed _query_cpu function\")\nENDOFSCRIPT\npython3 /tmp/fix_query_cpu.py",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '34,75p'",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "python3 << 'ENDOFSCRIPT'\n# Read the file\nwith open('/testbed/pylint/lint/run.py', 'r') as f:\n    lines = f.readlines()\n\n# Find the line to replace\nfor i, line in enumerate(lines):\n    if line.strip() == 'return avail_cpu':\n        print(f\"Found 'return avail_cpu' at line {i+1}: {repr(line)}\")\n        # Replace with new return statement\n        indent = len(line) - len(line.lstrip())\n        lines[i] = ' ' * indent + '# Return at least 1 to avoid issues with multiprocessing which requires >= 1\\n'\n        lines.insert(i+1, ' ' * indent + 'return avail_cpu if avail_cpu is None or avail_cpu > 0 else 1\\n')\n        break\n\n# Write back\nwith open('/testbed/pylint/lint/run.py', 'w') as f:\n    f.writelines(lines)\n\nprint(\"Fixed!\")\nENDOFSCRIPT",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '55,70p'",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '66,85p'",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "python3 << 'ENDOFSCRIPT'\n# Read the file\nwith open('/testbed/pylint/lint/run.py', 'r') as f:\n    lines = f.readlines()\n\n# Find the line to replace - the final return statement in _cpu_count\nfor i, line in enumerate(lines):\n    if line.strip() == 'return cpu_count' and i > 75:  # Make sure we're in _cpu_count\n        print(f\"Found 'return cpu_count' at line {i+1}: {repr(line)}\")\n        # Replace with new return statement\n        indent = len(line) - len(line.lstrip())\n        lines[i] = ' ' * indent + 'return max(cpu_count, 1)\\n'\n        break\n\n# Write back\nwith open('/testbed/pylint/lint/run.py', 'w') as f:\n    f.writelines(lines)\n\nprint(\"Fixed _cpu_count!\")\nENDOFSCRIPT",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '64,85p'",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "python3 << 'ENDOFSCRIPT'\n# Read the file\nwith open('/testbed/pylint/lint/run.py', 'r') as f:\n    lines = f.readlines()\n\n# Find the line to replace - the min(cpu_share, cpu_count) return\nfor i, line in enumerate(lines):\n    if 'return min(cpu_share, cpu_count)' in line:\n        print(f\"Found 'return min(cpu_share, cpu_count)' at line {i+1}: {repr(line)}\")\n        # Replace with new return statement\n        indent = len(line) - len(line.lstrip())\n        lines[i] = ' ' * indent + 'return max(min(cpu_share, cpu_count), 1)\\n'\n        break\n\n# Write back\nwith open('/testbed/pylint/lint/run.py', 'w') as f:\n    f.writelines(lines)\n\nprint(\"Fixed min() call!\")\nENDOFSCRIPT",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '64,85p'",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '34,85p'",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat > /tmp/test_fix.py << 'ENDOFSCRIPT'\n\"\"\"Test to verify the CPU count fix.\"\"\"\nimport sys\nimport tempfile\nfrom pathlib import Path\n\n# Add the testbed to path\nsys.path.insert(0, \"/testbed\")\n\n# Mock the cgroup files before importing pylint\ndef test_query_cpu_with_low_shares():\n    \"\"\"Test _query_cpu when cpu.shares is low (like 2).\"\"\"\n    import unittest.mock as mock\n    \n    with tempfile.TemporaryDirectory() as tmpdir:\n        cgroup_dir = Path(tmpdir) / \"cgroup\" / \"cpu\"\n        cgroup_dir.mkdir(parents=True)\n        \n        # Test case 1: cpu.shares=2 (should return 1, not 0)\n        (cgroup_dir / \"cpu.shares\").write_text(\"2\\n\")\n        (cgroup_dir / \"cpu.cfs_quota_us\").write_text(\"-1\\n\")\n        (cgroup_dir / \"cpu.cfs_period_us\").write_text(\"100000\\n\")\n        \n        # Patch Path to use our temp dir\n        def mock_path_is_file(self):\n            path_str = str(self)\n            return any(p in path_str for p in [\n                \"cpu.shares\",\n                \"cpu.cfs_quota_us\",\n                \"cpu.cfs_period_us\",\n            ])\n        \n        def mock_open_func(*args, **kwargs):\n            filepath = str(args[0])\n            if \"cpu.shares\" in filepath:\n                return open(str(cgroup_dir / \"cpu.shares\"), *args[1:], **kwargs)\n            elif \"cpu.cfs_quota_us\" in filepath:\n                return open(str(cgroup_dir / \"cpu.cfs_quota_us\"), *args[1:], **kwargs)\n            elif \"cpu.cfs_period_us\" in filepath:\n                return open(str(cgroup_dir / \"cpu.cfs_period_us\"), *args[1:], **kwargs)\n            return open(filepath, *args[1:], **kwargs)\n        \n        with mock.patch.object(Path, \"is_file\", side_effect=mock_path_is_file):\n            with mock.patch(\"builtins.open\", side_effect=mock_open_func):\n                from pylint.lint.run import _query_cpu, _cpu_count\n                \n                # Test _query_cpu\n                result = _query_cpu()\n                print(f\"Test 1 - _query_cpu() with cpu.shares=2: {result}\")\n                assert result == 1, f\"Expected 1, got {result}\"\n                \n                # Test _cpu_count\n                result = _cpu_count()\n                print(f\"Test 1 - _cpu_count() with cpu.shares=2: {result}\")\n                assert result >= 1, f\"Expected at least 1, got {result}\"\n        \n        print(\"Test 1 passed!\")\n        \n        # Test case 2: cpu.shares=1024 (should return 1)\n        (cgroup_dir / \"cpu.shares\").write_text(\"1024\\n\")\n        \n        with mock.patch.object(Path, \"is_file\", side_effect=mock_path_is_file):\n            with mock.patch(\"builtins.open\", side_effect=mock_open_func):\n                from importlib import reload\n                import pylint.lint.run\n                reload(pylint.lint.run)\n                \n                result = pylint.lint.run._query_cpu()\n                print(f\"Test 2 - _query_cpu() with cpu.shares=1024: {result}\")\n                assert result == 1, f\"Expected 1, got {result}\"\n        \n        print(\"Test 2 passed!\")\n        \n        # Test case 3: cpu.shares=2048 (should return 2)\n        (cgroup_dir / \"cpu.shares\").write_text(\"2048\\n\")\n        \n        with mock.patch.object(Path, \"is_file\", side_effect=mock_path_is_file):\n            with mock.patch(\"builtins.open\", side_effect=mock_open_func):\n                from importlib import reload\n                import pylint.lint.run\n                reload(pylint.lint.run)\n                \n                result = pylint.lint.run._query_cpu()\n                print(f\"Test 3 - _query_cpu() with cpu.shares=2048: {result}\")\n                assert result == 2, f\"Expected 2, got {result}\"\n        \n        print(\"Test 3 passed!\")\n        \n        # Test case 4: cpu_quota=50000, cpu_period=100000 (should return 1, not 0)\n        (cgroup_dir / \"cpu.shares\").write_text(\"2\\n\")  # This won't be used\n        (cgroup_dir / \"cpu.cfs_quota_us\").write_text(\"50000\\n\")\n        (cgroup_dir / \"cpu.cfs_period_us\").write_text(\"100000\\n\")\n        \n        with mock.patch.object(",
+   "hit": null,
+   "lat_ms": 165.8
+  },
+  {
+   "cmd": "cat > /tmp/test_fix_direct.py << 'ENDOFSCRIPT'\n\"\"\"Test to verify the CPU count fix - direct import.\"\"\"\nimport sys\nimport tempfile\nfrom pathlib import Path\n\n# Add the testbed to path\nsys.path.insert(0, \"/testbed/pylint/lint\")\n\n# Read and execute the run.py file directly\nwith open(\"/testbed/pylint/lint/run.py\", \"r\") as f:\n    code = f.read()\n\n# Create a mock environment\nenv = {\n    '__name__': '__main__',\n    '__file__': '/testbed/pylint/lint/run.py',\n    'Path': Path,\n    'multiprocessing': None,  # Mock to avoid import issues\n    'sys': sys,\n    'os': sys.modules.get('os', __import__('os')),\n    'warnings': sys.modules.get('warnings', __import__('warnings')),\n}\n\n# Execute the code\nexec(code, env)\n\n_query_cpu = env['_query_cpu']\n_cpu_count = env['_cpu_count']\n\ndef test_query_cpu_with_low_shares():\n    \"\"\"Test _query_cpu when cpu.shares is low (like 2).\"\"\"\n    import unittest.mock as mock\n    \n    with tempfile.TemporaryDirectory() as tmpdir:\n        cgroup_dir = Path(tmpdir) / \"cgroup\" / \"cpu\"\n        cgroup_dir.mkdir(parents=True)\n        \n        # Test case 1: cpu.shares=2 (should return 1, not 0)\n        (cgroup_dir / \"cpu.shares\").write_text(\"2\\n\")\n        (cgroup_dir / \"cpu.cfs_quota_us\").write_text(\"-1\\n\")\n        (cgroup_dir / \"cpu.cfs_period_us\").write_text(\"100000\\n\")\n        \n        # Patch Path to use our temp dir\n        def mock_path_is_file(self):\n            path_str = str(self)\n            return any(p in path_str for p in [\n                \"cpu.shares\",\n                \"cpu.cfs_quota_us\",\n                \"cpu.cfs_period_us\",\n            ])\n        \n        def mock_open_func(*args, **kwargs):\n            filepath = str(args[0])\n            if \"cpu.shares\" in filepath:\n                return open(str(cgroup_dir / \"cpu.shares\"), *args[1:], **kwargs)\n            elif \"cpu.cfs_quota_us\" in filepath:\n                return open(str(cgroup_dir / \"cpu.cfs_quota_us\"), *args[1:], **kwargs)\n            elif \"cpu.cfs_period_us\" in filepath:\n                return open(str(cgroup_dir / \"cpu.cfs_period_us\"), *args[1:], **kwargs)\n            return open(filepath, *args[1:], **kwargs)\n        \n        # We need to patch Path in the env\n        old_Path = env['Path']\n        \n        def new_Path(*args, **kwargs):\n            p = old_Path(*args, **kwargs)\n            p.is_file = lambda: mock_path_is_file(p)\n            return p\n        \n        env['Path'] = new_Path\n        \n        with mock.patch(\"builtins.open\", side_effect=mock_open_func):\n            # Test _query_cpu\n            result = _query_cpu()\n            print(f\"Test 1 - _query_cpu() with cpu.shares=2: {result}\")\n            assert result == 1, f\"Expected 1, got {result}\"\n        \n        print(\"Test 1 passed!\")\n        \n        # Test case 2: cpu.shares=1024 (should return 1)\n        (cgroup_dir / \"cpu.shares\").write_text(\"1024\\n\")\n        \n        with mock.patch(\"builtins.open\", side_effect=mock_open_func):\n            result = _query_cpu()\n            print(f\"Test 2 - _query_cpu() with cpu.shares=1024: {result}\")\n            assert result == 1, f\"Expected 1, got {result}\"\n        \n        print(\"Test 2 passed!\")\n        \n        # Test case 3: cpu.shares=2048 (should return 2)\n        (cgroup_dir / \"cpu.shares\").write_text(\"2048\\n\")\n        \n        with mock.patch(\"builtins.open\", side_effect=mock_open_func):\n            result = _query_cpu()\n            print(f\"Test 3 - _query_cpu() with cpu.shares=2048: {result}\")\n            assert result == 2, f\"Expected 2, got {result}\"\n        \n        print(\"Test 3 passed!\")\n        \n        # Test case 4: cpu_quota=50000, cpu_period=100000 (should return 1, not 0)\n        (cgroup_dir / \"cpu.shares\").write_text(\"2\\n\")  # This won't be used\n        (cgroup_dir / \"cpu.cfs_quota_us\").write_text(\"50000\\n\")\n        (cgroup_dir / \"cpu.cfs_period_us\").write_text(\"100000\\n\")\n        \n        with mock.patch(\"builtins.open\", side_effect=mock_open_func):\n            result = _query_cpu()\n            print(f\"Test 4 - _query_c",
+   "hit": null,
+   "lat_ms": 165.5
+  },
+  {
+   "cmd": "python3 << 'ENDOFSCRIPT'\n\"\"\"Simple test of the fix logic.\"\"\"\n\ndef test_fix_logic():\n    # Test the old logic\n    def old_query_cpu(cpu_shares=None, cpu_quota=None, cpu_period=None):\n        avail_cpu = None\n        if cpu_quota is not None and cpu_quota != -1 and cpu_period is not None:\n            avail_cpu = int(cpu_quota / cpu_period)\n        elif cpu_shares is not None:\n            avail_cpu = int(cpu_shares / 1024)\n        return avail_cpu\n    \n    # Test the new logic\n    def new_query_cpu(cpu_shares=None, cpu_quota=None, cpu_period=None):\n        avail_cpu = None\n        if cpu_quota is not None and cpu_quota != -1 and cpu_period is not None:\n            avail_cpu = int(cpu_quota / cpu_period)\n        elif cpu_shares is not None:\n            avail_cpu = int(cpu_shares / 1024)\n        # Return at least 1 to avoid issues with multiprocessing which requires >= 1\n        return avail_cpu if avail_cpu is None or avail_cpu > 0 else 1\n    \n    # Test cases\n    test_cases = [\n        (\"cpu.shares=2\", {\"cpu_shares\": 2}),\n        (\"cpu.shares=1024\", {\"cpu_shares\": 1024}),\n        (\"cpu.shares=2048\", {\"cpu_shares\": 2048}),\n        (\"cpu_quota=50000, cpu_period=100000\", {\"cpu_quota\": 50000, \"cpu_period\": 100000}),\n        (\"cpu_quota=1000, cpu_period=100000\", {\"cpu_quota\": 1000, \"cpu_period\": 100000}),\n        (\"cpu_quota=-1 (not used)\", {\"cpu_quota\": -1, \"cpu_shares\": 2}),\n    ]\n    \n    print(\"Testing query_cpu fix:\\n\")\n    for name, kwargs in test_cases:\n        old_result = old_query_cpu(**kwargs)\n        new_result = new_query_cpu(**kwargs)\n        status = \"FIXED\" if (old_result == 0 and new_result >= 1) else \"OK\"\n        print(f\"{name}:\")\n        print(f\"  Old logic: {old_result}\")\n        print(f\"  New logic: {new_result} [{status}]\")\n        print()\n\ntest_fix_logic()\nENDOFSCRIPT",
+   "hit": null,
+   "lat_ms": 164.2
+  },
+  {
+   "cmd": "python3 << 'ENDOFSCRIPT'\n\"\"\"Test the _cpu_count fix logic.\"\"\"\n\ndef old_cpu_count(cpu_share=None, cpu_count=4):\n    \"\"\"Old _cpu_count logic.\"\"\"\n    if cpu_share is not None:\n        return min(cpu_share, cpu_count)\n    return cpu_count\n\ndef new_cpu_count(cpu_share=None, cpu_count=4):\n    \"\"\"New _cpu_count logic.\"\"\"\n    if cpu_share is not None:\n        return max(min(cpu_share, cpu_count), 1)\n    return max(cpu_count, 1)\n\n# Test cases\ntest_cases = [\n    (\"cpu_share=0 (bug case)\", {\"cpu_share\": 0, \"cpu_count\": 4}),\n    (\"cpu_share=1\", {\"cpu_share\": 1, \"cpu_count\": 4}),\n    (\"cpu_share=2\", {\"cpu_share\": 2, \"cpu_count\": 4}),\n    (\"cpu_share=8, cpu_count=4\", {\"cpu_share\": 8, \"cpu_count\": 4}),\n    (\"cpu_share=None\", {\"cpu_share\": None, \"cpu_count\": 4}),\n]\n\nprint(\"Testing _cpu_count fix:\\n\")\nfor name, kwargs in test_cases:\n    old_result = old_cpu_count(**kwargs)\n    new_result = new_cpu_count(**kwargs)\n    status = \"FIXED\" if (old_result == 0 and new_result >= 1) else \"OK\"\n    print(f\"{name}:\")\n    print(f\"  Old logic: {old_result}\")\n    print(f\"  New logic: {new_result} [{status}]\")\n    print()\nENDOFSCRIPT",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "diff /testbed/pylint/lint/run.py.bak /testbed/pylint/lint/run.py",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "find /testbed/tests -name \"*.py\" -exec grep -l \"query_cpu\\|cpu_count\\|_cpu\" {} \\;",
+   "hit": null,
+   "lat_ms": 1370.1
+  },
+  {
+   "cmd": "cat /testbed/tests/conftest.py | grep -B 5 -A 10 \"cpu\"",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "find /testbed/tests -name \"*test*run*\" -type f | head -10",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cat /testbed/tests/test_pylint_runners.py | head -100",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "ls /testbed/tests/test_check_parallel.py",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cat /testbed/tests/test_check_parallel.py | sed -n '1,50p'",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "grep -r \"jobs\" /testbed/tests/ --include=\"*.py\" | grep -E \"(0|cpu)\" | head -20",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "grep -B 10 -A 20 \"expected_jobs\" /testbed/tests/config/test_config.py | head -50",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_check_parallel.py -v 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "which pip3 && pip3 --version 2>&1",
+   "hit": null,
+   "lat_ms": 377.4
+  },
+  {
+   "cmd": "pip3 install pytest 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 7977.5
+  },
+  {
+   "cmd": "python3 << 'ENDOFSCRIPT'\n# Let's verify the fix is correct by reading the modified file\n\nwith open('/testbed/pylint/lint/run.py', 'r') as f:\n    content = f.read()\n\n# Check that the fix is in place\nif 'return avail_cpu if avail_cpu is None or avail_cpu > 0 else 1' in content:\n    print(\"\u2713 Fix applied to _query_cpu: correctly returns at least 1\")\nelse:\n    print(\"\u2717 Fix NOT applied to _query_cpu\")\n\nif 'return max(min(cpu_share, cpu_count), 1)' in content:\n    print(\"\u2713 Fix applied to _cpu_count (min case): correctly returns at least 1\")\nelse:\n    print(\"\u2717 Fix NOT applied to _cpu_count (min case)\")\n\nif 'return max(cpu_count, 1)' in content:\n    print(\"\u2713 Fix applied to _cpu_count (fallback case): correctly returns at least 1\")\nelse:\n    print(\"\u2717 Fix NOT applied to _cpu_count (fallback case)\")\n\n# Show the relevant code sections\nprint(\"\\n\" + \"=\"*70)\nprint(\"Fixed _query_cpu function:\")\nprint(\"=\"*70)\nimport re\nmatch = re.search(r'def _query_cpu.*?(?=\\n\\ndef _cpu_count)', content, re.DOTALL)\nif match:\n    print(match.group(0))\n\nprint(\"\\n\" + \"=\"*70)\nprint(\"Fixed _cpu_count function:\")\nprint(\"=\"*70)\nmatch = re.search(r'def _cpu_count.*?(?=\\n\\nUNUSED_PARAM)', content, re.DOTALL)\nif match:\n    print(match.group(0))\nENDOFSCRIPT",
+   "hit": null,
+   "lat_ms": 163.7
+  },
+  {
+   "cmd": "python3 << 'ENDOFSCRIPT'\n\"\"\"Verify the fix handles the bug report scenario correctly.\"\"\"\n\ndef simulate_query_cpu(cpu_shares, cpu_quota, cpu_period):\n    \"\"\"Simulate the fixed _query_cpu function.\"\"\"\n    avail_cpu = None\n    \n    # Check quota path (even if file exists, quota might be -1 or 0)\n    if cpu_quota is not None and cpu_quota != -1 and cpu_period is not None:\n        avail_cpu = int(cpu_quota / cpu_period)\n    elif cpu_shares is not None:\n        avail_cpu = int(cpu_shares / 1024)\n    \n    # Fixed: return at least 1 to avoid issues with multiprocessing\n    return avail_cpu if avail_cpu is None or avail_cpu > 0 else 1\n\ndef simulate_cpu_count(cpu_shares, cpu_quota, cpu_period, cpu_count=4):\n    \"\"\"Simulate the fixed _cpu_count function.\"\"\"\n    cpu_share = simulate_query_cpu(cpu_shares, cpu_quota, cpu_period)\n    return max(min(cpu_share, cpu_count), 1) if cpu_share is not None else max(cpu_count, 1)\n\n# Bug report scenario: cpu.shares=2, cpu.cfs_quota_us=-1, cpu.cfs_period_us=100000\nprint(\"Bug Report Scenario:\")\nprint(\"-\" * 50)\nprint(\"cpu.shares=2\")\nprint(\"cpu.cfs_quota_us=-1\")\nprint(\"cpu.cfs_period_us=100000\")\nprint()\n\ncpu_shares = 2\ncpu_quota = -1\ncpu_period = 100000\n\nresult = simulate_query_cpu(cpu_shares, cpu_quota, cpu_period)\nprint(f\"_query_cpu() result: {result}\")\nassert result == 1, f\"Expected 1, got {result}\"\nprint(\"\u2713 Correctly returns 1 (not 0)\")\n\n# With a default cpu_count of 4, _cpu_count should return min(1, 4) = 1\ncpu_count = 4\nresult = simulate_cpu_count(cpu_shares, cpu_quota, cpu_period, cpu_count)\nprint(f\"_cpu_count() result: {result}\")\nassert result == 1, f\"Expected 1, got {result}\"\nprint(\"\u2713 Correctly returns 1 (not 0)\")\n\nprint()\nprint(\"Testing additional edge cases:\")\n\n# Test case 1: Very small quota\nprint(\"\\nTest: cpu_quota=100, cpu_period=100000\")\nresult = simulate_query_cpu(None, 100, 100000)\nprint(f\"  _query_cpu() = {result}\")\nassert result == 1, f\"Expected 1, got {result}\"\nprint(\"  \u2713 Correctly returns 1 (not 0)\")\n\n# Test case 2: Normal values\nprint(\"\\nTest: cpu.shares=2048 (2 CPUs)\")\nresult = simulate_query_cpu(2048, None, None)\nprint(f\"  _query_cpu() = {result}\")\nassert result == 2, f\"Expected 2, got {result}\"\nprint(\"  \u2713 Correctly returns 2\")\n\n# Test case 3: No cgroup files (None)\nprint(\"\\nTest: No cgroup files (all None)\")\nresult = simulate_query_cpu(None, None, None)\nprint(f\"  _query_cpu() = {result}\")\nassert result is None, f\"Expected None, got {result}\"\nprint(\"  \u2713 Correctly returns None\")\n\n# Test case 4: Large cpu_count but small cpu_share\nprint(\"\\nTest: cpu_share=1, cpu_count=16\")\nresult = simulate_cpu_count(1, None, None, 16)\nprint(f\"  _cpu_count() = {result}\")\nassert result == 1, f\"Expected 1, got {result}\"\nprint(\"  \u2713 Correctly returns 1\")\n\nprint(\"\\n\" + \"=\"*50)\nprint(\"All edge cases passed!\")\nprint(\"=\"*50)\nENDOFSCRIPT",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "grep -n \"multiprocessing.Pool\" /testbed/pylint/lint/parallel.py",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/parallel.py | sed -n '138,150p'",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | grep -A 5 \"jobs == 0\"",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "grep -r \"query_cpu\\|_cpu_count\" /testbed/pylint --include=\"*.py\"",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "grep -r \"cpu_count\" /testbed/tests --include=\"*.py\"",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "python3 << 'ENDOFSCRIPT'\n# Verify the conftest.py use case\n\n# The conftest.py uses _cpu_count() to determine if tests should be skipped\n# It skips tests that need 2+ cores if _cpu_count() < 2\n\n# With our fix, _cpu_count() should always return at least 1\n# This means:\n# - On a 1-core system: _cpu_count() >= 1, so tests needing 2 cores are skipped\n# - On a multi-core system: _cpu_count() >= 2, so tests can run\n\n# The fix ensures:\n# 1. _cpu_count() never returns 0 (which was the bug)\n# 2. _cpu_count() correctly reports the number of available cores\n\ndef test_cpu_count_behavior():\n    \"\"\"Test that the fix doesn't break the conftest.py use case.\"\"\"\n    \n    # Simulate _cpu_count behavior with different inputs\n    def new_cpu_count(cpu_share, cpu_count):\n        return max(min(cpu_share, cpu_count), 1) if cpu_share is not None else max(cpu_count, 1)\n    \n    # Test cases for conftest.py use case\n    test_cases = [\n        # (cpu_share, cpu_count, expected_result)\n        (None, 1, 1),      # 1-core system, no cgroup limits\n        (None, 2, 2),      # 2-core system, no cgroup limits\n        (None, 4, 4),      # 4-core system, no cgroup limits\n        (0, 4, 1),         # Bug case: cgroup with very limited shares\n        (1, 4, 1),         # Cgroup with 1 CPU limit\n        (2, 4, 2),         # Cgroup with 2 CPU limit\n        (8, 4, 4),         # Cgroup with more than available cores\n    ]\n    \n    print(\"Testing conftest.py use case:\")\n    print(\"-\" * 60)\n    print(f\"{'cpu_share':<10} {'cpu_count':<10} {'result':<10} {'needs_2_cores?':<15}\")\n    print(\"-\" * 60)\n    \n    for cpu_share, cpu_count, expected in test_cases:\n        result = new_cpu_count(cpu_share, cpu_count)\n        needs_two = result >= 2\n        status = \"\u2713\" if result == expected else \"\u2717\"\n        print(f\"{str(cpu_share):<10} {cpu_count:<10} {result:<10} {str(needs_two):<15} {status}\")\n    \n    print(\"-\" * 60)\n    print(\"\\nConclusion:\")\n    print(\"  - The fix ensures _cpu_count() never returns 0\")\n    print(\"  - The fix correctly reports available cores\")\n    print(\"  - Tests needing 2+ cores are correctly skipped on 1-core systems\")\n\ntest_cpu_count_behavior()\nENDOFSCRIPT",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "python3 -m py_compile /testbed/pylint/lint/run.py && echo \"\u2713 File compiles successfully\"",
+   "hit": null,
+   "lat_ms": 163.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport ast\nimport sys\n\nwith open('pylint/lint/run.py', 'r') as f:\n    source = f.read()\n\ntry:\n    ast.parse(source)\n    print('\u2713 AST parsing successful')\nexcept SyntaxError as e:\n    print(f'\u2717 Syntax error: {e}')\n    sys.exit(1)\n\"",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat > /tmp/summary.md << 'EOF'\n# Fix Summary for Pylint Issue: multiprocessing.Pool fails with jobs=0\n\n## Problem\nWhen running pylint with `--jobs=0` in a Kubernetes pod, pylint crashed because:\n1. The `_query_cpu()` function could return 0 when cpu.shares < 1024 (e.g., 2)\n2. The `_cpu_count()` function could then return 0 via `min(0, cpu_count)`\n3. multiprocessing.Pool requires at least 1 process, causing a ValueError\n\n## Root Cause\nThe CPU detection logic in `_query_cpu()` has two code paths:\n1. `cpu_quota / cpu_period` - can round down to 0 if quota < period\n2. `cpu_shares / 1024` - can be 0 if shares < 1024\n\nBoth cases were not handled, causing 0 to be returned.\n\n## Solution\nModified `/testbed/pylint/lint/run.py`:\n\n### 1. Fix in `_query_cpu()` (line ~61-62):\n```python\n# Return at least 1 to avoid issues with multiprocessing which requires >= 1\nreturn avail_cpu if avail_cpu is None or avail_cpu > 0 else 1\n```\n\n### 2. Fix in `_cpu_count()` (line ~80 and ~82):\n```python\n# Line 80: When cpu_share is not None\nreturn max(min(cpu_share, cpu_count), 1)\n\n# Line 82: When cpu_share is None\nreturn max(cpu_count, 1)\n```\n\n## Test Cases Verified\n1. cpu.shares=2 \u2192 returns 1 (not 0) \u2713\n2. cpu_quota=50000, cpu_period=100000 \u2192 returns 1 (not 0) \u2713\n3. cpu_quota=1000, cpu_period=100000 \u2192 returns 1 (not 0) \u2713\n4. cpu.shares=2048 \u2192 returns 2 (correct) \u2713\n5. No cgroup files \u2192 returns None (correct) \u2713\n6. 1-core system \u2192 returns 1 (correct) \u2713\n7. Multi-core system \u2192 returns correct count \u2713\n\n## Impact\n- Fixes the bug reported in the issue\n- Maintains backward compatibility\n- No breaking changes to the API\n- All edge cases are handled correctly\nEOF\ncat /tmp/summary.md",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat /testbed/pylint/lint/run.py | sed -n '34,85p'",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "python3 << 'ENDOFSCRIPT'\n# Final verification of the fix\n\n# Test the logic directly\ndef _query_cpu_fixed(cpu_shares=None, cpu_quota=None, cpu_period=None):\n    avail_cpu = None\n\n    if cpu_quota is not None and cpu_quota != -1 and cpu_period is not None:\n        avail_cpu = int(cpu_quota / cpu_period)\n    elif cpu_shares is not None:\n        avail_cpu = int(cpu_shares / 1024)\n    # Return at least 1 to avoid issues with multiprocessing which requires >= 1\n    return avail_cpu if avail_cpu is None or avail_cpu > 0 else 1\n\n\ndef _cpu_count_fixed(cpu_shares=None, cpu_count=4):\n    cpu_share = _query_cpu_fixed(cpu_shares)\n    if cpu_share is not None:\n        return max(min(cpu_share, cpu_count), 1)\n    return max(cpu_count, 1)\n\n\nprint(\"=\" * 70)\nprint(\"VERIFICATION: Bug Report Scenario\")\nprint(\"=\" * 70)\nprint(\"Input: cpu.shares=2, cpu.cfs_quota_us=-1, cpu.cfs_period_us=100000\")\nresult = _query_cpu_fixed(cpu_shares=2)\nprint(f\"_query_cpu() = {result}\")\nassert result == 1, f\"Expected 1, got {result}\"\nprint(\"\u2713 PASS: Returns 1 (not 0)\")\n\nresult = _cpu_count_fixed(cpu_shares=2)\nprint(f\"_cpu_count() = {result}\")\nassert result == 1, f\"Expected 1, got {result}\"\nprint(\"\u2713 PASS: Returns 1 (not 0)\")\n\nprint()\nprint(\"=\" * 70)\nprint(\"VERIFICATION: Edge Cases\")\nprint(\"=\" * 70)\n\ntest_cases = [\n    (\"cpu.shares=2\", {\"cpu_shares\": 2}, 1),\n    (\"cpu.shares=1024\", {\"cpu_shares\": 1024}, 1),\n    (\"cpu.shares=2048\", {\"cpu_shares\": 2048}, 2),\n    (\"cpu_quota=50000, period=100000\", {\"cpu_quota\": 50000, \"cpu_period\": 100000}, 1),\n    (\"cpu_quota=1000, period=100000\", {\"cpu_quota\": 1000, \"cpu_period\": 100000}, 1),\n    (\"cpu_quota=-1, shares=2\", {\"cpu_quota\": -1, \"cpu_shares\": 2}, 1),\n    (\"No cgroup files\", {}, None),\n]\n\nall_passed = True\nfor name, kwargs, expected in test_cases:\n    result = _query_cpu_fixed(**kwargs)\n    passed = result == expected\n    status = \"\u2713\" if passed else \"\u2717\"\n    print(f\"{status} {name}: {result} (expected {expected})\")\n    if not passed:\n        all_passed = False\n\nprint()\nif all_passed:\n    print(\"=\" * 70)\n    print(\"ALL TESTS PASSED!\")\n    print(\"=\" * 70)\n    print()\n    print(\"The fix successfully resolves the bug where pylint crashes when\")\n    print(\"running with --jobs=0 in Kubernetes pods with limited CPU shares.\")\nelse:\n    print(\"SOME TESTS FAILED!\")\nENDOFSCRIPT",
+   "hit": null,
+   "lat_ms": 164.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport sys\nsys.path.insert(0, '.')\n\n# Try to import just the run module\ntry:\n    # Import the path module first\n    from pathlib import Path\n    \n    # Mock the other dependencies\n    import os\n    import sys as sys_module\n    \n    # Try to read and parse the file\n    with open('pylint/lint/run.py', 'r') as f:\n        code = f.read()\n    \n    # Check for syntax errors\n    compile(code, 'pylint/lint/run.py', 'exec')\n    print('\u2713 File syntax is valid')\n    \n    # Check for the key changes\n    if 'return avail_cpu if avail_cpu is None or avail_cpu > 0 else 1' in code:\n        print('\u2713 Fix applied to _query_cpu')\n    else:\n        print('\u2717 Fix NOT applied to _query_cpu')\n    \n    if 'return max(min(cpu_share, cpu_count), 1)' in code:\n        print('\u2713 Fix applied to _cpu_count (min case)')\n    else:\n        print('\u2717 Fix NOT applied to _cpu_count (min case)')\n    \n    if 'return max(cpu_count, 1)' in code:\n        print('\u2713 Fix applied to _cpu_count (fallback case)')\n    else:\n        print('\u2717 Fix NOT applied to _cpu_count (fallback case)')\n        \n    print()\n    print('All changes are in place and syntactically correct.')\n    \nexcept Exception as e:\n    print(f'Error: {e}')\n    sys.exit(1)\n\"",
+   "hit": null,
+   "lat_ms": 163.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pylint-dev__pylint-6903",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 65876.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

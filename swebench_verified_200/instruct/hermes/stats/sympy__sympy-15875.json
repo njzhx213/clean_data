@@ -1,0 +1,221 @@
+{
+ "calls": 33,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 46911.18907928467,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 116.7
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "python3 -c \"import sympy; print(sympy.__version__, sympy.__file__)\" 2>&1; python3 -c \"\nfrom sympy import I, simplify, S\ne = -2*I + (1 + I)**2\nprint('e =', e)\nprint('e.is_zero =', e.is_zero)\nprint('simplify(e) =', simplify(e))\nprint('simplify(e).is_zero =', simplify(e).is_zero)\n\"",
+   "hit": null,
+   "lat_ms": 1969.9
+  },
+  {
+   "cmd": "find / -name \"sympy\" -type d -not -path \"*/node_modules/*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 816.1
+  },
+  {
+   "cmd": "grep -n \"_eval_is_zero\" /testbed/sympy/core/expr.py | head -5; grep -n \"def _eval_is_zero\" -A 40 /testbed/sympy/core/add.py",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "sed -n 520,570p /testbed/sympy/core/add.py",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "grep -rn \"class Add\" /testbed/sympy/core/add.py | head -3; grep -n \"def __new__\" /testbed/sympy/core/add.py | head -3",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "sed -n 495,540p /testbed/sympy/core/add.py",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nfrom sympy import I, S\ne = -2*I + (1 + I)**2\nprint('e =', e)\nfor a in e.args:\n    print(repr(a), '| is_real:', a.is_real, '| is_imaginary:', a.is_imaginary,\n          '| is_zero:', a.is_zero, '| (I*a).is_real:', (S.ImaginaryUnit*a).is_real)\nnz = [a for a in e.args if a.is_real and a.is_zero is False]\nb = e.func(*nz)\nprint('nz =', nz, '-> b =', b, '| b.is_zero =', b.is_zero)\n\"",
+   "hit": null,
+   "lat_ms": 575.2
+  },
+  {
+   "cmd": "sed -n 532,566p /testbed/sympy/core/add.py",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\npath = \"sympy/core/add.py\"\nsrc = open(path).read()\n\nold = \"\"\"        if z == len(self.args):\n            return True\n        if len(nz) == len(self.args):\n            return None\n        b = self.func(*nz)\n        if b.is_zero:\n            if not im_or_z and not im:\n                return True\n            if im and not im_or_z:\n                return False\n        if b.is_zero is False:\n            return False\"\"\"\n\nnew = \"\"\"        if z == len(self.args):\n            return True\n        if len(nz) == len(self.args):\n            return None\n        if not nz:\n            # there are no non-zero real terms, so the sum is zero\n            # only if the imaginary terms cancel, which cannot be\n            # decided in general (issue 15873)\n            return None\n        b = self.func(*nz)\n        if b.is_zero:\n            if not im_or_z and not im:\n                return True\n        if b.is_zero is False:\n            return False\"\"\"\n\nassert src.count(old) == 1, \"pattern not found or ambiguous\"\nopen(path, \"w\").write(src.replace(old, new))\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport random\nfrom sympy import I, S, Symbol, sqrt, pi, exp, sin, simplify, nsimplify, Rational\nfrom sympy.abc import x, y\n\n# 1. The reported bug\ne = -2*I + (1 + I)**2\nprint(\"reported case:\", e, \"is_zero =\", e.is_zero, \"(expect None)\")\nassert e.is_zero is None\nassert simplify(e) == 0\n\n# 2. Invariant test on a big battery: is_zero must never be wrong\ntests = [\n    (I - I, 0), (I + I, 2*I), (I + 2*I, 3*I), (I + 1, None),\n    (2 + 2*I - 2 - 2*I, 0), (2*I + (-2*I), 0), (I + S(1), None),\n    (sqrt(2) - sqrt(2), 0), (sqrt(2)*I + sqrt(2)*I, 2*sqrt(2)*I),\n    (pi - pi, 0), (pi*I + pi*I, 2*pi*I), (exp(I*pi) + 1, 0),\n    (sin(0)*I, 0), (Rational(1,2) - Rational(1,2) + I - I, 0),\n    (S(3) + S(-3), 0), (S(3) + I, None), (S(3) - S(3) + I, None),\n    (2 - 2 + I - I, 0), (2 - 2 + I, None), (0 + 0, 0),\n    ((1 + I)*(1 - I) - 2, 0), ((1 + I)**2 - 2*I, 0),\n    (sqrt(3)*I + sqrt(3)*I - 2*sqrt(3)*I, 0),\n    (x - x, 0), (x - x + I - I, 0), (I*I - (-1), 0),\n]\nbad = 0\nfor expr, expected in tests:\n    expr = expr.__class__(*expr.args) if expr.func else expr  # normalize\n    got = expr.is_zero\n    # ground truth via evaluation\n    truth = expr.equals(0) if expr.free_symbols else (expr == 0)\n    # for free symbols, .equals handles it\n    if expr.free_symbols:\n        truth = expr.equals(0)\n    ok = (got == truth)\n    if not ok:\n        bad += 1\n        print(f\"WRONG: {expr}: is_zero={got} but truth={truth}\")\n    elif got is None and expected not in (None,):\n        print(f\"note (conservative): {expr}: is_zero=None (expected hint {expected})\")\nprint(\"wrong answers:\", bad)\nassert bad == 0\nEOF",
+   "hit": null,
+   "lat_ms": 770.2
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nfrom sympy import I, S, Symbol, sqrt, pi, exp, sin, Rational, sympify\nfrom sympy.abc import x\n\ntests = [\n    (I - I, 0), (I + I, 2*I), (I + 2*I, 3*I), (I + 1, None),\n    (2 + 2*I - 2 - 2*I, 0), (2*I + (-2*I), 0), (I + S(1), None),\n    (sqrt(2) - sqrt(2), 0), (sqrt(2)*I + sqrt(2)*I, 2*sqrt(2)*I),\n    (pi - pi, 0), (pi*I + pi*I, 2*pi*I), (exp(I*pi) + 1, 0),\n    (sin(0)*I, 0), (Rational(1,2) - Rational(1,2) + I - I, 0),\n    (S(3) + S(-3), 0), (S(3) + I, None), (S(3) - S(3) + I, None),\n    (2 - 2 + I - I, 0), (2 - 2 + I, None), (0 + 0, 0),\n    ((1 + I)*(1 - I) - 2, 0), ((1 + I)**2 - 2*I, 0),\n    (sqrt(3)*I + sqrt(3)*I - 2*sqrt(3)*I, 0),\n    (x - x, 0), (x - x + I - I, 0), (I*I - (-1), 0),\n]\nbad = 0\nfor expr, expected in tests:\n    expr = sympify(expr)\n    got = expr.is_zero\n    truth = expr.equals(0) if expr.free_symbols else (expr == 0)\n    if got != truth:\n        bad += 1\n        print(f\"WRONG: {expr}: is_zero={got} but truth={truth}\")\n    if got is None and expected not in (None,):\n        print(f\"note (conservative ok): {expr}: is_zero=None (expected hint {expected})\")\nprint(\"wrong answers:\", bad)\nassert bad == 0\nprint(\"ALL OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "cd /testbed && git status --short && git diff --stat",
+   "hit": null,
+   "lat_ms": 378.0
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nfrom sympy import I, S, sympify\nfrom sympy.abc import x\n\ntests = [\n    I - I, I + I, I + 2*I, I + 1,\n    2 + 2*I - 2 - 2*I, 2*I + (-2*I), I + S(1),\n    sympify(\"sqrt(2)\") - sympify(\"sqrt(2)\"),\n    sympify(\"sqrt(2)\")*I + sympify(\"sqrt(2)\")*I,\n    S.pi - S.pi, S.pi*I + S.pi*I, sympify(\"exp(I*pi)\") + 1,\n    sympify(\"sin(0)\")*I, S.Half - S.Half + I - I,\n    S(3) + S(-3), S(3) + I, S(3) - S(3) + I,\n    2 - 2 + I - I, 2 - 2 + I, 0 + 0,\n    (1 + I)*(1 - I) - 2, (1 + I)**2 - 2*I,\n    sympify(\"sqrt(3)\")*I + sympify(\"sqrt(3)\")*I - 2*sympify(\"sqrt(3)\")*I,\n    x - x, x - x + I - I, I*I - (-1),\n    (1 + I)*(1 - I) - 1,          # = 2I, nonzero\n    (1 + I)**2 - 3*I,             # = -1 + I, nonzero\n    I + sqrt(2),                   # nonzero\n    2*I - 3*I + I,                # = 0\n]\nbad = 0\nfor e in tests:\n    e = sympify(e) if not hasattr(e, 'is_zero') else e\n    got = e.is_zero\n    truth = e.equals(0)\n    if got is not None and got != truth:\n        bad += 1\n        print(f\"WRONG: {e}: is_zero={got} truth={truth}\")\n    elif got is None:\n        print(f\"None (ok): {e}  truth={truth}\")\nprint(\"wrong answers:\", bad)\nassert bad == 0\nprint(\"ALL OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 570.3
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nfrom sympy import I, S, sympify, pi, exp, sin, sqrt\nfrom sympy.abc import x\n\ntests = [\n    I - I, I + I, I + 2*I, I + 1,\n    2 + 2*I - 2 - 2*I, 2*I + (-2*I), I + S(1),\n    sqrt(2) - sqrt(2),\n    sqrt(2)*I + sqrt(2)*I,\n    pi - pi, pi*I + pi*I, exp(I*pi) + 1,\n    sin(0)*I, S.Half - S.Half + I - I,\n    S(3) + S(-3), S(3) + I, S(3) - S(3) + I,\n    2 - 2 + I - I, 2 - 2 + I, 0 + 0,\n    (1 + I)*(1 - I) - 2, (1 + I)**2 - 2*I,\n    sqrt(3)*I + sqrt(3)*I - 2*sqrt(3)*I,\n    x - x, x - x + I - I, I*I - (-1),\n    (1 + I)*(1 - I) - 1,          # = 2I, nonzero\n    (1 + I)**2 - 3*I,             # = -1 + I, nonzero\n    I + sqrt(2),                   # nonzero\n    2*I - 3*I + I,                # = 0\n]\nbad = 0\nfor e in tests:\n    e = sympify(e)\n    got = e.is_zero\n    truth = e.equals(0)\n    if got is not None and got != truth:\n        bad += 1\n        print(f\"WRONG: {e}: is_zero={got} truth={truth}\")\n    elif got is None:\n        print(f\"None (ok): {e}  truth={truth}\")\nprint(\"wrong answers:\", bad)\nassert bad == 0\nprint(\"ALL OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 772.1
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nfrom sympy import Matrix, I, eye\n# matrices built from the kind of expressions that were mis-classified\nM1 = Matrix([[-2*I + (1 + I)**2, 1], [2, 4]])\nprint(\"M1 =\"); print(M1)\nprint(\"rank =\", M1.rank, \"(expect 2: the (0,0) entry is 0, so pivot in col 2)\")\n\nM2 = Matrix([[-2*I + (1 + I)**2, 0], [0, 0]])\nprint(\"M2 rank =\", M2.rank, \"(expect 0)\")\n\nM3 = Matrix([[1, 2], [2, 4]])\nprint(\"M3 rank =\", M3.rank, \"(expect 1)\")\n\nM4 = Matrix([[I, I], [I, I]])\nprint(\"M4 rank =\", M4.rank, \"(expect 1)\")\nEOF",
+   "hit": null,
+   "lat_ms": 574.3
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nfrom sympy import Matrix, I\nM1 = Matrix([[-2*I + (1 + I)**2, 1], [2, 4]])\nprint(\"M1 rank =\", M1.rank(), \"(expect 2)\")\nM2 = Matrix([[-2*I + (1 + I)**2, 0], [0, 0]])\nprint(\"M2 rank =\", M2.rank(), \"(expect 0)\")\nM3 = Matrix([[1, 2], [2, 4]])\nprint(\"M3 rank =\", M3.rank(), \"(expect 1)\")\nM4 = Matrix([[I, I], [I, I]])\nprint(\"M4 rank =\", M4.rank(), \"(expect 1)\")\nM5 = Matrix([[I, 1], [1, -I]])  # det = -I^2 - 1 = 0\nprint(\"M5 rank =\", M5.rank(), \"(expect 1)\")\nEOF",
+   "hit": null,
+   "lat_ms": 780.9
+  },
+  {
+   "cmd": "cd /testbed && git stash -q && python3 -c \"\nfrom sympy import Matrix, I\nM1 = Matrix([[-2*I + (1 + I)**2, 1], [2, 4]])\nprint('old code M1 rank =', M1.rank(), '(wrong: expect 2)')\n\" 2>/dev/null; git stash pop -q && echo \"restored\"",
+   "hit": null,
+   "lat_ms": 580.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest sympy/core/tests/test_expr.py sympy/core/tests/test_arit.py sympy/core/tests/test_add.py -x -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"import sympy; sympy.test('sympy/core/tests/test_arit.py sympy/core/tests/test_expr.py sympy/core/tests/test_add.py', verbose=False)\" 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 974.4
+  },
+  {
+   "cmd": "cd /testbed && python3 -m sympy.testing.runtests -Q sympy/core/tests/test_arit.py 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 575.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest --version 2>&1; pip install pytest -q 2>&1 | tail -2",
+   "hit": null,
+   "lat_ms": 8179.7
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nfrom sympy.testing.runtests import test\ntest('sympy/core/tests/test_arit.py', verbose=False)\n\" 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 573.7
+  },
+  {
+   "cmd": "ls /testbed/sympy/conftest.py /testbed/bin/test 2>/dev/null; head -20 /testbed/bin/test 2>/dev/null",
+   "hit": null,
+   "lat_ms": 113.3
+  },
+  {
+   "cmd": "cd /testbed && python3 bin/test sympy/core/tests/test_arit.py sympy/core/tests/test_expr.py sympy/core/tests/test_add.py -q 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed && python3 bin/test sympy/core/tests/test_arit.py sympy/core/tests/test_expr.py sympy/core/tests/test_add.py 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 6977.9
+  },
+  {
+   "cmd": "cd /testbed && python3 bin/test sympy/matrices/tests/test_matrixbase.py sympy/matrices/tests/test_reductions.py 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 970.4
+  },
+  {
+   "cmd": "ls /testbed/sympy/matrices/tests/ 2>&1",
+   "hit": null,
+   "lat_ms": 114.2
+  },
+  {
+   "cmd": "cd /testbed && python3 bin/test sympy/matrices/tests/test_matrices.py sympy/matrices/tests/test_densetools.py 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 11184.4
+  },
+  {
+   "cmd": "cd /testbed && python3 bin/test sympy/simplify/tests/test_simplify.py sympy/core/tests/test_relational.py 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 7574.7
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 113.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "sympy__sympy-15875",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 46911.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

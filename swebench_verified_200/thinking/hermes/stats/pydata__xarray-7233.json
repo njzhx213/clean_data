@@ -1,0 +1,226 @@
+{
+ "calls": 34,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 87688.30156326294,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 4,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "pwd; whoami; python -V; echo ---; ls /; echo ---; ls $HOME; echo ---; ls /workspace 2>/dev/null; ls /testbed 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 | cat && git status --short | head -5 && python -c \"import xarray; print(xarray.__version__)\"",
+   "hit": null,
+   "lat_ms": 973.0
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"class Coarsen\" xarray/ | cat",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def \\|class \" xarray/core/rolling.py | sed -n '1,80p'",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n '796,984p' xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro.py <<'EOF'\nimport numpy as np\nimport xarray as xr\n\n# Case 1: non-dimension coordinate (issue example)\nda = xr.DataArray(np.arange(24), dims=[\"time\"])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name=\"T\")\nprint(\"before coords:\", sorted(ds.coords))\nr1 = ds.coarsen(time=12).construct(time=(\"year\", \"month\"))\nprint(\"after  coords:\", sorted(r1.coords))\nprint(\"after  data_vars:\", sorted(r1.data_vars))\nprint(r1)\nprint()\n\n# Case 2: DataArray with non-dim coord\nr2 = da.coarsen(time=12).construct(time=(\"year\", \"month\"))\nprint(\"DA coords:\", sorted(r2.coords))\nprint(r2)\nprint()\n\n# Case 3: dimension coordinate on the coarsened dim\nds3 = xr.Dataset(\n    {\"T\": (\"time\", np.arange(24))},\n    coords={\"time\": np.arange(24), \"day\": 365 * np.arange(24)},\n)\nr3 = ds3.coarsen(time=12).construct(time=(\"year\", \"month\"))\nprint(\"coords:\", {k: r3[k].dims for k in r3.coords})\nprint(\"data_vars:\", sorted(r3.data_vars))\nEOF\npython /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 779.1
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/probe.py <<'EOF'\nimport numpy as np\nimport xarray as xr\n\nds3 = xr.Dataset(\n    {\"T\": (\"time\", np.arange(24))},\n    coords={\"time\": np.arange(24), \"day\": 365 * np.arange(24)},\n)\nr3 = ds3.coarsen(time=12).construct(time=(\"year\", \"month\"))\nprint(\"dims:\", dict(r3.dims))\nprint(\"coords:\", {k: (r3[k].dims, r3[k].values[:3]) for k in r3.coords})\nprint(r3)\nEOF\npython /tmp/probe.py",
+   "hit": null,
+   "lat_ms": 775.9
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def set_coords\" -A 40 xarray/core/dataset.py | head -60",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def coarsen_reshape\" -A 60 xarray/core/variable.py | head -90",
+   "hit": null,
+   "lat_ms": 113.3
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/trace.py <<'EOF'\nimport numpy as np\nimport xarray as xr\nfrom xarray.core.dataset import Dataset\n\nds3 = xr.Dataset(\n    {\"T\": (\"time\", np.arange(24))},\n    coords={\"time\": np.arange(24), \"day\": 365 * np.arange(24)},\n)\nprint(\"obj.variables:\")\nfor key, var in ds3.variables.items():\n    print(\"  \", key, var.dims, type(var).__name__)\n\nwindow_dim = {\"time\": (\"year\", \"month\")}\nimport itertools\nwindows = {\"time\": 12}\nboundary, side = None, \"all\"\n\nreshaped = Dataset()\nfor key, var in ds3.variables.items():\n    reshaped_dims = tuple(\n        itertools.chain(*[window_dim.get(dim, [dim]) for dim in list(var.dims)])\n    )\n    print(f\"var={key!r} dims={var.dims} -> reshaped_dims={reshaped_dims} reshape={reshaped_dims != var.dims}\")\n    if reshaped_dims != var.dims:\n        ws = {w: windows[w] for w in window_dim if w in var.dims}\n        rv, win = var.coarsen_reshape(ws, boundary, side)\n        print(\"    coarsen_reshape ->\", rv.dims, rv.shape, \"window:\", win)\n        reshaped[key] = (reshaped_dims, rv, var.attrs)\n    else:\n        reshaped[key] = var\nprint(\"reshaped before set_coords:\")\nprint(reshaped)\nprint(\"reshaped dims:\", dict(reshaped.dims))\nEOF\npython /tmp/trace.py",
+   "hit": null,
+   "lat_ms": 776.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"_from_temp_dataset\\|_to_temp_dataset\" xarray/core/dataarray.py | head; echo ---; sed -n \"$(grep -n 'def _from_temp_dataset' xarray/core/dataarray.py | cut -d: -f1),+25p\" xarray/core/dataarray.py; echo ---; sed -n \"$(grep -n 'def _to_temp_dataset' xarray/core/dataarray.py | cut -d: -f1),+15p\" xarray/core/dataarray.py",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def coarsen\" -A 15 xarray/core/dataset.py xarray/core/dataarray.py | grep -n \"boundary\\|def coarsen\" | head; echo ---; grep -rn \"boundary=\" xarray/core/rolling.py | head",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n \"$(grep -n 'def _assert_all_in_dataset' xarray/core/dataset.py | cut -d: -f1),+12p\" xarray/core/dataset.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && grep -rln \"coarsen\" xarray/tests/ | cat",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def test.*construct\\|def test\" xarray/tests/test_coarsen.py | cat",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,20p;42,80p;254,320p' xarray/tests/test_coarsen.py",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"construct\" xarray/core/dataset.py xarray/core/dataarray.py xarray/core/rolling.py | grep -in \"doc\\|>>>\\|construct(\" | head -30; echo ===; grep -rn \"coarsen.*construct\\|construct.*coarsen\" doc/ --include=\"*.rst\" | head",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = \"xarray/core/rolling.py\"\nsrc = open(path).read()\nold = \"        should_be_coords = set(window_dim) & set(self.obj.coords)\\n\"\nnew = \"        should_be_coords = set(self.obj.coords)\\n\"\nassert src.count(old) == 1, src.count(old)\nopen(path, \"w\").write(src.replace(old, new))\nprint(\"patched\")\nEOF\nsed -n '964,976p' xarray/core/rolling.py",
+   "hit": null,
+   "lat_ms": 164.9
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/verify.py <<'EOF'\nimport numpy as np\nimport xarray as xr\n\n# 1) Issue example\nda = xr.DataArray(np.arange(24), dims=[\"time\"])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name=\"T\")\nr1 = ds.coarsen(time=12).construct(time=(\"year\", \"month\"))\nassert \"day\" in r1.coords, \"day demoted!\"\nassert \"day\" not in r1.data_vars\nassert r1.day.dims == (\"year\", \"month\")\nnp.testing.assert_array_equal(r1.day.values.ravel(), np.arange(24) * 365)\nassert \"T\" in r1.data_vars\nprint(\"case 1 (issue example): PASS\")\nprint(r1)\nprint()\n\n# 2) DataArray with non-dim coord\nr2 = da.coarsen(time=12).construct(time=(\"year\", \"month\"))\nassert \"day\" in r2.coords\nnp.testing.assert_array_equal(r2.day.values.ravel(), np.arange(24) * 365)\nprint(\"case 2 (DataArray): PASS\")\n\n# 3) dim coord on coarsened dim + non-dim coord\nds3 = xr.Dataset({\"T\": (\"time\", np.arange(24))}, coords={\"time\": np.arange(24)})\nds3 = ds3.assign_coords(day=365 * ds3[\"time\"].astype(\"float64\"))\nr3 = ds3.coarsen(time=12).construct(time=(\"year\", \"month\"))\nassert set(r3.coords) == {\"time\", \"day\"}, r3.coords\nassert r3.time.dims == (\"year\", \"month\")\nassert r3.day.dims == (\"year\", \"month\")\nassert r3[\"T\"].dims == (\"year\", \"month\")\nnp.testing.assert_array_equal(r3.time.values.ravel(), np.arange(24))\nprint(\"case 3 (dim coord + non-dim coord): PASS\")\n\n# 4) non-dim coord on a NON-coarsened dim\nds4 = xr.Dataset({\"T\": ((\"time\", \"x\"), np.arange(48).reshape(4, 12))})\nds4 = ds4.assign_coords(xlab=10 * ds4[\"x\"].values)\nr4 = ds4.coarsen(time=2).construct(time=(\"year\", \"month\"))\nassert \"xlab\" in r4.coords, f\"xlab demoted: coords={list(r4.coords)}\"\nassert r4.xlab.dims == (\"x\",)\nassert set(r4.dims) == {\"year\", \"month\", \"x\"}\nprint(\"case 4 (non-dim coord on non-coarsened dim): PASS\")\n\n# 5) scalar coord\nds5 = xr.Dataset({\"T\": (\"time\", np.arange(24))})\nds5 = ds5.assign_coords(scalar=7)\nr5 = ds5.coarsen(time=12).construct(time=(\"year\", \"month\"))\nassert \"scalar\" in r5.coords\nprint(\"case 5 (scalar coord): PASS\")\n\n# 6) multiple coarsened dims\nds6 = xr.Dataset({\"T\": ((\"time\", \"x\"), np.arange(96).reshape(4, 24))})\nds6 = ds6.assign_coords(day=365 * np.arange(4).reshape(4, 1))\nr6 = ds6.coarsen(time=2, x=12).construct(time=(\"year\", \"month\"), x=(\"x_chunk\", \"x_sub\"))\nassert \"day\" in r6.coords and r6.day.dims == (\"year\", \"month\")\nprint(\"case 6 (two coarsened dims): PASS\")\nprint()\nprint(\"ALL PASS\")\nEOF\npython /tmp/verify.py",
+   "hit": null,
+   "lat_ms": 770.3
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport numpy as np\nimport xarray as xr\n\nds4 = xr.Dataset({\"T\": ((\"time\", \"x\"), np.arange(48).reshape(4, 12))})\nprint(ds4)\nprint(\"x\" in ds4.variables, \"x\" in ds4.coords)\nxlab = 10 * ds4[\"x\"].values\nprint(\"xlab:\", xlab, xlab.shape)\nds4 = ds4.assign_coords(xlab=xlab)\nprint(ds4)\nprint(\"xlab dims:\", ds4.xlab.dims)\nr4 = ds4.coarsen(time=2).construct(time=(\"year\", \"month\"))\nprint(r4)\nprint(\"xlab dims after:\", r4.xlab.dims)\nEOF",
+   "hit": null,
+   "lat_ms": 770.6
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/verify2.py <<'EOF'\nimport numpy as np\nimport xarray as xr\n\n# 4) non-dim coord on a NON-coarsened dim\nds4 = xr.Dataset({\"T\": ((\"time\", \"x\"), np.arange(48).reshape(4, 12))})\nds4 = ds4.assign_coords(xlab=xr.DataArray(10 * np.arange(12), dims=\"x\"))\nassert ds4.xlab.dims == (\"x\",)\nr4 = ds4.coarsen(time=2).construct(time=(\"year\", \"month\"))\nassert \"xlab\" in r4.coords, f\"xlab demoted: coords={list(r4.coords)}\"\nassert r4.xlab.dims == (\"x\",)\nassert set(r4.dims) == {\"year\", \"month\", \"x\"}\nnp.testing.assert_array_equal(r4.xlab.values, 10 * np.arange(12))\nprint(\"case 4 (non-dim coord on non-coarsened dim): PASS\")\n\n# 5) scalar coord\nds5 = xr.Dataset({\"T\": (\"time\", np.arange(24))})\nds5 = ds5.assign_coords(scalar=7)\nr5 = ds5.coarsen(time=12).construct(time=(\"year\", \"month\"))\nassert \"scalar\" in r5.coords, list(r5.coords)\nprint(\"case 5 (scalar coord): PASS\")\n\n# 6) multiple coarsened dims\nds6 = xr.Dataset({\"T\": ((\"time\", \"x\"), np.arange(96).reshape(4, 24))})\nds6 = ds6.assign_coords(day=365 * xr.DataArray(np.arange(4), dims=\"time\"))\nr6 = ds6.coarsen(time=2, x=12).construct(time=(\"year\", \"month\"), x=(\"x_chunk\", \"x_sub\"))\nassert \"day\" in r6.coords and r6.day.dims == (\"year\", \"month\"), list(r6.coords)\nassert set(r6.dims) == {\"year\", \"month\", \"x_chunk\", \"x_sub\"}\nnp.testing.assert_array_equal(r6.day.values.ravel(), 365 * np.arange(4))\nprint(\"case 6 (two coarsened dims): PASS\")\n\n# 7) index preservation: dim coord on coarsened dim keeps values\nds7 = xr.Dataset({\"T\": (\"time\", np.arange(24))}, coords={\"time\": np.arange(24)})\nr7 = ds7.coarsen(time=12).construct(time=(\"year\", \"month\"))\nassert \"time\" in r7.coords and r7.time.dims == (\"year\", \"month\")\nnp.testing.assert_array_equal(r7.time.values.ravel(), np.arange(24))\nassert set(r7.coords).isdisjoint(set(r7.data_vars))\nprint(\"case 7 (dim coord of coarsened dim preserved): PASS\")\nprint()\nprint(\"ALL PASS\")\nEOF\npython /tmp/verify2.py",
+   "hit": null,
+   "lat_ms": 770.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest xarray/tests/test_coarsen.py -q 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 5026.2
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest --doctest-modules xarray/core/rolling.py -q 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 1171.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest xarray/tests/test_dataset.py xarray/tests/test_dataarray.py -q -k \"coarsen or rolling\" 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 3971.6
+  },
+  {
+   "cmd": "cd /testbed && ls xarray/tests/ | grep -i \"roll\\|coarsen\"",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest xarray/tests/test_rolling.py -q 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 66004.5
+  },
+  {
+   "cmd": "cd /testbed && git diff | cat",
+   "hit": null,
+   "lat_ms": 118.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,100p' doc/whats-new.rst | grep -n \"v2022.10.0\\|v2022\\|Bug fixes\\|^-\\|What's new\" | head -40",
+   "hit": null,
+   "lat_ms": 264.0
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/final.py <<'EOF'\nimport numpy as np\nimport xarray as xr\n\nprint(\"=== Exact issue MVCE ===\")\nda = xr.DataArray(np.arange(24), dims=[\"time\"])\nda = da.assign_coords(day=365 * da)\nds = da.to_dataset(name=\"T\")\nprint(ds)\nprint()\nprint(ds.coarsen(time=12).construct(time=(\"year\", \"month\")))\nprint()\n\nprint(\"=== Edge: dask + boundary='pad' + side + keep_attrs=False ===\")\nimport dask.array\ndsd = xr.Dataset(\n    {\"T\": (\"time\", dask.array.arange(20))},\n    coords={\"time\": dask.array.arange(20), \"day\": 365 * dask.array.arange(20)},\n)\nr = dsd.coarsen(time=12, boundary=\"pad\", side=\"right\").construct(time=(\"year\", \"month\"))\nassert \"day\" in r.coords and \"time\" in r.coords\nassert r.dims == {\"year\": 2, \"month\": 12}\nassert r.T.attrs == {}\nprint(r)\nprint(\"PASS\")\nEOF\npython /tmp/final.py",
+   "hit": null,
+   "lat_ms": 1170.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport numpy as np\nimport dask.array\nimport xarray as xr\n\ndsd = xr.Dataset(\n    {\"T\": (\"time\", dask.array.arange(20))},\n    coords={\"time\": dask.array.arange(20), \"day\": 365 * dask.array.arange(20)},\n)\nr = dsd.coarsen(time=12, boundary=\"pad\", side=\"right\").construct(time=(\"year\", \"month\"))\nprint(\"dims:\", dict(r.dims))\nprint(\"coords:\", {k: (r[k].dims, r[k].shape) for k in r.coords})\nnp.testing.assert_array_equal(r.day.compute().ravel(), np.concatenate([365*np.arange(20), np.full(4, np.nan)]))\nprint(\"PASS: non-dim + dim coords kept as coords with dask/pad\")\nEOF",
+   "hit": null,
+   "lat_ms": 1170.2
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport numpy as np\nimport dask.array\nimport xarray as xr\n\n# dask, non-dim coord on coarsened dim, boundary='pad', side='right'\ndsd = xr.Dataset({\"T\": (\"time\", dask.array.arange(20))},\n                 coords={\"time\": dask.array.arange(20)})\ndsd = dsd.assign_coords(day=365 * xr.DataArray(dask.array.arange(20), dims=\"time\"))\nr = dsd.coarsen(time=12, boundary=\"pad\", side=\"right\").construct(time=(\"year\", \"month\"), keep_attrs=False)\nprint(\"dims:\", dict(r.dims))\nassert \"day\" in r.coords and r.day.dims == (\"year\", \"month\"), list(r.coords)\nassert \"time\" in r.coords and r.time.dims == (\"year\", \"month\")\nassert r.dims[\"year\"] == 2 and r.dims[\"month\"] == 12\nvals = r.day.compute().values\nprint(\"day values:\", vals.ravel())\nnp.testing.assert_array_equal(vals.ravel()[:20], 365 * np.arange(20))\nnp.testing.assert_array_equal(np.isnan(vals.ravel()[20:]), True)\nassert r.T.attrs == {} and r.attrs == {}\nprint(\"dask/pad/side/keep_attrs=False: PASS\")\n\n# dask DataArray path\nrad = dsd.T.coarsen(time=12, boundary=\"pad\").construct(time=(\"year\", \"month\"))\nassert \"day\" in rad.coords\nprint(\"dask DataArray path: PASS\")\nEOF",
+   "hit": null,
+   "lat_ms": 1169.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pydata__xarray-7233",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 87688.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

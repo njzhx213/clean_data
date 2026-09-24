@@ -1,0 +1,341 @@
+{
+ "calls": 57,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 39555.2499294281,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 4,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 118.9
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && python3 --version && pip3 --version 2>&1 | head -5",
+   "hit": null,
+   "lat_ms": 376.3
+  },
+  {
+   "cmd": "ls -la /testbed && cd /testbed && git log --oneline -5 2>/dev/null | cat && git status 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 572.6
+  },
+  {
+   "cmd": "cd /testbed && python -c \"import django; print(django.__version__)\" && git log -3 --format='%H %ad %s' --date=short | cat && grep -rn \"def add_field\" django/db/",
+   "hit": null,
+   "lat_ms": 165.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '300,420p' django/db/backends/sqlite3/schema.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '480,560p' django/db/backends/base/schema.py",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -30 --follow django/db/backends/sqlite3/schema.py | cat",
+   "hit": null,
+   "lat_ms": 164.9
+  },
+  {
+   "cmd": "cd /testbed && git diff 0ab58c1209 d87e54e739 --stat | cat",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && git show 2f73e5406d --stat | cat && git log -1 --format='%ad' 2f73e5406d",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def column_sql\" django/db/backends/base/schema.py && sed -n \"$(grep -n 'def column_sql' django/db/backends/base/schema.py | cut -d: -f1),+75p\" django/db/backends/base/schema.py",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n \"$(grep -n '_iter_column_sql' django/db/backends/base/schema.py | head -1 | cut -d: -f1),+60p\" django/db/backends/base/schema.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && git show 2f73e5406d -- django/db/backends/sqlite3/schema.py tests/schema/tests.py | cat",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && python -c \"import django; print(django.__file__)\" && pip show django 2>/dev/null | head -6 && grep -n \"__version__\" django/__init__.py",
+   "hit": null,
+   "lat_ms": 572.1
+  },
+  {
+   "cmd": "mkdir -p /tmp/repro/reproapp/migrations && cd /tmp/repro && cat > settings.py <<'EOF'\nINSTALLED_APPS = [\"reproapp\"]\nDATABASES = {\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/repro.sqlite3\"}}\nDEFAULT_AUTO_FIELD = \"django.db.models.BigAutoField\"\nUSE_TZ = True\nEOF\ncat > manage.py <<'EOF'\nimport os, sys\nsys.path.insert(0, os.path.dirname(__file__))\nimport django\nfrom django.conf import settings as dj_settings\nos.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"settings\")\nif not dj_settings.configured:\n    from django.conf import settings\n    settings.INSTALLED_APPS = [\"reproapp\"]\n    settings.DATABASES = {\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/repro.sqlite3\"}}\n    settings.DEFAULT_AUTO_FIELD = \"django.db.models.BigAutoField\"\n    settings.USE_TZ = True\ndjango.setup()\n\nif __name__ == \"__main__\":\n    from django.core.management import execute_from_command_line\n    execute_from_command_line(sys.argv)\nEOF\ntouch reproapp/__init__.py reproapp/migrations/__init__.py\ncat > reproapp/models.py <<'EOF'\nfrom django.db import models\n\nclass RefreshToken(models.Model):\n    id = models.BigAutoField(primary_key=True)\n\nclass AccessToken(models.Model):\n    token = models.CharField(max_length=255)\n    source_refresh_token = models.OneToOneField(\n        RefreshToken,\n        blank=True,\n        null=True,\n        on_delete=models.deletion.SET_NULL,\n        related_name=\"refreshed_access_token\",\n    )\nEOF\ncat > reproapp/migrations/0001_initial.py <<'EOF'\nfrom django.db import migrations, models\n\nclass Migration(migrations.Migration):\n    initial = True\n    dependencies = []\n    operations = [\n        migrations.CreateModel(\n            name=\"RefreshToken\",\n            fields=[(\"id\", models.BigAutoField(primary_key=True, serialize=False))],\n        ),\n        migrations.CreateModel(\n            name=\"AccessToken\",\n            fields=[\n                (\"id\", models.BigAutoField(primary_key=True, serialize=False)),\n                (\"token\", models.CharField(max_length=255)),\n            ],\n        ),\n    ]\nEOF\ncat > reproapp/migrations/0002_accesstoken_source_refresh_token.py <<'EOF'\nimport django.db.models.deletion\nfrom django.db import migrations, models\n\nclass Migration(migrations.Migration):\n    dependencies = [(\"reproapp\", \"0001_initial\")]\n    operations = [\n        migrations.AddField(\n            model_name=\"accesstoken\",\n            name=\"source_refresh_token\",\n            field=models.OneToOneField(\n                blank=True,\n                null=True,\n                on_delete=django.db.models.deletion.SET_NULL,\n                related_name=\"refreshed_access_token\",\n                to=\"reproapp.RefreshToken\",\n            ),\n        ),\n    ]\nEOF\nrm -f repro.sqlite3 && python manage.py migrate --verbosity 2 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /tmp/repro && PYTHONPATH=/testbed python manage.py migrate --verbosity 2 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "pip install asgiref sqlparse 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 8175.3
+  },
+  {
+   "cmd": "find / -name \"asgiref\" -maxdepth 6 -type d 2>/dev/null | head; find / -name \"sqlparse\" -maxdepth 6 -type d 2>/dev/null | head; ls /opt 2>/dev/null; ls /opt/miniconda3/envs 2>/dev/null",
+   "hit": null,
+   "lat_ms": 771.8
+  },
+  {
+   "cmd": "env | grep -i -E \"pip|index|proxy\" ; cat /etc/pip.conf 2>/dev/null; cat ~/.pip/pip.conf 2>/dev/null; pip config list 2>/dev/null; ls /root/.cache 2>/dev/null; find / -name \"*.whl\" 2>/dev/null | grep -v -E \"miniconda3/lib\" | head",
+   "hit": null,
+   "lat_ms": 975.6
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"asgiref\" django/ --include=\"*.py\" | grep -v tests | grep \"import\" | sort | uniq -c | sort -rn | head -30",
+   "hit": null,
+   "lat_ms": 163.8
+  },
+  {
+   "cmd": "ls /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/ 2>/dev/null | head -40; echo ---; /opt/miniconda3/envs/testbed/bin/python --version 2>/dev/null; ls /opt/testbed 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "ls /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/ | grep -i -E \"sqlparse|pytz|tzdata\"; cd /tmp/repro && rm -f repro.sqlite3 && /opt/miniconda3/envs/testbed/bin/python manage.py migrate --verbosity 2 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 773.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '85,115p' django/db/backends/mysql/schema.py && grep -n \"CREATE TABLE\\|DROP TABLE\\|_remake_table\" tests/schema/tests.py | head -30",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def effective_default\\|def _effective_default\" django/db/backends/base/schema.py && grep -rn \"def assertUnorderedList\\|captured_queries\" tests/schema/tests.py | head -5",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '470,545p' tests/schema/tests.py",
+   "hit": null,
+   "lat_ms": 146.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n '325,335p' django/db/backends/sqlite3/schema.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/fix.patch <<'EOF'\n--- a/django/db/backends/sqlite3/schema.py\n+++ b/django/db/backends/sqlite3/schema.py\n@@ -324,9 +324,12 @@\n \n     def add_field(self, model, field):\n         \"\"\"Create a field on a model.\"\"\"\n-        # Fields with default values cannot by handled by ALTER TABLE ADD\n-        # COLUMN statement because DROP DEFAULT is not supported in\n-        # ALTER TABLE.\n-        if not field.null or self.effective_default(field) is not None:\n+        # Fields with default values cannot be handled by ALTER TABLE ADD\n+        # COLUMN statement because DROP DEFAULT is not supported in ALTER\n+        # TABLE. Unique fields also require a table rebuild as adding a\n+        # UNIQUE column is not supported by ALTER TABLE ADD COLUMN.\n+        if (\n+            not field.null\n+            or self.effective_default(field) is not None\n+            or field.unique\n+        ):\n             self._remake_table(model, create_field=field)\n         else:\n             super().add_field(model, field)\nEOF\ngit apply --check /tmp/fix.patch && git apply /tmp/fix.patch && git diff | cat",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"\" django/db/backends/sqlite3/schema.py | sed -n '318,338p'",
+   "hit": null,
+   "lat_ms": 135.8
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport io\np = \"django/db/backends/sqlite3/schema.py\"\nsrc = open(p).read()\nold = \"\"\"    def add_field(self, model, field):\n        \\\"\\\"\\\"Create a field on a model.\\\"\\\"\\\"\n        # Fields with default values cannot by handled by ALTER TABLE ADD\n        # COLUMN statement because DROP DEFAULT is not supported in\n        # ALTER TABLE.\n        if not field.null or self.effective_default(field) is not None:\n            self._remake_table(model, create_field=field)\n        else:\n            super().add_field(model, field)\n\"\"\"\nnew = \"\"\"    def add_field(self, model, field):\n        \\\"\\\"\\\"Create a field on a model.\\\"\\\"\\\"\n        # Fields with default values cannot be handled by ALTER TABLE ADD\n        # COLUMN statement because DROP DEFAULT is not supported in ALTER\n        # TABLE.\n        if (\n            not field.null\n            or self.effective_default(field) is not None\n            or field.unique\n        ):\n            self._remake_table(model, create_field=field)\n        else:\n            super().add_field(model, field)\n\"\"\"\nassert src.count(old) == 1, \"pattern not found exactly once\"\nopen(p, \"w\").write(src.replace(old, new))\nprint(\"patched OK\")\nEOF\ngit diff | cat",
+   "hit": null,
+   "lat_ms": 163.7
+  },
+  {
+   "cmd": "cd /tmp/repro && rm -f repro.sqlite3 && /opt/miniconda3/envs/testbed/bin/python manage.py migrate --verbosity 2 2>&1 | tail -12 && echo \"=== schema ===\" && /opt/miniconda3/envs/testbed/bin/python -c \"\nimport sqlite3\ncon = sqlite3.connect('/tmp/repro/repro.sqlite3')\nfor row in con.execute('SELECT sql FROM sqlite_master WHERE type=\\\"table\\\"'):\n    print(row[0]); print()\nprint(con.execute('PRAGMA foreign_key_list(oauth2_access)') if False else 'ok')\n\"",
+   "hit": null,
+   "lat_ms": 388.3
+  },
+  {
+   "cmd": "cd /tmp/repro && rm -f repro.sqlite3 && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, \"/testbed\")\nimport django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=[\"reproapp\"],\n    DATABASES={\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/repro.sqlite3\"}},\n    DEFAULT_AUTO_FIELD=\"django.db.models.BigAutoField\",\n    USE_TZ=True,\n)\ndjango.setup()\nos.chdir(\"/tmp/repro\")\n\nfrom django.core.management import call_command\nfrom django.db import connection, transaction, IntegrityError\nfrom reproapp.models import AccessToken, RefreshToken\n\n# Apply only 0001, then insert data, then apply 0002.\ncall_command(\"migrate\", \"reproapp\", \"0001_initial\", verbosity=0)\nrt = RefreshToken.objects.create()\na1 = AccessToken.objects.create(token=\"tok-1\")\na2 = AccessToken.objects.create(token=\"tok-2\")\nprint(\"rows before:\", AccessToken.objects.count(), RefreshToken.objects.count())\n\ncall_command(\"migrate\", \"reproapp\", \"0002_accesstoken_source_refresh_token\", verbosity=0)\nprint(\"rows after :\", AccessToken.objects.count(), RefreshToken.objects.count())\na1.refresh_from_db(); print(\"data intact:\", a1.token == \"tok-1\", AccessToken.objects.count() == 2)\n\n# Wire up a relationship (as oauth-toolkit does: refresh -> access)\na1.source_refresh_token = rt\na1.save()\nprint(\"relation set:\", AccessToken.objects.get(token=\"tok-1\").source_refresh_token_id == rt.id)\n\n# SET_NULL behavior\nrt.delete()\na1.refresh_from_db()\nprint(\"SET_NULL works:\", a1.source_refresh_token is None)\n\n# Uniqueness enforced\na2.source_refresh_token = rt\na3 = AccessToken.objects.create(token=\"tok-3\")\na3.source_refresh_token = rt\ntry:\n    a2.save()  # same refresh token as a3 -> must fail\n    print(\"UNIQUE NOT ENFORCED (BUG)\")\nexcept IntegrityError:\n    print(\"UNIQUE enforced: OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 422.7
+  },
+  {
+   "cmd": "cd /tmp/repro && rm -f repro.sqlite3 && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, \"/testbed\")\nimport django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=[\"reproapp\"],\n    DATABASES={\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/repro.sqlite3\"}},\n    DEFAULT_AUTO_FIELD=\"django.db.models.BigAutoField\",\n    USE_TZ=True,\n)\ndjango.setup()\nos.chdir(\"/tmp/repro\")\n\nfrom django.core.management import call_command\nfrom django.db import connection, IntegrityError\nfrom reproapp.models import AccessToken, RefreshToken\n\n# Apply only 0001, then insert data (raw SQL: field doesn't exist in DB yet).\ncall_command(\"migrate\", \"reproapp\", \"0001_initial\", verbosity=0)\nwith connection.cursor() as c:\n    c.execute(\"INSERT INTO reproapp_refreshtoken (id) VALUES (1)\")\n    c.execute(\"INSERT INTO reproapp_accesstoken (id, token) VALUES (1, %s), (2, %s)\", [\"tok-1\", \"tok-2\"])\nprint(\"rows before:\", AccessToken.objects.count())\n\ncall_command(\"migrate\", \"reproapp\", \"0002_accesstoken_source_refresh_token\", verbosity=0)\nprint(\"rows after :\", AccessToken.objects.count())\nprint(\"data intact:\", AccessToken.objects.get(id=1).token == \"tok-1\")\n\n# Wire up a relationship (refresh -> access), as oauth-toolkit does\nrt = RefreshToken.objects.get(id=1)\na1 = AccessToken.objects.get(id=1)\na1.source_refresh_token = rt\na1.save()\nprint(\"relation set:\", AccessToken.objects.get(id=1).source_refresh_token_id == rt.id)\n\n# SET_NULL on refresh token delete\nrt.delete()\na1.refresh_from_db()\nprint(\"SET_NULL works:\", a1.source_refresh_token is None)\n\n# Uniqueness enforced\nrt2 = RefreshToken.objects.create()\na2 = AccessToken.objects.get(id=2)\na3 = AccessToken.objects.create(token=\"tok-3\")\na2.source_refresh_token = rt2\na3.source_refresh_token = rt2\ntry:\n    a2.save()\n    print(\"UNIQUE NOT ENFORCED (BUG)\")\nexcept IntegrityError:\n    print(\"UNIQUE enforced: OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 377.9
+  },
+  {
+   "cmd": "cd /tmp/repro && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, \"/testbed\")\nimport django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=[\"reproapp\"],\n    DATABASES={\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/repro.sqlite3\"}},\n    DEFAULT_AUTO_FIELD=\"django.db.models.BigAutoField\",\n    USE_TZ=True,\n)\ndjango.setup()\nos.chdir(\"/tmp/repro\")\nfrom django.db import IntegrityError\nfrom reproapp.models import AccessToken, RefreshToken\n\nrt2 = RefreshToken.objects.create()\na2 = AccessToken.objects.get(id=2)\na3 = AccessToken.objects.get(id=3)\na2.source_refresh_token = rt2\na2.save()\na3.source_refresh_token = rt2\ntry:\n    a3.save()\n    print(\"UNIQUE NOT ENFORCED (BUG)\")\nexcept IntegrityError:\n    print(\"UNIQUE enforced: OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py schema --verbosity 1 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 1971.9
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py migrations --verbosity 1 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 1972.5
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py migrations --verbosity 1 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR)\" ",
+   "hit": null,
+   "lat_ms": 1771.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def assertUniqueConstraintExists\\|def assertUniqueIndexExists\\|def assertIndex\\|def assertIndexNotExist\" tests/schema/__init__.py tests/schema/tests.py | head",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def assert\" tests/schema/tests.py | head -40 && grep -n \"get_constraints\\|constraint_\" tests/schema/tests.py | head -20",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "cd /testbed && cat > tests/schema/test_tmp_regression.py <<'EOF'\nfrom django.db import connection, models\n\nfrom .tests import Author, BaseSchemaTests\n\n\nclass AddUniqueFieldTests(BaseSchemaTests):\n    def test_add_nullable_unique_field(self):\n        # Regression test: adding a nullable unique field (e.g. a nullable\n        # OneToOneField) to an existing table on SQLite.\n        with connection.schema_editor() as editor:\n            editor.create_model(Author)\n        new_field = models.IntegerField(null=True, unique=True)\n        new_field.set_attributes_from_name(\"age\")\n        with connection.schema_editor() as editor:\n            editor.add_field(Author, new_field)\n        columns = self.column_classes(Author)\n        self.assertIn(\"age\", columns)\n        self.assertTrue(columns[\"age\"][1][6])  # nullable\n        constraints = self.get_constraints(Author)\n        unique = [\n            c for c in constraints.values()\n            if c[\"columns\"] == [\"age\"] and c[\"type\"] in (\"UNIQUE\", \"PRIMARY KEY\")\n        ]\n        self.assertTrue(unique, \"no unique constraint found: %r\" % list(constraints.values()))\n\n    def test_add_nullable_oto_field(self):\n        # The exact oauth-toolkit case: nullable OneToOneField, SET_NULL.\n        import django.db.models.deletion\n        with connection.schema_editor() as editor:\n            editor.create_model(Author)\n        new_field = models.OneToOneField(\n            Author,\n            null=True,\n            blank=True,\n            on_delete=django.db.models.deletion.SET_NULL,\n            related_name=\"related_authors\",\n        )\n        new_field.set_attributes_from_name(\"best_friend\")\n        with connection.schema_editor() as editor:\n            editor.add_field(Author, new_field)\n        self.assertForeignKeyExists(Author, \"best_friend\", Author, field=\"id\")\n        constraints = self.get_constraints(Author)\n        unique = [\n            c for c in constraints.values()\n            if c[\"columns\"] == [\"best_friend\"] and c[\"type\"] in (\"UNIQUE\", \"PRIMARY KEY\")\n        ]\n        self.assertTrue(unique, \"no unique constraint found: %r\" % list(constraints.values()))\n\n    def test_add_plain_nullable_field_no_rebuild(self):\n        # #32502 fast path must be preserved for plain nullable fields.\n        with connection.schema_editor() as editor:\n            editor.create_model(Author)\n        new_field = models.IntegerField(null=True)\n        new_field.set_attributes_from_name(\"age\")\n        from django.test.utils import CaptureQueriesContext\n        with CaptureQueriesContext(connection) as ctx, connection.schema_editor() as editor:\n            editor.add_field(Author, new_field)\n        self.assertFalse(any(\"CREATE TABLE\" in q[\"sql\"] for q in ctx.captured_queries))\n        self.assertFalse(any(\"DROP TABLE\" in q[\"sql\"] for q in ctx.captured_queries))\nEOF\n/opt/miniconda3/envs/testbed/bin/python tests/runtests.py schema.test_tmp_regression --verbosity 2 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 570.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"^class\" tests/schema/tests.py",
+   "hit": null,
+   "lat_ms": 72.0
+  },
+  {
+   "cmd": "cd /testbed && sed -i 's/from .tests import Author, BaseSchemaTests/from .tests import Author, SchemaTests/; s/class AddUniqueFieldTests(BaseSchemaTests):/class AddUniqueFieldTests(SchemaTests):/' tests/schema/test_tmp_regression.py && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py schema.test_tmp_regression --verbosity 2 2>&1 | tail -12",
+   "hit": null,
+   "lat_ms": 1775.2
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py schema.test_tmp_regression --verbosity 1 2>&1 | sed -n '/^\\(FAIL\\|ERROR\\)/,/^----/p' | head -60",
+   "hit": null,
+   "lat_ms": 1772.4
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py schema.test_tmp_regression --parallel 1 --verbosity 2 2>&1 | grep -A 25 \"^ERROR: test_add_nullable_unique_field\" | head -35",
+   "hit": null,
+   "lat_ms": 2773.3
+  },
+  {
+   "cmd": "cd /testbed && sed -i 's/self.get_constraints(Author)/self.get_constraints(Author._meta.db_table)/' tests/schema/test_tmp_regression.py && git stash && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py schema.tests.SchemaTests.test_add_foreign_key_quoted_db_table --parallel 1 2>&1 | tail -6; git stash pop",
+   "hit": null,
+   "lat_ms": 773.5
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py schema.tests.SchemaTests.test_add_foreign_key_quoted_db_table --parallel 1 2>&1 | tail -4 && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py schema.test_tmp_regression.AddUniqueFieldTests --parallel 1 --verbosity 2 2>&1 | grep -E \"^test_|^OK|^FAILED|ERROR:|FAIL:\" ",
+   "hit": null,
+   "lat_ms": 2170.5
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py schema.test_tmp_regression.AddUniqueFieldTests.test_add_nullable_unique_field schema.test_tmp_regression.AddUniqueFieldTests.test_add_nullable_oto_field --parallel 1 --verbosity 2 2>&1 | sed -n '/^ERROR\\|^FAIL/,$p' | head -50",
+   "hit": null,
+   "lat_ms": 578.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '230,300p' django/db/backends/sqlite3/introspection.py && sed -n '205,225p' tests/schema/tests.py",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '300,360p' django/db/backends/sqlite3/introspection.py",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"_parse_column_or_constraint_definition\" django/db/backends/sqlite3/introspection.py | head -2 && sed -n \"$(grep -n 'def _parse_column_or_constraint_definition' django/db/backends/sqlite3/introspection.py | cut -d: -f1),+55p\" django/db/backends/sqlite3/introspection.py",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, \"/testbed\")\nos.environ[\"DJANGO_SETTINGS_MODULE\"] = \"\"\nimport django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=[\"django.contrib.contenttypes\", \"django.contrib.auth\", \"schema\"],\n    DATABASES={\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \":memory:\"}},\n    DEFAULT_AUTO_FIELD=\"django.db.models.AutoField\",\n    USE_TZ=True,\n)\ndjango.setup()\nimport django.db.models.deletion\nfrom django.db import connection, models\nfrom schema.models import Author\n\nwith connection.schema_editor() as editor:\n    editor.create_model(Author)\nprint(\"initial SQL:\", connection.introspection.table_sql(Author._meta.db_table) if hasattr(connection.introspection, 'table_sql') else None)\nwith connection.cursor() as c:\n    print(c.execute(\"SELECT sql FROM sqlite_master WHERE name='schema_author'\").fetchone()[0])\n\nnew_field = models.OneToOneField(\n    Author, null=True, blank=True,\n    on_delete=django.db.models.deletion.SET_NULL, related_name=\"related_authors\",\n)\nnew_field.set_attributes_from_name(\"best_friend\")\nwith connection.schema_editor() as editor:\n    editor.add_field(Author, new_field)\nwith connection.cursor() as c:\n    print(\"after SQL:\", c.execute(\"SELECT sql FROM sqlite_master WHERE name='schema_author'\").fetchone()[0])\n    print(\"fk_list:\", c.execute(\"PRAGMA foreign_key_list(schema_author)\").fetchall())\nfrom tests.schema.tests import SchemaTests\nt = SchemaTests()\nprint(\"constraints:\", t.get_constraints(Author._meta.db_table))\nEOF",
+   "hit": null,
+   "lat_ms": 377.6
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\nimport os, sys\nsys.path.insert(0, \"/testbed\")\nsys.path.insert(0, \"/testbed/tests\")\nimport django\nfrom django.conf import settings\nsettings.configure(\n    INSTALLED_APPS=[\"django.contrib.contenttypes\", \"django.contrib.auth\", \"schema\"],\n    DATABASES={\"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \":memory:\"}},\n    DEFAULT_AUTO_FIELD=\"django.db.models.AutoField\",\n    USE_TZ=True,\n)\ndjango.setup()\nimport django.db.models.deletion\nfrom django.db import connection, models\nfrom schema.models import Author\n\nwith connection.schema_editor() as editor:\n    editor.create_model(Author)\nwith connection.cursor() as c:\n    print(\"initial SQL:\", c.execute(\"SELECT sql FROM sqlite_master WHERE name='schema_author'\").fetchone()[0])\n\nnew_field = models.OneToOneField(\n    Author, null=True, blank=True,\n    on_delete=django.db.models.deletion.SET_NULL, related_name=\"related_authors\",\n)\nnew_field.set_attributes_from_name(\"best_friend\")\nwith connection.schema_editor() as editor:\n    editor.add_field(Author, new_field)\nwith connection.cursor() as c:\n    print(\"after SQL:  \", c.execute(\"SELECT sql FROM sqlite_master WHERE name='schema_author'\").fetchone()[0])\n    print(\"fk_list:    \", c.execute(\"PRAGMA foreign_key_list(schema_author)\").fetchall())\nfrom tests.schema.tests import SchemaTests\nt = SchemaTests()\nprint(\"constraints:  \", t.get_constraints(Author._meta.db_table))\nEOF",
+   "hit": null,
+   "lat_ms": 382.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"assertForeignKeyExists(\" tests/schema/tests.py | head -8",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed && cat > tests/schema/test_tmp_regression.py <<'EOF'\nfrom django.db import connection, models\n\nfrom .tests import Author, SchemaTests\n\n\nclass AddUniqueFieldTests(SchemaTests):\n    def test_add_nullable_unique_field(self):\n        # Regression test: adding a nullable unique field (e.g. a nullable\n        # OneToOneField) to an existing table on SQLite.\n        with connection.schema_editor() as editor:\n            editor.create_model(Author)\n        new_field = models.IntegerField(null=True, unique=True)\n        new_field.set_attributes_from_name(\"age\")\n        with connection.schema_editor() as editor:\n            editor.add_field(Author, new_field)\n        columns = self.column_classes(Author)\n        self.assertIn(\"age\", columns)\n        self.assertTrue(columns[\"age\"][1][6])  # nullable\n        constraints = self.get_constraints(Author._meta.db_table)\n        unique = [\n            c for c in constraints.values()\n            if c[\"columns\"] == [\"age\"] and c[\"unique\"]\n        ]\n        self.assertTrue(unique, \"no unique constraint: %r\" % list(constraints.values()))\n\n    def test_add_nullable_oto_field(self):\n        # The exact oauth-toolkit case: nullable OneToOneField, SET_NULL.\n        import django.db.models.deletion\n        with connection.schema_editor() as editor:\n            editor.create_model(Author)\n        new_field = models.OneToOneField(\n            Author,\n            null=True,\n            blank=True,\n            on_delete=django.db.models.deletion.SET_NULL,\n            related_name=\"related_authors\",\n        )\n        new_field.set_attributes_from_name(\"best_friend\")\n        with connection.schema_editor() as editor:\n            editor.add_field(Author, new_field)\n        self.assertForeignKeyExists(Author, \"best_friend_id\", \"schema_author\")\n        constraints = self.get_constraints(Author._meta.db_table)\n        unique = [\n            c for c in constraints.values()\n            if c[\"columns\"] == [\"best_friend_id\"] and c[\"unique\"]\n        ]\n        self.assertTrue(unique, \"no unique constraint: %r\" % list(constraints.values()))\n\n    def test_add_plain_nullable_field_no_rebuild(self):\n        # The #32502 fast path must be preserved for plain nullable fields.\n        with connection.schema_editor() as editor:\n            editor.create_model(Author)\n        new_field = models.IntegerField(null=True)\n        new_field.set_attributes_from_name(\"age\")\n        from django.test.utils import CaptureQueriesContext\n        with CaptureQueriesContext(connection) as ctx, connection.schema_editor() as editor:\n            editor.add_field(Author, new_field)\n        self.assertFalse(any(\"CREATE TABLE\" in q[\"sql\"] for q in ctx.captured_queries))\n        self.assertFalse(any(\"DROP TABLE\" in q[\"sql\"] for q in ctx.captured_queries))\nEOF\n/opt/miniconda3/envs/testbed/bin/python tests/runtests.py schema.test_tmp_regression.AddUniqueFieldTests.test_add_nullable_unique_field schema.test_tmp_regression.AddUniqueFieldTests.test_add_nullable_oto_field schema.test_tmp_regression.AddUniqueFieldTests.test_add_plain_nullable_field_no_rebuild --parallel 1 --verbosity 2 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 570.8
+  },
+  {
+   "cmd": "cd /testbed && rm tests/schema/test_tmp_regression.py && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py schema --verbosity 1 2>&1 | grep -E \"^(Ran|OK|FAILED)\" ; /opt/miniconda3/envs/testbed/bin/python tests/runtests.py migrations --verbosity 1 2>&1 | grep -E \"^(Ran|OK|FAILED)\"",
+   "hit": null,
+   "lat_ms": 3391.0
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python tests/runtests.py backends --verbosity 1 2>&1 | grep -E \"^(Ran|OK|FAILED)\"",
+   "hit": null,
+   "lat_ms": 976.3
+  },
+  {
+   "cmd": "cd /tmp/repro && rm -f repro.sqlite3 && /opt/miniconda3/envs/testbed/bin/python manage.py migrate 2>&1 | tail -4 && cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 406.0
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-15278",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 39555.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

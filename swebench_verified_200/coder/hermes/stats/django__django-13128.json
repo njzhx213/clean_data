@@ -1,0 +1,601 @@
+{
+ "calls": 109,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 242968.70970726013,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 117.2
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "python -c \"import django; print(django.__version__)\"",
+   "hit": null,
+   "lat_ms": 170.9
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nimport sys\nimport django\nfrom datetime import datetime, timedelta\n\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\n# Create temp settings\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY = 'test'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, ExpressionWrapper\nfrom datetime import timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\n# Create the table\nfrom django.db import connection\nwith connection.schema_editor() as schema_editor:\n    schema_editor.create_model(Experiment)\n\n# Try the problematic query\nfrom django.db.models.expressions import Col\nprint('Testing F expressions...')\nprint('F(end) type:', type(F('end')))\nprint('F(start) type:', type(F('start')))\nprint('F(end) - F(start) type:', type(F('end') - F('start')))\n\n# Check what the subtraction produces\nexpr = F('end') - F('start')\nprint('Expression class:', expr.__class__.__name__)\nprint('Expression output_field:', getattr(expr, 'output_field', None))\n\"\n",
+   "hit": null,
+   "lat_ms": 771.3
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nimport sys\nimport django\nfrom datetime import datetime, timedelta\n\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, ExpressionWrapper, Avg\nfrom django.db.models.expressions import CombinedExpression\nfrom datetime import timedelta\n\n# Check how CombinedExpression handles output_field resolution\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\n# Test the actual query that fails\nprint('Testing: F(end) - F(start)')\nexpr = F('end') - F('start')\nprint('Type:', type(expr))\nprint('Children:', expr.children)\nfor i, child in enumerate(expr.children):\n    print(f'  Child {i}: {child} (type: {type(child).__name__})')\n    if hasattr(child, 'output_field'):\n        print(f'    output_field: {child.output_field}')\n\nprint()\nprint('Testing: F(end) - F(start) + Value(timedelta())')\nexpr2 = (F('end') - F('start')) + Value(timedelta(), output_field=DurationField())\nprint('Type:', type(expr2))\nprint('Children:', expr2.children)\nfor i, child in enumerate(expr2.children):\n    print(f'  Child {i}: {child} (type: {type(child).__name__})')\n    if hasattr(child, 'output_field'):\n        print(f'    output_field: {child.output_field}')\n\"\n",
+   "hit": null,
+   "lat_ms": 377.7
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nimport sys\nimport django\nfrom datetime import datetime, timedelta\n\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\n# Create temp settings\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, ExpressionWrapper, Avg\nfrom django.db.models.expressions import CombinedExpression\nfrom datetime import timedelta\n\n# Check how CombinedExpression handles output_field resolution\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\n# Test the actual query that fails\nprint('Testing: F(end) - F(start)')\nexpr = F('end') - F('start')\nprint('Type:', type(expr))\nprint('Children:', expr.children)\nfor i, child in enumerate(expr.children):\n    print(f'  Child {i}: {child} (type: {type(child).__name__})')\n    if hasattr(child, 'output_field'):\n        print(f'    output_field: {child.output_field}')\n\nprint()\nprint('Testing: F(end) - F(start) + Value(timedelta())')\nexpr2 = (F('end') - F('start')) + Value(timedelta(), output_field=DurationField())\nprint('Type:', type(expr2))\nprint('Children:', expr2.children)\nfor i, child in enumerate(expr2.children):\n    print(f'  Child {i}: {child} (type: {type(child).__name__})')\n    if hasattr(child, 'output_field'):\n        print(f'    output_field: {child.output_field}')\n\"\n",
+   "hit": null,
+   "lat_ms": 380.8
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\n# Create temp settings\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, ExpressionWrapper\nfrom datetime import timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\n# Let's look at what the CombinedExpression has\nexpr = F('end') - F('start')\nprint('Type:', type(expr))\nprint('Dir:', [x for x in dir(expr) if not x.startswith('_')])\nprint('left:', expr.left)\nprint('right:', expr.right)\nprint()\n\n# Now test the full expression\nexpr2 = (F('end') - F('start')) + Value(timedelta(), output_field=DurationField())\nprint('expr2 type:', type(expr2))\nprint('expr2.left:', expr2.left, 'type:', type(expr2.left))\nprint('expr2.right:', expr2.right, 'type:', type(expr2.right))\n\"\n",
+   "hit": null,
+   "lat_ms": 388.1
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db.models import F, Value, DurationField\nfrom datetime import timedelta\n\n# Let's look at what the CombinedExpression has\nexpr = F('end') - F('start')\nprint('Type:', type(expr))\nprint('lhs:', expr.lhs)\nprint('rhs:', expr.rhs)\nprint('output_field:', expr.output_field)\nprint()\n\n# Now test the full expression\nexpr2 = (F('end') - F('start')) + Value(timedelta(), output_field=DurationField())\nprint('expr2 type:', type(expr2))\nprint('expr2.lhs:', expr2.lhs, 'type:', type(expr2.lhs))\nprint('expr2.rhs:', expr2.rhs, 'type:', type(expr2.rhs))\nprint('expr2.lhs.output_field:', expr2.lhs.output_field)\nprint('expr2.rhs.output_field:', expr2.rhs.output_field)\n\"\n",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "head -n 350 /testbed/django/db/models/expressions.py | tail -n 100",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "grep -n \"class F\" /testbed/django/db/models/expressions.py | head -5",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "sed -n '526,598p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "grep -n \"_output_field_or_none\" /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "sed -n '850,920p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "grep -n \"resolve_ref\" /testbed/django/db/models/sql/query.py | head -10",
+   "hit": null,
+   "lat_ms": 118.5
+  },
+  {
+   "cmd": "sed -n '1662,1720p' /testbed/django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "grep -n \"_get_col\" /testbed/django/db/models/sql/query.py | head -10",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "sed -n '358,400p' /testbed/django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, ExpressionWrapper\nfrom django.db.models.expressions import CombinedExpression\nfrom datetime import timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\n# Create the table\nfrom django.db import connection\nwith connection.schema_editor() as schema_editor:\n    schema_editor.create_model(Experiment)\n\n# Build a query\nquery = Experiment.objects.all().query\n\n# Resolve F expressions\nf_end = F('end')\nf_start = F('start')\n\nprint('Before resolve:')\nprint('  f_end:', f_end)\nprint('  f_start:', f_start)\n\nresolved_end = f_end.resolve_expression(query=query)\nresolved_start = f_start.resolve_expression(query=query)\n\nprint('After resolve:')\nprint('  resolved_end:', resolved_end, type(resolved_end))\nprint('  resolved_start:', resolved_start, type(resolved_start))\nprint('  resolved_end.output_field:', resolved_end.output_field)\nprint('  resolved_start.output_field:', resolved_start.output_field)\n\"\n",
+   "hit": null,
+   "lat_ms": 426.5
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, ExpressionWrapper\nfrom datetime import timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Experiment.objects.all().query\n\n# Resolve F expressions\nresolved_end = F('end').resolve_expression(query=query)\nresolved_start = F('start').resolve_expression(query=query)\n\nprint('resolved_end.output_field:', resolved_end.output_field)\nprint('resolved_start.output_field:', resolved_start.output_field)\n\n# Do the subtraction\ndiff = resolved_end - resolved_start\nprint('diff type:', type(diff))\nprint('diff.output_field:', diff.output_field)\n\n# Now add a Value with DurationField\nval = Value(timedelta(), output_field=DurationField())\nprint('val.output_field:', val.output_field)\n\n# Try to combine\ntry:\n    result = diff + val\n    print('result type:', type(result))\n    print('result.output_field:', result.output_field)\nexcept Exception as e:\n    print('Error:', e)\n\"\n",
+   "hit": null,
+   "lat_ms": 382.6
+  },
+  {
+   "cmd": "sed -n '848,880p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "grep -n \"class Value\" /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "sed -n '672,730p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "sed -n '230,280p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "sed -n '280,330p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, ExpressionWrapper\nfrom datetime import timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Experiment.objects.all().query\n\n# Resolve F expressions\nresolved_end = F('end').resolve_expression(query=query)\nresolved_start = F('start').resolve_expression(query=query)\n\n# Do the subtraction\ndiff = resolved_end - resolved_start\nprint('diff type:', type(diff))\nprint('diff.output_field:', diff.output_field)\n\n# Wrap it with ExpressionWrapper\nwrapped = ExpressionWrapper(diff + Value(timedelta(), output_field=DurationField()), output_field=DurationField())\nprint('wrapped output_field:', wrapped.output_field)\n\n# Now test with the full query\nqs = Experiment.objects.annotate(delta=wrapped)\nprint('Query:', qs.query)\n\"\n",
+   "hit": null,
+   "lat_ms": 414.8
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, ExpressionWrapper\nfrom datetime import timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Experiment.objects.all().query\n\n# Resolve F expressions\nresolved_end = F('end').resolve_expression(query=query)\nresolved_start = F('start').resolve_expression(query=query)\n\n# Do the subtraction\ndiff = resolved_end - resolved_start\nprint('diff:', diff)\nprint('diff.lhs:', diff.lhs)\nprint('diff.rhs:', diff.rhs)\n\n# Check source expressions\nprint('diff source fields:', diff.get_source_fields())\n\n# Add Value - this is where it fails\nval = Value(timedelta(), output_field=DurationField())\ncombined = diff + val\nprint('combined:', combined)\nprint('combined source fields:', combined.get_source_fields())\n\"\n",
+   "hit": null,
+   "lat_ms": 377.1
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F\nfrom datetime import datetime\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\n# Check what the expected behavior is\n# In SQL: end - start should give an interval/duration\n# In Python: datetime - datetime = timedelta\n\nstart_dt = datetime(2023, 1, 1)\nend_dt = datetime(2023, 1, 2)\nprint('end - start =', end_dt - start_dt, type(end_dt - start_dt))\n\"\n",
+   "hit": null,
+   "lat_ms": 378.4
+  },
+  {
+   "cmd": "grep -n \"class CombinedExpression\" /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "sed -n '425,530p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 155.6
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F\nfrom django.db.models.expressions import TemporalSubtraction\nfrom datetime import datetime\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Experiment.objects.all().query\n\n# Resolve F expressions\nresolved_end = F('end').resolve_expression(query=query)\nresolved_start = F('start').resolve_expression(query=query)\n\n# Create TemporalSubtraction directly\nts = TemporalSubtraction(resolved_end, resolved_start)\nprint('TemporalSubtraction:', ts)\nprint('output_field:', ts.output_field)\nprint('lhs:', ts.lhs)\nprint('rhs:', ts.rhs)\nprint('get_source_fields:', ts.get_source_fields())\n\"\n",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F\nfrom django.db.models.expressions import CombinedExpression, TemporalSubtraction\nfrom datetime import datetime\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Experiment.objects.all().query\n\n# Resolve F expressions\nresolved_end = F('end').resolve_expression(query=query)\nresolved_start = F('start').resolve_expression(query=query)\n\n# Create the subtraction\nsub = CombinedExpression(resolved_end, CombinedExpression.SUB, resolved_start)\nprint('CombinedExpression:', sub)\nprint('lhs type:', sub.lhs.output_field.get_internal_type())\nprint('rhs type:', sub.rhs.output_field.get_internal_type())\nprint('connector:', sub.connector)\n\n# Check if it would be converted to TemporalSubtraction\ndatetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\nlhs_type = sub.lhs.output_field.get_internal_type()\nrhs_type = sub.rhs.output_field.get_internal_type()\nprint('lhs_type in datetime_fields:', lhs_type in datetime_fields)\nprint('lhs_type == rhs_type:', lhs_type == rhs_type)\nprint('Would be TemporalSubtraction:', lhs_type in datetime_fields and lhs_type == rhs_type and sub.connector == CombinedExpression.SUB)\n\"\n",
+   "hit": null,
+   "lat_ms": 377.0
+  },
+  {
+   "cmd": "sed -n '290,320p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "head -n 50 /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "sed -n '425,510p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cat > /tmp/fix.py << 'EOF'\n# The fix: Override _resolve_output_field in CombinedExpression to handle temporal subtraction\n\n# In CombinedExpression class, add this method:\ndef _resolve_output_field(self):\n    # Check if this is a temporal subtraction (datetime - datetime = duration)\n    # This must be done before the parent's _resolve_output_field to handle\n    # the case where lhs and rhs are both datetime fields but the result should be duration\n    if self.connector == self.SUB:\n        try:\n            lhs_type = self.lhs.output_field.get_internal_type()\n            rhs_type = self.rhs.output_field.get_internal_type()\n        except FieldError:\n            pass\n        else:\n            datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n            if lhs_type in datetime_fields and lhs_type == rhs_type:\n                return fields.DurationField()\n    \n    # Fall back to the parent implementation\n    return super()._resolve_output_field()\n\nprint(\"Fix to add to CombinedExpression:\")\nprint(\"\"\"\ndef _resolve_output_field(self):\n    # Check if this is a temporal subtraction (datetime - datetime = duration)\n    if self.connector == self.SUB:\n        try:\n            lhs_type = self.lhs.output_field.get_internal_type()\n            rhs_type = self.rhs.output_field.get_internal_type()\n        except FieldError:\n            pass\n        else:\n            datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n            if lhs_type in datetime_fields and lhs_type == rhs_type:\n                return fields.DurationField()\n    \n    # Fall back to the parent implementation\n    return super()._resolve_output_field()\n\"\"\")\nEOF\npython /tmp/fix.py\n",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F\nfrom django.db.models.expressions import CombinedExpression\nfrom datetime import datetime\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Experiment.objects.all().query\n\n# Create the subtraction without resolving first\nf_end = F('end')\nf_start = F('start')\nsub = CombinedExpression(f_end, CombinedExpression.SUB, f_start)\n\nprint('Before resolve:')\nprint('  sub.lhs:', sub.lhs)\nprint('  sub.rhs:', sub.rhs)\n\n# Try to get output_field before resolve\ntry:\n    print('  sub.output_field:', sub.output_field)\nexcept Exception as e:\n    print('  Error getting output_field:', e)\n\n# Resolve\nresolved = sub.resolve_expression(query=query)\nprint('After resolve:')\nprint('  resolved.lhs:', resolved.lhs)\nprint('  resolved.rhs:', resolved.rhs)\nprint('  resolved.output_field:', resolved.output_field)\n\"\n",
+   "hit": null,
+   "lat_ms": 568.7
+  },
+  {
+   "cmd": "cat /testbed/django/db/models/expressions.py | head -n 450 | tail -n 30",
+   "hit": null,
+   "lat_ms": 115.9
+  },
+  {
+   "cmd": "grep -n \"def resolve_expression\" /testbed/django/db/models/expressions.py | grep -A2 Combined",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "sed -n '469,490p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "sed -n '476,483p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cp /testbed/django/db/models/expressions.py /testbed/django/db/models/expressions.py.bak",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "sed -n '1,482p' /testbed/django/db/models/expressions.py > /tmp/expr_part1.py",
+   "hit": null,
+   "lat_ms": 130.9
+  },
+  {
+   "cmd": "sed -n '483,$p' /testbed/django/db/models/expressions.py > /tmp/expr_part2.py",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "cat > /tmp/resolve_method.py << 'EOF'\n\n    def _resolve_output_field(self):\n        # Check if this is a temporal subtraction (datetime - datetime = duration)\n        # This must be done before the parent's _resolve_output_field to handle\n        # the case where lhs and rhs are both datetime fields but the result should be duration\n        if self.connector == self.SUB:\n            try:\n                lhs_type = self.lhs.output_field.get_internal_type()\n                rhs_type = self.rhs.output_field.get_internal_type()\n            except FieldError:\n                pass\n            else:\n                datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n                if lhs_type in datetime_fields and lhs_type == rhs_type:\n                    return fields.DurationField()\n        \n        # Fall back to the parent implementation\n        return super()._resolve_output_field()\n\nEOF\ncat /tmp/expr_part1.py /tmp/resolve_method.py /tmp/expr_part2.py > /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "sed -n '478,510p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cp /testbed/django/db/models/expressions.py.bak /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "cat > /tmp/patch.py << 'EOF'\nimport re\n\nwith open('/testbed/django/db/models/expressions.py', 'r') as f:\n    content = f.read()\n\n# Find the resolve_expression method in CombinedExpression and add _resolve_output_field after it\n# We'll insert it at the right place\n\nold_code = '''    def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):\n        c = self.copy()\n        c.is_summary = summarize\n        c.lhs = c.lhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        c.rhs = c.rhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        return c\n\n\nclass DurationExpression(CombinedExpression):'''\n\nnew_code = '''    def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):\n        c = self.copy()\n        c.is_summary = summarize\n        c.lhs = c.lhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        c.rhs = c.rhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        return c\n\n    def _resolve_output_field(self):\n        # Check if this is a temporal subtraction (datetime - datetime = duration)\n        # This must be done before the parent's _resolve_output_field to handle\n        # the case where lhs and rhs are both datetime fields but the result should be duration\n        if self.connector == self.SUB:\n            try:\n                lhs_type = self.lhs.output_field.get_internal_type()\n                rhs_type = self.rhs.output_field.get_internal_type()\n            except FieldError:\n                pass\n            else:\n                datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n                if lhs_type in datetime_fields and lhs_type == rhs_type:\n                    return fields.DurationField()\n        \n        # Fall back to the parent implementation\n        return super()._resolve_output_field()\n\n\nclass DurationExpression(CombinedExpression):'''\n\ncontent = content.replace(old_code, new_code)\n\nwith open('/testbed/django/db/models/expressions.py', 'w') as f:\n    f.write(content)\n\nprint(\"Patch applied successfully\")\nEOF\npython /tmp/patch.py\n",
+   "hit": null,
+   "lat_ms": 132.4
+  },
+  {
+   "cmd": "cat > /tmp/patch.py << 'EOF'\nimport re\n\nwith open('/testbed/django/db/models/expressions.py', 'r', encoding='utf-8') as f:\n    content = f.read()\n\n# Find the resolve_expression method in CombinedExpression and add _resolve_output_field after it\n# We'll insert it at the right place\n\nold_code = '''    def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):\n        c = self.copy()\n        c.is_summary = summarize\n        c.lhs = c.lhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        c.rhs = c.rhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        return c\n\n\nclass DurationExpression(CombinedExpression):'''\n\nnew_code = '''    def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):\n        c = self.copy()\n        c.is_summary = summarize\n        c.lhs = c.lhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        c.rhs = c.rhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        return c\n\n    def _resolve_output_field(self):\n        # Check if this is a temporal subtraction (datetime - datetime = duration)\n        # This must be done before the parent's _resolve_output_field to handle\n        # the case where lhs and rhs are both datetime fields but the result should be duration\n        if self.connector == self.SUB:\n            try:\n                lhs_type = self.lhs.output_field.get_internal_type()\n                rhs_type = self.rhs.output_field.get_internal_type()\n            except FieldError:\n                pass\n            else:\n                datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n                if lhs_type in datetime_fields and lhs_type == rhs_type:\n                    return fields.DurationField()\n        \n        # Fall back to the parent implementation\n        return super()._resolve_output_field()\n\n\nclass DurationExpression(CombinedExpression):'''\n\ncontent = content.replace(old_code, new_code)\n\nwith open('/testbed/django/db/models/expressions.py', 'w') as f:\n    f.write(content)\n\nprint(\"Patch applied successfully\")\nEOF\npython /tmp/patch.py\n",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cat > /tmp/patch.py << 'ENDOFPYTHON'\nimport re\n\nwith open('/testbed/django/db/models/expressions.py', 'r') as f:\n    content = f.read()\n\n# Find the resolve_expression method in CombinedExpression and add _resolve_output_field after it\n# We'll insert it at the right place\n\nold_code = '''    def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):\n        c = self.copy()\n        c.is_summary = summarize\n        c.lhs = c.lhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        c.rhs = c.rhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        return c\n\n\nclass DurationExpression(CombinedExpression):'''\n\nnew_code = '''    def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):\n        c = self.copy()\n        c.is_summary = summarize\n        c.lhs = c.lhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        c.rhs = c.rhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        return c\n\n    def _resolve_output_field(self):\n        # Check if this is a temporal subtraction (datetime - datetime = duration)\n        # This must be done before the parent's _resolve_output_field to handle\n        # the case where lhs and rhs are both datetime fields but the result should be duration\n        if self.connector == self.SUB:\n            try:\n                lhs_type = self.lhs.output_field.get_internal_type()\n                rhs_type = self.rhs.output_field.get_internal_type()\n            except FieldError:\n                pass\n            else:\n                datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n                if lhs_type in datetime_fields and lhs_type == rhs_type:\n                    return fields.DurationField()\n        \n        # Fall back to the parent implementation\n        return super()._resolve_output_field()\n\n\nclass DurationExpression(CombinedExpression):'''\n\ncontent = content.replace(old_code, new_code)\n\nwith open('/testbed/django/db/models/expressions.py', 'w') as f:\n    f.write(content)\n\nprint(\"Patch applied successfully\")\nENDOFPYTHON\npython /tmp/patch.py\n",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "sed -n '476,515p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "sed -n '470,520p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -n \"resolve_expression\" /testbed/django/db/models/expressions.py | head -10",
+   "hit": null,
+   "lat_ms": 168.7
+  },
+  {
+   "cmd": "wc -l /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "cp /testbed/django/db/models/expressions.py.bak /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "wc -l /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 72.1
+  },
+  {
+   "cmd": "sed -n '475,490p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "sed -n '482a\\\n\\\n    def _resolve_output_field(self):\\\n        # Check if this is a temporal subtraction (datetime - datetime = duration)\\\n        # This must be done before the parent'\\''s _resolve_output_field to handle\\\n        # the case where lhs and rhs are both datetime fields but the result should be duration\\\n        if self.connector == self.SUB:\\\n            try:\\\n                lhs_type = self.lhs.output_field.get_internal_type()\\\n                rhs_type = self.rhs.output_field.get_internal_type()\\\n            except FieldError:\\\n                pass\\\n            else:\\\n                datetime_fields = {'\\''DateField'\\'', '\\''DateTimeField'\\'', '\\''TimeField'\\''}\\\n                if lhs_type in datetime_fields and lhs_type == rhs_type:\\\n                    return fields.DurationField()\\\n        \\\n        # Fall back to the parent implementation\\\n        return super()._resolve_output_field()' /testbed/django/db/models/expressions.py > /tmp/expressions_new.py && mv /tmp/expressions_new.py /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "sed -n '475,520p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "sed -n '475,520p' /testbed/django/db/models/expressions.py | head -30",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "wc -l /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 78.3
+  },
+  {
+   "cmd": "cp /testbed/django/db/models/expressions.py.bak /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 144.3
+  },
+  {
+   "cmd": "python3 << 'ENDSCRIPT'\nwith open('/testbed/django/db/models/expressions.py', 'r') as f:\n    lines = f.readlines()\n\n# Find the line number of \"class DurationExpression\"\ninsert_line = None\nfor i, line in enumerate(lines):\n    if 'class DurationExpression(CombinedExpression):' in line:\n        insert_line = i\n        break\n\nif insert_line is None:\n    print(\"Could not find DurationExpression class\")\n    exit(1)\n\n# Create the new method\nnew_method = '''\n    def _resolve_output_field(self):\n        # Check if this is a temporal subtraction (datetime - datetime = duration)\n        # This must be done before the parent's _resolve_output_field to handle\n        # the case where lhs and rhs are both datetime fields but the result should be duration\n        if self.connector == self.SUB:\n            try:\n                lhs_type = self.lhs.output_field.get_internal_type()\n                rhs_type = self.rhs.output_field.get_internal_type()\n            except FieldError:\n                pass\n            else:\n                datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n                if lhs_type in datetime_fields and lhs_type == rhs_type:\n                    return fields.DurationField()\n        \n        # Fall back to the parent implementation\n        return super()._resolve_output_field()\n\n'''\n\n# Insert before the DurationExpression class\nlines.insert(insert_line, new_method)\n\n# Write back\nwith open('/testbed/django/db/models/expressions.py', 'w') as f:\n    f.writelines(lines)\n\nprint(f\"Inserted method at line {insert_line}\")\nENDSCRIPT\n",
+   "hit": null,
+   "lat_ms": 150.0
+  },
+  {
+   "cmd": "python3 -c \"\nwith open('/testbed/django/db/models/expressions.py', 'r', encoding='utf-8') as f:\n    lines = f.readlines()\n\n# Find the line number of 'class DurationExpression'\ninsert_line = None\nfor i, line in enumerate(lines):\n    if 'class DurationExpression(CombinedExpression):' in line:\n        insert_line = i\n        break\n\nif insert_line is None:\n    print('Could not find DurationExpression class')\n    exit(1)\n\n# Create the new method\nnew_method = '''\n    def _resolve_output_field(self):\n        # Check if this is a temporal subtraction (datetime - datetime = duration)\n        # This must be done before the parent's _resolve_output_field to handle\n        # the case where lhs and rhs are both datetime fields but the result should be duration\n        if self.connector == self.SUB:\n            try:\n                lhs_type = self.lhs.output_field.get_internal_type()\n                rhs_type = self.rhs.output_field.get_internal_type()\n            except FieldError:\n                pass\n            else:\n                datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n                if lhs_type in datetime_fields and lhs_type == rhs_type:\n                    return fields.DurationField()\n        \n        # Fall back to the parent implementation\n        return super()._resolve_output_field()\n\n'''\n\n# Insert before the DurationExpression class\nlines.insert(insert_line, new_method)\n\n# Write back\nwith open('/testbed/django/db/models/expressions.py', 'w', encoding='utf-8') as f:\n    f.writelines(lines)\n\nprint(f'Inserted method at line {insert_line}')\n\"\n",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "sed -n '478,515p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 156.7
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, ExpressionWrapper\nfrom datetime import timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Experiment.objects.all().query\n\n# Resolve F expressions\nresolved_end = F('end').resolve_expression(query=query)\nresolved_start = F('start').resolve_expression(query=query)\n\n# Do the subtraction\ndiff = resolved_end - resolved_start\nprint('diff type:', type(diff))\nprint('diff.output_field:', diff.output_field)\n\n# Now add Value - this should work now\nval = Value(timedelta(), output_field=DurationField())\nprint('val.output_field:', val.output_field)\n\n# Combine\ncombined = diff + val\nprint('combined type:', type(combined))\nprint('combined.output_field:', combined.output_field)\n\n# Test with the full query\nqs = Experiment.objects.annotate(delta=combined)\nprint('Query:', qs.query)\nprint()\nprint('SUCCESS! The fix works.')\n\"\n",
+   "hit": null,
+   "lat_ms": 378.8
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField\nfrom datetime import timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\n# Create the table\nfrom django.db import connection\nwith connection.schema_editor() as schema_editor:\n    schema_editor.create_model(Experiment)\n\n# Test the original problematic query from the issue\n# This should now work without ExpressionWrapper\nqs = Experiment.objects.annotate(\n    delta=F('end') - F('start') + Value(timedelta(), output_field=DurationField())\n)\nprint('Query:', qs.query)\n\n# Test with actual data\nexp = Experiment.objects.create(start='2023-01-01 10:00:00', end='2023-01-01 12:30:00')\nresult = qs.first()\nprint('Experiment delta:', result.delta, type(result.delta))\n\n# Also test without the Value addition - just the subtraction\nqs2 = Experiment.objects.annotate(delta=F('end') - F('start'))\nprint('Query2:', qs2.query)\nresult2 = qs2.first()\nprint('Experiment delta2:', result2.delta, type(result2.delta))\n\"\n",
+   "hit": null,
+   "lat_ms": 384.0
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, IntegerField\nfrom datetime import timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    duration = models.DurationField()\n    count = models.IntegerField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Experiment.objects.all().query\n\n# Test 1: datetime - datetime = duration\nprint('Test 1: datetime - datetime')\nexp_end = F('end').resolve_expression(query=query)\nexp_start = F('start').resolve_expression(query=query)\ndiff = exp_end - exp_start\nprint('  output_field:', diff.output_field)\n\n# Test 2: duration + duration = duration\nprint()\nprint('Test 2: duration + duration')\nexp_dur1 = F('duration').resolve_expression(query=query)\nexp_dur2 = Value(timedelta(hours=1), output_field=DurationField())\nsum_dur = exp_dur1 + exp_dur2\nprint('  output_field:', sum_dur.output_field)\n\n# Test 3: integer + integer = integer\nprint()\nprint('Test 3: integer + integer')\nexp_int1 = F('count').resolve_expression(query=query)\nexp_int2 = Value(1, output_field=IntegerField())\nsum_int = exp_int1 + exp_int2\nprint('  output_field:', sum_int.output_field)\n\n# Test 4: datetime - datetime + duration\nprint()\nprint('Test 4: datetime - datetime + duration')\ndiff = exp_end - exp_start\nsum_with_dur = diff + Value(timedelta(hours=2), output_field=DurationField())\nprint('  output_field:', sum_with_dur.output_field)\n\n# Test 5: datetime + duration (should fail or work?)\nprint()\nprint('Test 5: datetime + duration')\ntry:\n    sum_dt_dur = exp_end + Value(timedelta(hours=1), output_field=DurationField())\n    print('  output_field:', sum_dt_dur.output_field)\nexcept Exception as e:\n    print('  Error:', e)\n\n# Test 6: duration - duration = duration\nprint()\nprint('Test 6: duration - duration')\ndur1 = F('duration').resolve_expression(query=query)\ndur2 = Value(timedelta(hours=1), output_field=DurationField())\ndiff_dur = dur1 - dur2\nprint('  output_field:', diff_dur.output_field)\n\"\n",
+   "hit": null,
+   "lat_ms": 380.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest django/db/models/expressions/tests.py -xvs -k \"test\" 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 166.4
+  },
+  {
+   "cmd": "cd /testbed && python -m django test django.db.models.expressions.tests --settings=test_settings 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 381.5
+  },
+  {
+   "cmd": "cd /testbed && python runtests.py --settings=test_settings django.db.models.expressions.tests 2>&1 | head -150",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "ls /testbed",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "ls /testbed/django",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "ls /testbed/tests",
+   "hit": null,
+   "lat_ms": 142.5
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py expressions 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 976.4
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py db_functions 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 1176.5
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py queries 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 1772.3
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py queries 2>&1 | grep -E \"^(Ran|OK|FAIL)\"",
+   "hit": null,
+   "lat_ms": 1973.3
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py db_functions 2>&1 | grep -E \"^(Ran|OK|FAIL)\"",
+   "hit": null,
+   "lat_ms": 1171.5
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py aggregation 2>&1 | grep -E \"^(Ran|OK|FAIL)\"",
+   "hit": null,
+   "lat_ms": 979.8
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, IntegerField\nfrom django.db.models.expressions import CombinedExpression\nfrom datetime import timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Experiment.objects.all().query\n\n# Resolve F expressions\nresolved_end = F('end').resolve_expression(query=query)\nresolved_start = F('start').resolve_expression(query=query)\n\n# Test 1: With explicit output_field (should use that)\nprint('Test 1: Explicit output_field on CombinedExpression')\nexp = CombinedExpression(resolved_end, CombinedExpression.SUB, resolved_start, output_field=DurationField())\nprint('  output_field:', exp.output_field)\n\n# Test 2: Without explicit output_field (should infer DurationField for datetime - datetime)\nprint()\nprint('Test 2: No explicit output_field (datetime - datetime)')\nexp = resolved_end - resolved_start\nprint('  output_field:', exp.output_field)\n\n# Test 3: Mixed types with explicit output_field\nprint()\nprint('Test 3: Mixed types with explicit output_field')\nint_exp = F('count').resolve_expression(query=query) if hasattr(Experiment, 'count') else Value(1, output_field=IntegerField())\ntry:\n    # This should still work if output_field is explicitly set\n    val = Value(10, output_field=IntegerField())\n    exp = int_exp + val\n    print('  output_field:', exp.output_field)\nexcept Exception as e:\n    print('  Error:', e)\n\n# Test 4: Verify the fix doesn't break when one of the fields can't be resolved\nprint()\nprint('Test 4: F() with unresolved field')\ntry:\n    f = F('nonexistent')\n    sub = f - f\n    print('  output_field:', sub.output_field)\nexcept Exception as e:\n    print('  Expected error:', e)\n\"\n",
+   "hit": null,
+   "lat_ms": 378.2
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.db.models',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db.models import F\n\n# Check if F has _output_field_or_none before the fix\nf = F('end')\nprint('F has output_field:', hasattr(f, 'output_field'))\nprint('F has _output_field_or_none:', hasattr(f, '_output_field_or_none'))\n\n# Try to get output_field\ntry:\n    print('F.output_field:', f.output_field)\nexcept Exception as e:\n    print('Error getting output_field:', type(e).__name__, e)\n\"\n",
+   "hit": null,
+   "lat_ms": 381.8
+  },
+  {
+   "cmd": "sed -n '487,508p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 145.4
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db.models import F\n\nf = F('end')\nprint('F attributes:', [x for x in dir(f) if not x.startswith('__')])\nprint('has output_field:', hasattr(f, 'output_field'))\n\"\n",
+   "hit": null,
+   "lat_ms": 383.1
+  },
+  {
+   "cmd": "python3 << 'ENDSCRIPT'\nwith open('/testbed/django/db/models/expressions.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the _resolve_output_field method\nold_method = '''    def _resolve_output_field(self):\n        # Check if this is a temporal subtraction (datetime - datetime = duration)\n        # This must be done before the parent's _resolve_output_field to handle\n        # the case where lhs and rhs are both datetime fields but the result should be duration\n        if self.connector == self.SUB:\n            try:\n                lhs_type = self.lhs.output_field.get_internal_type()\n                rhs_type = self.rhs.output_field.get_internal_type()\n            except FieldError:\n                pass\n            else:\n                datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n                if lhs_type in datetime_fields and lhs_type == rhs_type:\n                    return fields.DurationField()\n        \n        # Fall back to the parent implementation\n        return super()._resolve_output_field()'''\n\nnew_method = '''    def _resolve_output_field(self):\n        # Check if this is a temporal subtraction (datetime - datetime = duration)\n        # This must be done before the parent's _resolve_output_field to handle\n        # the case where lhs and rhs are both datetime fields but the result should be duration\n        if self.connector == self.SUB:\n            try:\n                lhs_type = self.lhs.output_field.get_internal_type()\n                rhs_type = self.rhs.output_field.get_internal_type()\n            except (AttributeError, FieldError):\n                pass\n            else:\n                datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n                if lhs_type in datetime_fields and lhs_type == rhs_type:\n                    return fields.DurationField()\n        \n        # Fall back to the parent implementation\n        return super()._resolve_output_field()'''\n\ncontent = content.replace(old_method, new_method)\n\nwith open('/testbed/django/db/models/expressions.py', 'w') as f:\n    f.write(content)\n\nprint(\"Method updated\")\nENDSCRIPT\n",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "python3 -c \"\nwith open('/testbed/django/db/models/expressions.py', 'r', encoding='utf-8') as f:\n    content = f.read()\n\n# Find and replace the _resolve_output_field method\nold_method = '''    def _resolve_output_field(self):\n        # Check if this is a temporal subtraction (datetime - datetime = duration)\n        # This must be done before the parent's _resolve_output_field to handle\n        # the case where lhs and rhs are both datetime fields but the result should be duration\n        if self.connector == self.SUB:\n            try:\n                lhs_type = self.lhs.output_field.get_internal_type()\n                rhs_type = self.rhs.output_field.get_internal_type()\n            except FieldError:\n                pass\n            else:\n                datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n                if lhs_type in datetime_fields and lhs_type == rhs_type:\n                    return fields.DurationField()\n        \n        # Fall back to the parent implementation\n        return super()._resolve_output_field()'''\n\nnew_method = '''    def _resolve_output_field(self):\n        # Check if this is a temporal subtraction (datetime - datetime = duration)\n        # This must be done before the parent's _resolve_output_field to handle\n        # the case where lhs and rhs are both datetime fields but the result should be duration\n        if self.connector == self.SUB:\n            try:\n                lhs_type = self.lhs.output_field.get_internal_type()\n                rhs_type = self.rhs.output_field.get_internal_type()\n            except (AttributeError, FieldError):\n                pass\n            else:\n                datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n                if lhs_type in datetime_fields and lhs_type == rhs_type:\n                    return fields.DurationField()\n        \n        # Fall back to the parent implementation\n        return super()._resolve_output_field()'''\n\ncontent = content.replace(old_method, new_method)\n\nwith open('/testbed/django/db/models/expressions.py', 'w', encoding='utf-8') as f:\n    f.write(content)\n\nprint('Method updated')\n\"\n",
+   "hit": null,
+   "lat_ms": 164.6
+  },
+  {
+   "cmd": "sed -n '486,510p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 68.6
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db.models import F, CombinedExpression\n\n# Test with unresolved F expressions\nf1 = F('end')\nf2 = F('start')\n\n# This should not fail during construction, only when we try to use it\nsub = f1 - f2\nprint('sub type:', type(sub))\n\n# Try to get output_field before resolving\ntry:\n    print('sub.output_field:', sub.output_field)\nexcept Exception as e:\n    print('Error:', type(e).__name__, e)\n\n# Now resolve and try again\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\nimport django\nfrom django.db import models\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Experiment.objects.all().query\nresolved = sub.resolve_expression(query=query)\nprint('resolved.output_field:', resolved.output_field)\n\"\n",
+   "hit": null,
+   "lat_ms": 389.5
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db.models import F\nfrom django.db.models.expressions import CombinedExpression\n\n# Test with unresolved F expressions\nf1 = F('end')\nf2 = F('start')\n\n# This should not fail during construction, only when we try to use it\nsub = f1 - f2\nprint('sub type:', type(sub))\n\n# Try to get output_field before resolving\ntry:\n    print('sub.output_field:', sub.output_field)\nexcept Exception as e:\n    print('Error:', type(e).__name__, e)\n\n# Now resolve and try again\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\nimport django\nfrom django.db import models\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Experiment.objects.all().query\nresolved = sub.resolve_expression(query=query)\nprint('resolved.output_field:', resolved.output_field)\n\"\n",
+   "hit": null,
+   "lat_ms": 390.7
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py expressions 2>&1 | grep -E \"^(Ran|OK|FAIL)\"",
+   "hit": null,
+   "lat_ms": 970.9
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField\nfrom datetime import datetime, timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\n# Create table\nfrom django.db import connection\nwith connection.schema_editor() as schema_editor:\n    schema_editor.create_model(Experiment)\n\n# Test the original use case from the issue\nprint('Testing the original use case:')\nprint('Experiment.objects.annotate(delta=F(\\\"end\\\") - F(\\\"start\\\") + Value(timedelta(), output_field=DurationField()))')\n\nqs = Experiment.objects.annotate(\n    delta=F('end') - F('start') + Value(timedelta(), output_field=DurationField())\n)\nprint('Query created successfully!')\nprint('SQL:', qs.query)\n\n# Create and query data\nexp = Experiment.objects.create(start=datetime(2023, 1, 1, 10, 0, 0), end=datetime(2023, 1, 1, 12, 30, 0))\nresult = qs.first()\nprint('Result delta:', result.delta, type(result.delta))\n\n# Also test without Value addition\nprint()\nprint('Testing without Value addition:')\nqs2 = Experiment.objects.annotate(delta=F('end') - F('start'))\nprint('Query:', qs2.query)\nresult2 = qs2.first()\nprint('Result delta:', result2.delta, type(result2.delta))\n\"\n",
+   "hit": null,
+   "lat_ms": 428.4
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py aggregation queries expressions db_functions 2>&1 | grep -E \"^(Ran|OK|FAIL)\"",
+   "hit": null,
+   "lat_ms": 2178.0
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, DateField, TimeField, IntegerField, FloatField\nfrom datetime import timedelta, date, time\n\nclass Model(models.Model):\n    dt_start = models.DateTimeField()\n    dt_end = models.DateTimeField()\n    date_start = models.DateField()\n    date_end = models.DateField()\n    time_start = models.TimeField()\n    time_end = models.TimeField()\n    duration = models.DurationField()\n    count = models.IntegerField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Model.objects.all().query\n\n# Test datetime - datetime\ndt_start = F('dt_start').resolve_expression(query=query)\ndt_end = F('dt_end').resolve_expression(query=query)\ndt_sub = dt_end - dt_start\nprint('datetime - datetime:', dt_sub.output_field)\n\n# Test date - date\ndate_start = F('date_start').resolve_expression(query=query)\ndate_end = F('date_end').resolve_expression(query=query)\ndate_sub = date_end - date_start\nprint('date - date:', date_sub.output_field)\n\n# Test time - time\ntime_start = F('time_start').resolve_expression(query=query)\ntime_end = F('time_end').resolve_expression(query=query)\ntime_sub = time_end - time_start\nprint('time - time:', time_sub.output_field)\n\n# Test duration - duration\ndur1 = F('duration').resolve_expression(query=query)\ndur2 = Value(timedelta(hours=1), output_field=DurationField())\ndur_sub = dur1 - dur2\nprint('duration - duration:', dur_sub.output_field)\n\n# Test integer - integer\nint1 = F('count').resolve_expression(query=query)\nint2 = Value(1, output_field=IntegerField())\nint_sub = int1 - int2\nprint('integer - integer:', int_sub.output_field)\n\n# Test float - float (should work like integer)\nfloat1 = F('count').resolve_expression(query=query)\nfloat2 = Value(1.5, output_field=FloatField())\nfloat_sub = float1 - float2\nprint('float - float:', float_sub.output_field)\n\"\n",
+   "hit": null,
+   "lat_ms": 377.3
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, IntegerField, FloatField\nfrom django.db.models.expressions import CombinedExpression\n\nquery = models.Model.objects.all().query\n\n# Test integer - float (without my fix, this should also fail)\nclass Model(models.Model):\n    count = models.IntegerField()\n    \n    class Meta:\n        app_label = 'test'\n\nint1 = F('count').resolve_expression(query=query)\nfloat2 = Value(1.5, output_field=FloatField())\ncombined = CombinedExpression(int1, CombinedExpression.SUB, float2)\ntry:\n    print('combined.output_field:', combined.output_field)\nexcept Exception as e:\n    print('Error:', e)\n\n# But integer - integer should work\nint2 = Value(1, output_field=IntegerField())\ncombined2 = CombinedExpression(int1, CombinedExpression.SUB, int2)\nprint('int - int output_field:', combined2.output_field)\n\"\n",
+   "hit": null,
+   "lat_ms": 379.6
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, IntegerField, FloatField\nfrom django.db.models.expressions import CombinedExpression\n\nclass Model(models.Model):\n    count = models.IntegerField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Model.objects.all().query\n\n# Test integer - float (without my fix, this should also fail)\nint1 = F('count').resolve_expression(query=query)\nfloat2 = Value(1.5, output_field=FloatField())\ncombined = CombinedExpression(int1, CombinedExpression.SUB, float2)\ntry:\n    print('int - float output_field:', combined.output_field)\nexcept Exception as e:\n    print('int - float Error:', e)\n\n# But integer - integer should work\nint2 = Value(1, output_field=IntegerField())\ncombined2 = CombinedExpression(int1, CombinedExpression.SUB, int2)\nprint('int - int output_field:', combined2.output_field)\n\"\n",
+   "hit": null,
+   "lat_ms": 420.2
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField\nfrom datetime import timedelta\n\nclass Model(models.Model):\n    duration = models.DurationField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Model.objects.all().query\n\n# Test duration + duration\ndur1 = F('duration').resolve_expression(query=query)\ndur2 = Value(timedelta(hours=1), output_field=DurationField())\ndur_sum = dur1 + dur2\nprint('duration + duration:', dur_sum.output_field)\n\n# Test duration - duration\ndur_sub = dur1 - dur2\nprint('duration - duration:', dur_sub.output_field)\n\n# Test duration * integer (this is allowed)\nint_val = Value(2, output_field=models.IntegerField())\ndur_mul = dur1 * int_val\nprint('duration * integer:', dur_mul.output_field)\n\n# Test duration / integer (this is allowed)\ndur_div = dur1 / int_val\nprint('duration / integer:', dur_div.output_field)\n\"\n",
+   "hit": null,
+   "lat_ms": 376.9
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, IntegerField\nfrom datetime import timedelta\nfrom django.db.models.expressions import CombinedExpression\n\nclass Model(models.Model):\n    duration = models.DurationField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Model.objects.all().query\n\n# Test without IntegerField wrapper - use raw value\ndur1 = F('duration').resolve_expression(query=query)\nint_val = Value(2)  # No explicit output_field\nprint('int_val.output_field:', int_val.output_field)\n\n# Try multiplication\ntry:\n    dur_mul = dur1 * int_val\n    print('duration * raw int:', dur_mul.output_field)\nexcept Exception as e:\n    print('duration * raw int Error:', e)\n\n# Try with explicit IntegerField\nint_val2 = Value(2, output_field=IntegerField())\nprint('int_val2.output_field:', int_val2.output_field)\ntry:\n    dur_mul2 = dur1 * int_val2\n    print('duration * IntegerField:', dur_mul2.output_field)\nexcept Exception as e:\n    print('duration * IntegerField Error:', e)\n\"\n",
+   "hit": null,
+   "lat_ms": 377.1
+  },
+  {
+   "cmd": "cp /testbed/django/db/models/expressions.py.bak /tmp/expressions_backup.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cp /testbed/django/db/models/expressions.py.bak /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField, IntegerField\nfrom datetime import timedelta\nfrom django.db.models.expressions import CombinedExpression\n\nclass Model(models.Model):\n    duration = models.DurationField()\n    \n    class Meta:\n        app_label = 'test'\n\nquery = Model.objects.all().query\n\n# Test duration * integer with explicit IntegerField\ndur1 = F('duration').resolve_expression(query=query)\nint_val = Value(2, output_field=IntegerField())\nprint('int_val.output_field:', int_val.output_field)\n\n# Try multiplication\ntry:\n    dur_mul = dur1 * int_val\n    print('duration * IntegerField output_field:', dur_mul.output_field)\nexcept Exception as e:\n    print('duration * IntegerField Error:', e)\n\"\n",
+   "hit": null,
+   "lat_ms": 377.0
+  },
+  {
+   "cmd": "python3 -c \"\nwith open('/testbed/django/db/models/expressions.py', 'r', encoding='utf-8') as f:\n    content = f.read()\n\n# Find and replace the _resolve_output_field method\nold_method = '''    def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):\n        c = self.copy()\n        c.is_summary = summarize\n        c.lhs = c.lhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        c.rhs = c.rhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        return c\n\n\nclass DurationExpression(CombinedExpression):'''\n\nnew_method = '''    def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):\n        c = self.copy()\n        c.is_summary = summarize\n        c.lhs = c.lhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        c.rhs = c.rhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)\n        return c\n\n    def _resolve_output_field(self):\n        # Check if this is a temporal subtraction (datetime - datetime = duration)\n        # This must be done before the parent's _resolve_output_field to handle\n        # the case where lhs and rhs are both datetime fields but the result should be duration\n        if self.connector == self.SUB:\n            try:\n                lhs_type = self.lhs.output_field.get_internal_type()\n                rhs_type = self.rhs.output_field.get_internal_type()\n            except (AttributeError, FieldError):\n                pass\n            else:\n                datetime_fields = {'DateField', 'DateTimeField', 'TimeField'}\n                if lhs_type in datetime_fields and lhs_type == rhs_type:\n                    return fields.DurationField()\n        \n        # Fall back to the parent implementation\n        return super()._resolve_output_field()\n\n\nclass DurationExpression(CombinedExpression):'''\n\ncontent = content.replace(old_method, new_method)\n\nwith open('/testbed/django/db/models/expressions.py', 'w', encoding='utf-8') as f:\n    f.write(content)\n\nprint('Method updated')\n\"\n",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py expressions 2>&1 | grep -E \"^(Ran|OK|FAIL)\"",
+   "hit": null,
+   "lat_ms": 972.3
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField\nfrom datetime import datetime, timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\n# Create table\nfrom django.db import connection\nwith connection.schema_editor() as schema_editor:\n    schema_editor.create_model(Experiment)\n\n# Test the original use case from the issue\nprint('=== ORIGINAL USE CASE ===')\nprint('Experiment.objects.annotate(delta=F(\\\"end\\\") - F(\\\"start\\\") + Value(timedelta(), output_field=DurationField()))')\n\nqs = Experiment.objects.annotate(\n    delta=F('end') - F('start') + Value(timedelta(), output_field=DurationField())\n)\nprint('Query created successfully!')\nprint('SQL:', qs.query)\n\n# Create and query data\nexp = Experiment.objects.create(start=datetime(2023, 1, 1, 10, 0, 0), end=datetime(2023, 1, 1, 12, 30, 0))\nresult = qs.first()\nprint('Result delta:', result.delta, type(result.delta))\n\n# Also test without Value addition\nprint()\nprint('=== WITHOUT VALUE ADDITION ===')\nqs2 = Experiment.objects.annotate(delta=F('end') - F('start'))\nprint('Query:', qs2.query)\nresult2 = qs2.first()\nprint('Result delta:', result2.delta, type(result2.delta))\n\n# Test with different temporal field types\nprint()\nprint('=== DATE SUBTRACTION ===')\nclass Event(models.Model):\n    start_date = models.DateField()\n    end_date = models.DateField()\n    \n    class Meta:\n        app_label = 'test'\n\nwith connection.schema_editor() as schema_editor:\n    schema_editor.create_model(Event)\n\nqs3 = Event.objects.annotate(delta=F('end_date') - F('start_date'))\nprint('Query:', qs3.query)\nprint('Output field:', qs3.query.annotations['delta'].output_field)\n\nprint()\nprint('=== ALL TESTS PASSED ===')\n\"\n",
+   "hit": null,
+   "lat_ms": 378.0
+  },
+  {
+   "cmd": "rm /testbed/django/db/models/expressions.py.bak /tmp/expressions_backup.py 2>/dev/null; echo \"Cleanup done\"",
+   "hit": null,
+   "lat_ms": 80.4
+  },
+  {
+   "cmd": "sed -n '475,510p' /testbed/django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 165.4
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 105057.9
+  },
+  {
+   "cmd": "cd /testbed && timeout 120 python tests/runtests.py 2>&1 | grep -E \"^(Ran|OK|FAIL|ERROR)\" | head -20",
+   "hit": null,
+   "lat_ms": 103841.5
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py expressions aggregation queries 2>&1 | grep -E \"^(Ran|OK|FAIL)\"",
+   "hit": null,
+   "lat_ms": 1974.6
+  },
+  {
+   "cmd": "cd /tmp && python -c \"\nimport os\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'temp_settings')\n\nwith open('temp_settings.py', 'w') as f:\n    f.write('''\nSECRET_KEY='***'\nINSTALLED_APPS = [\n    'django.contrib.contenttypes',\n    'django.contrib.auth',\n]\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': ':memory:',\n    }\n}\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n''')\n\nimport django\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models import F, Value, DurationField\nfrom datetime import timedelta\n\nclass Experiment(models.Model):\n    start = models.DateTimeField()\n    end = models.DateTimeField()\n    \n    class Meta:\n        app_label = 'test'\n\n# This is the EXACT use case from the issue that was failing\n# Before the fix, this would raise:\n# django.core.exceptions.FieldError: Expression contains mixed types: DateTimeField, DurationField. You must set output_field.\n\ntry:\n    qs = Experiment.objects.annotate(\n        delta=F('end') - F('start') + Value(timedelta(), output_field=DurationField())\n    )\n    print('SUCCESS! The query was created without errors.')\n    print('Query:', qs.query)\n    \n    # The fix allows temporal subtraction to correctly return DurationField\n    # without needing ExpressionWrapper\nexcept Exception as e:\n    print('FAILURE:', e)\n\"\n",
+   "hit": null,
+   "lat_ms": 377.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-13128",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 242968.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

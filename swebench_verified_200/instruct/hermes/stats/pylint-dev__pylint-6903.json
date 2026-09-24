@@ -1,0 +1,176 @@
+{
+ "calls": 24,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 33460.53051948547,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "find / -name \"run.py\" -path \"*pylint*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 582.7
+  },
+  {
+   "cmd": "python3 -c \"import pylint; print(pylint.__file__, pylint.__version__)\" 2>/dev/null || pip show pylint 2>/dev/null || echo \"pylint not found\"",
+   "hit": null,
+   "lat_ms": 117.3
+  },
+  {
+   "cmd": "cat -n /testbed/pylint/lint/run.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nfrom pylint.lint.run import _query_cpu, _cpu_count\nimport os\n# Simulate the Kubernetes Pod cgroup values from the bug report\nprint('os.cpu_count():', os.cpu_count())\nprint('sched_getaffinity:', len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else 'N/A')\nprint('Current _query_cpu():', _query_cpu())\nprint('Current _cpu_count():', _cpu_count())\n\"",
+   "hit": null,
+   "lat_ms": 167.3
+  },
+  {
+   "cmd": "cd /testbed && find tests -path \"*run*\" -name \"*.py\" | head; echo \"---\"; grep -rn \"_cpu_count\\|_query_cpu\" tests/ 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 170.1
+  },
+  {
+   "cmd": "cd /testbed && pip install tomlkit 2>&1 | tail -2",
+   "hit": null,
+   "lat_ms": 7975.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '100,140p' tests/conftest.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"import tomlkit\" 2>&1; echo \"---pip list---\"; pip list 2>/dev/null | grep -i -E \"toml|pylint|astroid|pytest\" ; echo \"---network check---\"; timeout 5 python3 -c \"import urllib.request; urllib.request.urlopen('https://pypi.org', timeout=4); print('net OK')\" 2>&1 | tail -1",
+   "hit": null,
+   "lat_ms": 574.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"import sys; print(sys.version)\"; echo \"---installed---\"; python3 -m pip list 2>/dev/null | head -30 || ls /usr/lib/python3/dist-packages 2>/dev/null | head -30; echo \"---tomlkit anywhere?---\"; find / -name \"tomlkit*\" 2>/dev/null | head; find / -name \"astroid\" -maxdepth 6 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 1171.7
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/python -c \"\nimport pylint, os\nprint('pylint', pylint.__version__, pylint.__file__)\nfrom pylint.lint.run import _query_cpu, _cpu_count\nprint('os.cpu_count():', os.cpu_count())\nprint('_query_cpu():', _query_cpu())\nprint('_cpu_count():', _cpu_count())\n\"",
+   "hit": null,
+   "lat_ms": 1114.3
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python -c \"\nfrom unittest.mock import patch\nfrom pathlib import Path\nimport pylint.lint.run as run_mod\n\n# Simulate the exact Kubernetes Pod values from the bug report:\n#   cpu.cfs_quota_us   = -1\n#   cpu.cfs_period_us  = 100000\n#   cpu.shares         = 2\ndef fake_is_file(self):\n    if str(self) == '/sys/fs/cgroup/cpu/cpu.cfs_quota_us': return True\n    if str(self) == '/sys/fs/cgroup/cpu/cpu.cfs_period_us': return True\n    if str(self) == '/sys/fs/cgroup/cpu/cpu.shares': return True\n    return self._is_file_orig()\n\ndef fake_open(path, *a, **k):\n    vals = {'/sys/fs/cgroup/cpu/cpu.cfs_quota_us': '-1',\n            '/sys/fs/cgroup/cpu/cpu.cfs_period_us': '100000',\n            '/sys/fs/cgroup/cpu/cpu.shares': '2'}\n    from io import StringIO\n    return StringIO(vals[path])\n\nPath._is_file_orig = Path.is_file\nwith patch.object(Path, 'is_file', fake_is_file), patch.object(run_mod, 'open', fake_open, create=True):\n    q = run_mod._query_cpu()\n    c = run_mod._cpu_count()\n    print('_query_cpu() ->', q)\n    print('_cpu_count() ->', c)\n    assert c == 0, 'expected the bug: _cpu_count() == 0'\n    print('BUG REPRODUCED: _cpu_count() returned 0 -> multiprocessing.Pool(0) would crash')\n\"",
+   "hit": null,
+   "lat_ms": 573.0
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python - <<'EOF'\npath = \"pylint/lint/run.py\"\nsrc = open(path, encoding=\"utf-8\").read()\n\nold = \"\"\"    if cpu_share is not None:\n        return min(cpu_share, cpu_count)\n    return cpu_count\"\"\"\n\nnew = \"\"\"    if cpu_share is not None:\n        # Guard against the (rare) case where the cgroup-based computation\n        # yields a non-positive value (e.g. a container with a tiny\n        # cpu.shares value, or a cpu quota smaller than the period).\n        # multiprocessing requires at least one worker, so never return 0\n        # (or less) for the job count.\n        return max(1, min(cpu_share, cpu_count))\n    return cpu_count\"\"\"\n\nassert src.count(old) == 1, f\"expected exactly 1 occurrence, found {src.count(old)}\"\nopen(path, \"w\", encoding=\"utf-8\").write(src.replace(old, new))\nprint(\"patched OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python -c \"\nfrom unittest.mock import patch\nfrom pathlib import Path\nfrom io import StringIO\nimport importlib\nimport pylint.lint.run as run_mod\nimportlib.reload(run_mod)\n\ndef make_mocks(quota, period, shares):\n    vals = {'/sys/fs/cgroup/cpu/cpu.cfs_quota_us': quota,\n            '/sys/fs/cgroup/cpu/cpu.cfs_period_us': period,\n            '/sys/fs/cgroup/cpu/cpu.shares': shares}\n    def fake_is_file(self):\n        return str(self) in vals\n    def fake_open(path, *a, **k):\n        return StringIO(vals[path])\n    return patch.object(Path, 'is_file', fake_is_file), patch.object(run_mod, 'open', fake_open, create=True)\n\ndef run_case(name, quota, period, shares):\n    p1, p2 = make_mocks(quota, period, shares)\n    with p1, p2:\n        q = run_mod._query_cpu()\n        c = run_mod._cpu_count()\n    print(f'{name:40s} _query_cpu={q!s:5} _cpu_count={c}')\n    return c\n\n# The exact Kubernetes scenario from the bug report:\nc = run_case('K8s bug report (quota=-1,shares=2)', '-1', '100000', '2')\nassert c >= 1, f'FAIL: still 0 or less -> {c}'\n\n# More cases that previously produced 0:\nc = run_case('tiny shares (quota=-1,shares=1)', '-1', '100000', '1')\nassert c >= 1\nc = run_case('quota < period (quota=1000,period=100000)', '1000', '100000', '2')\nassert c >= 1\n\n# Normal / positive cases must be unchanged:\nc = run_case('quota=200000,period=100000 (=2 cpu)', '200000', '100000', '2')\nassert c == 2, f'expected 2, got {c}'\nc = run_case('quota=500000,period=100000 (=5 cpu)', '500000', '100000', '2')\nassert c == 5, f'expected 5, got {c}'\nc = run_case('shares=1024 (=1 cpu)', '-1', '100000', '1024')\nassert c == 1, f'expected 1, got {c}'\nc = run_case('shares=2048 (=2 cpu)', '-1', '100000', '2048')\nassert c == 2, f'expected 2, got {c}'\n\n# shares large but host cpu_count is the cap (host has 64 here):\nc = run_case('shares=1048576 (1024 cpu) capped by host', '-1', '100000', '1048576')\nassert c == 64, f'expected cap at host 64, got {c}'\n\nprint()\nprint('ALL ASSERTIONS PASSED - fix verified')\n\"",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "cd /testbed && printf 'import os\\n\\ndef foo( bar ):\\n    x = 1\\n    return x\\n' > /tmp/buggy_sample.py && cat /tmp/buggy_sample.py",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/e2e_k8s_test.py <<'EOF'\n\"\"\"End-to-end: run pylint --jobs=0 while /sys/fs/cgroup files report the\nexact Kubernetes values from the bug report. Before the fix this crashed\nwith ValueError: Number of processes must be at least 1.\"\"\"\nimport sys\nfrom pathlib import Path\nfrom io import StringIO\n\n# The exact values from the bug report\nK8S = {\n    '/sys/fs/cgroup/cpu/cpu.cfs_quota_us': '-1',\n    '/sys/fs/cgroup/cpu/cpu.cfs_period_us': '100000',\n    '/sys/fs/cgroup/cpu/cpu.shares': '2',\n}\n_orig_is_file = Path.is_file\ndef _fake_is_file(self):\n    if str(self) in K8S:\n        return True\n    return _orig_is_file(self)\nPath.is_file = _fake_is_file\n\nimport pylint.lint.run as run_mod\n_open_orig = open\ndef _fake_open(path, *a, **k):\n    if isinstance(path, str) and path in K8S:\n        return StringIO(K8S[path])\n    return _open_orig(path, *a, **k)\nrun_mod.open = _fake_open\n\n# Verify the mock is active for our code path\nassert run_mod._query_cpu() == 0, f\"mock not effective, got {run_mod._query_cpu()}\"\nassert run_mod._cpu_count() == 1, f\"expected _cpu_count()=1 after fix, got {run_mod._cpu_count()}\"\nprint(f\"[e2e] cgroup mock active: _query_cpu()={run_mod._query_cpu()}, _cpu_count()={run_mod._cpu_count()}\")\n\nsys.argv = ['pylint', '--jobs=0', '--exit-zero', '/tmp/buggy_sample.py']\nfrom pylint.lint.run import Run\ntry:\n    Run(sys.argv[1:], exit=False)\n    print(\"[e2e] SUCCESS: pylint --jobs=0 ran without crashing on K8s cgroup values\")\nexcept SystemExit as e:\n    # exit-zero should give 0; any other code means it didn't crash in Pool\n    print(f\"[e2e] pylint exited with code {e.code} (no ValueError -> fix works)\")\n    assert e.code == 0, f\"unexpected exit code {e.code}\"\nexcept ValueError as e:\n    print(f\"[e2e] FAIL: reproduced crash -> {e}\")\n    raise\nEOF\n/opt/miniconda3/envs/testbed/bin/python /tmp/e2e_k8s_test.py",
+   "hit": null,
+   "lat_ms": 969.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '64,81p' pylint/lint/run.py",
+   "hit": null,
+   "lat_ms": 75.1
+  },
+  {
+   "cmd": "cd /testbed && ls tests/lint/ 2>/dev/null | head -40; echo \"---\"; find tests -name \"*run*\" -o -name \"*parallel*\" -o -name \"*job*\" 2>/dev/null | grep -v functional | grep -v primer | head",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python -m pytest tests/test_check_parallel.py -x -q 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2372.5
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python -m pytest tests/test_pylint_runners.py tests/config/pylint_config/test_run_pylint_config.py -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 9381.5
+  },
+  {
+   "cmd": "cd /testbed && /opt/miniconda3/envs/testbed/bin/python -m pytest tests/lint/test_pylinter.py -q 2>&1 | tail -8; echo \"=== self-lint of changed function ===\"; /opt/miniconda3/envs/testbed/bin/python -m pylint --disable=all --enable=E,W,C pylint/lint/run.py 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 6775.9
+  },
+  {
+   "cmd": "cd /testbed && git diff pylint/lint/run.py 2>/dev/null || diff <(echo) <(echo) ; echo \"=== git status ===\"; git -C /testbed status --short 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 165.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pylint-dev__pylint-6903",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 33460.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

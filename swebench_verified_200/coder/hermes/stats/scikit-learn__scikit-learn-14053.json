@@ -1,0 +1,256 @@
+{
+ "calls": 40,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 20469.998598098755,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "find /testbed -name \"*.py\" -path \"*/tree/*\" | grep -E \"(export|tree)\" | head -20",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cat /testbed/sklearn/tree/export.py",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cat /testbed/sklearn/tree/tests/test_export.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.tree.export import export_text\nfrom sklearn.datasets import load_iris\n\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\n\ntree = DecisionTreeClassifier()\ntree.fit(X, y)\ntry:\n    tree_text = export_text(tree, feature_names=['sepal_length'])\n    print(tree_text)\nexcept Exception as e:\n    print(f'Error: {type(e).__name__}: {e}')\n    import traceback\n    traceback.print_exc()\n\"\n",
+   "hit": null,
+   "lat_ms": 1009.4
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.datasets import load_iris\nfrom sklearn.tree import _tree\n\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\n\ntree = DecisionTreeClassifier()\ntree.fit(X, y)\n\ntree_ = tree.tree_\nprint('n_features:', tree_.n_features)\nprint('feature array:', tree_.feature)\nprint('children_left:', tree_.children_left)\nprint('children_right:', tree_.children_right)\nprint('threshold:', tree_.threshold)\nprint('TREE_UNDEFINED:', _tree.TREE_UNDEFINED)\n\"\n",
+   "hit": null,
+   "lat_ms": 771.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '850,950p' /testbed/sklearn/tree/export.py",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"feature_names_ = \\[\" /testbed/sklearn/tree/export.py",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.datasets import load_iris\nfrom sklearn.tree import _tree\n\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\n\ntree = DecisionTreeClassifier()\ntree.fit(X, y)\n\ntree_ = tree.tree_\nfeature_names = ['sepal_length']\n\n# Current code that fails\ntry:\n    feature_names_ = [feature_names[i] for i in tree_.feature]\n    print('Current code succeeded:', feature_names_)\nexcept IndexError as e:\n    print('Current code failed:', e)\n\n# Proposed fix\nfeature_names_ = [feature_names[i] if i >= 0 else 'undefined' for i in tree_.feature]\nprint('Fixed code:', feature_names_)\n\"\n",
+   "hit": null,
+   "lat_ms": 769.0
+  },
+  {
+   "cmd": "cd /testbed && cat -n /testbed/sklearn/tree/export.py | sed -n '890,898p'",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "cd /testbed && patch -p1 << 'EOF'\n--- a/sklearn/tree/export.py\n+++ b/sklearn/tree/export.py\n@@ -890,9 +890,11 @@ def export_text(decision_tree, feature_names=None, max_depth=10,\n         value_fmt = \"{}{} value: {}\\n\"\n \n     if feature_names:\n-        feature_names_ = [feature_names[i] for i in tree_.feature]\n+        feature_names_ = [feature_names[i] if i >= 0 else \"undefined\"\n+                          for i in tree_.feature]\n     else:\n-        feature_names_ = [\"feature_{}\".format(i) for i in tree_.feature]\n+        feature_names_ = [\"feature_{}\".format(i) if i >= 0 else \"undefined\"\n+                          for i in tree_.feature]\n \n     export_text.report = \"\"\n \nEOF\n",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.tree.export import export_text\nfrom sklearn.datasets import load_iris\n\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\n\ntree = DecisionTreeClassifier()\ntree.fit(X, y)\ntree_text = export_text(tree, feature_names=['sepal_length'])\nprint(tree_text)\n\"\n",
+   "hit": null,
+   "lat_ms": 775.5
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.tree.export import export_text\nfrom sklearn.datasets import load_iris\n\n# Test with multiple features\nX, y = load_iris(return_X_y=True)\ntree = DecisionTreeClassifier(max_depth=2)\ntree.fit(X, y)\ntree_text = export_text(tree, feature_names=load_iris()['feature_names'])\nprint(tree_text)\n\"\n",
+   "hit": null,
+   "lat_ms": 775.1
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.tree.export import export_text\nfrom sklearn.datasets import load_iris\n\n# Test with single feature and no feature_names\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\ntree = DecisionTreeClassifier(max_depth=2)\ntree.fit(X, y)\ntree_text = export_text(tree)\nprint(tree_text)\n\"\n",
+   "hit": null,
+   "lat_ms": 990.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sklearn/tree/tests/test_export.py::test_export_text -xvs",
+   "hit": null,
+   "lat_ms": 972.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sklearn/tree/tests/test_export.py::test_export_text_errors -xvs",
+   "hit": null,
+   "lat_ms": 774.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sklearn/tree/tests/test_export.py -xvs 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 973.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sklearn/tree/tests/test_export.py -k \"export_text\" -xvs",
+   "hit": null,
+   "lat_ms": 972.4
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.tree.export import export_text\nfrom sklearn.datasets import load_iris\nimport numpy as np\n\n# Test the reported bug - single feature\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\n\ntree = DecisionTreeClassifier()\ntree.fit(X, y)\n\n# This should not raise an IndexError\ntree_text = export_text(tree, feature_names=['sepal_length'])\nprint('Single feature test passed!')\n\n# Also test with max_depth to make sure truncation works\ntree_text_trunc = export_text(tree, max_depth=1, feature_names=['sepal_length'])\nprint('Truncation test passed!')\n\n# Test without feature_names\ntree_text_no_names = export_text(tree)\nprint('No feature names test passed!')\n\n# Test regression\nfrom sklearn.tree import DecisionTreeRegressor\nreg = DecisionTreeRegressor(max_depth=2)\nreg.fit(X, y)\nreg_text = export_text(reg, feature_names=['sepal_length'])\nprint('Regression test passed!')\n\"\n",
+   "hit": null,
+   "lat_ms": 771.5
+  },
+  {
+   "cmd": "cd /testbed && grep -A 20 \"def test_export_text():\" /testbed/sklearn/tree/tests/test_export.py | head -50",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && cat -n /testbed/sklearn/tree/tests/test_export.py | grep -A 100 \"def test_export_text():\" | head -80",
+   "hit": null,
+   "lat_ms": 73.2
+  },
+  {
+   "cmd": "cd /testbed && cat -n /testbed/sklearn/tree/tests/test_export.py | tail -20",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\n# Read the current test file\nwith open('/testbed/sklearn/tree/tests/test_export.py', 'r') as f:\n    content = f.read()\n\n# Find the position to insert the new test (after test_export_text)\ninsertion_point = content.find('def test_plot_tree_entropy(pyplot):')\n\n# The new test to add\nnew_test = '''\ndef test_export_text_single_feature():\n    # Test for bug: export_text raises IndexError when tree has single feature\n    # https://github.com/scikit-learn/scikit-learn/issues/...\n    from sklearn.datasets import load_iris\n    \n    X, y = load_iris(return_X_y=True)\n    X = X[:, 0].reshape(-1, 1)  # Use only one feature\n    \n    tree = DecisionTreeClassifier(random_state=0)\n    tree.fit(X, y)\n    \n    # This should not raise an IndexError\n    tree_text = export_text(tree, feature_names=['sepal_length'])\n    assert 'sepal_length' in tree_text\n    \n    # Test without feature_names\n    tree_text_no_names = export_text(tree)\n    assert 'feature_0' in tree_text_no_names\n    \n    # Test with max_depth truncation\n    tree_text_trunc = export_text(tree, max_depth=1, feature_names=['sepal_length'])\n    assert 'sepal_length' in tree_text_trunc\n\n\n'''\n\n# Insert the new test before test_plot_tree_entropy\nnew_content = content[:insertion_point] + new_test + content[insertion_point:]\n\n# Write back\nwith open('/testbed/sklearn/tree/tests/test_export.py', 'w') as f:\n    f.write(new_content)\n\nprint('Test added successfully!')\n\"\n",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sklearn/tree/tests/test_export.py::test_export_text_single_feature -xvs",
+   "hit": null,
+   "lat_ms": 971.2
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sklearn/tree/tests/test_export.py -k \"export_text\" -xvs",
+   "hit": null,
+   "lat_ms": 772.0
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.tree.export import export_text\nfrom sklearn.datasets import load_iris\n\n# Test with a tree that has only root (no splits due to min_samples)\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\n\ntree = DecisionTreeClassifier(min_samples_split=100)  # Force no splits\ntree.fit(X, y)\n\ntree_text = export_text(tree, feature_names=['sepal_length'])\nprint('Tree with no splits:')\nprint(tree_text)\nprint()\nprint('Length of feature_names_ should be equal to number of nodes:', len(tree.tree_.feature))\n\"\n",
+   "hit": null,
+   "lat_ms": 771.0
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.tree.export import export_text\nfrom sklearn.datasets import load_iris\n\n# Test with a tree that has only root (no splits due to min_samples_leaf)\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\n\ntree = DecisionTreeClassifier(min_samples_leaf=100)  # Force only root node\ntree.fit(X, y)\n\nprint('Tree structure:')\ntree_ = tree.tree_\nprint('n_features:', tree_.n_features)\nprint('feature:', tree_.feature)\nprint('children_left:', tree_.children_left)\nprint('children_right:', tree_.children_right)\nprint()\n\ntree_text = export_text(tree, feature_names=['sepal_length'])\nprint('Tree text:')\nprint(tree_text)\n\"\n",
+   "hit": null,
+   "lat_ms": 772.0
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.tree.export import export_text\nfrom sklearn.datasets import load_iris\n\n# Test with single feature and no feature_names (default naming)\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\n\ntree = DecisionTreeClassifier()\ntree.fit(X, y)\n\ntree_text = export_text(tree)\nprint(tree_text)\n\"\n",
+   "hit": null,
+   "lat_ms": 770.8
+  },
+  {
+   "cmd": "cd /testbed && cat -n /testbed/sklearn/tree/export.py | sed -n '900,920p'",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "cd /testbed && cat -n /testbed/sklearn/tree/export.py | sed -n '920,950p'",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"feature_names_\\[\" /testbed/sklearn/tree/export.py",
+   "hit": null,
+   "lat_ms": 122.0
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.tree.export import export_text\nfrom sklearn.datasets import load_iris\n\n# Test with single feature and show_weights=True\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\n\ntree = DecisionTreeClassifier()\ntree.fit(X, y)\n\ntree_text = export_text(tree, feature_names=['sepal_length'], show_weights=True)\nprint(tree_text[:500])\n\"\n",
+   "hit": null,
+   "lat_ms": 771.5
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor\nfrom sklearn.tree.export import export_text\nfrom sklearn.datasets import load_iris\nimport numpy as np\n\nprint('Test 1: Single feature with feature_names')\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\ntree = DecisionTreeClassifier()\ntree.fit(X, y)\ntext = export_text(tree, feature_names=['sepal_length'])\nprint('PASS: Single feature with feature_names')\n\nprint('Test 2: Single feature without feature_names')\ntext = export_text(tree)\nassert 'feature_0' in text\nprint('PASS: Single feature without feature_names')\n\nprint('Test 3: Single feature with show_weights=True')\ntext = export_text(tree, feature_names=['sepal_length'], show_weights=True)\nprint('PASS: Single feature with show_weights=True')\n\nprint('Test 4: Single feature with max_depth')\ntext = export_text(tree, max_depth=1, feature_names=['sepal_length'])\nprint('PASS: Single feature with max_depth')\n\nprint('Test 5: Multiple features')\nX, y = load_iris(return_X_y=True)\ntree = DecisionTreeClassifier(max_depth=2)\ntree.fit(X, y)\ntext = export_text(tree, feature_names=load_iris()['feature_names'])\nprint('PASS: Multiple features')\n\nprint('Test 6: Regression with single feature')\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\nreg = DecisionTreeRegressor()\nreg.fit(X, y)\ntext = export_text(reg, feature_names=['sepal_length'])\nprint('PASS: Regression with single feature')\n\nprint('Test 7: Tree with only root node (no splits)')\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\ntree = DecisionTreeClassifier(min_samples_leaf=100)\ntree.fit(X, y)\ntext = export_text(tree, feature_names=['sepal_length'])\nassert 'class:' in text\nprint('PASS: Tree with only root node')\n\nprint('Test 8: Multi-output with single feature')\nX = np.random.rand(100, 1)\ny = np.random.rand(100, 2)\nreg = DecisionTreeRegressor(max_depth=2)\nreg.fit(X, y)\ntext = export_text(reg, feature_names=['feat1'])\nprint('PASS: Multi-output with single feature')\n\nprint('')\nprint('All tests passed!')\n\"\n",
+   "hit": null,
+   "lat_ms": 769.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sklearn/tree/tests/test_export.py -k \"export\" --tb=short 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 975.4
+  },
+  {
+   "cmd": "cd /testbed && cat -n /testbed/sklearn/tree/export.py | sed -n '890,900p'",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sklearn/tree/tests/test_export.py -k \"export_text\" -v",
+   "hit": null,
+   "lat_ms": 972.4
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sklearn/tree/tests/test_export.py::test_graphviz_toy sklearn/tree/tests/test_export.py::test_graphviz_errors -v",
+   "hit": null,
+   "lat_ms": 772.1
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.tree import DecisionTreeClassifier\nfrom sklearn.tree.export import export_text\nfrom sklearn.datasets import load_iris\n\nX, y = load_iris(return_X_y=True)\nX = X[:, 0].reshape(-1, 1)\n\ntree = DecisionTreeClassifier()\ntree.fit(X, y)\ntree_text = export_text(tree, feature_names=['sepal_length'])\nprint(tree_text)\nprint()\nprint('SUCCESS: No IndexError!')\n\"\n",
+   "hit": null,
+   "lat_ms": 771.7
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "scikit-learn__scikit-learn-14053",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 20470.0,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,291 @@
+{
+ "calls": 47,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 11074.4469165802,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.py\" | xargs grep -l \"def from_file\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /testbed/src/flask/config.py",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.py\" -path \"*/tests/*\" | xargs grep -l \"from_file\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat /testbed/tests/test_config.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat /testbed/tests/static/config.json",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "cat /testbed/src/flask/config.py | head -250 | tail -50",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cat > /tmp/config_patch.py << 'EOF'\nimport sys\n\n# Read the file\nwith open('/testbed/src/flask/config.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the from_file method\nold_from_file = '''    def from_file(\n        self,\n        filename: str,\n        load: t.Callable[[t.IO[t.Any]], t.Mapping],\n        silent: bool = False,\n    ) -> bool:\n        \"\"\"Update the values in the config from a file that is loaded\n        using the ``load`` parameter. The loaded data is passed to the\n        :meth:`from_mapping` method.\n\n        .. code-block:: python\n\n            import json\n            app.config.from_file(\"config.json\", load=json.load)\n\n            import toml\n            app.config.from_file(\"config.toml\", load=toml.load)\n\n        :param filename: The path to the data file. This can be an\n            absolute path or relative to the config root path.\n        :param load: A callable that takes a file handle and returns a\n            mapping of loaded data from the file.\n        :type load: ``Callable[[Reader], Mapping]`` where ``Reader``\n            implements a ``read`` method.\n        :param silent: Ignore the file if it doesn't exist.\n        :return: ``True`` if the file was loaded successfully.\n\n        .. versionadded:: 2.0\n        \"\"\"\n        filename = os.path.join(self.root_path, filename)\n\n        try:\n            with open(filename) as f:\n                obj = load(f)\n        except OSError as e:\n            if silent and e.errno in (errno.ENOENT, errno.EISDIR):\n                return False\n\n            e.strerror = f\"Unable to load configuration file ({e.strerror})\"\n            raise\n\n        return self.from_mapping(obj)'''\n\nnew_from_file = '''    def from_file(\n        self,\n        filename: str,\n        load: t.Callable[[t.IO[t.Any]], t.Mapping],\n        silent: bool = False,\n        mode: str = \"r\",\n    ) -> bool:\n        \"\"\"Update the values in the config from a file that is loaded\n        using the ``load`` parameter. The loaded data is passed to the\n        :meth:`from_mapping` method.\n\n        .. code-block:: python\n\n            import json\n            app.config.from_file(\"config.json\", load=json.load)\n\n            import toml\n            import tomllib\n            app.config.from_file(\"config.toml\", load=tomllib.load, mode=\"rb\")\n\n        :param filename: The path to the data file. This can be an\n            absolute path or relative to the config root path.\n        :param load: A callable that takes a file handle and returns a\n            mapping of loaded data from the file.\n        :type load: ``Callable[[Reader], Mapping]`` where ``Reader``\n            implements a ``read`` method.\n        :param silent: Ignore the file if it doesn't exist.\n        :param mode: The mode to open the file with. Defaults to ``\"r\"``.\n        :return: ``True`` if the file was loaded successfully.\n\n        .. versionadded:: 2.0\n        .. versionchanged:: 3.1\n           The ``mode`` parameter was added.\n        \"\"\"\n        filename = os.path.join(self.root_path, filename)\n\n        try:\n            with open(filename, mode=mode) as f:\n                obj = load(f)\n        except OSError as e:\n            if silent and e.errno in (errno.ENOENT, errno.EISDIR):\n                return False\n\n            e.strerror = f\"Unable to load configuration file ({e.strerror})\"\n            raise\n\n        return self.from_mapping(obj)'''\n\nif old_from_file in content:\n    content = content.replace(old_from_file, new_from_file)\n    with open('/testbed/src/flask/config.py', 'w') as f:\n        f.write(content)\n    print(\"Successfully patched config.py\")\nelse:\n    print(\"Could not find the exact from_file method to replace\")\n    sys.exit(1)\nEOF\npython /tmp/config_patch.py",
+   "hit": null,
+   "lat_ms": 164.6
+  },
+  {
+   "cmd": "grep -A 40 \"def from_file\" /testbed/src/flask/config.py",
+   "hit": null,
+   "lat_ms": 160.1
+  },
+  {
+   "cmd": "cat > /tmp/test_mode_param.py << 'EOF'\nimport json\nimport os\nimport sys\nimport tempfile\n\n# Add the testbed to the path\nsys.path.insert(0, '/testbed/src')\n\nimport flask\n\ndef test_from_file_with_mode():\n    \"\"\"Test that from_file supports different file modes\"\"\"\n    \n    # Test 1: Default text mode (backward compatibility)\n    print(\"Test 1: Default text mode (backward compatibility)\")\n    app = flask.Flask(__name__)\n    current_dir = os.path.dirname(os.path.abspath(__file__))\n    \n    # Use existing config.json file\n    test_file = \"/testbed/tests/static/config.json\"\n    if os.path.exists(test_file):\n        app.config.from_file(test_file, json.load)\n        assert app.config[\"TEST_KEY\"] == \"foo\"\n        assert app.config[\"SECRET_KEY\"] == \"config\"\n        print(\"  PASSED: Default text mode works\")\n    else:\n        print(f\"  SKIPPED: Test file {test_file} not found\")\n    \n    # Test 2: Explicit text mode\n    print(\"\\nTest 2: Explicit text mode\")\n    app = flask.Flask(__name__)\n    if os.path.exists(test_file):\n        app.config.from_file(test_file, json.load, mode=\"r\")\n        assert app.config[\"TEST_KEY\"] == \"foo\"\n        assert app.config[\"SECRET_KEY\"] == \"config\"\n        print(\"  PASSED: Explicit text mode works\")\n    else:\n        print(f\"  SKIPPED: Test file {test_file} not found\")\n    \n    # Test 3: Binary mode with a test file\n    print(\"\\nTest 3: Binary mode for JSON\")\n    app = flask.Flask(__name__)\n    with tempfile.NamedTemporaryFile(mode='wb', suffix='.json', delete=False) as f:\n        temp_file = f.name\n        f.write(b'{\"TEST_KEY\": \"binary_test\", \"SECRET_KEY\": \"binary_config\"}')\n    \n    try:\n        app.config.from_file(temp_file, json.load, mode=\"rb\")\n        assert app.config[\"TEST_KEY\"] == \"binary_test\"\n        assert app.config[\"SECRET_KEY\"] == \"binary_config\"\n        print(\"  PASSED: Binary mode with json.load works\")\n    finally:\n        os.unlink(temp_file)\n    \n    # Test 4: Binary mode with tomllib if available (Python 3.11+)\n    print(\"\\nTest 4: Binary mode with tomllib (if available)\")\n    try:\n        import tomllib\n    except ImportError:\n        print(\"  SKIPPED: tomllib not available (Python < 3.11)\")\n        tomllib = None\n    \n    if tomllib:\n        app = flask.Flask(__name__)\n        with tempfile.NamedTemporaryFile(mode='wb', suffix='.toml', delete=False) as f:\n            temp_file = f.name\n            f.write(b'TEST_KEY = \"toml_test\"\\nSECRET_KEY = \"toml_config\"\\n')\n        \n        try:\n            app.config.from_file(temp_file, tomllib.load, mode=\"rb\")\n            assert app.config[\"TEST_KEY\"] == \"toml_test\"\n            assert app.config[\"SECRET_KEY\"] == \"toml_config\"\n            print(\"  PASSED: Binary mode with tomllib.load works\")\n        finally:\n            os.unlink(temp_file)\n    \n    # Test 5: Silent mode with binary\n    print(\"\\nTest 5: Silent mode with missing file\")\n    app = flask.Flask(__name__)\n    result = app.config.from_file(\"/nonexistent/file.json\", json.load, mode=\"rb\", silent=True)\n    assert result is False\n    print(\"  PASSED: Silent mode with binary mode works\")\n    \n    print(\"\\n\" + \"=\"*50)\n    print(\"All tests passed!\")\n\nif __name__ == \"__main__\":\n    test_from_file_with_mode()\nEOF\npython /tmp/test_mode_param.py",
+   "hit": null,
+   "lat_ms": 249.4
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_config.py -v",
+   "hit": null,
+   "lat_ms": 379.1
+  },
+  {
+   "cmd": "cat > /tmp/add_test.py << 'EOF'\nimport sys\n\n# Read the test file\nwith open('/testbed/tests/test_config.py', 'r') as f:\n    content = f.read()\n\n# Add the new test before the last line\nnew_test = '''\n\ndef test_config_from_file_with_mode():\n    import tomllib\n    \n    app = flask.Flask(__name__)\n    current_dir = os.path.dirname(os.path.abspath(__file__))\n    \n    # Test with default text mode\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.json\"),\n        json.load\n    )\n    common_object_test(app)\n    \n    # Test with explicit text mode\n    app = flask.Flask(__name__)\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.json\"),\n        json.load,\n        mode=\"r\"\n    )\n    common_object_test(app)\n    \n    # Test with binary mode for JSON\n    app = flask.Flask(__name__)\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.json\"),\n        json.load,\n        mode=\"rb\"\n    )\n    common_object_test(app)\n    \n    # Test with binary mode for TOML using tomllib\n    # Create a temporary TOML file\n    with tempfile.NamedTemporaryFile(\n        mode=\"wb\", suffix=\".toml\", delete=False\n    ) as f:\n        f.write(b'TEST_KEY = \"toml_test\"\\nSECRET_KEY=\"toml_config\"\\n')\n        temp_toml = f.name\n    \n    try:\n        app = flask.Flask(__name__)\n        app.config.from_file(temp_toml, tomllib.load, mode=\"rb\")\n        assert app.config[\"TEST_KEY\"] == \"toml_test\"\n        assert app.config[\"SECRET_KEY\"] == \"toml_config\"\n    finally:\n        os.unlink(temp_toml)\n'''\n\n# Insert before the last line (the encoding test)\nlines = content.split('\\n')\ninsert_pos = -1\nfor i, line in enumerate(lines):\n    if line.startswith('def test_from_pyfile_weird_encoding'):\n        insert_pos = i\n        break\n\nif insert_pos > 0:\n    # Insert the new test before the encoding tests\n    lines.insert(insert_pos, new_test)\n    content = '\\n'.join(lines)\n    \n    with open('/testbed/tests/test_config.py', 'w') as f:\n        f.write(content)\n    print(\"Successfully added test\")\nelse:\n    print(\"Could not find insertion point\")\n    sys.exit(1)\nEOF\npython /tmp/add_test.py",
+   "hit": null,
+   "lat_ms": 163.9
+  },
+  {
+   "cmd": "head -10 /testbed/tests/test_config.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "sed -i '1s/^/import tempfile\\n/' /testbed/tests/test_config.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_config.py::test_config_from_file_with_mode -v",
+   "hit": null,
+   "lat_ms": 572.6
+  },
+  {
+   "cmd": "grep -n \"toml_test\" /testbed/tests/test_config.py",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "sed -n '268,288p' /testbed/tests/test_config.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat > /tmp/fix_test.py << 'EOF'\n# Read the test file\nwith open('/testbed/tests/test_config.py', 'r') as f:\n    content = f.read()\n\n# Fix the broken TOML line\nold_line = \"f.write(b'TEST_KEY = \\\\\\\"toml_test\\\\\\\"\"\nnew_line = \"f.write(b'TEST_KEY = \\\\\"toml_test\\\\\"\\\\nSECRET_KEY=\\\\\"***\\\\\"\\\\n')\"\n\n# Also fix the assertion\nold_assert = 'assert app.config[\"SECRET_KEY\"] == \"toml_config\"'\nnew_assert = 'assert app.config[\"SECRET_KEY\"] == \"***\"'\n\ncontent = content.replace(old_line, new_line)\ncontent = content.replace(old_assert, new_assert)\n\nwith open('/testbed/tests/test_config.py', 'w') as f:\n    f.write(content)\nprint(\"Fixed test\")\nEOF\npython /tmp/fix_test.py",
+   "hit": null,
+   "lat_ms": 143.6
+  },
+  {
+   "cmd": "cd /testbed && git diff tests/test_config.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /testbed && git checkout tests/test_config.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cat > /tmp/fix_test2.py << 'ENDOFSCRIPT'\n# Read the test file\nwith open('/testbed/tests/test_config.py', 'r') as f:\n    lines = f.readlines()\n\n# Find the line with \"def test_get_namespace\"\ninsert_idx = None\nfor i, line in enumerate(lines):\n    if 'def test_get_namespace' in line:\n        insert_idx = i\n        break\n\nif insert_idx is None:\n    print(\"Could not find insertion point\")\n    exit(1)\n\n# Add the imports at the top\nlines.insert(0, 'import tempfile\\n')\n\n# Find the new insertion point after adding import\ninsert_idx += 1\n\n# Create the new test as a list of lines\nnew_test_lines = [\n    '\\n',\n    '\\n',\n    'def test_config_from_file_with_mode():\\n',\n    '    import tomllib\\n',\n    '    \\n',\n    '    app = flask.Flask(__name__)\\n',\n    '    current_dir = os.path.dirname(os.path.abspath(__file__))\\n',\n    '    \\n',\n    '    # Test with default text mode\\n',\n    '    app.config.from_file(\\n',\n    '        os.path.join(current_dir, \"static\", \"config.json\"),\\n',\n    '        json.load\\n',\n    '    )\\n',\n    '    common_object_test(app)\\n',\n    '    \\n',\n    '    # Test with explicit text mode\\n',\n    '    app = flask.Flask(__name__)\\n',\n    '    app.config.from_file(\\n',\n    '        os.path.join(current_dir, \"static\", \"config.json\"),\\n',\n    '        json.load,\\n',\n    '        mode=\"r\"\\n',\n    '    )\\n',\n    '    common_object_test(app)\\n',\n    '    \\n',\n    '    # Test with binary mode for JSON\\n',\n    '    app = flask.Flask(__name__)\\n',\n    '    app.config.from_file(\\n',\n    '        os.path.join(current_dir, \"static\", \"config.json\"),\\n',\n    '        json.load,\\n',\n    '        mode=\"rb\"\\n',\n    '    )\\n',\n    '    common_object_test(app)\\n',\n    '    \\n',\n    '    # Test with binary mode for TOML using tomllib\\n',\n    '    # Create a temporary TOML file\\n',\n    '    with tempfile.NamedTemporaryFile(\\n',\n    '        mode=\"wb\", suffix=\".toml\", delete=False\\n',\n    '    ) as f:\\n',\n    '        f.write(b\\'TEST_KEY = \"toml_test\"\\\\nSECRET_KEY=\"***\"\\\\n\\')\\n',\n    '        temp_toml = f.name\\n',\n    '    \\n',\n    '    try:\\n',\n    '        app = flask.Flask(__name__)\\n',\n    '        app.config.from_file(temp_toml, tomllib.load, mode=\"rb\")\\n',\n    '        assert app.config[\"TEST_KEY\"] == \"toml_test\"\\n',\n    '        assert app.config[\"SECRET_KEY\"] == \"***\"\\n',\n    '    finally:\\n',\n    '        os.unlink(temp_toml)\\n',\n]\n\n# Insert the new test\nfor i, line in enumerate(new_test_lines):\n    lines.insert(insert_idx + i, line)\n\n# Write the file\nwith open('/testbed/tests/test_config.py', 'w') as f:\n    f.writelines(lines)\n\nprint(\"Test added successfully\")\nENDOFSCRIPT\npython /tmp/fix_test2.py",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /testbed && python3 << 'PYEOF'\n# Read the test file\nwith open('/testbed/tests/test_config.py', 'r') as f:\n    lines = f.readlines()\n\n# Add tempfile import after json\nfor i, line in enumerate(lines):\n    if line.strip() == 'import json':\n        lines.insert(i, 'import tempfile\\n')\n        break\n\n# Find the position to insert the new test (before test_from_pyfile_weird_encoding)\ninsert_pos = None\nfor i, line in enumerate(lines):\n    if 'def test_from_pyfile_weird_encoding' in line:\n        insert_pos = i\n        break\n\nif insert_pos is None:\n    print(\"Could not find insertion point\")\n    exit(1)\n\nnew_test = '''\ndef test_config_from_file_with_mode():\n    import tomllib\n\n    app = flask.Flask(__name__)\n    current_dir = os.path.dirname(os.path.abspath(__file__))\n\n    # Test with default text mode\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.json\"),\n        json.load\n    )\n    common_object_test(app)\n\n    # Test with explicit text mode\n    app = flask.Flask(__name__)\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.json\"),\n        json.load,\n        mode=\"r\"\n    )\n    common_object_test(app)\n\n    # Test with binary mode for JSON\n    app = flask.Flask(__name__)\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.json\"),\n        json.load,\n        mode=\"rb\"\n    )\n    common_object_test(app)\n\n    # Test with binary mode for TOML using tomllib\n    # Create a temporary TOML file\n    with tempfile.NamedTemporaryFile(\n        mode=\"wb\", suffix=\".toml\", delete=False\n    ) as f:\n        f.write(b\"TEST_KEY = \\\\\"toml_test\\\\\"\\nSECRET_KEY=\\\\\"***\\\\\\\"\\n\")\n        temp_toml = f.name\n\n    try:\n        app = flask.Flask(__name__)\n        app.config.from_file(temp_toml, tomllib.load, mode=\"rb\")\n        assert app.config[\"TEST_KEY\"] == \"toml_test\"\n        assert app.config[\"SECRET_KEY\"] == \"***\"\n    finally:\n        os.unlink(temp_toml)\n\n\n'''\n\nlines.insert(insert_pos, new_test)\n\nwith open('/testbed/tests/test_config.py', 'w') as f:\n    f.writelines(lines)\n\nprint(\"Test added successfully\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cat >> /testbed/tests/test_config.py << 'EOF'\n\n\ndef test_config_from_file_with_mode():\n    import tomllib\n\n    app = flask.Flask(__name__)\n    current_dir = os.path.dirname(os.path.abspath(__file__))\n\n    # Test with default text mode\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.json\"),\n        json.load\n    )\n    common_object_test(app)\n\n    # Test with explicit text mode\n    app = flask.Flask(__name__)\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.json\"),\n        json.load,\n        mode=\"r\"\n    )\n    common_object_test(app)\n\n    # Test with binary mode for JSON\n    app = flask.Flask(__name__)\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.json\"),\n        json.load,\n        mode=\"rb\"\n    )\n    common_object_test(app)\n\n    # Test with binary mode for TOML using tomllib\n    # Create a temporary TOML file\n    with tempfile.NamedTemporaryFile(\n        mode=\"wb\", suffix=\".toml\", delete=False\n    ) as f:\n        f.write(b'TEST_KEY = \"toml_test\"\\nSECRET_KEY=\"toml_config\"\\n')\n        temp_toml = f.name\n\n    try:\n        app = flask.Flask(__name__)\n        app.config.from_file(temp_toml, tomllib.load, mode=\"rb\")\n        assert app.config[\"TEST_KEY\"] == \"toml_test\"\n        assert app.config[\"SECRET_KEY\"] == \"toml_config\"\n    finally:\n        os.unlink(temp_toml)\nEOF\n",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "sed -i '1s/^/import tempfile\\n/' /testbed/tests/test_config.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_config.py::test_config_from_file_with_mode -v",
+   "hit": null,
+   "lat_ms": 571.8
+  },
+  {
+   "cmd": "tail -30 /testbed/tests/test_config.py",
+   "hit": null,
+   "lat_ms": 115.3
+  },
+  {
+   "cmd": "cat > /tmp/fix_final_test.py << 'EOF'\n# Read the test file\nwith open('/testbed/tests/test_config.py', 'r') as f:\n    content = f.read()\n\n# Fix the TOML file and assertion - we wrote \"***\" as SECRET_KEY, so assert that\nold_assert = 'assert app.config[\"SECRET_KEY\"] == \"toml_config\"'\nnew_assert = 'assert app.config[\"SECRET_KEY\"] == \"***\"'\n\ncontent = content.replace(old_assert, new_assert)\n\n# Fix the TOML bytes - need to be a single line with proper escapes\nold_line = \"f.write(b'TEST_KEY = \\\\\\\"toml_test\\\\\\\"\\\\\\\\nSECRET_KEY=\\\\\\\"***\\\\\\\"\\\\\\\\n')\"\nnew_line = 'f.write(b\\'TEST_KEY = \"toml_test\"\\\\nSECRET_KEY=\"***\"\\\\n\\')'\n\ncontent = content.replace(old_line, new_line)\n\nwith open('/testbed/tests/test_config.py', 'w') as f:\n    f.write(content)\nprint(\"Fixed\")\nEOF\npython /tmp/fix_final_test.py",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "sed -i 's/assert app.config\\[\"SECRET_KEY\"\\] == \"toml_config\"/assert app.config[\"SECRET_KEY\"] == \"***\"/' /testbed/tests/test_config.py",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_config.py::test_config_from_file_with_mode -v",
+   "hit": null,
+   "lat_ms": 573.0
+  },
+  {
+   "cmd": "sed -n '320,330p' /testbed/tests/test_config.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && git checkout tests/test_config.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "python3 << 'PYEOF'\n# Read the original test file\nwith open('/testbed/tests/test_config.py', 'r') as f:\n    content = f.read()\n\n# Add tempfile import\ncontent = content.replace('import json\\n', 'import tempfile\\nimport json\\n')\n\n# The new test to add\nnew_test = '''\n\ndef test_config_from_file_with_mode():\n    import tomllib\n\n    app = flask.Flask(__name__)\n    current_dir = os.path.dirname(os.path.abspath(__file__))\n\n    # Test with default text mode\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.json\"),\n        json.load\n    )\n    common_object_test(app)\n\n    # Test with explicit text mode\n    app = flask.Flask(__name__)\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.json\"),\n        json.load,\n        mode=\"r\"\n    )\n    common_object_test(app)\n\n    # Test with binary mode for JSON\n    app = flask.Flask(__name__)\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.json\"),\n        json.load,\n        mode=\"rb\"\n    )\n    common_object_test(app)\n\n    # Test with binary mode for TOML using tomllib\n    # Create a temporary TOML file\n    with tempfile.NamedTemporaryFile(\n        mode=\"wb\", suffix=\".toml\", delete=False\n    ) as f:\n        f.write(b'TEST_KEY = \"toml_test\"\\\\nSECRET_KEY=\"***\"\\\\n')\n        temp_toml = f.name\n\n    try:\n        app = flask.Flask(__name__)\n        app.config.from_file(temp_toml, tomllib.load, mode=\"rb\")\n        assert app.config[\"TEST_KEY\"] == \"toml_test\"\n        assert app.config[\"SECRET_KEY\"] == \"***\"\n    finally:\n        os.unlink(temp_toml)\n'''\n\n# Insert before the encoding test\ncontent = content.replace(\n    '@pytest.mark.parametrize(\"encoding\", [\"utf-8\", \"iso-8859-15\", \"latin-1\"])\\ndef test_from_pyfile_weird_encoding',\n    new_test + '\\n\\n@pytest.mark.parametrize(\"encoding\", [\"utf-8\", \"iso-8859-15\", \"latin-1\"])\\ndef test_from_pyfile_weird_encoding'\n)\n\n# Write the modified content\nwith open('/testbed/tests/test_config.py', 'w') as f:\n    f.write(content)\n\nprint(\"Test file updated successfully\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 216.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_config.py::test_config_from_file_with_mode -v",
+   "hit": null,
+   "lat_ms": 379.2
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_config.py -v",
+   "hit": null,
+   "lat_ms": 379.4
+  },
+  {
+   "cmd": "python3 << 'PYEOF'\nimport sys\nsys.path.insert(0, '/testbed/src')\n\nimport tempfile\nimport os\nimport tomllib\nimport flask\n\nprint(\"=\" * 60)\nprint(\"Demonstrating flask.Config.from_file() with mode parameter\")\nprint(\"=\" * 60)\n\n# Create a temporary TOML file\nwith tempfile.NamedTemporaryFile(mode='wb', suffix='.toml', delete=False) as f:\n    temp_file = f.name\n    f.write(b'''\n# Application Configuration\nDEBUG = false\nSECRET_KEY = \"my-secret-key\"\n\n[database]\nHOST = \"localhost\"\nPORT = 5432\nNAME = \"myapp_db\"\n''')\n\ntry:\n    app = flask.Flask(__name__)\n    \n    # Use the new mode parameter to load TOML files with tomllib\n    app.config.from_file(temp_file, tomllib.load, mode=\"rb\")\n    \n    print(\"\\n\u2713 Successfully loaded TOML config using:\")\n    print('  app.config.from_file(\"config.toml\", tomllib.load, mode=\"rb\")')\n    print(\"\\nLoaded config values:\")\n    print(f\"  DEBUG: {app.config['DEBUG']}\")\n    print(f\"  SECRET_KEY: {app.config['SECRET_KEY']}\")\n    print(f\"  DATABASE (nested): {app.config['DATABASE']}\")\n    \n    # Verify the values\n    assert app.config['DEBUG'] == False\n    assert app.config['SECRET_KEY'] == \"my-secret-key\"\n    assert app.config['DATABASE']['HOST'] == \"localhost\"\n    assert app.config['DATABASE']['PORT'] == 5432\n    \n    print(\"\\n\u2713 All assertions passed!\")\n    \nfinally:\n    os.unlink(temp_file)\n\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Feature working as expected!\")\nprint(\"=\" * 60)\nPYEOF",
+   "hit": null,
+   "lat_ms": 249.2
+  },
+  {
+   "cmd": "python3 << 'PYEOF'\nimport sys\nsys.path.insert(0, '/testbed/src')\n\nimport tempfile\nimport os\nimport tomllib\nimport flask\n\nprint(\"=\" * 60)\nprint(\"Demonstrating flask.Config.from_file() with mode parameter\")\nprint(\"=\" * 60)\n\n# Create a temporary TOML file\nwith tempfile.NamedTemporaryFile(mode='wb', suffix='.toml', delete=False) as f:\n    temp_file = f.name\n    f.write(b'''\n# Application Configuration\nDEBUG = false\nSECRET_KEY=\"my-secret-key\"\n\n[DATABASE]\nHOST = \"localhost\"\nPORT = 5432\nNAME = \"myapp_db\"\n''')\n\ntry:\n    app = flask.Flask(__name__)\n    \n    # Use the new mode parameter to load TOML files with tomllib\n    app.config.from_file(temp_file, tomllib.load, mode=\"rb\")\n    \n    print(\"\\n\u2713 Successfully loaded TOML config using:\")\n    print('  app.config.from_file(\"config.toml\", tomllib.load, mode=\"rb\")')\n    print(\"\\nLoaded config values:\")\n    print(f\"  DEBUG: {app.config['DEBUG']}\")\n    print(f\"  SECRET_KEY: {app.config['SECRET_KEY']}\")\n    print(f\"  DATABASE (nested): {app.config['DATABASE']}\")\n    \n    # Verify the values\n    assert app.config['DEBUG'] == False\n    assert app.config['SECRET_KEY'] == \"my-secret-key\"\n    assert app.config['DATABASE']['HOST'] == \"localhost\"\n    assert app.config['DATABASE']['PORT'] == 5432\n    \n    print(\"\\n\u2713 All assertions passed!\")\n    \nfinally:\n    os.unlink(temp_file)\n\nprint(\"\\n\" + \"=\" * 60)\nprint(\"Feature working as expected!\")\nprint(\"=\" * 60)\nPYEOF",
+   "hit": null,
+   "lat_ms": 258.0
+  },
+  {
+   "cmd": "grep -A 45 \"def from_file\" /testbed/src/flask/config.py",
+   "hit": null,
+   "lat_ms": 126.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/ -k \"config\" --co -q 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 976.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/ -k \"config\" -x -q 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 1225.2
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_config.py -v",
+   "hit": null,
+   "lat_ms": 586.1
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "sed -n '270,290p' /testbed/tests/test_config.py",
+   "hit": null,
+   "lat_ms": 74.7
+  },
+  {
+   "cmd": "python3 -c \"\nimport sys\nsys.path.insert(0, '/testbed/src')\nimport tempfile\nimport tomllib\nimport os\n\n# Simulate what the test does\nwith tempfile.NamedTemporaryFile(mode='wb', suffix='.toml', delete=False) as f:\n    f.write(b'TEST_KEY = \\\"toml_test\\\"\\\\nSECRET_KEY=\\\"***\\\"\\\\n')\n    temp_toml = f.name\n\ntry:\n    with open(temp_toml, 'rb') as f:\n        data = tomllib.load(f)\n    print('Data:', data)\n    assert data['TEST_KEY'] == 'toml_test'\n    assert data['SECRET_KEY'] == '***'\n    print('Test passed!')\nfinally:\n    os.unlink(temp_toml)\n\"",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_config.py -v",
+   "hit": null,
+   "lat_ms": 378.8
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/test_instance_config.py tests/test_apps/ -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 574.0
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pallets__flask-4992",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 11074.4,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

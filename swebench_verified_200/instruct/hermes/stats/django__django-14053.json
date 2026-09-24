@@ -1,0 +1,291 @@
+{
+ "calls": 47,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 19229.992628097534,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "find / -name \"staticfiles\" -type d 2>/dev/null | head -5; echo \"---\"; find / -path \"*/django/contrib/staticfiles/storage.py\" 2>/dev/null | head -3",
+   "hit": null,
+   "lat_ms": 1170.6
+  },
+  {
+   "cmd": "cat /testbed/django/contrib/staticfiles/storage.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"substitutions\" django/contrib/staticfiles/storage.py",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 -- django/contrib/staticfiles/storage.py 2>/dev/null | cat",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "ls /testbed/tests/staticfiles_tests/",
+   "hit": null,
+   "lat_ms": 113.4
+  },
+  {
+   "cmd": "cd /testbed && python -c \"import django; print(django.get_version())\"",
+   "hit": null,
+   "lat_ms": 262.9
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py staticfiles_tests.test_storage 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 1571.9
+  },
+  {
+   "cmd": "mkdir -p /tmp/repro && cat > /tmp/repro/repro.py << 'EOF'\nimport os, sys\nsys.path.insert(0, '/testbed')\nos.environ['DJANGO_SETTINGS_MODULE'] = 'testsettings'\n\nimport django\nfrom django.conf import settings\nsettings.configure(\n    STATIC_ROOT='/tmp/repro/static_root',\n    STATIC_URL='/static/',\n    STATICFILES_FINDERS=['django.contrib.staticfiles.finders.AppDirectoriesFinder'],\n    DEBUG=False,\n    INSTALLED_APPS=[],\n)\ndjango.setup()\n\nfrom django.contrib.staticfiles.storage import ManifestStaticFilesStorage\nimport shutil, tempfile\n\n# create source dir with two css files: one referencing the other\nsrc = '/tmp/repro/src'\nshutil.rmtree(src, ignore_errors=True)\nshutil.rmtree(settings.STATIC_ROOT, ignore_errors=True)\nos.makedirs(src + '/css')\nwith open(src + '/css/main.css', 'w') as f:\n    f.write(\"body { background: url(../img/foo.png); }\\n@import 'sub.css';\\n\")\nwith open(src + '/css/sub.css', 'w') as f:\n    f.write(\"p { color: red; }\\n\")\nos.makedirs(src + '/img')\nwith open(src + '/img/foo.png', 'wb') as f:\n    f.write(b'PNGDATA')\n\n# build paths dict like collectstatic does: {name: (storage, path)}\nfrom django.contrib.staticfiles.finders import get_finders\nfrom django.core.files.storage import FileSystemStorage\nsrc_storage = FileSystemStorage(location=src)\npaths = {}\nfor finder in get_finders():\n    for path, storage in finder.list(ignore_patterns=[]):\n        paths[path] = (storage, path)\n\nstorage = ManifestStaticFilesStorage()\nprint(\"YIELDS from post_process():\")\nfor name, hashed_name, processed in storage.post_process(paths):\n    print(f\"  {name!r} -> {hashed_name!r} processed={processed}\")\nEOF\npython /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 377.6
+  },
+  {
+   "cmd": "cat > /tmp/repro/repro.py << 'EOF'\nimport os, sys, shutil\nsys.path.insert(0, '/testbed')\n\nfrom django.conf import settings\nsettings.configure(\n    STATIC_ROOT='/tmp/repro/static_root',\n    STATIC_URL='/static/',\n    DEBUG=False,\n    INSTALLED_APPS=[],\n)\nimport django\ndjango.setup()\n\nfrom django.contrib.staticfiles.storage import ManifestStaticFilesStorage\nfrom django.core.files.storage import FileSystemStorage\n\nsrc = '/tmp/repro/src'\nshutil.rmtree(src, ignore_errors=True)\nshutil.rmtree(settings.STATIC_ROOT, ignore_errors=True)\nos.makedirs(src + '/css')\nwith open(src + '/css/main.css', 'w') as f:\n    f.write(\"body { background: url(../img/foo.png); }\\n@import 'sub.css';\\n\")\nwith open(src + '/css/sub.css', 'w') as f:\n    f.write(\"p { color: red; }\\n\")\nos.makedirs(src + '/img')\nwith open(src + '/img/foo.png', 'wb') as f:\n    f.write(b'PNGDATA')\n\n# paths dict like collectstatic builds: {name: (source_storage, source_path)}\nsrc_storage = FileSystemStorage(location=src)\npaths = {}\nfor root, dirs, files in os.walk(src):\n    for fn in files:\n        full = os.path.join(root, fn)\n        name = os.path.relpath(full, src).replace(os.sep, '/')\n        paths[name] = (src_storage, name)\n\nstorage = ManifestStaticFilesStorage()\nprint(\"YIELDS from post_process():\")\nfor name, hashed_name, processed in storage.post_process(paths):\n    print(f\"  {name!r} -> {hashed_name!r} processed={processed}\")\n\nprint(\"\\nFiles in STATIC_ROOT:\")\nfor root, dirs, files in os.walk(settings.STATIC_ROOT):\n    for fn in sorted(files):\n        print(\"  \" + os.path.relpath(os.path.join(root, fn), settings.STATIC_ROOT))\nEOF\npython /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 377.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n -i \"yield\\|post_process\\|duplicate\" tests/staticfiles_tests/test_storage.py | head -30",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '150,260p' tests/staticfiles_tests/test_storage.py",
+   "hit": null,
+   "lat_ms": 525.6
+  },
+  {
+   "cmd": "cat /testbed/tests/staticfiles_tests/project/cached/css/window.css /testbed/tests/staticfiles_tests/project/cached/css/window.5d5c10836967.css 2>/dev/null; ls /testbed/tests/staticfiles_tests/project/cached/css/",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed/tests/staticfiles_tests && ls project/ && find . -name \"window*\" | head",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /testbed/tests/staticfiles_tests/project/documents/cached && find . -type f | sort && echo \"---window.css---\" && cat css/window.css && echo \"---import.css---\" && cat css/import.css 2>/dev/null",
+   "hit": null,
+   "lat_ms": 113.4
+  },
+  {
+   "cmd": "cd /testbed/tests/staticfiles_tests/project/documents/cached && for f in import.css other.css relative.css styles.css url.css test.js; do echo \"=== $f ===\"; cat \"$f\"; done",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed/tests/staticfiles_tests/project/documents/cached && cat absolute.css styles_insensitive.css",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"yield\" django/contrib/staticfiles/management/commands/collectstatic.py | head -20",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"post_process\" django/contrib/staticfiles/management/commands/collectstatic.py",
+   "hit": null,
+   "lat_ms": 208.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n 110,150p django/contrib/staticfiles/management/commands/collectstatic.py",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /testbed && python - << 'EOF'\nimport re\np = 'django/contrib/staticfiles/storage.py'\nsrc = open(p).read()\nold = '''        for i in range(self.max_post_process_passes):\n            substitutions = False\n            for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):\n                yield name, hashed_name, processed\n                substitutions = substitutions or subst\n\n            if not substitutions:\n                break'''\nnew = '''        for i in range(self.max_post_process_passes):\n            substitutions = False\n            for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):\n                substitutions = substitutions or subst\n                if name not in processed:\n                    processed[name] = (hashed_name, processed)\n                    yield name, hashed_name, processed\n\n            if not substitutions:\n                break'''\nassert old in src\nsrc = src.replace(old, new)\nopen(p, 'w').write(src)\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 200,260p django/contrib/staticfiles/storage.py",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cd /testbed && python - << 'EOF'\np = 'django/contrib/staticfiles/storage.py'\nsrc = open(p).read()\nold = '''        # Do a single pass first. Post-process all files once, then repeat for\n        # adjustable files.\n        for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):\n            yield name, hashed_name, processed\n\n        paths = {path: paths[path] for path in adjustable_paths}\n\n        for i in range(self.max_post_process_passes):\n            substitutions = False\n            for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):\n                substitutions = substitutions or subst\n                if name not in processed:\n                    processed[name] = (hashed_name, processed)\n                    yield name, hashed_name, processed\n\n            if not substitutions:\n                break'''\nnew = '''        # Do a single pass first. Post-process all files once, then repeat for\n        # adjustable files.\n        processed = set()\n        for name, hashed_name, processed_flag, _ in self._post_process(paths, adjustable_paths, hashed_files):\n            processed.add(name)\n            yield name, hashed_name, processed_flag\n\n        paths = {path: paths[path] for path in adjustable_paths}\n\n        for i in range(self.max_post_process_passes):\n            substitutions = False\n            for name, hashed_name, processed_flag, subst in self._post_process(paths, adjustable_paths, hashed_files):\n                substitutions = substitutions or subst\n                # Don't yield a file again if it was already yielded in a\n                # previous pass, since it was already post-processed.\n                if name not in processed:\n                    processed.add(name)\n                    yield name, hashed_name, processed_flag\n\n            if not substitutions:\n                break'''\nassert old in src\nsrc = src.replace(old, new)\nopen(p, 'w').write(src)\nprint(\"patched\")\nEOF\nsed -n 228,255p django/contrib/staticfiles/storage.py",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "python /tmp/repro/repro.py",
+   "hit": null,
+   "lat_ms": 377.1
+  },
+  {
+   "cmd": "cat > /tmp/repro/repro2.py << 'EOF'\nimport os, sys, shutil\nsys.path.insert(0, '/testbed')\n\nfrom django.conf import settings\nsettings.configure(\n    STATIC_ROOT='/tmp/repro2/root',\n    STATIC_URL='/static/',\n    DEBUG=False,\n    INSTALLED_APPS=[],\n)\nimport django\ndjango.setup()\n\nfrom django.contrib.staticfiles.storage import ManifestStaticFilesStorage\nfrom django.core.files.storage import FileSystemStorage\n\nsrc = '/tmp/repro2/src'\nshutil.rmtree(src, ignore_errors=True)\nshutil.rmtree(settings.STATIC_ROOT, ignore_errors=True)\nos.makedirs(src + '/css')\n# a.css references b.css; b.css references a.css (loop)\nwith open(src + '/css/a.css', 'w') as f:\n    f.write(\"@import 'b.css';\\n\")\nwith open(src + '/css/b.css', 'w') as f:\n    f.write(\"@import 'a.css';\\n\")\n\nsrc_storage = FileSystemStorage(location=src)\npaths = {}\nfor root, dirs, files in os.walk(src):\n    for fn in files:\n        full = os.path.join(root, fn)\n        name = os.path.relpath(full, src).replace(os.sep, '/')\n        paths[name] = (src_storage, name)\n\nstorage = ManifestStaticFilesStorage()\nprint(\"YIELDS from post_process() (loop case):\")\nfor name, hashed_name, processed in storage.post_process(paths):\n    print(f\"  {name!r} -> {hashed_name!r} processed={processed!r}\")\nprint(\"DONE (no exception raised -> BAD, should raise via RuntimeError yield)\")\nEOF\npython /tmp/repro/repro2.py",
+   "hit": null,
+   "lat_ms": 377.3
+  },
+  {
+   "cmd": "cd /testbed && python - << 'EOF'\np = 'django/contrib/staticfiles/storage.py'\nsrc = open(p).read()\nold = '''        processed = set()\n        for name, hashed_name, processed_flag, _ in self._post_process(paths, adjustable_paths, hashed_files):\n            processed.add(name)\n            yield name, hashed_name, processed_flag'''\nnew = '''        processed = set()\n        for name, hashed_name, processed_flag, _ in self._post_process(paths, adjustable_paths, hashed_files):\n            yield name, hashed_name, processed_flag\n            if not isinstance(processed_flag, Exception):\n                processed.add(name)'''\nassert old in src\nsrc = src.replace(old, new)\nopen(p, 'w').write(src)\nprint(\"patched\")\nEOF\npython /tmp/repro/repro.py && python /tmp/repro/repro2.py",
+   "hit": null,
+   "lat_ms": 776.2
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py staticfiles_tests 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 1571.9
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py staticfiles_tests 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR)\" ",
+   "hit": null,
+   "lat_ms": 1370.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,120p' tests/staticfiles_tests/test_storage.py",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"^class \\|CollectionTestCase\\|unittest.TestCase\" tests/staticfiles_tests/test_storage.py | head -30 && echo ---- && sed -n '1,60p' tests/staticfiles_tests/cases.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '60,120p' tests/staticfiles_tests/cases.py && sed -n '266,330p' tests/staticfiles_tests/test_storage.py",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '385,440p' tests/staticfiles_tests/test_storage.py",
+   "hit": null,
+   "lat_ms": 115.9
+  },
+  {
+   "cmd": "cd /testbed && cat tests/staticfiles_tests/settings.py",
+   "hit": null,
+   "lat_ms": 68.7
+  },
+  {
+   "cmd": "cd /testbed && python - << 'EOF'\np = 'tests/staticfiles_tests/test_storage.py'\nsrc = open(p).read()\nold = '''    def test_post_processing_failure(self):\n        \"\"\"\n        post_processing indicates the origin of the error when it fails.\n        \"\"\"\n        finders.get_finder.cache_clear()\n        err = StringIO()\n        with self.assertRaises(Exception):\n            call_command('collectstatic', interactive=False, verbosity=0, stderr=err)\n        self.assertEqual(\"Post-processing 'faulty.css' failed!\\\\n\\\\n\", err.getvalue())\n        self.assertPostCondition()'''\nnew = '''    def test_post_processing_failure(self):\n        \"\"\"\n        post_processing indicates the origin of the error when it fails.\n        \"\"\"\n        finders.get_finder.cache_clear()\n        err = StringIO()\n        with self.assertRaises(Exception):\n            call_command('collectstatic', interactive=False, verbosity=0, stderr=err)\n        self.assertEqual(\"Post-processing 'faulty.css' failed!\\\\n\\\\n\", err.getvalue())\n        self.assertPostCondition()\n\n    def test_post_processing_single_yield(self):\n        \"\"\"\n        post_process() yields each file at most once, even when multiple\n        post-process passes are required to resolve references between files\n        (#31960).\n        \"\"\"\n        collectstatic_args = {\n            'interactive': False,\n            'verbosity': 0,\n            'link': False,\n            'clear': False,\n            'dry_run': False,\n            'post_process': True,\n            'use_default_ignore_patterns': True,\n            'ignore_patterns': ['*.ignoreme'],\n        }\n        collectstatic_cmd = CollectstaticCommand()\n        collectstatic_cmd.set_options(**collectstatic_args)\n        stats = collectstatic_cmd.collect()\n        yielded = [\n            path\n            for path in stats['post_processed'] + stats['modified'] + stats['unmodified']\n        ]\n        self.assertEqual(\n            len(yielded),\n            len(set(yielded)),\n            \"post_process() yielded duplicate file names\",\n        )\n        self.assertPostCondition()'''\nassert old in src\nsrc = src.replace(old, new)\nopen(p, 'w').write(src)\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 169.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py staticfiles_tests.test_storage 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 1172.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"copied_files\\|unmodified_files\\|post_processed_files\\|def copy\\|def link\" django/contrib/staticfiles/management/commands/collectstatic.py | head -20",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '240,275p' tests/staticfiles_tests/test_storage.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && python - << 'EOF'\np = 'tests/staticfiles_tests/test_storage.py'\nsrc = open(p).read()\nold = '''    def test_post_processing_single_yield(self):\n        \"\"\"\n        post_process() yields each file at most once, even when multiple\n        post-process passes are required to resolve references between files\n        (#31960).\n        \"\"\"\n        collectstatic_args = {\n            'interactive': False,\n            'verbosity': 0,\n            'link': False,\n            'clear': False,\n            'dry_run': False,\n            'post_process': True,\n            'use_default_ignore_patterns': True,\n            'ignore_patterns': ['*.ignoreme'],\n        }\n        collectstatic_cmd = CollectstaticCommand()\n        collectstatic_cmd.set_options(**collectstatic_args)\n        stats = collectstatic_cmd.collect()\n        yielded = [\n            path\n            for path in stats['post_processed'] + stats['modified'] + stats['unmodified']\n        ]\n        self.assertEqual(\n            len(yielded),\n            len(set(yielded)),\n            \"post_process() yielded duplicate file names\",\n        )\n        self.assertPostCondition()'''\nnew = '''    def test_post_processing_single_yield(self):\n        \"\"\"\n        post_process() yields each file at most once, even when multiple\n        post-process passes are required to resolve references between files\n        (#31960).\n        \"\"\"\n        # Clear STATIC_ROOT so collect() finds all files again, ensuring the\n        # full set of files is passed to post_process().\n        shutil.rmtree(settings.STATIC_ROOT)\n        collectstatic_cmd = CollectstaticCommand()\n        collectstatic_cmd.set_options(\n            interactive=False,\n            verbosity=0,\n            link=False,\n            clear=False,\n            dry_run=False,\n            post_process=True,\n            use_default_ignore_patterns=True,\n            ignore_patterns=['*.ignoreme'],\n        )\n        # Capture the actual yields from the storage's post_process().\n        yielded = []\n        original_post_process = storage.staticfiles_storage.post_process\n\n        def capture_post_process(paths, dry_run=False, **options):\n            for result in original_post_process(paths, dry_run=dry_run, **options):\n                yielded.append(result[0])\n                yield result\n\n        with mock.patch.object(\n            storage.staticfiles_storage, 'post_process', capture_post_process,\n        ):\n            collectstatic_cmd.collect()\n        self.assertEqual(\n            len(yielded),\n            len(set(yielded)),\n            \"post_process() yielded the following files more than once: %r\"\n            % sorted(name for name in yielded if yielded.count(name) > 1),\n        )\n        self.assertPostCondition()'''\nassert old in src\nsrc = src.replace(old, new)\nopen(p, 'w').write(src)\nprint(\"patched\")\nEOF\ncd /testbed/tests && python runtests.py staticfiles_tests.test_storage 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 1170.3
+  },
+  {
+   "cmd": "cd /testbed && git stash && cd tests && python runtests.py staticfiles_tests.test_storage.TestCollectionManifestStorage.test_post_processing_single_yield 2>&1 | tail -8; cd /testbed && git stash pop",
+   "hit": null,
+   "lat_ms": 1035.1
+  },
+  {
+   "cmd": "cd /testbed && python - << 'EOF'\n# Temporarily revert only storage.py fix, keep test, verify test fails\nimport subprocess\nsubprocess.run(['git', 'show', 'HEAD:django/contrib/staticfiles/storage.py'], stdout=open('/tmp/orig_storage.py', 'w'))\nimport shutil\nshutil.copy('django/contrib/staticfiles/storage.py', '/tmp/fixed_storage.py')\nshutil.copy('/tmp/orig_storage.py', 'django/contrib/staticfiles/storage.py')\nEOF\ncd /testbed/tests && python runtests.py staticfiles_tests.test_storage.TestCollectionManifestStorage.test_post_processing_single_yield 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 606.6
+  },
+  {
+   "cmd": "cp /tmp/fixed_storage.py /testbed/django/contrib/staticfiles/storage.py && cd /testbed/tests && python runtests.py staticfiles_tests 2>&1 | grep -E \"^(Ran|OK|FAILED)\"",
+   "hit": null,
+   "lat_ms": 1370.7
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py staticfiles_tests admin 2>&1 | grep -E \"^(Ran|OK|FAILED)\" ; echo \"exit: $?\"",
+   "hit": null,
+   "lat_ms": 1373.3
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py admin 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR:)\" | head",
+   "hit": null,
+   "lat_ms": 575.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n 202,254p django/contrib/staticfiles/storage.py",
+   "hit": null,
+   "lat_ms": 70.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-14053",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 19230.0,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

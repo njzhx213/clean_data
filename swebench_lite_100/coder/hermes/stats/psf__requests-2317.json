@@ -1,0 +1,306 @@
+{
+ "calls": 50,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 5988.506317138672,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "python3 -c \"import requests; print(requests.__file__)\"",
+   "hit": null,
+   "lat_ms": 250.0
+  },
+  {
+   "cmd": "ls -la /testbed/requests/",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "cat /testbed/requests/sessions.py | head -200",
+   "hit": null,
+   "lat_ms": 203.4
+  },
+  {
+   "cmd": "grep -n \"builtin_str\" /testbed/requests/sessions.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "sed -n '420,450p' /testbed/requests/sessions.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat /testbed/requests/compat.py",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "grep -n \"to_native_string\" /testbed/requests/sessions.py",
+   "hit": null,
+   "lat_ms": 143.5
+  },
+  {
+   "cmd": "grep -n \"def to_native_string\" /testbed/requests/utils.py",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "sed -n '655,680p' /testbed/requests/utils.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "python3 -c \"\nfrom requests.compat import builtin_str, is_py3\nfrom requests.utils import to_native_string\n\n# Test current behavior (buggy)\nmethod = b'GET'\nprint('Original method:', repr(method))\nprint('builtin_str(method):', repr(builtin_str(method)))\nprint('to_native_string(method):', repr(to_native_string(method)))\n\"",
+   "hit": null,
+   "lat_ms": 171.5
+  },
+  {
+   "cmd": "sed -n '425,435p' /testbed/requests/sessions.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "sed -i 's/method = builtin_str(method)/method = to_native_string(method)/' /testbed/requests/sessions.py",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "sed -n '425,435p' /testbed/requests/sessions.py",
+   "hit": null,
+   "lat_ms": 68.2
+  },
+  {
+   "cmd": "python3 -c \"\nfrom requests.sessions import Session\n\n# Test with bytes method (the bug scenario)\ns = Session()\n\n# Simulate what neutronclient does - pass bytes\nrequest = s.prepare_request(type('Request', (), {'method': b'GET', 'url': 'http://example.com'})())\nprint('Method with bytes input:', repr(request.method))\n\n# Test with string method (normal case)\nrequest2 = s.prepare_request(type('Request', (), {'method': 'POST', 'url': 'http://example.com'})())\nprint('Method with string input:', repr(request2.method))\n\"",
+   "hit": null,
+   "lat_ms": 168.8
+  },
+  {
+   "cmd": "python3 -c \"\nfrom requests import Request, Session\n\n# Test with bytes method (the bug scenario)\ns = Session()\nreq = Request('GET', 'http://example.com')\nprepared = s.prepare_request(req)\nprint('Method with normal string:', repr(prepared.method))\n\n# Test that method.upper() works on decoded bytes\nfrom requests.utils import to_native_string\nmethod = b'POST'\nmethod = to_native_string(method)\nprint('Decoded method:', repr(method))\nprint('Uppercased:', repr(method.upper()))\n\"",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "grep -rn \"builtin_str\" /testbed/requests/ --include=\"*.py\"",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "sed -n '440,480p' /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "python3 << 'EOF'\nfrom requests import Request, Session\nfrom requests.utils import to_native_string\n\n# Simulate what neutronclient does - it passes bytes\nprint(\"Testing the fix for the neutronclient bug:\")\n\n# Test 1: to_native_string with bytes\nmethod_bytes = b'GET'\nresult = to_native_string(method_bytes)\nprint(f\"to_native_string(b'GET') = {repr(result)}\")\nassert result == 'GET', f\"Expected 'GET', got {repr(result)}\"\n\n# Test 2: to_native_string with string (should pass through)\nmethod_str = 'POST'\nresult = to_native_string(method_str)\nprint(f\"to_native_string('POST') = {repr(result)}\")\nassert result == 'POST', f\"Expected 'POST', got {repr(result)}\"\n\n# Test 3: Full request with bytes method\ns = Session()\nreq = Request('GET', 'http://httpbin.org/get')\nprepared = s.prepare_request(req)\nprint(f\"Prepared request method: {repr(prepared.method)}\")\nassert prepared.method == 'GET', f\"Expected 'GET', got {repr(prepared.method)}\"\n\nprint(\"\\nAll tests passed! The fix works correctly.\")\nEOF",
+   "hit": null,
+   "lat_ms": 162.4
+  },
+  {
+   "cmd": "python3 << 'EOF'\n# Simulate the exact scenario from the bug report:\n# neutronclient uses safe_encode_list which converts everything to bytes\n\nfrom requests import Request, Session\n\n# Simulate safe_encode_list behavior on args\ndef safe_encode_list(args):\n    \"\"\"Simulates what neutronclient does\"\"\"\n    result = []\n    for arg in args:\n        if isinstance(arg, str):\n            result.append(arg.encode('utf-8'))  # Convert to bytes\n        else:\n            result.append(arg)\n    return result\n\n# This is what was happening - method was being converted to bytes\nargs = safe_encode_list(['GET', 'http://example.com'])\nprint(f\"Method after safe_encode_list: {repr(args[0])}\")\n\n# Before the fix, builtin_str would convert b'GET' to \"b'GET'\"\nfrom requests.compat import builtin_str\nprint(f\"builtin_str(b'GET'): {repr(builtin_str(args[0]))}\")\n\n# After the fix, to_native_string correctly decodes b'GET' to 'GET'\nfrom requests.utils import to_native_string\nprint(f\"to_native_string(b'GET'): {repr(to_native_string(args[0]))}\")\n\n# Test with actual session\ns = Session()\nreq = Request(args[0], args[1])  # bytes method, bytes URL\nprepared = s.prepare_request(req)\nprint(f\"Prepared request method: {repr(prepared.method)}\")\nprint(f\"Prepared request URL: {repr(prepared.url)}\")\n\nprint(\"\\nFix verified: bytes methods are now correctly converted to strings\")\nEOF",
+   "hit": null,
+   "lat_ms": 171.9
+  },
+  {
+   "cmd": "grep -n \"class Request\" /testbed/requests/models.py | head -5",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "sed -n '186,280p' /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 68.5
+  },
+  {
+   "cmd": "sed -n '310,360p' /testbed/requests/sessions.py",
+   "hit": null,
+   "lat_ms": 79.3
+  },
+  {
+   "cmd": "sed -n '360,445p' /testbed/requests/sessions.py",
+   "hit": null,
+   "lat_ms": 125.7
+  },
+  {
+   "cmd": "grep -n \"def prepare\" /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "sed -n '298,345p' /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "sed -n '328,335p' /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 73.8
+  },
+  {
+   "cmd": "grep -n \"from .compat\" /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "sed -n '32,50p' /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "grep -n \"from .utils import\" /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "sed -n '28,32p' /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 84.8
+  },
+  {
+   "cmd": "sed -n '328,333p' /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "sed -i 's/def prepare_method(self, method):/def prepare_method(self, method):\\n        \"\"\"Prepares the given HTTP method.\"\"\"\\n        if method is not None:\\n            method = to_native_string(method)\\n        self.method = method\\n        if self.method is not None:\\n            self.method = self.method.upper()\\n\\n    # OLD def prepare_method(self, method):/g' /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "sed -n '328,345p' /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cat /testbed/requests/models.py | head -350 | tail -30",
+   "hit": null,
+   "lat_ms": 91.0
+  },
+  {
+   "cmd": "cd /testbed && git diff requests/models.py",
+   "hit": null,
+   "lat_ms": 118.3
+  },
+  {
+   "cmd": "cd /testbed && git checkout requests/models.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "python3 << 'EOF'\nwith open('/testbed/requests/models.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the prepare_method method\nold_method = '''    def prepare_method(self, method):\n        \"\"\"Prepares the given HTTP method.\"\"\"\n        self.method = method\n        if self.method is not None:\n            self.method = self.method.upper()'''\n\nnew_method = '''    def prepare_method(self, method):\n        \"\"\"Prepares the given HTTP method.\"\"\"\n        if method is not None:\n            method = to_native_string(method)\n        self.method = method\n        if self.method is not None:\n            self.method = self.method.upper()'''\n\ncontent = content.replace(old_method, new_method)\n\nwith open('/testbed/requests/models.py', 'w') as f:\n    f.write(content)\n\nprint(\"Fixed models.py\")\nEOF",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "sed -n '328,340p' /testbed/requests/models.py",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "python3 << 'EOF'\nfrom requests import Request, Session\nfrom requests.utils import to_native_string\n\nprint(\"=== Testing the complete fix ===\\n\")\n\n# Test 1: Session.request() with bytes method\nprint(\"Test 1: Session.request() with bytes method\")\ns = Session()\nreq = s.prepare_request(Request(b'GET', 'http://example.com'))\nprint(f\"  Request method (bytes input): {repr(req.method)}\")\nassert req.method == 'GET', f\"Expected 'GET', got {repr(req.method)}\"\n\n# Test 2: Request.prepare() with bytes method\nprint(\"\\nTest 2: Request.prepare() with bytes method\")\nreq = Request(b'POST', 'http://example.com')\nprepared = req.prepare()\nprint(f\"  PreparedRequest method: {repr(prepared.method)}\")\nassert prepared.method == 'POST', f\"Expected 'POST', got {repr(prepared.method)}\"\n\n# Test 3: Session.request() with normal string (should still work)\nprint(\"\\nTest 3: Session.request() with string method (normal case)\")\nreq = s.prepare_request(Request('DELETE', 'http://example.com'))\nprint(f\"  Request method (string input): {repr(req.method)}\")\nassert req.method == 'DELETE', f\"Expected 'DELETE', got {repr(req.method)}\"\n\n# Test 4: PreparedRequest.prepare() with bytes method\nprint(\"\\nTest 4: PreparedRequest.prepare() with bytes method\")\np = type('PreparedRequest', (), {})()\nfrom requests.models import PreparedRequest\np = PreparedRequest()\np.prepare(method=b'PUT', url='http://example.com')\nprint(f\"  Prepared method: {repr(p.method)}\")\nassert p.method == 'PUT', f\"Expected 'PUT', got {repr(p.method)}\"\n\nprint(\"\\n=== All tests passed! ===\")\nprint(\"\\nThe fix ensures that:\")\nprint(\"1. Bytes methods (b'GET') are correctly converted to strings ('GET')\")\nprint(\"2. String methods continue to work as before\")\nprint(\"3. Both Session.request() and Request.prepare() handle bytes correctly\")\nEOF",
+   "hit": null,
+   "lat_ms": 169.0
+  },
+  {
+   "cmd": "python3 << 'EOF'\nfrom requests.models import PreparedRequest\n\n# Test with proper hooks\np = PreparedRequest()\np.prepare(method=b'PUT', url='http://example.com', hooks={})\nprint(f\"  Prepared method with bytes: {repr(p.method)}\")\nassert p.method == 'PUT', f\"Expected 'PUT', got {repr(p.method)}\"\n\nprint(\"\\nTest 4 passed!\")\nEOF",
+   "hit": null,
+   "lat_ms": 165.2
+  },
+  {
+   "cmd": "python3 << 'EOF'\nfrom requests.utils import to_native_string\nfrom requests.compat import is_py3, builtin_str\n\nprint(\"Python version check:\")\nprint(f\"  is_py3: {is_py3}\")\n\n# Test with bytes (what neutronclient passes)\nmethod_bytes = b'GET'\nresult = to_native_string(method_bytes)\nprint(f\"\\nto_native_string(b'GET'): {repr(result)}\")\nprint(f\"  Type: {type(result)}\")\n\n# Test with string\nmethod_str = 'POST'\nresult = to_native_string(method_str)\nprint(f\"\\nto_native_string('POST'): {repr(result)}\")\nprint(f\"  Type: {type(result)}\")\n\n# Verify builtin_str behavior (what caused the bug)\nprint(f\"\\nBuilt-in str(b'GET'): {repr(str(b'GET'))}\")  # This is what builtin_str = str does\nEOF",
+   "hit": null,
+   "lat_ms": 164.6
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 130.8
+  },
+  {
+   "cmd": "python3 << 'EOF'\nprint(\"=== Comprehensive Test for Method Fix ===\\n\")\n\nfrom requests import Request, Session\nfrom requests.models import PreparedRequest\n\ndef test_bytes_method():\n    \"\"\"Test that bytes methods are correctly converted\"\"\"\n    # Session.request path\n    s = Session()\n    req = s.prepare_request(Request(b'GET', 'http://example.com'))\n    assert req.method == 'GET', f\"Session.prepare_request failed: {repr(req.method)}\"\n    \n    # Request.prepare path  \n    req = Request(b'POST', 'http://example.com')\n    prepared = req.prepare()\n    assert prepared.method == 'POST', f\"Request.prepare failed: {repr(prepared.method)}\"\n    \n    # PreparedRequest.prepare path\n    p = PreparedRequest()\n    p.prepare(method=b'DELETE', url='http://example.com', hooks={})\n    assert p.method == 'DELETE', f\"PreparedRequest.prepare failed: {repr(p.method)}\"\n    \n    print(\"\u2713 Bytes methods (b'GET') correctly converted to 'GET'\")\n\ndef test_string_method():\n    \"\"\"Test that string methods still work\"\"\"\n    s = Session()\n    \n    for method in ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']:\n        req = s.prepare_request(Request(method, 'http://example.com'))\n        assert req.method == method, f\"String method {method} failed: {repr(req.method)}\"\n    \n    print(\"\u2713 String methods work correctly\")\n\ndef test_mixed_case():\n    \"\"\"Test that mixed case methods are uppercased\"\"\"\n    s = Session()\n    req = s.prepare_request(Request('get', 'http://example.com'))\n    assert req.method == 'GET', f\"Mixed case failed: {repr(req.method)}\"\n    \n    print(\"\u2713 Mixed case methods correctly uppercased\")\n\ndef test_unicode():\n    \"\"\"Test unicode handling\"\"\"\n    s = Session()\n    req = s.prepare_request(Request('G\u00dcT', 'http://example.com'))\n    # to_native_string uses ASCII by default, so this should work for ASCII-only HTTP methods\n    assert req.method == 'G\u00dcT', f\"Unicode failed: {repr(req.method)}\"\n    \n    print(\"\u2713 Unicode methods handled correctly\")\n\n# Run all tests\ntry:\n    test_bytes_method()\n    test_string_method()\n    test_mixed_case()\n    test_unicode()\n    print(\"\\n=== ALL TESTS PASSED ===\")\nexcept AssertionError as e:\n    print(f\"\\n!!! TEST FAILED: {e}\")\n    exit(1)\nEOF",
+   "hit": null,
+   "lat_ms": 163.9
+  },
+  {
+   "cmd": "python2 --version 2>&1 || echo \"Python 2 not available\"",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "sed -n '655,670p' /testbed/requests/utils.py",
+   "hit": null,
+   "lat_ms": 79.5
+  },
+  {
+   "cmd": "python3 << 'EOF'\nprint(\"=== Simulating neutronclient scenario ===\\n\")\n\nfrom requests import Session\nfrom requests.utils import safe_string  # We'll use to_native_string instead\n\n# Simulate what neutronclient does - converts all args to bytes\ndef neutronclient_safe_encode_list(args):\n    \"\"\"Simulates python-neutronclient's safe_encode_list\"\"\"\n    result = []\n    for arg in args:\n        if isinstance(arg, str):\n            result.append(arg.encode('utf-8'))  # Convert to bytes\n        else:\n            result.append(arg)\n    return result\n\n# Simulate the call pattern from neutronclient\nargs = ['GET', 'http://neutron.example.com/v2.0/networks']\nencoded_args = neutronclient_safe_encode_list(args)\n\nprint(f\"Original args: {args}\")\nprint(f\"Encoded args (like neutronclient): {encoded_args}\")\nprint(f\"  Method type: {type(encoded_args[0])}\")\nprint(f\"  Method value: {repr(encoded_args[0])}\")\n\n# Now use requests with the encoded args\ns = Session()\nreq = s.prepare_request(Request(encoded_args[0], encoded_args[1]))\n\nprint(f\"\\nRequest prepared successfully!\")\nprint(f\"  Request method: {repr(req.method)}\")\nprint(f\"  Request method type: {type(req.method)}\")\nprint(f\"  Request URL: {req.url}\")\n\n# Verify the method is correct\nassert req.method == 'GET', f\"Method should be 'GET', got {repr(req.method)}\"\nassert isinstance(req.method, str), f\"Method should be str, got {type(req.method)}\"\n\nprint(\"\\n=== SUCCESS ===\")\nprint(\"The fix allows requests to work correctly with neutronclient's bytes encoding\")\nEOF",
+   "hit": null,
+   "lat_ms": 163.3
+  },
+  {
+   "cmd": "python3 << 'EOF'\nprint(\"=== Simulating neutronclient scenario ===\\n\")\n\nfrom requests import Session, Request\n\n# Simulate what neutronclient does - converts all args to bytes\ndef neutronclient_safe_encode_list(args):\n    \"\"\"Simulates python-neutronclient's safe_encode_list\"\"\"\n    result = []\n    for arg in args:\n        if isinstance(arg, str):\n            result.append(arg.encode('utf-8'))  # Convert to bytes\n        else:\n            result.append(arg)\n    return result\n\n# Simulate the call pattern from neutronclient\nargs = ['GET', 'http://neutron.example.com/v2.0/networks']\nencoded_args = neutronclient_safe_encode_list(args)\n\nprint(f\"Original args: {args}\")\nprint(f\"Encoded args (like neutronclient): {encoded_args}\")\nprint(f\"  Method type: {type(encoded_args[0])}\")\nprint(f\"  Method value: {repr(encoded_args[0])}\")\n\n# Now use requests with the encoded args\ns = Session()\nreq = s.prepare_request(Request(encoded_args[0], encoded_args[1]))\n\nprint(f\"\\nRequest prepared successfully!\")\nprint(f\"  Request method: {repr(req.method)}\")\nprint(f\"  Request method type: {type(req.method)}\")\nprint(f\"  Request URL: {req.url}\")\n\n# Verify the method is correct\nassert req.method == 'GET', f\"Method should be 'GET', got {repr(req.method)}\"\nassert isinstance(req.method, str), f\"Method should be str, got {type(req.method)}\"\n\nprint(\"\\n=== SUCCESS ===\")\nprint(\"The fix allows requests to work correctly with neutronclient's bytes encoding\")\nEOF",
+   "hit": null,
+   "lat_ms": 163.3
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "psf__requests-2317",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 5988.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

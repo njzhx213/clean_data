@@ -1,0 +1,366 @@
+{
+ "calls": 62,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 28009.201288223267,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 68.3
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "pip show django 2>/dev/null | head -3; python -c \"import django; print(django.__version__, django.__file__)\" 2>&1",
+   "hit": null,
+   "lat_ms": 376.3
+  },
+  {
+   "cmd": "grep -rn -i \"xor\" /testbed/django/db/models/ --include=\"*.py\" | head -60",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "sed -n '1,160p' /testbed/django/db/models/sql/where.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"supports_logical_xor\" django/ | grep -v \".pyc\"",
+   "hit": null,
+   "lat_ms": 250.4
+  },
+  {
+   "cmd": "cd /testbed && grep -rn -i \"xor\" tests/model_enums tests/queries/ 2>/dev/null | head; grep -rln -i \"xor\" tests/ | head -30",
+   "hit": null,
+   "lat_ms": 166.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,120p' tests/xor_lookups/tests.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport django\nfrom django.conf import settings\nsettings.configure(DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}})\ndjango.setup()\nfrom django.db import connection\nprint('supports_logical_xor =', connection.features.supports_logical_xor)\nfrom django.db.models import Q\nfrom django.db.models.sql.where import WhereNode\nfrom django.db.models.expressions import Case, When\n# inspect the generated fallback SQL structure\nfrom django.db.models.sql.where import XOR, OR, AND\nprint('XOR =', XOR)\n\"",
+   "hit": null,
+   "lat_ms": 571.3
+  },
+  {
+   "cmd": "which sqlite3 psql mysql 2>&1; pg_isready 2>&1 | head -1; mysqladmin ping 2>&1 | head -1",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth', 'tests.xor_lookups'],\n)\ndjango.setup()\nfrom django.core.management import call_command\ncall_command('migrate', run_syncdb=True, verbosity=0)\nfrom tests.xor_lookups.models import Number\nfrom django.db.models import Q\n\nNumber.objects.all().delete()\nfor i in range(10):\n    Number.objects.create(num=i)\n\nn3 = 37\n# emulate the issue with pk\n# use pk values present: 0..9\npk = 0\nfor k in range(1, 6):\n    qs = Number.objects.all()\n    for _ in range(k):\n        qs = qs.filter(Q(pk=pk))  # no... need XOR of Qs\n    # build Q(pk=pk) ^ Q(pk=pk) ^ ... k times\n    q = Q(pk=pk)\n    for _ in range(k-1):\n        q = q ^ Q(pk=pk)\n    print(k, 'args ->', Number.objects.filter(q).count(), '(SQL:', str(Number.objects.filter(q).query)[:200], ')')\nEOF",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -10 -- django/db/models/sql/where.py | cat",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && git show c6b4d62fa2 --stat | cat | head -20 && git show c6b4d62fa2 -- django/db/models/sql/where.py | cat | head -80",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n -i \"xor\" tests/aggregation_regress/tests.py | head; echo ---; grep -n -i \"xor\" tests/expressions/tests.py | head; echo ---; grep -rn -i \"logical_xor\\|supports.*xor\\|XOR\" docs/ref/models/querysets.txt | head -30",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1710,1760p' tests/aggregation_regress/tests.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,20p' django/db/models/sql/where.py && sed -n '120,145p' django/db/models/sql/where.py",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\npath = 'django/db/models/sql/where.py'\nsrc = open(path).read()\nold = '''        if self.connector == XOR and not connection.features.supports_logical_xor:\n            # Convert if the database doesn't support XOR:\n            #   a XOR b XOR c XOR ...\n            # to:\n            #   (a OR b OR c OR ...) AND (a + b + c + ...) == 1\n            lhs = self.__class__(self.children, OR)\n            rhs_sum = reduce(\n                operator.add,\n                (Case(When(c, then=1), default=0) for c in self.children),\n            )\n            rhs = Exact(1, rhs_sum)\n            return self.__class__([lhs, rhs], AND, self.negated).as_sql(\n                compiler, connection\n            )\n'''\nnew = '''        if self.connector == XOR and not connection.features.supports_logical_xor:\n            # Convert if the database doesn't support XOR. The XOR operator is\n            # associative, so a chain of XORs has the same result regardless of\n            # the order in which its operands are grouped:\n            #   a XOR b XOR c XOR ... -> ((a XOR b) XOR c) XOR ...\n            # where a XOR b is true when exactly one of a, b is true, making\n            # the whole chain true when an odd number of operands is true\n            # (parity).\n            reduced = reduce(\n                lambda left, right: self.__class__([left, right], self.connector),\n                self.children,\n            )\n            return reduced.as_sql(compiler, connection)\n'''\nassert old in src, \"old block not found\"\nsrc = src.replace(old, new)\nopen(path, 'w').write(src)\nprint(\"patched\")\nEOF\npython -c \"import ast; ast.parse(open('/testbed/django/db/models/sql/where.py').read()); print('syntax OK')\"",
+   "hit": null,
+   "lat_ms": 163.4
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth', 'tests.xor_lookups'],\n)\ndjango.setup()\nfrom django.core.management import call_command\ncall_command('migrate', run_syncdb=True, verbosity=0)\nfrom tests.xor_lookups.models import Number\nfrom django.db.models import Q\n\nNumber.objects.all().delete()\nfor i in range(10):\n    Number.objects.create(num=i)\n\n# emulate Client.objects.filter(Q(id=37) ^ Q(id=37) ^ ...) with a single matching pk\npk = 0\nresults = []\nfor k in range(1, 6):\n    q = Q(pk=pk)\n    for _ in range(k - 1):\n        q = q ^ Q(pk=pk)\n    n = Number.objects.filter(q).count()\n    results.append(n)\n    print(f\"{k} args -> {n}\")\n\nexpected = [1, 0, 1, 0, 1]\nprint(\"expected:\", expected)\nassert results == expected, f\"MISMATCH: {results} != {expected}\"\nprint(\"PASS: parity semantics now correct on fallback (sqlite)\")\n\n# also show the generated SQL for 3 args\nq = Q(pk=pk) ^ Q(pk=pk) ^ Q(pk=pk)\nprint(\"\\n3-arg SQL:\")\nprint(Number.objects.filter(q).query)\nEOF",
+   "hit": null,
+   "lat_ms": 377.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '125,150p' django/db/models/sql/where.py",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'django/db/models/sql/where.py'\nsrc = open(path).read()\nold = '''        if self.connector == XOR and not connection.features.supports_logical_xor:\n            # Convert if the database doesn't support XOR. The XOR operator is\n            # associative, so a chain of XORs has the same result regardless of\n            # the order in which its operands are grouped:\n            #   a XOR b XOR c XOR ... -> ((a XOR b) XOR c) XOR ...\n            # where a XOR b is true when exactly one of a, b is true, making\n            # the whole chain true when an odd number of operands is true\n            # (parity).\n            reduced = reduce(\n                lambda left, right: self.__class__([left, right], self.connector),\n                self.children,\n            )\n            return reduced.as_sql(compiler, connection)\n'''\nnew = '''        if self.connector == XOR and not connection.features.supports_logical_xor:\n            # Convert if the database doesn't support XOR. As the XOR operator\n            # is associative, a chain of XORs has the same result regardless of\n            # the order in which its operands are grouped:\n            #   a XOR b XOR c -> (a XOR b) XOR c\n            # where a XOR b means \"exactly one of a, b is true\":\n            #   a XOR b -> (a AND NOT b) OR (NOT a AND b)\n            # Chaining this pairwise makes the whole chain true when an odd\n            # number of the operands is true (parity).\n            def xor_pair(left, right):\n                return self.__class__(\n                    [\n                        self.__class__([left, self.__class__([right], AND, True)], AND),\n                        self.__class__([self.__class__([left], AND, True), right], AND),\n                    ],\n                    OR,\n                )\n\n            reduced = reduce(xor_pair, self.children)\n            return reduced.as_sql(compiler, connection)\n'''\nassert old in src, \"old block not found\"\nsrc = src.replace(old, new)\nopen(path, 'w').write(src)\nprint(\"patched\")\nEOF\npython -c \"import ast; ast.parse(open('/testbed/django/db/models/sql/where.py').read()); print('syntax OK')\"",
+   "hit": null,
+   "lat_ms": 164.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth', 'tests.xor_lookups'],\n)\ndjango.setup()\nfrom django.core.management import call_command\ncall_command('migrate', run_syncdb=True, verbosity=0)\nfrom tests.xor_lookups.models import Number\nfrom django.db.models import Q\n\nNumber.objects.all().delete()\nfor i in range(10):\n    Number.objects.create(num=i)\n\npk = 0\nresults = []\nfor k in range(1, 6):\n    q = Q(pk=pk)\n    for _ in range(k - 1):\n        q = q ^ Q(pk=pk)\n    n = Number.objects.filter(q).count()\n    results.append(n)\n    print(f\"{k} args -> {n}\")\n\nexpected = [1, 0, 1, 0, 1]\nassert results == expected, f\"MISMATCH: {results} != {expected}\"\nprint(\"PASS: parity semantics correct on fallback (sqlite)\")\n\nq = Q(pk=pk) ^ Q(pk=pk) ^ Q(pk=pk)\nprint(\"\\n3-arg SQL:\\n\", Number.objects.filter(q).query)\nEOF",
+   "hit": null,
+   "lat_ms": 569.8
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth', 'tests.xor_lookups'],\n)\ndjango.setup()\nfrom django.core.management import call_command\ncall_command('migrate', run_syncdb=True, verbosity=0)\nfrom tests.xor_lookups.models import Number\nfrom django.db.models import Q\n\nNumber.objects.all().delete()\nfor i in range(10):\n    Number.objects.create(num=i)\n\nprint(\"total:\", Number.objects.count())\nprint(\"pk=0 count:\", Number.objects.filter(pk=0).count())\nq = Q(pk=0)\nprint(\"Q(pk=0) SQL:\", Number.objects.filter(q).query)\nprint(\"Q(pk=0) count:\", Number.objects.filter(q).count())\nEOF",
+   "hit": null,
+   "lat_ms": 377.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth', 'tests.xor_lookups'],\n)\ndjango.setup()\nfrom django.core.management import call_command\ncall_command('migrate', run_syncdb=True, verbosity=0)\nfrom tests.xor_lookups.models import Number\nfrom django.db.models import Q\n\nNumber.objects.all().delete()\nfor i in range(10):\n    Number.objects.create(num=i)\n\npk = Number.objects.first().pk\nprint(\"pk =\", pk)\nresults = []\nfor k in range(1, 6):\n    q = Q(pk=pk)\n    for _ in range(k - 1):\n        q = q ^ Q(pk=pk)\n    n = Number.objects.filter(q).count()\n    results.append(n)\n    print(f\"{k} args -> {n}\")\n\nexpected = [1, 0, 1, 0, 1]\nassert results == expected, f\"MISMATCH: {results} != {expected}\"\nprint(\"PASS: parity semantics correct on fallback (sqlite)\")\n\nq = Q(pk=pk) ^ Q(pk=pk) ^ Q(pk=pk)\nprint(\"\\n3-arg SQL:\\n\", Number.objects.filter(q).query)\nEOF",
+   "hit": null,
+   "lat_ms": 418.1
+  },
+  {
+   "cmd": "cd /testbed/tests && python -m django test xor_lookups -v1 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 427.8
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py xor_lookups -v1 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 569.6
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py xor_lookups -v2 2>&1 | grep -E \"ok|FAIL|ERROR\" ",
+   "hit": null,
+   "lat_ms": 570.9
+  },
+  {
+   "cmd": "cd /testbed && git stash && cd tests && python runtests.py xor_lookups -v2 2>&1 | grep -E \"ok$|FAIL|ERROR\" ; cd /testbed && git stash pop",
+   "hit": null,
+   "lat_ms": 1171.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '24,40p' tests/xor_lookups/tests.py",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed/tests && python -m unittest xor_lookups.tests.XorLookupsTests.test_filter_negated 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 376.9
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py xor_lookups.tests.XorLookupsTests.test_filter_negated -v2 2>&1 | sed -n '1,60p'",
+   "hit": null,
+   "lat_ms": 598.0
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth', 'tests.xor_lookups'],\n)\ndjango.setup()\nfrom django.core.management import call_command\ncall_command('migrate', run_syncdb=True, verbosity=0)\nfrom tests.xor_lookups.models import Number\nfrom django.db.models import Q\n\nNumber.objects.all().delete()\nfor i in range(10):\n    Number.objects.create(num=i)\n\nq = Q(num__lte=7) ^ ~Q(num__lt=3) ^ Q(num__lte=1)\nprint(\"expr: Q(num__lte=7) ^ ~Q(num__lt=3) ^ Q(num__lte=1)\")\nprint(\"SQL:\", Number.objects.filter(q).query)\nprint(\"got:\", sorted(n.num for n in Number.objects.filter(q)))\nprint(\"expected nums: [2] + [8,9] =\", [2,8,9])\n\n# now check the negated one\nq2 = ~(Q(num__lte=7) ^ ~Q(num__lt=3) ^ Q(num__lte=1))\nprint(\"\\nnegated SQL:\", Number.objects.filter(q2).query)\nprint(\"got:\", sorted(n.num for n in Number.objects.filter(q2)))\nprint(\"expected nums: [0,1] + [3..7]\")\nEOF",
+   "hit": null,
+   "lat_ms": 377.4
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'django/db/models/sql/where.py'\nsrc = open(path).read()\nold = '''            reduced = reduce(xor_pair, self.children)\n            return reduced.as_sql(compiler, connection)\n'''\nnew = '''            reduced = self.__class__([reduce(xor_pair, self.children)], AND, self.negated)\n            return reduced.as_sql(compiler, connection)\n'''\nassert old in src, \"old block not found\"\nsrc = src.replace(old, new)\nopen(path, 'w').write(src)\nprint(\"patched\")\nEOF\nsed -n '128,148p' django/db/models/sql/where.py",
+   "hit": null,
+   "lat_ms": 167.2
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py xor_lookups -v2 2>&1 | grep -E \"ok$|FAIL|ERROR\"",
+   "hit": null,
+   "lat_ms": 571.3
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth', 'tests.xor_lookups'],\n)\ndjango.setup()\nfrom django.core.management import call_command\ncall_command('migrate', run_syncdb=True, verbosity=0)\nfrom tests.xor_lookups.models import Number\nfrom django.db.models import Q\n\nNumber.objects.all().delete()\nfor i in range(10):\n    Number.objects.create(num=i)\n\npk = Number.objects.first().pk\nresults = []\nfor k in range(1, 6):\n    q = Q(pk=pk)\n    for _ in range(k - 1):\n        q = q ^ Q(pk=pk)\n    n = Number.objects.filter(q).count()\n    results.append(n)\n    print(f\"{k} args -> {n}\")\n\nexpected = [1, 0, 1, 0, 1]\nassert results == expected, f\"MISMATCH: {results} != {expected}\"\nprint(\"PASS: exact ticket scenario on fallback\")\n\n# negated variants\nfor k in range(1, 6):\n    q = Q(pk=pk)\n    for _ in range(k - 1):\n        q = q ^ Q(pk=pk)\n    n = Number.objects.filter(~q).count()\n    print(f\"~({k} args) -> {n} (expect {10 - (1 if k % 2 else 0)})\")\nEOF",
+   "hit": null,
+   "lat_ms": 577.1
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py queries tests.test_q 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 1775.8
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py queries.test_q xor_lookups 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 771.2
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py queries.test_q xor_lookups 2>&1 | grep -E \"^(OK|FAILED|Ran)\" ",
+   "hit": null,
+   "lat_ms": 771.6
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py queries 2>&1 | grep -E \"^(OK|FAILED|Ran)\"",
+   "hit": null,
+   "lat_ms": 1777.7
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py aggregation_regress expressions 2>&1 | grep -E \"^(OK|FAILED|Ran)\"",
+   "hit": null,
+   "lat_ms": 773.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py model_fields 2>&1 | grep -E \"^(OK|FAILED|Ran)\"",
+   "hit": null,
+   "lat_ms": 1574.9
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py lookups 2>&1 | grep -E \"^(OK|FAILED|Ran)\"",
+   "hit": null,
+   "lat_ms": 378.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py lookups 2>&1 | grep -B2 -A8 \"ERROR\\|Error\" | head -30",
+   "hit": null,
+   "lat_ms": 381.3
+  },
+  {
+   "cmd": "cd /testbed/tests && ls | grep -i lookup; python runtests.py datetime lookups 2>&1 | grep -E \"^(OK|FAILED|Ran)\" | head -3",
+   "hit": null,
+   "lat_ms": 420.1
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py lookup or_lookups reverse_lookup string_lookup custom_lookups 2>&1 | grep -E \"^(OK|FAILED|Ran)\"",
+   "hit": null,
+   "lat_ms": 970.8
+  },
+  {
+   "cmd": "cd /testbed/tests && timeout 580 python runtests.py where querysets aggregation 2>&1 | grep -E \"^(OK|FAILED|Ran)\"",
+   "hit": null,
+   "lat_ms": 773.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py where querysets aggregation 2>&1 | grep -E \"ERROR:|ModuleNotFound|ImportError\" | head",
+   "hit": null,
+   "lat_ms": 772.5
+  },
+  {
+   "cmd": "cd /testbed/tests && timeout 580 python runtests.py aggregation extra_regress 2>&1 | grep -E \"^(OK|FAILED|Ran)\"",
+   "hit": null,
+   "lat_ms": 775.7
+  },
+  {
+   "cmd": "cd /testbed/tests && timeout 580 python runtests.py constraints bulk_create 2>&1 | grep -E \"^(OK|FAILED|Ran)\"",
+   "hit": null,
+   "lat_ms": 976.5
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 223.5
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport django.db.models.sql.where as w\n# Are these imports still used elsewhere in the module?\nsrc = open('django/db/models/sql/where.py').read()\nfor name in ['operator', 'reduce', 'Case', 'When', 'Exact']:\n    import re\n    uses = len(re.findall(r'\\b' + name + r'\\b', src))\n    print(name, 'occurrences:', uses)\n\"",
+   "hit": null,
+   "lat_ms": 254.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'django/db/models/sql/where.py'\nsrc = open(path).read()\nold = '''import operator\nfrom functools import reduce\n\nfrom django.core.exceptions import EmptyResultSet, FullResultSet\nfrom django.db.models.expressions import Case, When\nfrom django.db.models.lookups import Exact\nfrom django.utils import tree\n'''\nnew = '''from functools import reduce\n\nfrom django.core.exceptions import EmptyResultSet, FullResultSet\nfrom django.utils import tree\n'''\nassert old in src, \"import block not found\"\nsrc = src.replace(old, new)\nopen(path, 'w').write(src)\nprint(\"cleaned\")\nEOF\npython -c \"import ast; ast.parse(open('/testbed/django/db/models/sql/where.py').read()); print('syntax OK')\"\nsed -n '1,15p' django/db/models/sql/where.py",
+   "hit": null,
+   "lat_ms": 164.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py xor_lookups queries.test_q aggregation_regress 2>&1 | grep -E \"^(OK|FAILED|Ran)\"",
+   "hit": null,
+   "lat_ms": 972.5
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth', 'tests.xor_lookups'],\n)\ndjango.setup()\nfrom django.core.management import call_command\ncall_command('migrate', run_syncdb=True, verbosity=0)\nfrom tests.xor_lookups.models import Number\nfrom django.db.models import Q\n\nNumber.objects.all().delete()\nfor i in range(10):\n    Number.objects.create(num=i)\npk = Number.objects.first().pk\n\n# The exact reproduction from the ticket\nres = []\nfor k in range(1, 6):\n    q = Q(pk=pk)\n    for _ in range(k - 1):\n        q = q ^ Q(pk=pk)\n    res.append(Number.objects.filter(q).count())\nprint(\"counts:\", res)\nassert res == [1, 0, 1, 0, 1], res\nprint(\"TICKET SCENARIO: PASS\")\n\n# Also confirm exclude() and ~() behavior\nres = []\nfor k in range(1, 6):\n    q = Q(pk=pk)\n    for _ in range(k - 1):\n        q = q ^ Q(pk=pk)\n    res.append(Number.objects.exclude(q).count())\nprint(\"exclude:\", res)\nassert res == [9, 10, 9, 10, 9], res\nprint(\"EXCLUDE: PASS\")\nEOF",
+   "hit": null,
+   "lat_ms": 643.0
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"CASE WHEN\" tests/ --include=\"*.py\" -l | xargs grep -ln \"xor\\|XOR\" 2>/dev/null; echo \"---\"; grep -rn \"assertSQL\\|assertQuerysetEqual.*sql\" tests/xor_lookups/ tests/queries/ 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 216.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n -i \"xor\" tests/expressions/tests.py | grep -i -A2 -B2 \"CASE\" | head; grep -n \"test_lefthand_bitwise_xor\" tests/expressions/tests.py",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"CASE WHEN\" tests/expressions/tests.py | head; sed -n '1490,1500p' tests/expressions/tests.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && ls docs/releases/ | tail -5",
+   "hit": null,
+   "lat_ms": 72.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n -i \"XOR\" docs/releases/5.0.txt | head; grep -n \"Bugfixes\" docs/releases/5.0.txt | head -3",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cd /testbed && head -40 docs/releases/5.0.txt",
+   "hit": null,
+   "lat_ms": 156.4
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py xor_lookups queries.test_q queries.test_qs_combinators aggregation_regress expressions.tests 2>&1 | grep -E \"^(OK|FAILED|Ran)\"",
+   "hit": null,
+   "lat_ms": 1170.1
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-16901",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 28009.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

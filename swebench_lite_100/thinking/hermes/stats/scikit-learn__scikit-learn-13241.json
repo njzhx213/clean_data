@@ -1,0 +1,151 @@
+{
+ "calls": 19,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 40388.399600982666,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 68.5
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && python3 --version && python3 -c \"import numpy as np; print('numpy', np.__version__)\" 2>&1; python3 -c \"import sklearn; print('sklearn', sklearn.__version__)\" 2>&1",
+   "hit": null,
+   "lat_ms": 163.1
+  },
+  {
+   "cmd": "cd /testbed && cat sklearn/__init__.py | grep -m5 -i \"version\" ; ls sklearn/decomposition/ | head -30",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "pip install --quiet scikit-learn 2>&1 | tail -2; python3 -c \"import numpy as np, sklearn; print('numpy', np.__version__, '| sklearn', sklearn.__version__)\"",
+   "hit": null,
+   "lat_ms": 8175.4
+  },
+  {
+   "cmd": "which -a python python3 pip pip3 2>/dev/null; ls /usr/bin/python* /usr/local/bin/python* 2>/dev/null; pip install numpy 2>&1 | tail -3; ls ~/.cache/pip 2>/dev/null | head; find / -name \"*.whl\" -not -path \"*/proc/*\" 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 8575.3
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/python -c \"import numpy, scipy, sklearn; print('numpy', numpy.__version__, '| scipy', scipy.__version__, '| sklearn', sklearn.__version__)\" 2>&1",
+   "hit": null,
+   "lat_ms": 571.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"eigh\\|n_jobs\\|parallel\\|pairwise_kernels\\|_fit\\b\\|def _fit\\|sign\" sklearn/decomposition/kernel_pca.py | head -40",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "/opt/miniconda3/envs/testbed/bin/python -c \"import numpy; numpy.show_config()\" 2>&1 | grep -A3 -i \"blas\\|thread\" | head -30; nproc",
+   "hit": null,
+   "lat_ms": 378.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '170,215p' sklearn/decomposition/kernel_pca.py",
+   "hit": null,
+   "lat_ms": 637.5
+  },
+  {
+   "cmd": "mkdir -p /tmp/kpca && cat > /tmp/kpca/worker.py <<'EOF'\nimport os, sys\nimport numpy as np\nfrom sklearn.decomposition import KernelPCA\n\nprint(\"OPENBLAS_NUM_THREADS=%s OMP_NUM_THREADS=%s\" % (\n    os.environ.get(\"OPENBLAS_NUM_THREADS\"), os.environ.get(\"OMP_NUM_THREADS\")))\n\nrng = np.random.RandomState(0)\nsizes = [400, 300, 250, 150, 100]\ncenters = rng.randn(5, 30) * 3\nX = np.vstack([c + rng.randn(s, 30) * 0.5 for c, s in zip(centers, sizes)])\n\npca = KernelPCA(n_components=7, kernel='rbf', gamma=0.03, n_jobs=1)\nT = pca.fit_transform(X)\nnp.save(sys.argv[1], T)\nprint(\"lambdas:\", np.array2string(pca.lambdas_, precision=2))\nprint(\"row0:\", repr(T[0]))\nEOF\necho written",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat > /tmp/kpca/demo.py <<'EOF'\nimport numpy as np, scipy\nimport sklearn\nfrom sklearn.decomposition import KernelPCA\nfrom sklearn.metrics.pairwise import rbf_kernel\nfrom scipy.sparse.linalg import eigsh\n\nprint(\"numpy %s | scipy %s | sklearn %s\" % (np.__version__, scipy.__version__, sklearn.__version__))\n\nrng = np.random.RandomState(0)\nsizes = [400, 300, 250, 150, 100]\ncenters = rng.randn(5, 30) * 3\nX = np.vstack([c + rng.randn(s, 30) * 0.5 for c, s in zip(centers, sizes)])\nn, d = X.shape\ngamma = 0.03\nprint(\"X: %d samples x %d features (5 gaussian blobs)\" % (n, d))\nprint(\"n > 200 and n_components = 7 < 10  =>  eigen_solver='auto' picks 'arpack' (eigsh)\")\n\n# ---------- A: your exact scenario: same data, fit twice in a row ----------\nprint(\"\\n=== A: same X, same params, fit_transform called twice consecutively ===\")\npa = KernelPCA(n_components=7, kernel='rbf', gamma=gamma, n_jobs=1)\nT1 = pa.fit_transform(X)\nT2 = pa.fit_transform(X)          # second fit: numpy's global RNG has advanced -> different v0\nprint(\"row0 fit #1:\", repr(T1[0]))\nprint(\"row0 fit #2:\", repr(T2[0]))\nprint(\"bitwise identical:\", np.array_equal(T1, T2))\n\n# ---------- B: fix random_state ----------\nprint(\"\\n=== B: same, but random_state=0 on both fits ===\")\nb1 = KernelPCA(n_components=7, kernel='rbf', gamma=gamma, n_jobs=1, random_state=0).fit_transform(X)\nb2 = KernelPCA(n_components=7, kernel='rbf', gamma=gamma, n_jobs=1, random_state=0).fit_transform(X)\nprint(\"row0 fit #1:\", repr(b1[0]))\nprint(\"row0 fit #2:\", repr(b2[0]))\nprint(\"bitwise identical:\", np.array_equal(b1, b2))\n\n# ---------- C: dense solver (eigh) instead of arpack ----------\nprint(\"\\n=== C: eigen_solver='dense', two consecutive fits ===\")\nc1 = KernelPCA(n_components=7, kernel='rbf', gamma=gamma, n_jobs=1, eigen_solver='dense').fit_transform(X)\nc2 = KernelPCA(n_components=7, kernel='rbf', gamma=gamma, n_jobs=1, eigen_solver='dense').fit_transform(X)\nprint(\"row0 fit #1:\", repr(c1[0]))\nprint(\"row0 fit #2:\", repr(c2[0]))\nprint(\"bitwise identical:\", np.array_equal(c1, c2))\n\n# ---------- D: the mechanism: same centered kernel, different ARPACK start v0 ----------\nprint(\"\\n=== D: mechanism - same K, two different eigsh start vectors v0 ===\")\nK = rbf_kernel(X, gamma=gamma, n_jobs=1)\nKc = K - K.mean(1, keepdims=True) - K.mean(0, keepdims=True) + K.mean()\nwa, VA = eigsh(Kc, 7, which=\"LA\", v0=np.random.RandomState(1).uniform(-1, 1, n))\nwb, VB = eigsh(Kc, 7, which=\"LA\", v0=np.random.RandomState(2).uniform(-1, 1, n))\nwa = wa[::-1]; VA = VA[:, ::-1]; wb = wb[::-1]; VB = VB[:, ::-1]\nprint(\"eigenvalues (fit #1):\", np.array2string(wa, precision=4))\nprint(\"eigenvalue diff between the two runs: %.3e\" % np.max(np.abs(wa - wb)))\nnflip = 0\nfor j in range(7):\n    c = float(np.dot(VA[:, j], VB[:, j]))\n    nflip += (c < 0)\n    print(\"component %d: <v_a, v_b> = %+.6f   sign flip: %s\" % (j, c, c < 0))\nprint(\"=> %d of 7 components have opposite sign although K is identical\" % nflip)\n\n# ---------- E: how much do the Gram matrices themselves differ with n_jobs? ----------\nKm = rbf_kernel(X, gamma=gamma, n_jobs=-1)\ndK = float(np.max(np.abs(K - Km)))\nprint(\"\\n=== E: max |K(n_jobs=1) - K(n_jobs=-1)| = %.3e (float64 eps = 2.2e-16) ===\" % dK)\n\n# ---------- F: eigenvalue spacing of the fitted object ----------\nprint(\"\\n=== F: fitted eigenvalues (lambdas_) from fit #1 ===\")\nprint(np.array2string(pa.lambdas_, precision=4))\nprint(\"gap comp4->5: %.3e   gap comp5->6: %.3e\" % (pa.lambdas_[4]-pa.lambdas_[5], pa.lambdas_[5]-pa.lambdas_[6]))\n\n# ---------- G: deterministic sign convention ----------\ndef fix_signs(T):\n    T = T.copy()\n    for j in range(T.shape[1]):\n        i = int(np.argmax(np.abs(T[:, j])))\n        if T[i, j] < 0:\n            T[:, j] *= -1\n    return T\nprint(\"\\n=== G: deterministic sign convention (largest-|entry| positive) ===\")\nprint(\"aligned fit #1 row0:\", repr(fix_signs(T1)[0]))\nprint(\"aligned fit #2 row0:\", repr(fix_signs(T2)[0]))\nprint(\"max diff after alignment:\", np.max(np.abs(fix_signs(T1) - fix_signs(T2))))\nEOF\ncd /t",
+   "hit": null,
+   "lat_ms": 14975.7
+  },
+  {
+   "cmd": "cat > /tmp/kpca/demo2.py <<'EOF'\nimport numpy as np, scipy\nimport sklearn\nfrom sklearn.decomposition import KernelPCA\nfrom sklearn.metrics.pairwise import rbf_kernel, pairwise_kernels\nfrom scipy.sparse.linalg import eigsh\n\nrng = np.random.RandomState(0)\nsizes = [400, 300, 250, 150, 100]\ncenters = rng.randn(5, 30) * 3\nX = np.vstack([c + rng.randn(s, 30) * 0.5 for c, s in zip(centers, sizes)])\nn, d = X.shape\ngamma = 0.03\nprint(\"numpy %s | scipy %s | sklearn %s | X: %dx%d\" % (np.__version__, scipy.__version__, sklearn.__version__, n, d))\n\n# ---------- A detail: two consecutive default fits ----------\npa = KernelPCA(n_components=7, kernel='rbf', gamma=gamma, n_jobs=1)\nT1 = pa.fit_transform(X)\nT2 = pa.fit_transform(X)\ndiff = np.abs(T1 - T2)\nprint(\"\\n=== A detail: two consecutive default fits ===\")\nprint(\"max |T1 - T2| = %.3e\" % diff.max())\nprint(\"per-column comparison (T1 vs T2):\")\nfor j in range(7):\n    same = np.array_equal(T1[:, j], T2[:, j])\n    samesign = np.all(np.sign(T1[:, j]) == np.sign(T2[:, j]))\n    # is col j of T2 exactly -col j of T1?\n    anti = np.array_equal(T1[:, j], -T2[:, j])\n    print(\"  comp %d: bitwise same: %s | same sign everywhere: %s | exact sign flip: %s\" % (j, same, samesign, anti))\nflipped = [j for j in range(7) if np.array_equal(T1[:, j], -T2[:, j])]\nprint(\"components that are exact sign flips:\", flipped)\n# where are the non-exact differences?\nmask = diff > 0\nprint(\"num entries with |diff|>0: %d ; sample of such entries:\" % mask.sum())\nidx = np.argwhere(mask)\nfor r, c in idx[:8]:\n    print(\"   T1[%d,%d] = %.17g   T2[%d,%d] = %.17g\" % (r, c, T1[r, c], r, c, T2[r, c]))\n\n# ---------- D: mechanism with correct API ----------\nprint(\"\\n=== D: same centered kernel, two different eigsh start vectors v0 ===\")\nK = rbf_kernel(X, gamma=gamma)\nKm = pairwise_kernels(X, X, metric='rbf', gamma=gamma, n_jobs=-1)\ndK = float(np.max(np.abs(K - Km)))\nprint(\"max |K(n_jobs=1) - K(n_jobs=-1)| = %.3e (float64 eps = 2.2e-16)\" % dK)\nKc = K - K.mean(1, keepdims=True) - K.mean(0, keepdims=True) + K.mean()\nwa, VA = eigsh(Kc, 7, which=\"LA\", v0=np.random.RandomState(1).uniform(-1, 1, n))\nwb, VB = eigsh(Kc, 7, which=\"LA\", v0=np.random.RandomState(2).uniform(-1, 1, n))\nwa = wa[::-1]; VA = VA[:, ::-1]; wb = wb[::-1]; VB = VB[:, ::-1]\nprint(\"eigenvalues:              \", np.array2string(wa, precision=4))\nprint(\"eigenvalue diff (a vs b): %.3e\" % np.max(np.abs(wa - wb)))\nnflip = 0\nfor j in range(7):\n    c = float(np.dot(VA[:, j], VB[:, j]))\n    nflip += (c < 0)\n    print(\"component %d: <v_a, v_b> = %+.6f   sign flip: %s\" % (j, c, c < 0))\nprint(\"=> %d of 7 components have opposite sign although K is bit-identical\" % nflip)\n\n# also: same v0, K perturbed at measured/typical cross-machine rounding scale\nwC, VC = eigsh(Kc + max(dK, 1e-15) * np.random.RandomState(3).randn(*Kc.shape),\n               7, which=\"LA\", v0=np.random.RandomState(1).uniform(-1, 1, n))\nwC = wC[::-1]; VC = VC[:, ::-1]\nnflip2 = sum(float(np.dot(VA[:, j], VC[:, j])) < 0 for j in range(7))\nprint(\"same v0, K perturbed by %.0e: %d of 7 sign flips\" % (max(dK, 1e-15), nflip2))\n\n# ---------- F: eigenvalue spacing ----------\nprint(\"\\n=== F: fitted lambdas_ and spacing ===\")\nlam = pa.lambdas_\nprint(np.array2string(lam, precision=4))\nfor j in range(6):\n    print(\"  gap comp%d -> comp%d: %.3e\" % (j, j+1, lam[j]-lam[j+1]))\nEOF\ncd /tmp/kpca && /opt/miniconda3/envs/testbed/bin/python demo2.py",
+   "hit": null,
+   "lat_ms": 2373.0
+  },
+  {
+   "cmd": "cat > /tmp/kpca/demo3.py <<'EOF'\nimport numpy as np, scipy, sklearn\nfrom sklearn.decomposition import KernelPCA\nfrom sklearn.metrics.pairwise import rbf_kernel\nfrom scipy.sparse.linalg import eigsh\n\nprint(\"numpy %s | scipy %s | sklearn %s\" % (np.__version__, scipy.__version__, sklearn.__version__))\nprint(\"global RNG first 5 words:\", np.random.mtrand._rand.get_state()[1][:5])\n\nrng = np.random.RandomState(0)\nsizes = [400, 300, 250, 150, 100]\ncenters = rng.randn(5, 30) * 3\nX = np.vstack([c + rng.randn(s, 30) * 0.5 for c, s in zip(centers, sizes)])\nn, d = X.shape\ngamma = 0.03\nprint(\"X: %dx%d  (n>200 & n_components=7<10 -> eigen_solver='arpack')\" % (n, d))\n\n# A: two consecutive default fits\npa = KernelPCA(n_components=7, kernel='rbf', gamma=gamma, n_jobs=1)\nT1 = pa.fit_transform(X)\nT2 = pa.fit_transform(X)\nprint(\"\\nA: same X, same params, two consecutive fits (random_state=None):\")\nprint(\"  fit#1 row0:\", repr(T1[0]))\nprint(\"  fit#2 row0:\", repr(T2[0]))\nflips = [j for j in range(7) if np.sign(T1[0, j]) != np.sign(T2[0, j])]\nprint(\"  row0 sign-flipped components:\", flips)\nprint(\"  max |T1 - T2| = %.3e\" % np.abs(T1 - T2).max())\n\ndef fix_signs(T):\n    T = T.copy()\n    for j in range(T.shape[1]):\n        i = int(np.argmax(np.abs(T[:, j])))\n        if T[i, j] < 0:\n            T[:, j] *= -1\n    return T\nprint(\"  max diff after deterministic sign alignment: %.3e\" % np.abs(fix_signs(T1) - fix_signs(T2)).max())\n\n# B: fixed random_state\nb1 = KernelPCA(n_components=7, kernel='rbf', gamma=gamma, n_jobs=1, random_state=0).fit_transform(X)\nb2 = KernelPCA(n_components=7, kernel='rbf', gamma=gamma, n_jobs=1, random_state=0).fit_transform(X)\nprint(\"\\nB: random_state=0 on both fits:\")\nprint(\"  row0:\", repr(b1[0]))\nprint(\"  bitwise identical:\", np.array_equal(b1, b2))\n\n# C: dense solver\nc1 = KernelPCA(n_components=7, kernel='rbf', gamma=gamma, n_jobs=1, eigen_solver='dense').fit_transform(X)\nc2 = KernelPCA(n_components=7, kernel='rbf', gamma=gamma, n_jobs=1, eigen_solver='dense').fit_transform(X)\nprint(\"\\nC: eigen_solver='dense' on both fits:\")\nprint(\"  row0:\", repr(c1[0]))\nprint(\"  bitwise identical:\", np.array_equal(c1, c2))\nprint(\"  (dense signs differ from arpack signs - both are valid conventions)\")\n\n# D: mechanism - identical K, two ARPACK start vectors\nK = rbf_kernel(X, gamma=gamma)\nKc = K - K.mean(1, keepdims=True) - K.mean(0, keepdims=True) + K.mean()\nwa, VA = eigsh(Kc, 7, which=\"LA\", v0=np.random.RandomState(1).uniform(-1, 1, n))\nwb, VB = eigsh(Kc, 7, which=\"LA\", v0=np.random.RandomState(2).uniform(-1, 1, n))\nwa = wa[::-1]; VA = VA[:, ::-1]; wb = wb[::-1]; VB = VB[:, ::-1]\nprint(\"\\nD: identical centered kernel K, two different eigsh start vectors v0:\")\nprint(\"  max |eig_a - eig_b| = %.3e\" % np.abs(wa - wb).max())\nfor j in range(7):\n    c = float(np.dot(VA[:, j], VB[:, j]))\n    print(\"  comp %d: eigenvalue %9.4f,  <v_a, v_b> = %+.6f  -> opposite sign: %s\" % (j, wa[j], c, c < 0))\n\n# E: eigenvalue spacing of the fitted object\nlam = pa.lambdas_\nprint(\"\\nE: fitted lambdas_:\", np.array2string(lam, precision=4))\nprint(\"  consecutive gaps:\", np.array2string(np.diff(lam), precision=3))\nEOF\ncat > /tmp/kpca/firstfit.py <<'EOF'\nimport numpy as np\nfrom sklearn.decomposition import KernelPCA\nrng = np.random.RandomState(0)\nsizes = [400, 300, 250, 150, 100]\ncenters = rng.randn(5, 30) * 3\nX = np.vstack([c + rng.randn(s, 30) * 0.5 for c, s in zip(centers, sizes)])\nT = KernelPCA(n_components=7, kernel='rbf', gamma=0.03, n_jobs=1).fit_transform(X)\nprint(\"first-fit row0:\", repr(T[0]))\nEOF\ncd /tmp/kpca\nexport OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2\n/opt/miniconda3/envs/testbed/bin/python demo3.py\necho \"=== cross-process check: run firstfit.py in two fresh processes ===\"\n/opt/miniconda3/envs/testbed/bin/python firstfit.py\n/opt/miniconda3/envs/testbed/bin/python firstfit.py",
+   "hit": null,
+   "lat_ms": 2173.0
+  },
+  {
+   "cmd": "cd /tmp/kpca\nexport OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2\necho \"=== test 1: global RNG initial state in two fresh processes ===\"\n/opt/miniconda3/envs/testbed/bin/python -c \"import numpy as np; print(np.random.mtrand._rand.get_state()[1][:4])\"\n/opt/miniconda3/envs/testbed/bin/python -c \"import numpy as np; print(np.random.mtrand._rand.get_state()[1][:4])\"\necho \"=== test 2: rbf kernel bytes in two fresh processes ===\"\n/opt/miniconda3/envs/testbed/bin/python -c \"\nimport hashlib, numpy as np\nfrom sklearn.metrics.pairwise import rbf_kernel\nrng = np.random.RandomState(0)\nsizes = [400, 300, 250, 150, 100]\ncenters = rng.randn(5, 30) * 3\nX = np.vstack([c + rng.randn(s, 30) * 0.5 for c, s in zip(centers, sizes)])\nK = rbf_kernel(X, gamma=0.03)\nprint(hashlib.md5(K.tobytes()).hexdigest())\"\n/opt/miniconda3/envs/testbed/bin/python -c \"\nimport hashlib, numpy as np\nfrom sklearn.metrics.pairwise import rbf_kernel\nrng = np.random.RandomState(0)\nsizes = [400, 300, 250, 150, 100]\ncenters = rng.randn(5, 30) * 3\nX = np.vstack([c + rng.randn(s, 30) * 0.5 for c, s in zip(centers, sizes)])\nK = rbf_kernel(X, gamma=0.03)\nprint(hashlib.md5(K.tobytes()).hexdigest())\"",
+   "hit": null,
+   "lat_ms": 1379.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n -i -B2 -A4 \"arpack\" sklearn/CHANGES | sed -n '1,60p'",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 2>/dev/null | head -3; git log --oneline -S \"arpack\" -- sklearn/decomposition/kernel_pca.py 2>/dev/null | tail -5; grep -rn \"0.18\" sklearn/decomposition/kernel_pca.py | head -5",
+   "hit": null,
+   "lat_ms": 235.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n '55,110p' sklearn/decomposition/kernel_pca.py",
+   "hit": null,
+   "lat_ms": 112.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "scikit-learn__scikit-learn-13241",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 40388.4,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

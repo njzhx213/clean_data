@@ -1,0 +1,1661 @@
+{
+ "calls": 321,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 53866.87469482422,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 74.6
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && echo --- && ls -la ~ 2>/dev/null && echo --- && find / -maxdepth 4 -name \"django\" -type d -not -path \"*/node_modules/*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 162.5
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 2>/dev/null | cat && git status --short 2>/dev/null | head && git branch -a 2>/dev/null | head && python -c \"import django; print(django.__version__)\" && python --version",
+   "hit": null,
+   "lat_ms": 570.8
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && grep -n \"class Exists\" -A 30 subqueries.py",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cd /testbed/django && grep -rn \"class Exists\" db/models/ | head && grep -rn \"class Subquery\" db/models/ | head",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed/django && sed -n '1100,1260p' db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro.py <<'EOF'\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=[],\n    USE_TZ=True,\n)\ndjango.setup()\n\nfrom django.db import connection, models\n\nclass MyModel(models.Model):\n    name = models.CharField(max_length=10)\n\n    class Meta:\n        app_label = 'repro'\n        managed = False\n\nwith connection.schema_editor() as se:\n    se.create_model(MyModel)\n\nMyModel.objects.create(name='test')\nMyModel.objects.create(name='other')\n\nqs = MyModel.objects.filter(~models.Exists(MyModel.objects.none()), name='test')\nprint(\"rows:\", [m.name for m in qs])\nprint(\"query str:\", qs.query)\nprint()\nprint(\"SQL+params:\", connection.ops.prep_for_db_query if False else qs.query.get_compiler('default').as_sql())\nprint()\nctrl = MyModel.objects.filter(name='test')\nprint(\"control rows:\", [m.name for m in ctrl])\nprint(\"control sql:\", ctrl.query.get_compiler('default').as_sql())\nEOF\npython /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 569.4
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro2.py <<'EOF'\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=[],\n    USE_TZ=True,\n)\ndjango.setup()\n\nfrom django.db import connection, models\n\nclass MyModel(models.Model):\n    name = models.CharField(max_length=10)\n\n    class Meta:\n        app_label = 'repro'\n        managed = False\n\nwith connection.schema_editor() as se:\n    se.create_model(MyModel)\n\nqs = MyModel.objects.filter(~models.Exists(MyModel.objects.none()), name='test')\n\nw = qs.query.where\nprint(\"WHERE node:\", repr(w))\nprint(\"connector:\", w.connector, \"negated:\", w.negated)\nfor i, child in enumerate(w.children):\n    print(f\"  child[{i}]: {type(child).__module__}.{type(child).__name__}: {repr(child)[:200]}\")\n    if hasattr(child, 'children'):\n        for j, c2 in enumerate(child.children):\n            print(f\"      sub[{j}]: {type(c2).__module__}.{type(c2).__name__}: {repr(c2)[:200]}\")\nprint()\nprint(\"is_empty:\", qs.query.is_empty())\nprint(\"subquery where:\", repr(qs.query.where.children[0].query.where) if hasattr(qs.query.where.children[0], 'query') else 'n/a')\nEOF\npython /tmp/repro2.py",
+   "hit": null,
+   "lat_ms": 1430.9
+  },
+  {
+   "cmd": "cd /testbed/django && grep -n \"def build_filter\\|def _build_filter\\|def add_q\\|def build_q\" db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "cd /testbed/django && sed -n '1247,1440p' db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed/django && sed -n '1,250p' db/models/sql/where.py",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "cd /testbed/django && grep -n \"set_empty\\|def exists\\|def as_sql\\|EmptyResultSet\" db/models/sql/query.py | head -30 && echo === && grep -n \"EmptyResultSet\" db/models/sql/compiler.py | head",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed/django && sed -n '515,545p' db/models/sql/query.py && echo ===== && sed -n '1080,1105p' db/models/sql/query.py && echo ===== && sed -n '1835,1880p' db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 75.9
+  },
+  {
+   "cmd": "cd /testbed/django && sed -n '255,290p' db/models/sql/compiler.py && echo ===== && sed -n '460,575p' db/models/sql/compiler.py && echo ===== && sed -n '1195,1215p' db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cd /testbed/django && grep -n \"def get_compiler\" -A 8 db/models/sql/query.py && grep -n \"elide_empty\" db/models/sql/query.py db/models/sql/compiler.py db/models/query.py db/models/sql/datastructures.py 2>/dev/null",
+   "hit": null,
+   "lat_ms": 145.7
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/trace.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=[], USE_TZ=True)\ndjango.setup()\nfrom django.db import connection, models\n\nclass MyModel(models.Model):\n    name = models.CharField(max_length=10)\n    class Meta:\n        app_label = 'repro'\n        managed = False\nwith connection.schema_editor() as se:\n    se.create_model(MyModel)\n\n# 1) subquery query of the Exists\ne = models.Exists(MyModel.objects.none())\ninner = e.query.exists(using='default')\nprint(\"inner where children:\", [type(c).__name__ for c in inner.where.children])\nprint(\"inner.is_empty():\", inner.is_empty())\nprint(\"inner high_mark:\", inner.high_mark)\n\n# 2) compile the subquery directly (elide_empty=True, like Query.as_sql)\nc = inner.get_compiler(connection=connection)  # elide_empty=True\ntry:\n    print(\"subquery sql (elide_empty=True):\", c.as_sql())\nexcept Exception as ex:\n    print(\"subquery sql (elide_empty=True) RAISED:\", type(ex).__name__)\nc2 = inner.get_compiler(connection=connection, elide_empty=False)\nprint(\"subquery sql (elide_empty=False):\", c2.as_sql())\n\n# 3) the full where node compilation\nqs = MyModel.objects.filter(~models.Exists(MyModel.objects.none()), name='test')\nw = qs.query.where\nfor child in w.children:\n    try:\n        comp = qs.query.get_compiler('default')\n        print(\"child sql:\", child.as_sql(comp, connection))\n    except Exception as ex:\n        print(\"child RAISED:\", type(ex).__name__)\nEOF\npython /tmp/trace.py",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "cd /testbed/django/tests && grep -rln \"Exists\" --include=*.py | head -20 && echo === && grep -rn \"none()\" queries/tests.py | head -5",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /testbed && ls && find . -maxdepth 3 -name \"test*.py\" -path \"*subquer*\" 2>/dev/null | head && find . -maxdepth 2 -type d -name \"tests\" | head",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cd /testbed/tests && ls subqueries/ 2>/dev/null && grep -rn \"Exists\" subqueries/tests.py | head -30",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed/tests && ls | head -60 && echo === && grep -rln \"models.Exists\\|Exists(\" --include=\"*.py\" . | head -20",
+   "hit": null,
+   "lat_ms": 181.1
+  },
+  {
+   "cmd": "cd /testbed/tests && ls | sed -n '60,200p' && echo === && grep -rn \"class.*Exists\\|def test.*exists\" queries/tests.py | head -20",
+   "hit": null,
+   "lat_ms": 188.1
+  },
+  {
+   "cmd": "cd /testbed/tests && sed -n '1936,2050p' queries/tests.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed/tests && grep -n \"Exists\" lookup/tests.py expressions/tests.py annotations/tests.py filtered_relation/tests.py 2>/dev/null | head -40",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed/tests && sed -n '400,470p' expressions/tests.py",
+   "hit": null,
+   "lat_ms": 160.8
+  },
+  {
+   "cmd": "pip download django==4.2 --no-deps -d /tmp/dj42 2>&1 | tail -2",
+   "hit": null,
+   "lat_ms": 7976.5
+  },
+  {
+   "cmd": "cd /testbed/django && grep -n \"class Lookup\" -A 60 db/models/lookups.py | sed -n '1,75p'",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /testbed/django && grep -n \"class Exact\\|class In(\" -A 25 db/models/lookups.py | sed -n '1,80p'",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cd /testbed/django && sed -n '319,345p' db/models/lookups.py && echo ===== && grep -rn \"conditional_expression_supported_in_where_clause\" db/backends/*/operations.py db/backends/base/operations.py | head",
+   "hit": null,
+   "lat_ms": 117.1
+  },
+  {
+   "cmd": "cd /testbed/django && sed -n '610,625p' db/backends/base/operations.py && echo === MYSQL === && sed -n '380,395p' db/backends/mysql/operations.py && echo === ORACLE === && sed -n '636,655p' db/backends/oracle/operations.py",
+   "hit": null,
+   "lat_ms": 273.2
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -15 | cat && echo === && git log --grep=\"33018\" --oneline | cat | head && echo === && git log --grep=\"Exists\" --oneline | cat | head -15",
+   "hit": null,
+   "lat_ms": 571.4
+  },
+  {
+   "cmd": "cd /testbed && git show dd1fa3a31b --stat | cat && echo ===== && git show dd1fa3a31b | cat",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"test_empty_queryset\" tests/db_functions/comparison/test_coalesce.py tests/annotations/tests.py 2>/dev/null; grep -rn \"empty_result_set_value\" django/ | grep -v \".pyc\"",
+   "hit": null,
+   "lat_ms": 604.5
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/sqlcheck.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=[], USE_TZ=True)\ndjango.setup()\nfrom django.db import connection, models\n\nclass MyModel(models.Model):\n    name = models.CharField(max_length=10)\n    class Meta:\n        app_label = 'repro'\n        managed = False\nwith connection.schema_editor() as se:\n    se.create_model(MyModel)\n\ndef show(label, qs):\n    try:\n        sql, params = qs.query.get_compiler('default', elide_empty=False).as_sql()\n        print(f\"{label}:\\n  SQL: {sql}\\n  params: {params}\")\n    except Exception as ex:\n        print(f\"{label}: RAISED {type(ex).__name__}\")\n\nnonempty = MyModel.objects.filter(name__isnull=False)\nshow(\"filter(Exists(nonempty), name='test')\", MyModel.objects.filter(models.Exists(nonempty), name='test'))\nshow(\"filter(~Exists(nonempty), name='test')\", MyModel.objects.filter(~models.Exists(nonempty), name='test'))\nshow(\"exclude(Exists(nonempty))\", MyModel.objects.exclude(models.Exists(nonempty)))\nshow(\"annotate Exists(none)\", MyModel.objects.annotate(e=models.Exists(MyModel.objects.none())))\nshow(\"annotate ~Exists(none)\", MyModel.objects.annotate(e=~models.Exists(MyModel.objects.none())))\nEOF\npython /tmp/sqlcheck.py",
+   "hit": null,
+   "lat_ms": 589.5
+  },
+  {
+   "cmd": "cd /testbed/tests && sed -n '755,870p' expressions/tests.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed/tests && grep -rn \"Exists(.*\\.none()\\|Exists(.*\\[\\]\\|none().*Exists\" --include=\"*.py\" . | head",
+   "hit": null,
+   "lat_ms": 163.9
+  },
+  {
+   "cmd": "cd /testbed/tests && sed -n '1625,1680p' aggregation/tests.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed/django && sed -n '1,30p' db/models/expressions.py && grep -n \"EmptyResultSet\" db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\npath = 'django/db/models/expressions.py'\nsrc = open(path).read()\n\nold = \"\"\"    def as_sql(self, compiler, connection, template=None, **extra_context):\n        query = self.query.exists(using=connection.alias)\n        sql, params = super().as_sql(\n            compiler,\n            connection,\n            template=template,\n            query=query,\n            **extra_context,\n        )\n        if self.negated:\n            sql = 'NOT {}'.format(sql)\n        return sql, params\n\n    def select_format(self, compiler, sql, params):\n        # Wrap EXISTS() with a CASE WHEN expression if a database backend\n        # (e.g. Oracle) doesn't support boolean expression in SELECT or GROUP\n        # BY list.\n        if not compiler.connection.features.supports_boolean_expr_in_select_clause:\n            sql = 'CASE WHEN {} THEN 1 ELSE 0 END'.format(sql)\n        return sql, params\n\"\"\"\n\nnew = \"\"\"    def as_sql(self, compiler, connection, template=None, **extra_context):\n        query = self.query.exists(using=connection.alias)\n        try:\n            sql, params = super().as_sql(\n                compiler,\n                connection,\n                template=template,\n                query=query,\n                **extra_context,\n            )\n        except EmptyResultSet:\n            # The subquery can't return any rows (e.g. it was built from an\n            # empty queryset), so EXISTS() always evaluates to False and\n            # NOT EXISTS() always to True.\n            sql, params = ('0 = 1', ()) if not self.negated else ('1 = 1', ())\n        else:\n            if self.negated:\n                sql = 'NOT {}'.format(sql)\n        return sql, params\n\n    def select_format(self, compiler, sql, params):\n        # Wrap EXISTS() with a CASE WHEN expression if a database backend\n        # (e.g. Oracle) doesn't support boolean expression in SELECT or GROUP\n        # BY list.\n        if not compiler.connection.features.supports_boolean_expr_in_select_clause:\n            sql = 'CASE WHEN {} THEN 1 ELSE 0 END'.format(sql)\n        return sql, params\n\"\"\"\n\nassert old in src, \"pattern not found\"\nsrc = src.replace(old, new, 1)\nopen(path, 'w').write(src)\nprint(\"patched\")\nEOF\nsed -n '1199,1245p' django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /testbed && python /tmp/repro.py && python /tmp/sqlcheck.py",
+   "hit": null,
+   "lat_ms": 572.2
+  },
+  {
+   "cmd": "cd /tmp && python - <<'PYEOF'\nimport base64\nscript = r'''\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=[], USE_TZ=True)\ndjango.setup()\nfrom django.db import connection, models\nfrom django.db.models import BooleanField, Case, When, Q, Count\nimport operator\nAND = operator.and_\n\nclass MyModel(models.Model):\n    name = models.CharField(max_length=10)\n    class Meta:\n        app_label = 'repro'\n        managed = False\nwith connection.schema_editor() as se:\n    se.create_model(MyModel)\nMyModel.objects.create(name='test')\nMyModel.objects.create(name='other')\n\nALL = {'test', 'other'}\nNONE = set()\nTEST = {'test'}\nOTHER = {'other'}\n\ndef names(qs):\n    return {m.name for m in qs}\n\ncases = [\n    (\"filter(~Exists(none), name='test')\", MyModel.objects.filter(~models.Exists(MyModel.objects.none()), name='test'), TEST),\n    (\"filter(Exists(none), name='test')\", MyModel.objects.filter(models.Exists(MyModel.objects.none()), name='test'), NONE),\n    (\"filter(~Exists(none))\", MyModel.objects.filter(~models.Exists(MyModel.objects.none())), ALL),\n    (\"filter(Exists(none))\", MyModel.objects.filter(models.Exists(MyModel.objects.none())), NONE),\n    (\"exclude(Exists(none))\", MyModel.objects.exclude(models.Exists(MyModel.objects.none())), ALL),\n    (\"exclude(~Exists(none))\", MyModel.objects.exclude(~models.Exists(MyModel.objects.none())), NONE),\n    (\"exclude(~Exists(none), name='test')\", MyModel.objects.exclude(~models.Exists(MyModel.objects.none()), name='test'), OTHER),\n    (\"Q(Exists(none)) | Q(name='test')\", MyModel.objects.filter(Q(models.Exists(MyModel.objects.none())) | Q(name='test')), TEST),\n    (\"Q(Exists(none)) & Q(name='test')\", MyModel.objects.filter(Q(models.Exists(MyModel.objects.none())) & Q(name='test')), NONE),\n    (\"~Exists(none) & Exists(none)\", MyModel.objects.filter(~models.Exists(MyModel.objects.none()) & models.Exists(MyModel.objects.none())), NONE),\n    (\"~Exists(none) | Exists(none)\", MyModel.objects.filter(~models.Exists(MyModel.objects.none()) | models.Exists(MyModel.objects.none())), ALL),\n    (\"Q(name='other') | Q(Exists(none))\", MyModel.objects.filter(Q(name='other') | Q(models.Exists(MyModel.objects.none()))), OTHER),\n    (\"annotate(e=Exists(none)).filter(e=False)\", MyModel.objects.annotate(e=models.Exists(MyModel.objects.none())).filter(e=False), ALL),\n    (\"annotate(e=Exists(none)).filter(e=True)\", MyModel.objects.annotate(e=models.Exists(MyModel.objects.none())).filter(e=True), NONE),\n    (\"annotate(e=~Exists(none)).filter(e=True)\", MyModel.objects.annotate(e=~models.Exists(MyModel.objects.none())).filter(e=True), ALL),\n    (\"annotate(e=~Exists(none)).filter(e=False)\", MyModel.objects.annotate(e=~models.Exists(MyModel.objects.none())).filter(e=False), NONE),\n    (\"order_by(Exists(none))\", MyModel.objects.order_by(models.Exists(MyModel.objects.none())), ALL),\n    (\"~Exists(pk__in=[]) plus name='test'\", MyModel.objects.filter(~models.Exists(MyModel.objects.filter(pk__in=[])), name='test'), TEST),\n    (\"Exists(pk__in=[]) plus name='test'\", MyModel.objects.filter(models.Exists(MyModel.objects.filter(pk__in=[])), name='test'), NONE),\n    (\"Case/When Exists(none)\", MyModel.objects.filter(Case(When(models.Exists(MyModel.objects.none()), then=True), default=False, output_field=BooleanField())), NONE),\n    (\"Case/When ~Exists(none)\", MyModel.objects.filter(Case(When(~models.Exists(MyModel.objects.none()), then=True), default=False, output_field=BooleanField())), ALL),\n    (\"pk__in subquery ~Exists(none)\", MyModel.objects.filter(pk__in=MyModel.objects.filter(~models.Exists(MyModel.objects.none())).values('pk')), ALL),\n    (\"values annotate\", MyModel.objects.values('name').annotate(e=models.Exists(MyModel.objects.none())), ALL),\n]\n\nfail = 0\nfor label, qs, expected in cases:\n    try:\n        got = names(qs)\n        status = \"OK  \" if got == expected else \"FAIL\"\n        if got != expected:\n           ",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/values_check.py <<'PYEOF'\nimport django\nfrom django.conf import settings\nsettings.configure(DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}, INSTALLED_APPS=[], USE_TZ=True)\ndjango.setup()\nfrom django.db import connection, models\nclass MyModel(models.Model):\n    name = models.CharField(max_length=10)\n    class Meta:\n        app_label = 'repro'\n        managed = False\nwith connection.schema_editor() as se:\n    se.create_model(MyModel)\nMyModel.objects.create(name='test')\nrows = list(MyModel.objects.values('name').annotate(e=models.Exists(MyModel.objects.none())))\nprint(\"rows:\", rows)\nassert rows == [{'name': 'test', 'e': False}], rows\nprint(\"values() annotate OK\")\nPYEOF\npython /tmp/values_check.py",
+   "hit": null,
+   "lat_ms": 377.4
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py expressions --parallel=2 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 972.0
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py queries lookup annotations aggregation db_functions filtered_relation or_lookups null_queries queryset_pickle model_fields --parallel=4 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 2582.3
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python tests/runtests.py --parallel=4 --exclude-tag=gis 2>&1 | tail -30' > /tmp/hermes_bg_proc_0511a24022ee.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_0511a24022ee.exit ) & echo $! > /tmp/hermes_bg_proc_0511a24022ee.pid && cat /tmp/hermes_bg_proc_0511a24022ee.pid",
+   "hit": null,
+   "lat_ms": 2173.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "pip list 2>/dev/null | grep -i django; find / -name \"expressions.py\" -path \"*db/models*\" -not -path \"/testbed/*\" 2>/dev/null | head -5; ls /testbed/docs/releases/ | tail -8",
+   "hit": null,
+   "lat_ms": 973.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cd /testbed && cat docs/releases/4.1.txt",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 71.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/exotic.py <<'PYEOF'\nimport django\nfrom django.conf import settings\nsettings.configure(DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}, INSTALLED_APPS=[], USE_TZ=True)\ndjango.setup()\nfrom django.db import connection, models\nfrom django.db.models import Q, Sum, Count, Exists\n\nclass Author(models.Model):\n    name = models.CharField(max_length=10)\n    class Meta:\n        app_label = 'repro'\n        managed = False\nclass Book(models.Model):\n    title = models.CharField(max_length=10)\n    author = models.ForeignKey(Author, on_delete=models.CASCADE, related_name='books')\n    class Meta:\n        app_label = 'repro'\n        managed = False\nwith connection.schema_editor() as se:\n    se.create_model(Author)\n    se.create_model(Book)\na1 = Author.objects.create(name='alice')\na2 = Author.objects.create(name='bob')\nBook.objects.create(title='t1', author=a1)\nBook.objects.create(title='t2', author=a2)\n\nok = True\ndef check(label, got, expected):\n    global ok\n    status = \"OK  \" if got == expected else \"FAIL\"\n    if got != expected:\n        ok = False\n    print(f\"{status} {label}: got={got!r} expected={expected!r}\")\n\n# aggregate with filter=Q(Exists(none)) / negated\ncheck(\"Sum filter=Exists(none)\", Book.objects.aggregate(v=Sum('id', filter=Q(Exists(Book.objects.none()))))['v'], 0)\ncheck(\"Sum filter=~Exists(none)\", Book.objects.aggregate(v=Sum('id', filter=Q(~Exists(Book.objects.none()))))['v'], 3)\n\n# distinct\ncheck(\"distinct ~Exists(none)\", sorted(b.title for b in Book.objects.filter(~Exists(Book.objects.none())).distinct()), ['t1', 't2'])\ncheck(\"distinct Exists(none)\", list(Book.objects.filter(Exists(Book.objects.none())).distinct()), [])\n\n# FilteredRelation style: has_book via exists\ncheck(\"related Exists(none)\", list(Author.objects.filter(books__in=[None]) | Author.objects.none()), [])\n\n# values_list\ncheck(\"values_list\", list(Book.objects.values_list('title', flat=True).filter(~Exists(Book.objects.none()))), ['t1', 't2'])\n\n# count after annotate+filter on empty exists\ncheck(\"annotate filter count\", Book.objects.annotate(e=Exists(Book.objects.none())).filter(e=False).count(), 2)\ncheck(\"annotate filter count neg\", Book.objects.annotate(e=Exists(Book.objects.none())).filter(e=True).count(), 0)\n\n# exclude with Exists(none) and another filter\ncheck(\"exclude(Exists(none), title='t1')\", sorted(b.title for b in Book.objects.exclude(Exists(Book.objects.none()), title='t1')), ['t1', 't2'])\n\nprint(\"\\nALL OK\" if ok else \"\\nFAILURES PRESENT\")\nPYEOF\npython /tmp/exotic.py",
+   "hit": null,
+   "lat_ms": 376.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/exotic.py <<'PYEOF'\nimport django\nfrom django.conf import settings\nsettings.configure(DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}, INSTALLED_APPS=[], USE_TZ=True)\ndjango.setup()\nfrom django.db import connection, models\nfrom django.db.models import Q, Sum, Count, Exists\n\nclass Author(models.Model):\n    name = models.CharField(max_length=10)\n    class Meta:\n        app_label = 'repro'\n        managed = False\nclass Book(models.Model):\n    title = models.CharField(max_length=10)\n    author = models.ForeignKey(Author, on_delete=models.CASCADE, related_name='books')\n    class Meta:\n        app_label = 'repro'\n        managed = False\nwith connection.schema_editor() as se:\n    se.create_model(Author)\n    se.create_model(Book)\na1 = Author.objects.create(name='alice')\na2 = Author.objects.create(name='bob')\nBook.objects.create(title='t1', author=a1)\nBook.objects.create(title='t2', author=a2)\n\nok = True\ndef check(label, got, expected):\n    global ok\n    status = \"OK  \" if got == expected else \"FAIL\"\n    if got != expected:\n        ok = False\n    print(f\"{status} {label}: got={got!r} expected={expected!r}\")\n\ncheck(\"Sum filter=Exists(none) (no rows -> None)\", Book.objects.aggregate(v=Sum('id', filter=Q(Exists(Book.objects.none()))))['v'], None)\ncheck(\"Sum filter=~Exists(none)\", Book.objects.aggregate(v=Sum('id', filter=Q(~Exists(Book.objects.none()))))['v'], 3)\ncheck(\"Count filter=~Exists(none)\", Book.objects.aggregate(v=Count('id', filter=Q(~Exists(Book.objects.none()))))['v'], 2)\ncheck(\"distinct ~Exists(none)\", sorted(b.title for b in Book.objects.filter(~Exists(Book.objects.none())).distinct()), ['t1', 't2'])\ncheck(\"distinct Exists(none)\", list(Book.objects.filter(Exists(Book.objects.none())).distinct()), [])\ncheck(\"values_list\", list(Book.objects.values_list('title', flat=True).filter(~Exists(Book.objects.none()))), ['t1', 't2'])\ncheck(\"annotate filter count\", Book.objects.annotate(e=Exists(Book.objects.none())).filter(e=False).count(), 2)\ncheck(\"annotate filter count neg\", Book.objects.annotate(e=Exists(Book.objects.none())).filter(e=True).count(), 0)\ncheck(\"exclude(Exists(none), title='t1')\", sorted(b.title for b in Book.objects.exclude(Exists(Book.objects.none()), title='t1')), ['t1', 't2'])\n# exists() on annotated\ncheck(\"annotate+filter .exists()\", Book.objects.annotate(e=Exists(Book.objects.none())).filter(e=False).exists(), True)\n\nprint(\"\\nALL OK\" if ok else \"\\nFAILURES PRESENT\")\nPYEOF\npython /tmp/exotic.py",
+   "hit": null,
+   "lat_ms": 376.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_0511a24022ee.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_0511a24022ee.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python tests/runtests.py --parallel=4 --exclude-tag=gis > /tmp/full_run.log 2>&1; echo \"EXIT:$?\" >> /tmp/full_run.log' > /tmp/hermes_bg_proc_9e7d1661125f.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_9e7d1661125f.exit ) & echo $! > /tmp/hermes_bg_proc_9e7d1661125f.pid && cat /tmp/hermes_bg_proc_9e7d1661125f.pid",
+   "hit": null,
+   "lat_ms": 2172.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 68.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 408.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 407.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 601.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 393.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 251.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 162.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 121.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_9e7d1661125f.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 176.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_9e7d1661125f.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 116.7
+  },
+  {
+   "cmd": "cd /testbed && git worktree add /tmp/django_pristine HEAD 2>&1 | tail -2 && ls /tmp/django_pristine | head -3",
+   "hit": null,
+   "lat_ms": 571.6
+  },
+  {
+   "cmd": "cd /tmp && grep -E \"^(FAIL|ERROR): \" full_run.log | sort && echo === && tail -5 full_run.log",
+   "hit": null,
+   "lat_ms": 295.5
+  },
+  {
+   "cmd": "cd /tmp/django_pristine && python tests/runtests.py sessions_tests.tests.ClearSessionsCommandTests.test_clearsessions_unsupported i18n.tests.WatchForTranslationChangesTests.test_i18n_app_dirs test_client.tests.AsyncClientTest.test_response_resolver_match_middleware_urlconf test_client.tests.ClientTest.test_response_resolver_match_middleware_urlconf template_tests.test_loaders.FileSystemLoaderTests.test_permissions_error file_uploads.tests.DirectoryCreationTests.test_readonly_root 2>&1 | tail -12",
+   "hit": null,
+   "lat_ms": 775.6
+  },
+  {
+   "cmd": "cd /testbed && git worktree remove /tmp/django_pristine --force && python /tmp/repro.py && echo === && git diff --stat",
+   "hit": null,
+   "lat_ms": 572.2
+  },
+  {
+   "cmd": "cd /testbed && git status --short && echo === && git diff django/db/models/expressions.py | head -40",
+   "hit": null,
+   "lat_ms": 256.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-15382",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 53866.9,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

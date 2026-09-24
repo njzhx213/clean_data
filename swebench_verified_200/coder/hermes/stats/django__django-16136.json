@@ -1,0 +1,586 @@
+{
+ "calls": 106,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 33542.036294937134,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 74.8
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "python -c \"import django; print(django.__file__)\"",
+   "hit": null,
+   "lat_ms": 167.2
+  },
+  {
+   "cmd": "find /testbed -name \"base.py\" -path \"*/views/*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 189.5
+  },
+  {
+   "cmd": "cat /testbed/django/views/generic/base.py",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "grep -r \"view_is_async\" /testbed/django --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 251.2
+  },
+  {
+   "cmd": "grep -r \"_is_coroutine\" /testbed/django --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 165.1
+  },
+  {
+   "cmd": "cat /testbed/django/utils/deprecation.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "python -c \"import asyncio; print(asyncio.coroutines._is_coroutine)\"",
+   "hit": null,
+   "lat_ms": 172.7
+  },
+  {
+   "cmd": "cd /testbed && cat > test_issue.py << 'EOF'\nimport asyncio\nimport os\nimport sys\nimport django\n\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'test_settings')\n\n# Create a minimal settings file\nsettings_content = \"\"\"\nSECRET_KEY = 'test-secret-key'\nDEBUG = True\nINSTALLED_APPS = []\nROOT_URLCONF = __name__\n\"\"\"\n\nwith open('/testbed/test_settings.py', 'w') as f:\n    f.write(settings_content)\n\n# Create URLs\nurls_content = \"\"\"\nfrom django.urls import path\nfrom views import Demo\n\nurlpatterns = [\n    path(\"demo\", Demo.as_view()),\n]\n\"\"\"\n\nwith open('/testbed/urls.py', 'w') as f:\n    f.write(urls_content)\n\n# Create views\nviews_content = \"\"\"\nfrom django.views import View\nfrom django.http import HttpResponse\n\nclass Demo(View):\n    async def post(self, request):\n        return HttpResponse(\"ok\")\n\"\"\"\n\nwith open('/testbed/views.py', 'w') as f:\n    f.write(views_content)\n\ndjango.setup()\n\n# Now test the view\nfrom django.test import RequestFactory\nfrom django.urls import resolve\n\nfactory = RequestFactory()\n\n# Test GET request - this should trigger the bug\nrequest = factory.get('/demo')\n\n# Get the view function\nfrom views import Demo\nview_func = Demo.as_view()\n\n# Check if view is marked as async\nprint(f\"view_is_async: {Demo.view_is_async}\")\nprint(f\"view has _is_coroutine: {hasattr(view_func, '_is_coroutine')}\")\nif hasattr(view_func, '_is_coroutine'):\n    print(f\"_is_coroutine value: {view_func._is_coroutine}\")\n\n# Try to call the view\ntry:\n    result = view_func(request)\n    print(f\"Result type: {type(result)}\")\n    print(f\"Is coroutine: {asyncio.iscoroutine(result)}\")\n    if asyncio.iscoroutine(result):\n        print(\"Attempting to await result...\")\n        loop = asyncio.new_event_loop()\n        response = loop.run_until_complete(result)\n        print(f\"Response: {response}\")\nexcept Exception as e:\n    print(f\"Exception: {type(e).__name__}: {e}\")\n\n# Test POST request - this should work\nprint(\"\\n--- Testing POST ---\")\nrequest = factory.post('/demo')\ntry:\n    result = view_func(request)\n    print(f\"Result type: {type(result)}\")\n    print(f\"Is coroutine: {asyncio.iscoroutine(result)}\")\n    if asyncio.iscoroutine(result):\n        print(\"Attempting to await result...\")\n        loop = asyncio.new_event_loop()\n        response = loop.run_until_complete(result)\n        print(f\"Response: {response}\")\n    else:\n        print(f\"Response: {result}\")\nexcept Exception as e:\n    print(f\"Exception: {type(e).__name__}: {e}\")\nEOF\npython test_issue.py",
+   "hit": null,
+   "lat_ms": 571.3
+  },
+  {
+   "cmd": "grep -r \"await\" /testbed/django/views --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "python -c \"from asgiref.sync import async_to_sync, sync_to_async; help(sync_to_async)\" | head -40",
+   "hit": null,
+   "lat_ms": 475.5
+  },
+  {
+   "cmd": "grep -r \"is_coroutine\" /testbed/django --include=\"*.py\" -A 3 -B 3 | head -80",
+   "hit": null,
+   "lat_ms": 166.0
+  },
+  {
+   "cmd": "cat /testbed/django/views/generic/base.py | grep -A 15 \"def options\"",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat /testbed/django/views/generic/base.py | grep -A 15 \"def dispatch\"",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "find /testbed -path \"*/tests/*\" -name \"*.py\" -exec grep -l \"async.*View\\|View.*async\" {} \\; 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 2775.1
+  },
+  {
+   "cmd": "cat /testbed/tests/async/tests.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -r \"http_method_not_allowed\" /testbed/tests --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "grep -r \"Method Not Allowed\" /testbed/tests --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 168.6
+  },
+  {
+   "cmd": "grep -r \"405\" /testbed/tests --include=\"*.py\" | head -20",
+   "hit": null,
+   "lat_ms": 167.9
+  },
+  {
+   "cmd": "find /testbed/tests -name \"test_generic_classbased_views.py\" -o -name \"*generic*view*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "ls /testbed/tests/generic_views/",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat /testbed/tests/generic_views/test_base.py 2>/dev/null || cat /testbed/tests/generic_views/test_base.py",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat /testbed/tests/async/tests.py | grep -A 20 \"options_handler\"",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat /testbed/django/views/generic/base.py | grep -A 20 \"def dispatch\"",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cat /testbed/django/views/generic/base.py",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "cd /testbed && patch -p1 << 'EOF'\n--- a/django/views/generic/base.py\n+++ b/django/views/generic/base.py\n@@ -140,12 +140,22 @@ class View:\n             request.method,\n             request.path,\n             extra={\"status_code\": 405, \"request\": request},\n         )\n-        return HttpResponseNotAllowed(self._allowed_methods())\n+        response = HttpResponseNotAllowed(self._allowed_methods())\n+        if self.view_is_async:\n+\n+            async def func():\n+                return response\n+\n+            return func()\n+        else:\n+            return response\n \n     def options(self, request, *args, **kwargs):\n         \"\"\"Handle responding to requests for the OPTIONS HTTP verb.\"\"\"\n         response = HttpResponse()\n         response.headers[\"Allow\"] = \", \".join(self._allowed_methods())\n         response.headers[\"Content-Length\"] = \"0\"\n \nEOF",
+   "hit": null,
+   "lat_ms": 114.7
+  },
+  {
+   "cmd": "cd /testbed && python << 'EOF'\nwith open('/testbed/django/views/generic/base.py', 'r') as f:\n    content = f.read()\n\n# Find and replace the http_method_not_allowed method\nold_code = '''    def http_method_not_allowed(self, request, *args, **kwargs):\n        logger.warning(\n            \"Method Not Allowed (%s): %s\",\n            request.method,\n            request.path,\n            extra={\"status_code\": 405, \"request\": request},\n        )\n        return HttpResponseNotAllowed(self._allowed_methods())'''\n\nnew_code = '''    def http_method_not_allowed(self, request, *args, **kwargs):\n        logger.warning(\n            \"Method Not Allowed (%s): %s\",\n            request.method,\n            request.path,\n            extra={\"status_code\": 405, \"request\": request},\n        )\n        response = HttpResponseNotAllowed(self._allowed_methods())\n        if self.view_is_async:\n\n            async def func():\n                return response\n\n            return func()\n        else:\n            return response'''\n\ncontent = content.replace(old_code, new_code)\n\nwith open('/testbed/django/views/generic/base.py', 'w') as f:\n    f.write(content)\n\nprint(\"File updated successfully\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /testbed && python test_issue.py",
+   "hit": null,
+   "lat_ms": 380.8
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/generic_views/test_base.py -v 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 122.2
+  },
+  {
+   "cmd": "cd /testbed && python -m django test tests.generic_views.test_base -v 2 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 385.1
+  },
+  {
+   "cmd": "cd /testbed && python -m django test tests.generic_views.test_base --settings=test_settings 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 445.0
+  },
+  {
+   "cmd": "cd /testbed && DJANGO_SETTINGS_MODULE=django.conf.global_settings python -c \"\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='test-secret',\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n    ],\n    ROOT_URLCONF='',\n    TEMPLATES=[{\n        'BACKEND': 'django.template.backends.django.DjangoTemplates',\n    }],\n)\ndjango.setup()\n\n# Run the tests\nfrom django.test.utils import get_runner\nTestRunner = get_runner(settings)\ntest_runner = TestRunner(verbosity=2, interactive=False, keepdb=False)\nfailures = test_runner.run_tests(['tests.async'])\nprint(f'\\\\nFailures: {failures}')\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 381.1
+  },
+  {
+   "cmd": "cd /testbed && python tests/async/tests.py 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 382.4
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nimport os\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n\nfrom django.test.utils import setup_test_environment, teardown_test_environment\nfrom django.test import SimpleTestCase\nfrom django.conf import settings\n\nif not settings.configured:\n    settings.configure(\n        DEBUG=True,\n        SECRET_KEY='test-secret-key',\n        INSTALLED_APPS=[\n            'django.contrib.contenttypes',\n            'django.contrib.auth',\n        ],\n        DATABASES={\n            'default': {\n                'ENGINE': 'django.db.backends.sqlite3',\n                'NAME': ':memory:',\n            }\n        },\n        TEMPLATES=[{\n            'BACKEND': 'django.template.backends.django.DjangoTemplates',\n        }],\n        ROOT_URLCONF='',\n    )\n\nimport django\ndjango.setup()\n\n# Now import and run the tests\nfrom tests.async.tests import ViewTests\nimport unittest\n\nloader = unittest.TestLoader()\nsuite = loader.loadTestsFromTestCase(ViewTests)\nrunner = unittest.TextTestRunner(verbosity=2)\nresult = runner.run(suite)\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 167.1
+  },
+  {
+   "cmd": "cd /testbed && python tests/async/tests.py 2>&1",
+   "hit": null,
+   "lat_ms": 379.5
+  },
+  {
+   "cmd": "cd /testbed && ls -la",
+   "hit": null,
+   "lat_ms": 132.0
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport os\nimport sys\n# Add testbed to path\nsys.path.insert(0, '/testbed')\n\n# Import test runner\nos.environ['DJANGO_SETTINGS_MODULE'] = 'tests.settings'\n\nimport django\nfrom django.test.utils import get_runner\nfrom django.conf import settings\n\n# Configure settings if not already done\nif not settings.configured:\n    settings.configure(\n        DEBUG=True,\n        SECRET_KEY='test-secret-key',\n        INSTALLED_APPS=[\n            'django.contrib.contenttypes',\n            'django.contrib.auth',\n            'tests.async',\n        ],\n        DATABASES={\n            'default': {\n                'ENGINE': 'django.db.backends.sqlite3',\n                'NAME': ':memory:',\n            }\n        },\n        TEMPLATES=[{\n            'BACKEND': 'django.template.backends.django.DjangoTemplates',\n        }],\n        ROOT_URLCONF='',\n    )\n    \ndjango.setup()\n\n# Run tests\nTestRunner = get_runner(settings)\ntest_runner = TestRunner(verbosity=2, interactive=False, keepdb=False)\nfailures = test_runner.run_tests(['tests.async'])\nprint(f'\\\\n=== Failures: {failures} ===')\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 382.6
+  },
+  {
+   "cmd": "cd /testbed && cat tests/settings.py",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "find /testbed/tests -name \"settings*.py\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /testbed && ls tests/",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cd /testbed && cat runtests.py",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cd /testbed && find . -name \"runtests*\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 166.1
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py tests.async 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 571.6
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py tests.async.tests 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 386.8
+  },
+  {
+   "cmd": "cd /testbed && PYTHONPATH=/testbed python tests/runtests.py tests.async.tests 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 380.9
+  },
+  {
+   "cmd": "cd /testbed && cat tests/async/tests.py | head -30",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cd /testbed && cat tests/async/models.py",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py --help 2>&1 | head -30",
+   "hit": null,
+   "lat_ms": 382.8
+  },
+  {
+   "cmd": "cd /testbed && cat tests/README.rst",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\n\n# Run a focused test\nfrom django.conf import settings\n\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='test-secret-key',\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'tests.async',\n    ],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    },\n    TEMPLATES=[{\n        'BACKEND': 'django.template.backends.django.DjangoTemplates',\n    }],\n    ROOT_URLCONF='',\n)\n\nimport django\ndjango.setup()\n\n# Create the database table\nfrom django.core.management import call_command\ncall_command('migrate', '--run-syncdb', verbosity=0)\n\n# Now run the test\nimport unittest\nfrom tests.async.tests import ViewTests\n\nloader = unittest.TestLoader()\nsuite = loader.loadTestsFromTestCase(ViewTests)\nrunner = unittest.TextTestRunner(verbosity=2)\nresult = runner.run(suite)\nsys.exit(0 if result.wasSuccessful() else 1)\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/test_async_views.py << 'EOF'\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.conf import settings\n\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='***',\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'tests.async',\n    ],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    },\n    TEMPLATES=[{\n        'BACKEND': 'django.template.backends.django.DjangoTemplates',\n    }],\n    ROOT_URLCONF='',\n)\n\nimport django\ndjango.setup()\n\n# Create the database table\nfrom django.core.management import call_command\ncall_command('migrate', '--run-syncdb', verbosity=0)\n\n# Now run the test\nimport unittest\nfrom tests.async.tests import ViewTests\n\nloader = unittest.TestLoader()\nsuite = loader.loadTestsFromTestCase(ViewTests)\nrunner = unittest.TextTestRunner(verbosity=2)\nresult = runner.run(suite)\nsys.exit(0 if result.wasSuccessful() else 1)\nEOF\npython /tmp/test_async_views.py",
+   "hit": null,
+   "lat_ms": 553.3
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/test_async_views.py << 'ENDOFFILE'\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.conf import settings\n\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='***',\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'tests.async',\n    ],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    },\n    TEMPLATES=[{\n        'BACKEND': 'django.template.backends.django.DjangoTemplates',\n    }],\n    ROOT_URLCONF='',\n)\n\nimport django\ndjango.setup()\n\n# Create the database table\nfrom django.core.management import call_command\ncall_command('migrate', '--run-syncdb', verbosity=0)\n\n# Now run the test\nimport unittest\nfrom tests.async.tests import ViewTests\n\nloader = unittest.TestLoader()\nsuite = loader.loadTestsFromTestCase(ViewTests)\nrunner = unittest.TextTestRunner(verbosity=2)\nresult = runner.run(suite)\nsys.exit(0 if result.wasSuccessful() else 1)\nENDOFFILE\npython /tmp/test_async_views.py",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/test_async_views.py << 'ENDOFFILE'\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.conf import settings\n\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='***',\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'tests.async',\n    ],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    },\n    TEMPLATES=[{\n        'BACKEND': 'django.template.backends.django.DjangoTemplates',\n    }],\n    ROOT_URLCONF='',\n)\n\nimport django\ndjango.setup()\n\n# Create the database table\nfrom django.core.management import call_command\ncall_command('migrate', '--run-syncdb', verbosity=0)\n\n# Now run the test\nimport unittest\nfrom tests.async.tests import ViewTests\n\nloader = unittest.TestLoader()\nsuite = loader.loadTestsFromTestCase(ViewTests)\nrunner = unittest.TextTestRunner(verbosity=2)\nresult = runner.run(suite)\nENDOFFILE\n\ncd /testbed && python /tmp/test_async_views.py 2>&1",
+   "hit": null,
+   "lat_ms": 163.8
+  },
+  {
+   "cmd": "pwd && ls -la /tmp/",
+   "hit": null,
+   "lat_ms": 115.6
+  },
+  {
+   "cmd": "cat /tmp/test_async_views.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "python /tmp/test_async_views.py 2>&1",
+   "hit": null,
+   "lat_ms": 165.5
+  },
+  {
+   "cmd": "python -c \"import sys; print(sys.version)\" && python3 -c \"import sys; print(sys.version)\"",
+   "hit": null,
+   "lat_ms": 186.7
+  },
+  {
+   "cmd": "python3 -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='***',\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n        'tests.async',\n    ],\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    TEMPLATES=[{'BACKEND': 'django.template.backends.django.DjangoTemplates'}],\n    ROOT_URLCONF='',\n)\nimport django\ndjango.setup()\nfrom django.core.management import call_command\ncall_command('migrate', '--run-syncdb', verbosity=0)\nimport unittest\nfrom tests.async.tests import ViewTests\nloader = unittest.TestLoader()\nsuite = loader.loadTestsFromTestCase(ViewTests)\nrunner = unittest.TextTestRunner(verbosity=2)\nresult = runner.run(suite)\n\" 2>&1",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "python3 -c 'from tests.async.tests import ViewTests; print(\"OK\")' 2>&1",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "python3 << 'EOF'\nimport sys\nsys.path.insert(0, '/testbed')\nfrom tests.async.tests import ViewTests\nprint(\"OK\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "python3 << 'ENDSCRIPT'\nimport sys\nsys.path.insert(0, '/testbed')\nexec(\"from tests.async.tests import ViewTests\")\nprint(\"OK\")\nENDSCRIPT\n",
+   "hit": null,
+   "lat_ms": 164.8
+  },
+  {
+   "cmd": "cd /testbed && python3 -c 'import tests.async.tests; print(\"OK\")' 2>&1",
+   "hit": null,
+   "lat_ms": 164.1
+  },
+  {
+   "cmd": "read_file /testbed/tests/async/tests.py 2>&1",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "head -1 /testbed/tests/async/tests.py && echo \"---\" && head -5 /testbed/tests/async/tests.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "echo \"import tests.async.tests\" | python3 2>&1",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "python3 -c \"print('test')\" 2>&1",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "python3 -c \"print('test'); import sys; print(sys.version)\" 2>&1",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "python3 -c 'sys.path.insert(0, \"/testbed\"); print(\"OK\")' 2>&1",
+   "hit": null,
+   "lat_ms": 175.4
+  },
+  {
+   "cmd": "python3 -c 'import sys; sys.path.insert(0, \"/testbed\"); print(\"OK\")' 2>&1",
+   "hit": null,
+   "lat_ms": 121.9
+  },
+  {
+   "cmd": "python3 -c 'import sys; sys.path.insert(0, \"/testbed\"); import tests.async.tests; print(\"OK\")' 2>&1",
+   "hit": null,
+   "lat_ms": 115.7
+  },
+  {
+   "cmd": "python3 << 'EOF'\nimport sys\nsys.path.insert(0, \"/testbed\")\nimport tests.async.tests\nprint(\"OK\")\nEOF\n",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "echo 'import sys\nsys.path.insert(0, \"/testbed\")\nimport tests.async.tests\nprint(\"OK\")' > /tmp/test_import.py && python3 /tmp/test_import.py 2>&1",
+   "hit": null,
+   "lat_ms": 165.9
+  },
+  {
+   "cmd": "cd /testbed && python -c \"import sys; sys.path.insert(0, 'testbed'); print(sys.path)\"",
+   "hit": null,
+   "lat_ms": 117.9
+  },
+  {
+   "cmd": "cd /testbed && python -c \"import sys; sys.path.insert(0, '.'); import tests.async.tests; print('OK')\"",
+   "hit": null,
+   "lat_ms": 175.9
+  },
+  {
+   "cmd": "cd /testbed && python -c 'exec(open(\"/testbed/tests/async/tests.py\").read())' 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 393.6
+  },
+  {
+   "cmd": "cd /testbed && find . -name \"settings.py\" -path \"*/tests/*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 165.5
+  },
+  {
+   "cmd": "cd /testbed && head -50 tests/auth_tests/settings.py",
+   "hit": null,
+   "lat_ms": 128.7
+  },
+  {
+   "cmd": "cd /testbed && grep -r \"tests.async\" tests/*.py 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && cat tests/runtests.py | head -100",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"tests.async\" tests/runtests.py",
+   "hit": null,
+   "lat_ms": 115.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"async\" tests/runtests.py",
+   "hit": null,
+   "lat_ms": 154.1
+  },
+  {
+   "cmd": "cd /testbed/tests/async && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nimport os\nos.chdir('/testbed/tests/async')\nexec(open('tests.py').read())\n\" 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 393.6
+  },
+  {
+   "cmd": "cd /testbed && DJANGO_SETTINGS_MODULE=tests.settings python tests/runtests.py async 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 378.5
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py tests.async 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 392.6
+  },
+  {
+   "cmd": "cd /testbed && cat tests/README.rst",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pip install -e . -q 2>&1 | tail -10",
+   "hit": null,
+   "lat_ms": 8589.6
+  },
+  {
+   "cmd": "cd /testbed && PYTHONPATH=/testbed python tests/runtests.py tests.async 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 378.1
+  },
+  {
+   "cmd": "cd /testbed && python test_issue.py",
+   "hit": null,
+   "lat_ms": 389.6
+  },
+  {
+   "cmd": "cd /testbed && python > /tmp/test_fix.py << 'ENDSCRIPT'\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.conf import settings\n\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='***',\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n    ],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    },\n    TEMPLATES=[{\n        'BACKEND': 'django.template.backends.django.DjangoTemplates',\n    }],\n    ROOT_URLCONF='',\n)\n\nimport django\ndjango.setup()\n\nimport asyncio\nfrom django.http import HttpResponse\nfrom django.test import RequestFactory\nfrom django.views.generic.base import View\n\nrf = RequestFactory()\n\n# Test 1: Sync View with Method Not Allowed\nclass SyncView(View):\n    def post(self, request):\n        return HttpResponse(\"ok\")\n\nprint(\"Test 1: Sync View with GET (Method Not Allowed)\")\nview_func = SyncView.as_view()\nrequest = rf.get('/test')\nresult = view_func(request)\nprint(f\"  Result type: {type(result)}\")\nprint(f\"  Is coroutine: {asyncio.iscoroutine(result)}\")\nprint(f\"  Status code: {result.status_code}\")\nassert not asyncio.iscoroutine(result), \"Sync view should return sync response\"\nassert result.status_code == 405\nprint(\"  PASSED!\")\n\n# Test 2: Async View with Method Not Allowed (the bug)\nclass AsyncView(View):\n    async def post(self, request):\n        return HttpResponse(\"ok\")\n\nprint(\"\\nTest 2: Async View with GET (Method Not Allowed)\")\nview_func = AsyncView.as_view()\nrequest = rf.get('/test')\nresult = view_func(request)\nprint(f\"  Result type: {type(result)}\")\nprint(f\"  Is coroutine: {asyncio.iscoroutine(result)}\")\nassert asyncio.iscoroutine(result), \"Async view should return coroutine\"\n# Await the result\nresponse = asyncio.run(result)\nprint(f\"  Status code: {response.status_code}\")\nassert response.status_code == 405\nprint(\"  PASSED!\")\n\n# Test 3: Async View with correct method\nprint(\"\\nTest 3: Async View with POST (correct method)\")\nview_func = AsyncView.as_view()\nrequest = rf.post('/test')\nresult = view_func(request)\nprint(f\"  Result type: {type(result)}\")\nprint(f\"  Is coroutine: {asyncio.iscoroutine(result)}\")\nassert asyncio.iscoroutine(result), \"Async view should return coroutine\"\nresponse = asyncio.run(result)\nprint(f\"  Status code: {response.status_code}\")\nassert response.status_code == 200\nprint(\"  PASSED!\")\n\n# Test 4: Sync View with correct method\nprint(\"\\nTest 4: Sync View with POST (correct method)\")\nview_func = SyncView.as_view()\nrequest = rf.post('/test')\nresult = view_func(request)\nprint(f\"  Result type: {type(result)}\")\nprint(f\"  Is coroutine: {asyncio.iscoroutine(result)}\")\nassert not asyncio.iscoroutine(result), \"Sync view should return sync response\"\nassert result.status_code == 200\nprint(\"  PASSED!\")\n\n# Test 5: Options handler for async view\nprint(\"\\nTest 5: Async View with OPTIONS\")\nview_func = AsyncView.as_view()\nrequest = rf.options('/test')\nresult = view_func(request)\nprint(f\"  Result type: {type(result)}\")\nprint(f\"  Is coroutine: {asyncio.iscoroutine(result)}\")\nassert asyncio.iscoroutine(result), \"Async view options should return coroutine\"\nresponse = asyncio.run(result)\nprint(f\"  Status code: {response.status_code}\")\nassert response.status_code == 200\nprint(\"  PASSED!\")\n\n# Test 6: Options handler for sync view\nprint(\"\\nTest 6: Sync View with OPTIONS\")\nview_func = SyncView.as_view()\nrequest = rf.options('/test')\nresult = view_func(request)\nprint(f\"  Result type: {type(result)}\")\nprint(f\"  Is coroutine: {asyncio.iscoroutine(result)}\")\nassert not asyncio.iscoroutine(result), \"Sync view options should return sync response\"\nassert result.status_code == 200\nprint(\"  PASSED!\")\n\nprint(\"\\n=== ALL TESTS PASSED! ===\")\nENDSCRIPT\npython /tmp/test_fix.py",
+   "hit": null,
+   "lat_ms": 378.6
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='***',\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    TEMPLATES=[{'BACKEND': 'django.template.backends.django.DjangoTemplates'}],\n    ROOT_URLCONF='',\n)\nimport django\ndjango.setup()\nimport asyncio\nfrom django.http import HttpResponse\nfrom django.test import RequestFactory\nfrom django.views.generic.base import View\n\nrf = RequestFactory()\n\nclass SyncView(View):\n    def post(self, request):\n        return HttpResponse('ok')\n\nclass AsyncView(View):\n    async def post(self, request):\n        return HttpResponse('ok')\n\n# Test 1: Sync View GET\nprint('Test 1: Sync View GET')\nresult = SyncView.as_view()(rf.get('/test'))\nprint(f'  Type: {type(result)}')\nprint(f'  Is coroutine: {asyncio.iscoroutine(result)}')\nassert not asyncio.iscoroutine(result)\nassert result.status_code == 405\nprint('  PASSED')\n\n# Test 2: Async View GET\nprint('Test 2: Async View GET')\nresult = AsyncView.as_view()(rf.get('/test'))\nprint(f'  Type: {type(result)}')\nprint(f'  Is coroutine: {asyncio.iscoroutine(result)}')\nassert asyncio.iscoroutine(result)\nresponse = asyncio.run(result)\nassert response.status_code == 405\nprint('  PASSED')\n\n# Test 3: Async View POST\nprint('Test 3: Async View POST')\nresult = AsyncView.as_view()(rf.post('/test'))\nprint(f'  Type: {type(result)}')\nprint(f'  Is coroutine: {asyncio.iscoroutine(result)}')\nassert asyncio.iscoroutine(result)\nresponse = asyncio.run(result)\nassert response.status_code == 200\nprint('  PASSED')\n\n# Test 4: Sync View POST\nprint('Test 4: Sync View POST')\nresult = SyncView.as_view()(rf.post('/test'))\nprint(f'  Type: {type(result)}')\nprint(f'  Is coroutine: {asyncio.iscoroutine(result)}')\nassert not asyncio.iscoroutine(result)\nassert result.status_code == 200\nprint('  PASSED')\n\n# Test 5: Async View OPTIONS\nprint('Test 5: Async View OPTIONS')\nresult = AsyncView.as_view()(rf.options('/test'))\nprint(f'  Type: {type(result)}')\nprint(f'  Is coroutine: {asyncio.iscoroutine(result)}')\nassert asyncio.iscoroutine(result)\nresponse = asyncio.run(result)\nassert response.status_code == 200\nprint('  PASSED')\n\n# Test 6: Sync View OPTIONS\nprint('Test 6: Sync View OPTIONS')\nresult = SyncView.as_view()(rf.options('/test'))\nprint(f'  Type: {type(result)}')\nprint(f'  Is coroutine: {asyncio.iscoroutine(result)}')\nassert not asyncio.iscoroutine(result)\nassert result.status_code == 200\nprint('  PASSED')\n\nprint('ALL TESTS PASSED')\n\"",
+   "hit": null,
+   "lat_ms": 378.5
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/run_async_tests.py << 'ENDSCRIPT'\nimport sys\nsys.path.insert(0, '/testbed')\n\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='***',\n    INSTALLED_APPS=[\n        'django.contrib.contenttypes',\n        'django.contrib.auth',\n    ],\n    DATABASES={\n        'default': {\n            'ENGINE': 'django.db.backends.sqlite3',\n            'NAME': ':memory:',\n        }\n    },\n    TEMPLATES=[{\n        'BACKEND': 'django.template.backends.django.DjangoTemplates',\n    }],\n    ROOT_URLCONF='',\n)\nimport django\ndjango.setup()\n\nimport asyncio\nfrom django.http import HttpResponse\nfrom django.test import SimpleTestCase\nfrom django.views.generic.base import View\n\nclass SyncView(View):\n    def get(self, request, *args, **kwargs):\n        return HttpResponse(\"Hello (sync) world!\")\n\nclass AsyncView(View):\n    async def get(self, request, *args, **kwargs):\n        return HttpResponse(\"Hello (async) world!\")\n\nclass ViewTests(SimpleTestCase):\n    def test_views_are_correctly_marked(self):\n        tests = [\n            (SyncView, False),\n            (AsyncView, True),\n        ]\n        for view_cls, is_async in tests:\n            with self.subTest(view_cls=view_cls, is_async=is_async):\n                self.assertIs(view_cls.view_is_async, is_async)\n                callback = view_cls.as_view()\n                self.assertIs(asyncio.iscoroutinefunction(callback), is_async)\n\n    def test_mixed_views_raise_error(self):\n        class MixedView(View):\n            def get(self, request, *args, **kwargs):\n                return HttpResponse(\"Hello (mixed) world!\")\n\n            async def post(self, request, *args, **kwargs):\n                return HttpResponse(\"Hello (mixed) world!\")\n\n        from django.core.exceptions import ImproperlyConfigured\n        msg = (\n            f\"{MixedView.__qualname__} HTTP handlers must either be all sync or all \"\n            \"async.\"\n        )\n        with self.assertRaisesMessage(ImproperlyConfigured, msg):\n            MixedView.as_view()\n\n    def test_options_handler_responds_correctly(self):\n        tests = [\n            (SyncView, False),\n            (AsyncView, True),\n        ]\n        for view_cls, is_coroutine in tests:\n            with self.subTest(view_cls=view_cls, is_coroutine=is_coroutine):\n                instance = view_cls()\n                response = instance.options(None)\n                self.assertIs(\n                    asyncio.iscoroutine(response),\n                    is_coroutine,\n                )\n                if is_coroutine:\n                    response = asyncio.run(response)\n\n                self.assertIsInstance(response, HttpResponse)\n\n    def test_base_view_class_is_sync(self):\n        self.assertIs(View.view_is_async, False)\n\nif __name__ == '__main__':\n    import unittest\n    loader = unittest.TestLoader()\n    suite = loader.loadTestsFromTestCase(ViewTests)\n    runner = unittest.TextTestRunner(verbosity=2)\n    result = runner.run(suite)\n    sys.exit(0 if result.wasSuccessful() else 1)\nENDSCRIPT\npython /tmp/run_async_tests.py",
+   "hit": null,
+   "lat_ms": 378.7
+  },
+  {
+   "cmd": "cd /testbed && python test_issue.py",
+   "hit": null,
+   "lat_ms": 383.8
+  },
+  {
+   "cmd": "cd /testbed && grep -A 15 \"def http_method_not_allowed\" django/views/generic/base.py",
+   "hit": null,
+   "lat_ms": 114.7
+  },
+  {
+   "cmd": "cd /testbed && grep -A 15 \"def options\" django/views/generic/base.py | head -20",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='***',\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    TEMPLATES=[{'BACKEND': 'django.template.backends.django.DjangoTemplates'}],\n    ROOT_URLCONF='',\n)\nimport django\ndjango.setup()\nfrom django.views.generic.base import View\n\nclass PostOnlyView(View):\n    async def post(self, request):\n        pass\n\nclass GetOnlyView(View):\n    async def get(self, request):\n        pass\n\nclass AllMethodsView(View):\n    async def get(self, request):\n        pass\n    async def post(self, request):\n        pass\n\nprint('PostOnlyView.view_is_async:', PostOnlyView.view_is_async)\nprint('GetOnlyView.view_is_async:', GetOnlyView.view_is_async)\nprint('AllMethodsView.view_is_async:', AllMethodsView.view_is_async)\n\n# Note: The view_is_async property excludes 'options' method\n# Let's verify that\nclass OptionsOnlyView(View):\n    async def options(self, request):\n        pass\n\nprint('OptionsOnlyView.view_is_async:', OptionsOnlyView.view_is_async)\n\"",
+   "hit": null,
+   "lat_ms": 378.3
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='***',\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    TEMPLATES=[{'BACKEND': 'django.template.backends.django.DjangoTemplates'}],\n    ROOT_URLCONF='',\n)\nimport django\ndjango.setup()\nimport asyncio\nfrom django.http import HttpResponse\nfrom django.test import RequestFactory\nfrom django.views.generic.base import View\n\nrf = RequestFactory()\n\n# Test with DELETE method on async view\nclass AsyncView(View):\n    async def post(self, request):\n        return HttpResponse('ok')\n\nprint('Test: DELETE method on async view')\nresult = AsyncView.as_view()(rf.delete('/test'))\nprint(f'  Type: {type(result)}')\nprint(f'  Is coroutine: {asyncio.iscoroutine(result)}')\nassert asyncio.iscoroutine(result), 'DELETE should return coroutine for async view'\nresponse = asyncio.run(result)\nprint(f'  Status code: {response.status_code}')\nassert response.status_code == 405\nprint('  PASSED')\n\n# Test with PUT method on async view\nprint('Test: PUT method on async view')\nresult = AsyncView.as_view()(rf.put('/test'))\nprint(f'  Type: {type(result)}')\nprint(f'  Is coroutine: {asyncio.iscoroutine(result)}')\nassert asyncio.iscoroutine(result), 'PUT should return coroutine for async view'\nresponse = asyncio.run(result)\nprint(f'  Status code: {response.status_code}')\nassert response.status_code == 405\nprint('  PASSED')\n\n# Test with PATCH method on async view\nprint('Test: PATCH method on async view')\nresult = AsyncView.as_view()(rf.patch('/test'))\nprint(f'  Type: {type(result)}')\nprint(f'  Is coroutine: {asyncio.iscoroutine(result)}')\nassert asyncio.iscoroutine(result), 'PATCH should return coroutine for async view'\nresponse = asyncio.run(result)\nprint(f'  Status code: {response.status_code}')\nassert response.status_code == 405\nprint('  PASSED')\n\n# Test with TRACE method on async view\nprint('Test: TRACE method on async view')\nresult = AsyncView.as_view()(rf.trace('/test'))\nprint(f'  Type: {type(result)}')\nprint(f'  Is coroutine: {asyncio.iscoroutine(result)}')\nassert asyncio.iscoroutine(result), 'TRACE should return coroutine for async view'\nresponse = asyncio.run(result)\nprint(f'  Status code: {response.status_code}')\nassert response.status_code == 405\nprint('  PASSED')\n\n# Test with invalid method on async view\nprint('Test: Invalid method on async view')\nresult = AsyncView.as_view()(rf.request('/test', REQUEST_METHOD='FAKE'))\nprint(f'  Type: {type(result)}')\nprint(f'  Is coroutine: {asyncio.iscoroutine(result)}')\nassert asyncio.iscoroutine(result), 'Invalid method should return coroutine for async view'\nresponse = asyncio.run(result)\nprint(f'  Status code: {response.status_code}')\nassert response.status_code == 405\nprint('  PASSED')\n\nprint('ALL EDGE CASE TESTS PASSED')\n\"",
+   "hit": null,
+   "lat_ms": 377.5
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='***',\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    TEMPLATES=[{'BACKEND': 'django.template.backends.django.DjangoTemplates'}],\n    ROOT_URLCONF='',\n)\nimport django\ndjango.setup()\nimport asyncio\nfrom django.http import HttpResponse\nfrom django.test import RequestFactory\nfrom django.views.generic.base import View\n\nrf = RequestFactory()\n\n# Test with invalid method on async view\nclass AsyncView(View):\n    async def post(self, request):\n        return HttpResponse('ok')\n\nprint('Test: Invalid method on async view')\nrequest = rf.get('/test')\nrequest.method = 'FAKE'\nresult = AsyncView.as_view()(request)\nprint(f'  Type: {type(result)}')\nprint(f'  Is coroutine: {asyncio.iscoroutine(result)}')\nassert asyncio.iscoroutine(result), 'Invalid method should return coroutine for async view'\nresponse = asyncio.run(result)\nprint(f'  Status code: {response.status_code}')\nassert response.status_code == 405\nprint('  PASSED')\n\nprint('ALL EDGE CASE TESTS PASSED')\n\"",
+   "hit": null,
+   "lat_ms": 377.9
+  },
+  {
+   "cmd": "cd /testbed && head -180 django/views/generic/base.py | tail -60",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "cd /testbed && git diff django/views/generic/base.py",
+   "hit": null,
+   "lat_ms": 124.5
+  },
+  {
+   "cmd": "cd /testbed && rm -f test_issue.py test_settings.py views.py urls.py /tmp/test_*.py",
+   "hit": null,
+   "lat_ms": 86.0
+  },
+  {
+   "cmd": "cd /testbed && rm -f /tmp/test_import.py",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cd /testbed && git diff --stat",
+   "hit": null,
+   "lat_ms": 985.4
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='***',\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    TEMPLATES=[{'BACKEND': 'django.template.backends.django.DjangoTemplates'}],\n    ROOT_URLCONF='',\n)\nimport django\ndjango.setup()\nimport asyncio\nfrom django.http import HttpResponse\nfrom django.test import RequestFactory\nfrom django.views.generic.base import View\n\nrf = RequestFactory()\n\nclass Demo(View):\n    '''This basic view supports only POST requests'''\n    async def post(self, request):\n        return HttpResponse('ok')\n\n# Simulate the original bug scenario\nprint('Testing the original bug scenario...')\nview_func = Demo.as_view()\n\n# GET request (the bug scenario)\nrequest = rf.get('/demo')\nresult = view_func(request)\nprint(f'GET request result type: {type(result).__name__}')\nprint(f'Is coroutine: {asyncio.iscoroutine(result)}')\n\n# This should NOT raise TypeError anymore\nresponse = asyncio.run(result)\nprint(f'GET response status: {response.status_code}')\nprint(f'GET response allowed methods: {response.allowed_methods}')\n\n# POST request (should work)\nrequest = rf.post('/demo')\nresult = view_func(request)\nresponse = asyncio.run(result)\nprint(f'POST response status: {response.status_code}')\nprint(f'POST response content: {response.content.decode()}')\n\nprint('\\\\nBug is FIXED!')\n\"",
+   "hit": null,
+   "lat_ms": 376.7
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport sys\nsys.path.insert(0, '/testbed')\nfrom django.conf import settings\nsettings.configure(\n    DEBUG=True,\n    SECRET_KEY='***',\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    TEMPLATES=[{'BACKEND': 'django.template.backends.django.DjangoTemplates'}],\n    ROOT_URLCONF='',\n)\nimport django\ndjango.setup()\nimport asyncio\nfrom django.http import HttpResponse\nfrom django.test import RequestFactory\nfrom django.views.generic.base import View\n\nrf = RequestFactory()\n\nclass Demo(View):\n    '''This basic view supports only POST requests'''\n    async def post(self, request):\n        return HttpResponse('ok')\n\n# Simulate the original bug scenario\nprint('Testing the original bug scenario...')\nview_func = Demo.as_view()\n\n# GET request (the bug scenario)\nrequest = rf.get('/demo')\nresult = view_func(request)\nprint(f'GET request result type: {type(result).__name__}')\nprint(f'Is coroutine: {asyncio.iscoroutine(result)}')\n\n# This should NOT raise TypeError anymore\nresponse = asyncio.run(result)\nprint(f'GET response status: {response.status_code}')\nprint(f'GET response Content-Type: {response[\\\"Content-Type\\\"]}')\n\n# POST request (should work)\nrequest = rf.post('/demo')\nresult = view_func(request)\nresponse = asyncio.run(result)\nprint(f'POST response status: {response.status_code}')\nprint(f'POST response content: {response.content.decode()}')\n\nprint('\\\\nBug is FIXED!')\n\"",
+   "hit": null,
+   "lat_ms": 394.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-16136",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 33542.0,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

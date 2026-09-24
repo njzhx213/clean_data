@@ -1,0 +1,411 @@
+{
+ "calls": 71,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 41128.28874588013,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "find /testbed -type f -name \"skipping.py\" | head -20",
+   "hit": null,
+   "lat_ms": 130.4
+  },
+  {
+   "cmd": "cat /testbed/src/_pytest/skipping.py",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "cd /testbed && find . -path ./build -prune -o -type f -name \"test_skipping.py\" -print",
+   "hit": null,
+   "lat_ms": 72.8
+  },
+  {
+   "cmd": "cat /testbed/testing/test_skipping.py | head -100",
+   "hit": null,
+   "lat_ms": 146.5
+  },
+  {
+   "cmd": "grep -n \"reportinfo\\|SKIPPED.*location\\|skip.*location\" /testbed/testing/test_skipping.py",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "grep -n \"runxfail\" /testbed/testing/test_skipping.py",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "cat > /tmp/test_skip_location.py << 'EOF'\nimport pytest\n\n@pytest.mark.skip\ndef test_skip_location() -> None:\n    assert 0\n\n@pytest.mark.skipif(True, reason=\"skip if condition\")\ndef test_skipif_location() -> None:\n    assert 0\nEOF\n",
+   "hit": null,
+   "lat_ms": 82.3
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest /tmp/test_skip_location.py -rs 2>&1",
+   "hit": null,
+   "lat_ms": 384.9
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest /tmp/test_skip_location.py -rs --runxfail 2>&1",
+   "hit": null,
+   "lat_ms": 251.4
+  },
+  {
+   "cmd": "cat -n /testbed/src/_pytest/skipping.py | sed -n '200,250p'",
+   "hit": null,
+   "lat_ms": 75.4
+  },
+  {
+   "cmd": "cat -n /testbed/src/_pytest/skipping.py | sed -n '250,300p'",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "cat -n /testbed/src/_pytest/skipping.py | sed -n '300,320p'",
+   "hit": null,
+   "lat_ms": 118.0
+  },
+  {
+   "cmd": "cat -n /testbed/src/_pytest/skipping.py | sed -n '260,310p'",
+   "hit": null,
+   "lat_ms": 130.9
+  },
+  {
+   "cmd": "cat > /tmp/fix.py << 'EOF'\n# The fix: restructure the logic to separate xfail handling from skipped-by-mark handling\n\n# Current code structure (simplified):\n# if unexpectedsuccess: ...\n# elif runxfail: pass  # <-- This prevents skipped-by-mark from running!\n# elif xfail-related: ...\n# elif skipped-by-mark: ...\n\n# Fixed code structure:\n# if unexpectedsuccess: ...\n# elif runxfail:\n#     # don't interfere with xfail tests, but still handle skipped-by-mark below\n#     pass\n# else:\n#     # Handle xfail-related cases\n#     if xfail-related: ...\n#     elif not rep.skipped and xfailed: ...\n# \n# # Always handle skipped-by-mark (outside the xfail-specific block)\n# if skipped-by-mark: ...\n\nEOF\ncat /tmp/fix.py",
+   "hit": null,
+   "lat_ms": 151.2
+  },
+  {
+   "cmd": "cp /testbed/src/_pytest/skipping.py /testbed/src/_pytest/skipping.py.bak",
+   "hit": null,
+   "lat_ms": 71.6
+  },
+  {
+   "cmd": "cat > /tmp/patch.py << 'EOF'\nimport sys\n\n# Read the original file\nwith open('/testbed/src/_pytest/skipping.py', 'r') as f:\n    content = f.read()\n\n# The original code block to replace (lines 260-305)\nold_code = '''@hookimpl(hookwrapper=True)\ndef pytest_runtest_makereport(item: Item, call: CallInfo[None]):\n    outcome = yield\n    rep = outcome.get_result()\n    xfailed = item._store.get(xfailed_key, None)\n    # unittest special case, see setting of unexpectedsuccess_key\n    if unexpectedsuccess_key in item._store and rep.when == \"call\":\n        reason = item._store[unexpectedsuccess_key]\n        if reason:\n            rep.longrepr = \"Unexpected success: {}\".format(reason)\n        else:\n            rep.longrepr = \"Unexpected success\"\n        rep.outcome = \"failed\"\n    elif item.config.option.runxfail:\n        pass  # don't interfere\n    elif call.excinfo and isinstance(call.excinfo.value, xfail.Exception):\n        assert call.excinfo.value.msg is not None\n        rep.wasxfail = \"reason: \" + call.excinfo.value.msg\n        rep.outcome = \"skipped\"\n    elif not rep.skipped and xfailed:\n        if call.excinfo:\n            raises = xfailed.raises\n            if raises is not None and not isinstance(call.excinfo.value, raises):\n                rep.outcome = \"failed\"\n            else:\n                rep.outcome = \"skipped\"\n                rep.wasxfail = xfailed.reason\n        elif call.when == \"call\":\n            if xfailed.strict:\n                rep.outcome = \"failed\"\n                rep.longrepr = \"[XPASS(strict)] \" + xfailed.reason\n            else:\n                rep.outcome = \"passed\"\n                rep.wasxfail = xfailed.reason\n    elif (\n        item._store.get(skipped_by_mark_key, True)\n        and rep.skipped\n        and type(rep.longrepr) is tuple\n    ):\n        # skipped by mark.skipif; change the location of the failure\n        # to point to the item definition, otherwise it will display\n        # the location of where the skip exception was raised within pytest\n        _, _, reason = rep.longrepr\n        filename, line = item.reportinfo()[:2]\n        assert line is not None\n        rep.longrepr = str(filename), line + 1, reason'''\n\nnew_code = '''@hookimpl(hookwrapper=True)\ndef pytest_runtest_makereport(item: Item, call: CallInfo[None]):\n    outcome = yield\n    rep = outcome.get_result()\n    xfailed = item._store.get(xfailed_key, None)\n    # unittest special case, see setting of unexpectedsuccess_key\n    if unexpectedsuccess_key in item._store and rep.when == \"call\":\n        reason = item._store[unexpectedsuccess_key]\n        if reason:\n            rep.longrepr = \"Unexpected success: {}\".format(reason)\n        else:\n            rep.longrepr = \"Unexpected success\"\n        rep.outcome = \"failed\"\n    elif not item.config.option.runxfail:\n        if call.excinfo and isinstance(call.excinfo.value, xfail.Exception):\n            assert call.excinfo.value.msg is not None\n            rep.wasxfail = \"reason: \" + call.excinfo.value.msg\n            rep.outcome = \"skipped\"\n        elif not rep.skipped and xfailed:\n            if call.excinfo:\n                raises = xfailed.raises\n                if raises is not None and not isinstance(call.excinfo.value, raises):\n                    rep.outcome = \"failed\"\n                else:\n                    rep.outcome = \"skipped\"\n                    rep.wasxfail = xfailed.reason\n            elif call.when == \"call\":\n                if xfailed.strict:\n                    rep.outcome = \"failed\"\n                    rep.longrepr = \"[XPASS(strict)] \" + xfailed.reason\n                else:\n                    rep.outcome = \"passed\"\n                    rep.wasxfail = xfailed.reason\n    if (\n        item._store.get(skipped_by_mark_key, True)\n        and rep.skipped\n        and type(rep.longrepr) is tuple\n    ):\n        # skipped by mark.skipif; change the location of the failure\n        # to point to the item definition, otherwise it will display\n        # the location of where the skip exception w",
+   "hit": null,
+   "lat_ms": 117.3
+  },
+  {
+   "cmd": "cat -n /testbed/src/_pytest/skipping.py | sed -n '260,310p'",
+   "hit": null,
+   "lat_ms": 130.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest /tmp/test_skip_location.py -rs 2>&1",
+   "hit": null,
+   "lat_ms": 253.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest /tmp/test_skip_location.py -rs --runxfail 2>&1",
+   "hit": null,
+   "lat_ms": 251.4
+  },
+  {
+   "cmd": "cat > /tmp/test_xfail.py << 'EOF'\nimport pytest\n\n@pytest.mark.xfail\ndef test_xfail_location() -> None:\n    assert 0\n\n@pytest.mark.xfail\ndef test_xfail_pass() -> None:\n    assert 1\nEOF\n",
+   "hit": null,
+   "lat_ms": 114.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest /tmp/test_xfail.py -rs 2>&1",
+   "hit": null,
+   "lat_ms": 250.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest /tmp/test_xfail.py -rs --runxfail 2>&1",
+   "hit": null,
+   "lat_ms": 250.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py -v 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 2572.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/ -k \"runxfail\" -v 2>&1",
+   "hit": null,
+   "lat_ms": 3772.3
+  },
+  {
+   "cmd": "grep -r \"runxfail\" /testbed/testing/*.py 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -B10 -A10 \"runxfail\" /testbed/testing/test_skipping.py",
+   "hit": null,
+   "lat_ms": 113.3
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py::TestXFail::test_xfail_run_anyway -v 2>&1",
+   "hit": null,
+   "lat_ms": 378.9
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py::TestXFail::test_xfail_not_run_xfail_reporting -v 2>&1",
+   "hit": null,
+   "lat_ms": 381.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py::TestXFail::test_xfail_imperative_in_setup_function -v 2>&1",
+   "hit": null,
+   "lat_ms": 415.7
+  },
+  {
+   "cmd": "grep -n \"reportinfo\\|skip.*location\\|SKIPPED.*:\" /testbed/testing/test_skipping.py | head -20",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "grep -B20 -A10 \"unconditional skip\" /testbed/testing/test_skipping.py | head -50",
+   "hit": null,
+   "lat_ms": 162.7
+  },
+  {
+   "cmd": "grep -B5 -A15 \"SKIPPED \\[\\[\" /testbed/testing/test_skipping.py | head -60",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "grep -B5 -A30 \"def test_relpath_rootdir\" /testbed/testing/test_skipping.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "tail -50 /testbed/testing/test_skipping.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cat >> /testbed/testing/test_skipping.py << 'EOF'\n\n\ndef test_skip_location_with_runxfail(testdir):\n    \"\"\"Test that skip location reporting works correctly with --runxfail.\n    \n    Regression test for https://github.com/pytest-dev/pytest/issues/XXXX\n    --runxfail should not affect skip location reporting.\n    \"\"\"\n    testdir.makepyfile(\n        \"\"\"\n        import pytest\n        \n        @pytest.mark.skip\n        def test_skip_location() -> None:\n            assert 0\n        \n        @pytest.mark.skipif(True, reason=\"skip if condition\")\n        def test_skipif_location() -> None:\n            assert 0\n        \"\"\"\n    )\n    # Test without --runxfail - should show correct location\n    result = testdir.runpytest(\"-rs\")\n    result.stdout.fnmatch_lines([\n        \"*test_skip_location_with_runxfail.py:3: unconditional skip\",\n        \"*test_skip_location_with_runxfail.py:7: skip if condition\",\n    ])\n    \n    # Test with --runxfail - should also show correct location\n    result = testdir.runpytest(\"-rs\", \"--runxfail\")\n    result.stdout.fnmatch_lines([\n        \"*test_skip_location_with_runxfail.py:3: unconditional skip\",\n        \"*test_skip_location_with_runxfail.py:7: skip if condition\",\n    ])\nEOF\n",
+   "hit": null,
+   "lat_ms": 72.8
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py::test_skip_location_with_runxfail -v 2>&1",
+   "hit": null,
+   "lat_ms": 449.9
+  },
+  {
+   "cmd": "cp /testbed/src/_pytest/skipping.py.bak /testbed/src/_pytest/skipping_original.py && cat > /tmp/verify_bug.py << 'EOF'\n# Verify the bug exists with the original code\n\n# Temporarily restore the original code\nimport shutil\nshutil.copy('/testbed/src/_pytest/skipping_original.py', '/testbed/src/_pytest/skipping.py')\n\n# Now test\nimport subprocess\nresult = subprocess.run(\n    ['python', '-m', 'pytest', '/tmp/test_skip_location.py', '-rs', '--runxfail'],\n    cwd='/testbed',\n    capture_output=True,\n    text=True\n)\nprint(\"OUTPUT WITH ORIGINAL CODE (BUGGY):\")\nprint(result.stdout)\nprint(result.stderr)\n\n# Restore the fix\nimport sys\nsys.path.insert(0, '/testbed/src')\nfrom _pytest import skipping\n# Re-read the fixed version\nEOF\npython /tmp/verify_bug.py",
+   "hit": null,
+   "lat_ms": 378.0
+  },
+  {
+   "cmd": "cat > /tmp/restore_fix.py << 'EOF'\n# Restore the fixed code\n\ncontent = open('/testbed/src/_pytest/skipping.py', 'r').read()\n\nold_code = '''@hookimpl(hookwrapper=True)\ndef pytest_runtest_makereport(item: Item, call: CallInfo[None]):\n    outcome = yield\n    rep = outcome.get_result()\n    xfailed = item._store.get(xfailed_key, None)\n    # unittest special case, see setting of unexpectedsuccess_key\n    if unexpectedsuccess_key in item._store and rep.when == \"call\":\n        reason = item._store[unexpectedsuccess_key]\n        if reason:\n            rep.longrepr = \"Unexpected success: {}\".format(reason)\n        else:\n            rep.longrepr = \"Unexpected success\"\n        rep.outcome = \"failed\"\n    elif item.config.option.runxfail:\n        pass  # don't interfere\n    elif call.excinfo and isinstance(call.excinfo.value, xfail.Exception):\n        assert call.excinfo.value.msg is not None\n        rep.wasxfail = \"reason: \" + call.excinfo.value.msg\n        rep.outcome = \"skipped\"\n    elif not rep.skipped and xfailed:\n        if call.excinfo:\n            raises = xfailed.raises\n            if raises is not None and not isinstance(call.excinfo.value, raises):\n                rep.outcome = \"failed\"\n            else:\n                rep.outcome = \"skipped\"\n                rep.wasxfail = xfailed.reason\n        elif call.when == \"call\":\n            if xfailed.strict:\n                rep.outcome = \"failed\"\n                rep.longrepr = \"[XPASS(strict)] \" + xfailed.reason\n            else:\n                rep.outcome = \"passed\"\n                rep.wasxfail = xfailed.reason\n    elif (\n        item._store.get(skipped_by_mark_key, True)\n        and rep.skipped\n        and type(rep.longrepr) is tuple\n    ):\n        # skipped by mark.skipif; change the location of the failure\n        # to point to the item definition, otherwise it will display\n        # the location of where the skip exception was raised within pytest\n        _, _, reason = rep.longrepr\n        filename, line = item.reportinfo()[:2]\n        assert line is not None\n        rep.longrepr = str(filename), line + 1, reason'''\n\nnew_code = '''@hookimpl(hookwrapper=True)\ndef pytest_runtest_makereport(item: Item, call: CallInfo[None]):\n    outcome = yield\n    rep = outcome.get_result()\n    xfailed = item._store.get(xfailed_key, None)\n    # unittest special case, see setting of unexpectedsuccess_key\n    if unexpectedsuccess_key in item._store and rep.when == \"call\":\n        reason = item._store[unexpectedsuccess_key]\n        if reason:\n            rep.longrepr = \"Unexpected success: {}\".format(reason)\n        else:\n            rep.longrepr = \"Unexpected success\"\n        rep.outcome = \"failed\"\n    elif not item.config.option.runxfail:\n        if call.excinfo and isinstance(call.excinfo.value, xfail.Exception):\n            assert call.excinfo.value.msg is not None\n            rep.wasxfail = \"reason: \" + call.excinfo.value.msg\n            rep.outcome = \"skipped\"\n        elif not rep.skipped and xfailed:\n            if call.excinfo:\n                raises = xfailed.raises\n                if raises is not None and not isinstance(call.excinfo.value, raises):\n                    rep.outcome = \"failed\"\n                else:\n                    rep.outcome = \"skipped\"\n                    rep.wasxfail = xfailed.reason\n            elif call.when == \"call\":\n                if xfailed.strict:\n                    rep.outcome = \"failed\"\n                    rep.longrepr = \"[XPASS(strict)] \" + xfailed.reason\n                else:\n                    rep.outcome = \"passed\"\n                    rep.wasxfail = xfailed.reason\n    if (\n        item._store.get(skipped_by_mark_key, True)\n        and rep.skipped\n        and type(rep.longrepr) is tuple\n    ):\n        # skipped by mark.skipif; change the location of the failure\n        # to point to the item definition, otherwise it will display\n        # the location of where the skip exception was raised within pytest\n        _, _, reason = rep.longrepr\n        filenam",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest /tmp/test_skip_location.py -rs --runxfail 2>&1",
+   "hit": null,
+   "lat_ms": 250.4
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 2975.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_runner.py -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 1807.1
+  },
+  {
+   "cmd": "grep -n \"longrepr\" /testbed/src/_pytest/reports.py | head -20",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "grep -B5 -A10 \"tuple\" /testbed/src/_pytest/reports.py | head -50",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "grep -B5 -A10 \"class Rep\" /testbed/src/_pytest/reports.py | head -80",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "grep -B5 -A10 \"Tuple\\[str, Optional\\[int\\], str\\]\" /testbed/src/_pytest/reports.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "grep -B10 -A40 \"class OutcomeReport\" /testbed/src/_pytest/reports.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "grep -B10 -A40 \"class TestReport\" /testbed/src/_pytest/reports.py",
+   "hit": null,
+   "lat_ms": 186.6
+  },
+  {
+   "cmd": "grep -B10 -A30 \"class Skip\" /testbed/src/_pytest/outcomes.py | head -60",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "grep -B5 -A10 \"longrepr.*tuple\" /testbed/src/_pytest/runner.py",
+   "hit": null,
+   "lat_ms": 177.7
+  },
+  {
+   "cmd": "grep -B5 -A10 \"is tuple\" /testbed/src/_pytest/*.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "grep -B10 -A20 \"rep.skipped\" /testbed/src/_pytest/runner.py | head -80",
+   "hit": null,
+   "lat_ms": 159.2
+  },
+  {
+   "cmd": "grep -B5 -A20 \"Skipped\" /testbed/src/_pytest/runner.py | head -100",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_runner.py testing/test_skipping.py -v 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 4172.4
+  },
+  {
+   "cmd": "cat -n /testbed/src/_pytest/skipping.py | sed -n '260,310p'",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat > /tmp/test_comprehensive.py << 'EOF'\nimport pytest\n\n# Skip tests\n@pytest.mark.skip\ndef test_skip():\n    assert 0\n\n@pytest.mark.skipif(True, reason=\"always skip\")\ndef test_skipif():\n    assert 0\n\n# Xfail tests\n@pytest.mark.xfail\ndef test_xfail_fail():\n    assert 0\n\n@pytest.mark.xfail\ndef test_xfail_pass():\n    assert 1\n\n# Xfail with run=False\n@pytest.mark.xfail(run=False)\ndef test_xfail_norun():\n    assert 0\n\n# Mixed - skip + xfail on same test\n@pytest.mark.skip\n@pytest.mark.xfail\ndef test_skip_xfail():\n    assert 0\nEOF\n",
+   "hit": null,
+   "lat_ms": 188.6
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest /tmp/test_comprehensive.py -rs 2>&1",
+   "hit": null,
+   "lat_ms": 385.8
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest /tmp/test_comprehensive.py -rs --runxfail 2>&1",
+   "hit": null,
+   "lat_ms": 379.6
+  },
+  {
+   "cmd": "cat > /tmp/test_xfail_norun.py << 'EOF'\nimport pytest\n\n@pytest.mark.xfail(run=False)\ndef test_xfail_norun():\n    assert 0, \"This should not run\"\n\ndef test_after():\n    pass\nEOF\n",
+   "hit": null,
+   "lat_ms": 117.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest /tmp/test_xfail_norun.py -rs 2>&1",
+   "hit": null,
+   "lat_ms": 380.1
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest /tmp/test_xfail_norun.py -rs --runxfail 2>&1",
+   "hit": null,
+   "lat_ms": 378.7
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_skipping.py testing/test_runner.py testing/test_terminal.py -v 2>&1 | tail -50",
+   "hit": null,
+   "lat_ms": 9378.5
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest testing/test_terminal.py::test_color_yes -v 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 571.6
+  },
+  {
+   "cmd": "cp /testbed/src/_pytest/skipping.py.bak /testbed/src/_pytest/skipping_test.py && cd /testbed && python -m pytest testing/test_terminal.py::test_color_yes -v 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 575.6
+  },
+  {
+   "cmd": "python /tmp/restore_fix.py && cd /testbed && python -m pytest testing/test_skipping.py testing/test_runner.py -v 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 4573.7
+  },
+  {
+   "cmd": "cat -n /testbed/src/_pytest/skipping.py | sed -n '260,310p'",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest /tmp/test_skip_location.py /tmp/test_comprehensive.py -rs --runxfail 2>&1",
+   "hit": null,
+   "lat_ms": 250.8
+  },
+  {
+   "cmd": "rm -f /tmp/test_*.py /tmp/fix.py /tmp/patch.py /tmp/verify_bug.py /tmp/restore_fix.py /tmp/test_skip_location_with_runxfail.py /testbed/src/_pytest/skipping_original.py /testbed/src/_pytest/skipping_test.py",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "rm -f /testbed/src/_pytest/skipping.py.bak",
+   "hit": null,
+   "lat_ms": 69.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pytest-dev__pytest-7432",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 41128.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

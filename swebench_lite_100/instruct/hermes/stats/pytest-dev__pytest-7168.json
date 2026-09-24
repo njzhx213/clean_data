@@ -1,0 +1,156 @@
+{
+ "calls": 20,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 6532.610893249512,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 71.8
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cd ~ && pwd && whoami && python3 --version && pip show pytest 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 376.2
+  },
+  {
+   "cmd": "find / -name \"saferepr.py\" -path \"*_io*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 571.6
+  },
+  {
+   "cmd": "cat /testbed/src/_pytest/_io/saferepr.py",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 && echo \"---STATUS---\" && git status | head -20",
+   "hit": null,
+   "lat_ms": 165.2
+  },
+  {
+   "cmd": "cd /tmp && cat > test_pytest.py << 'EOF'\nclass SomeClass:\n    def __getattribute__(self, attr):\n        raise\n    def __repr__(self):\n        raise\n\ndef test():\n    SomeClass().attr\nEOF\ncd /tmp && python3 -m pytest test_pytest.py 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 381.8
+  },
+  {
+   "cmd": "cd /testbed && python3 - << 'PYEOF'\nimport re\np = 'src/_pytest/_io/saferepr.py'\nsrc = open(p).read()\n\nold = '''def _format_repr_exception(exc: BaseException, obj: Any) -> str:\n    try:\n        exc_info = _try_repr_or_str(exc)\n    except (KeyboardInterrupt, SystemExit):\n        raise\n    except BaseException as exc:\n        exc_info = \"unpresentable exception ({})\".format(_try_repr_or_str(exc))\n    return \"<[{} raised in repr()] {} object at 0x{:x}>\".format(\n        exc_info, obj.__class__.__name__, id(obj)\n    )'''\n\nnew = '''def _format_repr_exception(exc: BaseException, obj: Any) -> str:\n    try:\n        exc_info = _try_repr_or_str(exc)\n    except (KeyboardInterrupt, SystemExit):\n        raise\n    except BaseException as exc:\n        exc_info = \"unpresentable exception ({})\".format(_try_repr_or_str(exc))\n    try:\n        class_name = obj.__class__.__name__\n    except (KeyboardInterrupt, SystemExit):\n        raise\n    except BaseException:\n        class_name = \"<unknown>\"\n    return \"<[{} raised in repr()] {} object at 0x{:x}>\".format(\n        exc_info, class_name, id(obj)\n    )'''\n\nassert old in src, \"old block not found\"\nsrc = src.replace(old, new)\nopen(p, 'w').write(src)\nprint(\"patched OK\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /tmp && python3 -m pytest test_pytest.py 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 380.7
+  },
+  {
+   "cmd": "cd /testbed && find . -path ./node_modules -prune -o -name \"*.py\" -print 2>/dev/null | xargs grep -l \"saferepr\\|_format_repr_exception\\|SafeRepr\" 2>/dev/null | grep -i test",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cd /testbed && cat testing/io/test_saferepr.py",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest testing/io/test_saferepr.py -q 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 401.9
+  },
+  {
+   "cmd": "cd /testbed && python3 - << 'PYEOF'\np = 'testing/io/test_saferepr.py'\nsrc = open(p).read()\n\n# Add regression test at the end of the file\naddition = '''\n\ndef test_saferepr_broken_getattribute():\n    # Regression test: an object whose __getattribute__ raises on *every*\n    # attribute access (including ``__class__`` and id()) combined with a\n    # broken __repr__ must not crash pytest with an INTERNALERROR.\n    #\n    # Before the fix, _format_repr_exception unconditionally accessed\n    # obj.__class__.__name__, which raised, and that exception escaped\n    # both repr_instance and repr, surfacing as an INTERNALERROR.\n\n    class SomeClass:\n        def __getattribute__(self, attr):\n            raise RuntimeError(\"nope\")\n\n        def __repr__(self):\n            raise ValueError(\"broken repr\")\n\n    # Should return a string, not raise.\n    s = saferepr(SomeClass())\n    assert isinstance(s, str)\n    assert \"raised in repr()\" in s\n'''\n\nsrc = src.rstrip('\\n') + '\\n' + addition\nopen(p, 'w').write(src)\nprint(\"test appended\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 183.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest testing/io/test_saferepr.py -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 383.4
+  },
+  {
+   "cmd": "cd /testbed && cp src/_pytest/_io/saferepr.py /tmp/saferepr_fixed.py && git stash list; git checkout -- src/_pytest/_io/saferepr.py 2>&1; echo \"--- reverted to original, now run new test ---\"; python3 -m pytest testing/io/test_saferepr.py::test_saferepr_broken_getattribute -q 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 381.6
+  },
+  {
+   "cmd": "cd /testbed && cp /tmp/saferepr_fixed.py src/_pytest/_io/saferepr.py && echo \"--- restored fixed version ---\" && python3 -m pytest testing/io/test_saferepr.py -q 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 250.7
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== DIFF (saferepr.py) ===\" && git diff src/_pytest/_io/saferepr.py",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest testing/io/test_saferepr.py testing/code/test_excinfo.py testing/code/test_code.py -q 2>&1 | tail -12",
+   "hit": null,
+   "lat_ms": 1972.2
+  },
+  {
+   "cmd": "cd /tmp && cat > test_pytest.py << 'EOF'\nclass SomeClass:\n    def __getattribute__(self, attr):\n        raise\n    def __repr__(self):\n        raise\ndef test():\n    SomeClass().attr\nEOF\npython3 -m pytest test_pytest.py 2>&1 | tail -18",
+   "hit": null,
+   "lat_ms": 251.0
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pytest-dev__pytest-7168",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 6532.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,196 @@
+{
+ "calls": 28,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 8104.344367980957,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "find / -name \"sitemaps\" -type d -path \"*django/contrib*\" 2>/dev/null | head -5; pip show django 2>/dev/null | head -3",
+   "hit": null,
+   "lat_ms": 968.9
+  },
+  {
+   "cmd": "cat /testbed/django/contrib/sitemaps/__init__.py",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cd /testbed && git status && git log --oneline -5",
+   "hit": null,
+   "lat_ms": 570.9
+  },
+  {
+   "cmd": "ls /testbed/tests/sitemaps_tests/ && grep -n \"lastmod\" /testbed/tests/sitemaps_tests/tests.py | head -30",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "grep -n \"lastmod\\|class.*Test\" /testbed/tests/sitemaps_tests/test_utils.py | head -60",
+   "hit": null,
+   "lat_ms": 76.1
+  },
+  {
+   "cmd": "cat /testbed/tests/sitemaps_tests/base.py && grep -n \"get_latest_lastmod\\|lastmod\" /testbed/tests/sitemaps_tests/*.py | grep -v template",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -n \"class\\|def \" /testbed/tests/sitemaps_tests/urls/__init__.py | head -40 && ls /testbed/tests/sitemaps_tests/urls/",
+   "hit": null,
+   "lat_ms": 68.8
+  },
+  {
+   "cmd": "cat /testbed/tests/sitemaps_tests/urls/__init__.py",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "cat /testbed/tests/sitemaps_tests/urls/http.py",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.sites','django.contrib.contenttypes','django.contrib.auth','django.contrib.sitemaps'], DATABASES={'default':{'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}}, SITE_ID=1)\ndjango.setup()\nfrom django.contrib.sitemaps import Sitemap\n\nclass EmptySitemapWithCallableLastmod(Sitemap):\n    def lastmod(self, item):\n        return '2013-03-13'\n\ns = EmptySitemapWithCallableLastmod()\ntry:\n    print(s.get_latest_lastmod())\nexcept ValueError as e:\n    print('ValueError:', e)\n\"",
+   "hit": null,
+   "lat_ms": 770.9
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\npath = 'django/contrib/sitemaps/__init__.py'\nsrc = open(path).read()\nold = \"\"\"        if callable(self.lastmod):\n            try:\n                return max([self.lastmod(item) for item in self.items()])\n            except TypeError:\n                return None\"\"\"\nnew = \"\"\"        if callable(self.lastmod):\n            try:\n                return max([self.lastmod(item) for item in self.items()])\n            except (TypeError, ValueError):\n                return None\"\"\"\nassert old in src\nopen(path, 'w').write(src.replace(old, new))\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 165.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n '440,510p' tests/sitemaps_tests/test_http.py",
+   "hit": null,
+   "lat_ms": 88.7
+  },
+  {
+   "cmd": "cd /testbed && cat django/contrib/sitemaps/views.py",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 169.4
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport django\nfrom django.conf import settings\nsettings.configure(INSTALLED_APPS=['django.contrib.sites','django.contrib.contenttypes','django.contrib.auth','django.contrib.sitemaps'], DATABASES={'default':{'ENGINE':'django.db.backends.sqlite3','NAME':':memory:'}}, SITE_ID=1)\ndjango.setup()\nfrom django.contrib.sitemaps import Sitemap\nfrom datetime import datetime\n\nclass EmptyCallable(Sitemap):\n    def lastmod(self, item):\n        return datetime(2013, 3, 13)\n\n# empty items + callable lastmod -> should be None, not ValueError\nprint('empty:', EmptyCallable().get_latest_lastmod())\n\n# non-empty still works\nclass NonEmpty(Sitemap):\n    def items(self):\n        return [object(), object()]\n    def lastmod(self, item):\n        return datetime(2013, 3, 13)\nprint('non-empty:', NonEmpty().get_latest_lastmod())\n\n# TypeError case (mixed types) still handled\nclass Mixed(Sitemap):\n    def items(self):\n        return [object(), object()]\n    def lastmod(self, item):\n        return [1, 'a'][hash(str(id(item))) % 2]\nprint('mixed:', Mixed().get_latest_lastmod())\n\"",
+   "hit": null,
+   "lat_ms": 377.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\n# 1) Add test sitemap classes + url dicts to urls/http.py\np = 'tests/sitemaps_tests/urls/http.py'\nsrc = open(p).read()\n\nanchor_class = '''class GetLatestLastmodNoneSiteMap(Sitemap):'''\nnew_class = '''class CallableLastmodFullEmptySitemap(Sitemap):\n    \"\"\"All items have `lastmod` but there are no items.\"\"\"\n\n    location = \"/location/\"\n\n    def items(self):\n        return []\n\n    def lastmod(self, obj):\n        return obj.lastmod\n\n\nclass GetLatestLastmodNoneSiteMap(Sitemap):'''\nassert anchor_class in src\nsrc = src.replace(anchor_class, new_class, 1)\n\nanchor_dict = '''get_latest_lastmod_none_sitemaps = {'''\nnew_dict = '''callable_lastmod_full_empty_sitemap = {\n    \"callable-lastmod\": CallableLastmodFullEmptySitemap,\n}\n\nget_latest_lastmod_none_sitemaps = {'''\nassert anchor_dict in src\nsrc = src.replace(anchor_dict, new_dict, 1)\n\nanchor_url = '''    path(\n        \"callable-lastmod-full/index.xml\",'''\nnew_url = '''    path(\n        \"callable-lastmod-empty/index.xml\",\n        views.index,\n        {\"sitemaps\": callable_lastmod_full_empty_sitemap},\n    ),\n    path(\n        \"callable-lastmod-empty/sitemap.xml\",\n        views.sitemap,\n        {\"sitemaps\": callable_lastmod_full_empty_sitemap},\n    ),\n    path(\n        \"callable-lastmod-full/index.xml\",'''\nassert anchor_url in src\nsrc = src.replace(anchor_url, new_url, 1)\n\nopen(p, 'w').write(src)\nprint(\"urls patched\")\n\n# 2) Add test to test_http.py\np2 = 'tests/sitemaps_tests/test_http.py'\nsrc2 = open(p2).read()\nanchor2 = '''    def test_callable_sitemod_full(self):'''\nnew_test = '''    def test_callable_lastmod_full_empty_items(self):\n        \"\"\"\n        A sitemap with no items but a callable `lastmod` should not raise a\n        ValueError. The `Last-Modified` header is not set.\n        \"\"\"\n        index_response = self.client.get(\"/callable-lastmod-empty/index.xml\")\n        sitemap_response = self.client.get(\"/callable-lastmod-empty/sitemap.xml\")\n        self.assertNotIn(\"Last-Modified\", index_response)\n        self.assertNotIn(\"Last-Modified\", sitemap_response)\n        expected_content_index = \"\"\"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n        <sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n        <sitemap><loc>http://example.com/simple/sitemap-callable-lastmod.xml</loc></sitemap>\n        </sitemapindex>\n        \"\"\"\n        expected_content_sitemap = (\n            '<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\\\n'\n            '<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\" '\n            'xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">\\\\n'\n            \"</urlset>\"\n        )\n        self.assertXMLEqual(index_response.content.decode(), expected_content_index)\n        self.assertXMLEqual(sitemap_response.content.decode(), expected_content_sitemap)\n\n    def test_callable_sitemod_full(self):'''\nassert anchor2 in src2\nsrc2 = src2.replace(anchor2, new_test, 1)\nopen(p2, 'w').write(src2)\nprint(\"test patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /testbed && python -m django test tests.sitemaps_tests.test_http.SitemapsTest.test_callable_lastmod_full_empty_items --settings=tests.sitemaps_tests.urls 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 388.4
+  },
+  {
+   "cmd": "cd /testbed && cat runtests.py 2>/dev/null | head -30; ls tests/*.py | head",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py sitemaps_tests.test_http.SitemapsTest.test_callable_lastmod_full_empty_items 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 571.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"^class\" tests/sitemaps_tests/test_http.py",
+   "hit": null,
+   "lat_ms": 816.2
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py sitemaps_tests.test_http.HTTPSitemapTests.test_callable_lastmod_full_empty_items 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 572.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n -B2 -A10 \"test_sitemap_without_entries\\|assertXMLEqual\" tests/sitemaps_tests/test_http.py | sed -n '1,40p'",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\np = 'tests/sitemaps_tests/test_http.py'\nsrc = open(p).read()\nold = '''        expected_content_sitemap = (\n            '<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\\\n'\n            '<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\" '\n            'xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">\\\\n'\n            \"</urlset>\"\n        )\n        self.assertXMLEqual(index_response.content.decode(), expected_content_index)\n        self.assertXMLEqual(sitemap_response.content.decode(), expected_content_sitemap)\n\n    def test_callable_sitemod_full(self):'''\nnew = '''        expected_content_sitemap = \"\"\"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n        <urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"\n        xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">\n\n        </urlset>\n        \"\"\"\n        self.assertXMLEqual(index_response.content.decode(), expected_content_index)\n        self.assertXMLEqual(sitemap_response.content.decode(), expected_content_sitemap)\n\n    def test_callable_sitemod_full(self):'''\nassert old in src\nopen(p, 'w').write(src.replace(old, new, 1))\nprint(\"ok\")\nEOF\npython tests/runtests.py sitemaps_tests.test_http.HTTPSitemapTests.test_callable_lastmod_full_empty_items 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 572.1
+  },
+  {
+   "cmd": "cd /testbed && python tests/runtests.py sitemaps_tests 2>&1 | tail -12",
+   "hit": null,
+   "lat_ms": 576.1
+  },
+  {
+   "cmd": "cd /testbed && git diff --stat && echo \"=====\" && git diff django/contrib/sitemaps/__init__.py",
+   "hit": null,
+   "lat_ms": 165.0
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-16255",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 8104.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

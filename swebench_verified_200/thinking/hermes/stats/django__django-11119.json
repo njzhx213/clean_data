@@ -1,0 +1,196 @@
+{
+ "calls": 28,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 19984.121084213257,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && ls / 2>/dev/null && ls ~ 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "find / -maxdepth 3 -name \"*.py\" -path \"*template*engine*\" 2>/dev/null | head -20; find / -maxdepth 2 -type d -name \"django*\" 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 && git show --stat 19a5f6da329d58653bcda85 2>/dev/null | head -30; python --version",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"render_to_string\" django/template/engine.py",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,170p' django/template/engine.py",
+   "hit": null,
+   "lat_ms": 68.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def render\\|def make_context\\|autoescape\" django/template/base.py | head -20; echo ---; grep -n \"autoescape\" django/template/context.py | head; echo ---; cat django/template/backends/django.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '125,150p' django/template/context.py",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"render_to_string\\|autoescape\" tests/test_engines.py | head -20",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | head -40 && ls tests/template_tests 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 144.8
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro.py <<'EOF'\nimport os\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    TEMPLATES=[\n        {\n            'BACKEND': 'django.template.backends.django.DjangoTemplates',\n            'DIRS': [],\n            'APP_DIRS': True,\n            'OPTIONS': {\n                'autoescape': False,\n                'loaders': ['django.template.loaders.dummy.Loader'],\n            },\n        },\n    ],\n)\ndjango.setup()\n\n# Use the Engine directly with autoescape=False\nfrom django.template.engine import Engine\nfrom django.template import engines\n\nengine = Engine(autoescape=False)\nhtml = '<b>bold</b>'\nout_false = engine.from_string('{{ v }}').render({'v': html})\nprint('Engine.from_string + render, autoescape=False ->', repr(out_false))\n\n# render_to_string on an engine-backed template\nengine2 = Engine(autoescape=False, loaders=[('django.template.loaders.dummy.Loader', {'template': '{{ v }}', 'name': 't.html'})])\ntry:\n    out_rts = engine2.render_to_string('t.html', {'v': html})\n    print('Engine.render_to_string, autoescape=False  ->', repr(out_rts))\nexcept Exception as e:\n    print('render_to_string error:', type(e).__name__, e)\n\nengine3 = Engine(autoescape=True, loaders=[('django.template.loaders.dummy.Loader', {'template': '{{ v }}', 'name': 't.html'})])\nout_rts_true = engine3.render_to_string('t.html', {'v': html})\nprint('Engine.render_to_string, autoescape=True   ->', repr(out_rts_true))\n\n# Backend path for comparison\nbackend_template = engines['django'].get_template('t.html')\nprint('DjangoTemplates backend (autoescape=False) ->', repr(backend_template.render({'v': html})))\nEOF\npython /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 569.4
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro.py <<'EOF'\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    TEMPLATES=[\n        {\n            'BACKEND': 'django.template.backends.django.DjangoTemplates',\n            'DIRS': [],\n            'APP_DIRS': True,\n            'OPTIONS': {\n                'autoescape': False,\n                'loaders': ['django.template.loaders.dummy.Loader'],\n            },\n        },\n    ],\n)\ndjango.setup()\n\nfrom django.template.engine import Engine\nfrom django.template import engines\n\nhtml = '<b>bold</b>'\nDUMMY = ('django.template.loaders.dummy.Loader', {'template': '{{ v }}', 'name': 't.html'})\n\n# Baseline: from_string + Context with engine autoescape\nfrom django.template import Context\nengine = Engine(autoescape=False)\nt = engine.from_string('{{ v }}')\nprint('render, autoescape=False  ->', repr(t.render(Context({'v': html}, autoescape=False))))\n\n# The buggy path:\nengine2 = Engine(autoescape=False, loaders=[DUMMY])\nout = engine2.render_to_string('t.html', {'v': html})\nprint('render_to_string, autoescape=False ->', repr(out))\nassert out == html, 'BUG: expected unescaped %r, got %r' % (html, out)\n\nengine3 = Engine(autoescape=True, loaders=[DUMMY])\nout3 = engine3.render_to_string('t.html', {'v': html})\nprint('render_to_string, autoescape=True  ->', repr(out3))\nassert out3 == '&lt;b&gt;bold&lt;/b&gt;', 'expected escaped, got %r' % out3\n\n# Backend comparison (already correct)\nbackend_template = engines['django'].get_template('t.html')\nout_b = backend_template.render({'v': html})\nprint('DjangoTemplates backend, autoescape=False ->', repr(out_b))\nassert out_b == html\n\nprint('OK - all assertions passed')\nEOF\npython /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed && ls django/template/loaders/",
+   "hit": null,
+   "lat_ms": 174.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,40p' django/template/loaders/locmem.py",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro.py <<'EOF'\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    TEMPLATES=[\n        {\n            'BACKEND': 'django.template.backends.django.DjangoTemplates',\n            'DIRS': [],\n            'APP_DIRS': True,\n            'OPTIONS': {\n                'autoescape': False,\n                'loaders': ['django.template.loaders.dummy.Loader'],\n            },\n        },\n    ],\n)\ndjango.setup()\n\nfrom django.template.engine import Engine\nfrom django.template import engines, Context\n\nhtml = '<b>bold</b>'\nDUMMY = ('django.template.loaders.locmem.Loader', {'t.html': '{{ v }}'})\n\n# Baseline: direct render with a Context honoring autoescape=False\nengine = Engine(autoescape=False)\nt = engine.from_string('{{ v }}')\nprint('render, autoescape=False  ->', repr(t.render(Context({'v': html}, autoescape=False))))\n\n# The buggy path: Engine.render_to_string\nengine2 = Engine(autoescape=False, loaders=[DUMMY])\nout = engine2.render_to_string('t.html', {'v': html})\nprint('render_to_string, autoescape=False ->', repr(out))\nassert out == html, 'BUG: expected unescaped %r, got %r' % (html, out)\n\nengine3 = Engine(autoescape=True, loaders=[DUMMY])\nout3 = engine3.render_to_string('t.html', {'v': html})\nprint('render_to_string, autoescape=True  ->', repr(out3))\nassert out3 == '&lt;b&gt;bold&lt;/b&gt;', 'expected escaped, got %r' % out3\n\n# Backend comparison (already correct via make_context)\nbackend_template = engines['django'].get_template('t.html')\nout_b = backend_template.render({'v': html})\nprint('DjangoTemplates backend, autoescape=False ->', repr(out_b))\nassert out_b == html\n\nprint('OK - all assertions passed')\nEOF\npython /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 380.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"render_to_string\" -A 14 django/template/engine.py | sed -n '1,18p'",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\np = 'django/template/engine.py'\nsrc = open(p).read()\nold = \"\"\"        if isinstance(context, Context):\n            return t.render(context)\n        else:\n            return t.render(Context(context))\"\"\"\nnew = \"\"\"        if isinstance(context, Context):\n            return t.render(context)\n        else:\n            return t.render(Context(context, autoescape=self.autoescape))\"\"\"\nassert src.count(old) == 1, \"pattern not found exactly once\"\nopen(p, 'w').write(src.replace(old, new))\nprint(\"patched\")\nEOF\ngit diff",
+   "hit": null,
+   "lat_ms": 970.3
+  },
+  {
+   "cmd": "cd /testbed && python /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed/tests && ls runtests.py 2>/dev/null; ls | grep -i \"engine\\|template_backend\"",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro.py <<'EOF'\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    TEMPLATES=[\n        {\n            'BACKEND': 'django.template.backends.django.DjangoTemplates',\n            'DIRS': [],\n            'OPTIONS': {\n                'autoescape': False,\n                'loaders': [('django.template.loaders.locmem.Loader', {'t.html': '{{ v }}'})],\n            },\n        },\n    ],\n)\ndjango.setup()\n\nfrom django.template.engine import Engine\nfrom django.template import engines, Context\n\nhtml = '<b>bold</b>'\nDUMMY = ('django.template.loaders.locmem.Loader', {'t.html': '{{ v }}'})\n\n# Baseline: direct render with a Context honoring autoescape=False\nengine = Engine(autoescape=False)\nt = engine.from_string('{{ v }}')\nprint('render, autoescape=False  ->', repr(t.render(Context({'v': html}, autoescape=False))))\n\n# The fixed path: Engine.render_to_string\nengine2 = Engine(autoescape=False, loaders=[DUMMY])\nout = engine2.render_to_string('t.html', {'v': html})\nprint('render_to_string, autoescape=False ->', repr(out))\nassert out == html, 'expected unescaped %r, got %r' % (html, out)\n\nengine3 = Engine(autoescape=True, loaders=[DUMMY])\nout3 = engine3.render_to_string('t.html', {'v': html})\nprint('render_to_string, autoescape=True  ->', repr(out3))\nassert out3 == '&lt;b&gt;bold&lt;/b&gt;', 'expected escaped, got %r' % out3\n\n# Backend comparison (already correct via make_context)\nbackend_template = engines['django'].get_template('t.html')\nout_b = backend_template.render({'v': html})\nprint('DjangoTemplates backend, autoescape=False ->', repr(out_b))\nassert out_b == html\n\n# Context instance passed directly should be left untouched (preserved behavior)\nout_c = engine2.render_to_string('t.html', Context({'v': html}, autoescape=False))\nprint('render_to_string with explicit Context  ->', repr(out_c))\nassert out_c == html\n\nprint('OK - all assertions passed')\nEOF\npython /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 819.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py template_tests template_backends 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 4374.2
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py template_tests template_backends 2>&1 | grep -B2 \"AssertionError: PermissionError not raised\" | head; python runtests.py template_tests template_backends 2>&1 | grep -E \"^(FAIL|ERROR)\" | head",
+   "hit": null,
+   "lat_ms": 8374.0
+  },
+  {
+   "cmd": "cd /testbed && git stash && cd tests && python runtests.py template_tests.test_loaders.FileSystemLoaderTests.test_permissions_error 2>&1 | tail -4; cd /testbed && git stash pop && git diff --stat",
+   "hit": null,
+   "lat_ms": 971.7
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"render_to_string\" django/ --include=\"*.py\" | grep -v \"loader.render_to_string\\|def render_to_string\\|render_to_string(\" | head; grep -rln \"\\.render_to_string(\" django/ --include=\"*.py\"",
+   "hit": null,
+   "lat_ms": 257.3
+  },
+  {
+   "cmd": "cd /testbed/tests && ls | grep -i \"templat\"",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py template_loader template_backends 2>&1 | tail -4",
+   "hit": null,
+   "lat_ms": 770.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-11119",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 19984.1,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

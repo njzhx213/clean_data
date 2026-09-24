@@ -1,0 +1,141 @@
+{
+ "calls": 17,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 6813.976049423218,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 68.7
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "cd /root/sklearn 2>/dev/null && pwd || find / -name \"pipeline.py\" -path \"*sklearn*\" 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 773.9
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 && git status",
+   "hit": null,
+   "lat_ms": 163.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def __getitem__\" -A 40 sklearn/pipeline.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '150,221p' sklearn/pipeline.py",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 -- sklearn/pipeline.py && grep -n \"__getitem__\\|slicing\\|slice\" sklearn/tests/test_pipeline.py | head -30",
+   "hit": null,
+   "lat_ms": 190.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '520,560p' sklearn/tests/test_pipeline.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.linear_model import LogisticRegression\n\npipe = Pipeline([('scale', StandardScaler()), ('clf', LogisticRegression())])\nprint('steps:', pipe.steps)\ntry:\n    print('len:', len(pipe))\nexcept TypeError as e:\n    print('TypeError:', e)\ntry:\n    print('slice:', pipe[:len(pipe)])\nexcept Exception as e:\n    print(type(e).__name__, e)\n\"",
+   "hit": null,
+   "lat_ms": 769.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '196,202p' sklearn/pipeline.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\npath = 'sklearn/pipeline.py'\nsrc = open(path).read()\nold = \"\"\"            if trans is not None and trans != 'passthrough':\n                yield idx, name, trans\n\n    def __getitem__(self, ind):\"\"\"\nnew = \"\"\"            if trans is not None and trans != 'passthrough':\n                yield idx, name, trans\n\n    def __len__(self):\n        \\\"\\\"\\\"Returns the number of steps in the pipeline.\\\"\\\"\\\"\n        return len(self.steps)\n\n    def __getitem__(self, ind):\"\"\"\nassert src.count(old) == 1, src.count(old)\nopen(path, 'w').write(src.replace(old, new))\nprint(\"done\")\nEOF",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.linear_model import LogisticRegression\n\npipe = Pipeline([('scale', StandardScaler()), ('clf', LogisticRegression())])\nassert len(pipe) == 2\nsub = pipe[:len(pipe)]\nassert sub.steps == pipe.steps\nprint('len OK, slice OK')\nprint(pipe)\n\"",
+   "hit": null,
+   "lat_ms": 775.6
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'sklearn/tests/test_pipeline.py'\nsrc = open(path).read()\n\n# 1) Extend test_pipeline_slice to check len()\nold = \"\"\"def test_pipeline_slice():\n    pipe = Pipeline([('transf1', Transf()),\n                     ('transf2', Transf()),\n                     ('clf', FitParamT())])\n    pipe2 = pipe[:-1]\n    assert isinstance(pipe2, Pipeline)\n    assert pipe2.steps == pipe.steps[:-1]\n    assert 2 == len(pipe2.named_steps)\n    assert_raises(ValueError, lambda: pipe[::-1])\"\"\"\nnew = \"\"\"def test_pipeline_slice():\n    pipe = Pipeline([('transf1', Transf()),\n                     ('transf2', Transf()),\n                     ('clf', FitParamT())])\n    assert len(pipe) == 3\n    pipe2 = pipe[:-1]\n    assert isinstance(pipe2, Pipeline)\n    assert pipe2.steps == pipe.steps[:-1]\n    assert 2 == len(pipe2.named_steps)\n    assert_raises(ValueError, lambda: pipe[::-1])\"\"\"\nassert src.count(old) == 1\nsrc = src.replace(old, new)\n\n# 2) Extend test_pipeline_index with a len-based slice (issue scenario)\nold2 = \"\"\"def test_pipeline_index():\n    transf = Transf()\n    clf = FitParamT()\n    pipe = Pipeline([('transf', transf), ('clf', clf)])\n    assert pipe[0] == transf\n    assert pipe['transf'] == transf\n    assert pipe[-1] == clf\n    assert pipe['clf'] == clf\n    assert_raises(IndexError, lambda: pipe[3])\n    assert_raises(KeyError, lambda: pipe['foobar'])\"\"\"\nnew2 = \"\"\"def test_pipeline_index():\n    transf = Transf()\n    clf = FitParamT()\n    pipe = Pipeline([('transf', transf), ('clf', clf)])\n    assert pipe[0] == transf\n    assert pipe['transf'] == transf\n    assert pipe[-1] == clf\n    assert pipe['clf'] == clf\n    assert_raises(IndexError, lambda: pipe[3])\n    assert_raises(KeyError, lambda: pipe['foobar'])\n    assert len(pipe) == 2\n    # slicing with len() should not raise\n    assert pipe[:len(pipe)].steps == pipe.steps\"\"\"\nassert src.count(old2) == 1\nsrc = src.replace(old2, new2)\nopen(path, 'w').write(src)\nprint(\"done\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom sklearn import svm\nfrom sklearn.datasets import samples_generator\nfrom sklearn.feature_selection import SelectKBest\nfrom sklearn.feature_selection import f_regression\nfrom sklearn.pipeline import Pipeline\n\nX, y = samples_generator.make_classification(\n    n_informative=5, n_redundant=0, random_state=42)\n\nanova_filter = SelectKBest(f_regression, k=5)\nclf = svm.SVC(kernel='linear')\npipe = Pipeline([('anova', anova_filter), ('svc', clf)])\n\nprint('len(pipe) =', len(pipe))\nsub = pipe[:len(pipe)]\nprint('pipe[:len(pipe)] OK, steps:', [name for name, _ in sub.steps])\n\"",
+   "hit": null,
+   "lat_ms": 969.4
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest sklearn/tests/test_pipeline.py -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 2172.5
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 106.2
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "scikit-learn__scikit-learn-13439",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 6814.0,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

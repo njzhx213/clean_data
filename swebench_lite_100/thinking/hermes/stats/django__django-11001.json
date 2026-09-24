@@ -1,0 +1,866 @@
+{
+ "calls": 162,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 502259.966135025,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 69.9
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && python3 --version 2>&1; pip --version 2>&1; ls -la",
+   "hit": null,
+   "lat_ms": 377.5
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 && git status --short | head && cat django/__init__.py",
+   "hit": null,
+   "lat_ms": 384.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"ordering_parts\" -r django/ | head -20",
+   "hit": null,
+   "lat_ms": 233.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '1,60p' django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 72.0
+  },
+  {
+   "cmd": "cd /testbed && sed -n '300,420p' django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class OrderBy\" -A 40 django/db/models/expressions.py | head -60",
+   "hit": null,
+   "lat_ms": 69.1
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"def as_sql\" django/db/models/expressions.py | head && grep -n \"class RawSQL\" -A 60 django/db/models/expressions.py | head -90",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'EOF'\nimport re\nsrc = r'''\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    USE_TZ=True,\n)\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models.expressions import RawSQL\n\n\nclass Thing(models.Model):\n    status = models.CharField(max_length=20)\n    created_at = models.DateTimeField(auto_now_add=True)\n\n    class Meta:\n        app_label = 'auth'\n\n\n# Three distinct multi-line RawSQL ordering expressions whose last lines\n# are identical (\"else null end\") -- the reported scenario.\nqs = Thing.objects.all().order_by(\n    RawSQL('''\n        case when status in ('accepted', 'verification')\n                then 2 else 1 end''', []).desc(),\n    RawSQL('''\n        case when status in ('accepted', 'verification')\n                then created_at\n                else null end''', []).asc(),\n    RawSQL('''\n        case when status not in ('accepted', 'verification')\n                then created_at\n                else null end''', []).desc(),\n)\n\nsql = str(qs.query)\nprint(sql)\nprint()\nprint(\"ORDER BY keywords:\", sql.lower().count('order by'))\n\nexpected = [\n    \"then 2 else 1 end) DESC\",\n    \"then created_at\",\n    \"status not in\",\n    \"else null end) DESC\",\n]\nmissing = [e for e in expected if e not in sql]\nprint(\"missing fragments:\", missing)\nprint(\"BUG REPRODUCED\" if missing else \"OK: all three clauses present\")\n'''\nopen('repro.py', 'w').write(src)\nEOF\npython3 repro.py",
+   "hit": null,
+   "lat_ms": 163.6
+  },
+  {
+   "cmd": "cd /testbed && cat > repro.py <<'PYEOF'\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    USE_TZ=True,\n)\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models.expressions import RawSQL\n\n\nclass Thing(models.Model):\n    status = models.CharField(max_length=20)\n    created_at = models.DateTimeField(auto_now_add=True)\n\n    class Meta:\n        app_label = 'auth'\n\n\n# Three distinct multi-line RawSQL ordering expressions whose last lines\n# are identical (\"else null end\") -- the reported scenario.\nqs = Thing.objects.all().order_by(\n    RawSQL('''\n        case when status in ('accepted', 'verification')\n                then 2 else 1 end''', []).desc(),\n    RawSQL('''\n        case when status in ('accepted', 'verification')\n                then created_at\n                else null end''', []).asc(),\n    RawSQL('''\n        case when status not in ('accepted', 'verification')\n                then created_at\n                else null end''', []).desc(),\n)\n\nsql = str(qs.query)\nprint(sql)\nprint()\nprint(\"ORDER BY keywords:\", sql.lower().count('order by'))\n\nexpected = [\n    \"then 2 else 1 end) DESC\",\n    \"then created_at\",\n    \"status not in\",\n    \"else null end) DESC\",\n]\nmissing = [e for e in expected if e not in sql]\nprint(\"missing fragments:\", missing)\nprint(\"BUG REPRODUCED\" if missing else \"OK: all three clauses present\")\nPYEOF\npython3 repro.py",
+   "hit": null,
+   "lat_ms": 569.8
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PYEOF'\npath = 'django/db/models/sql/compiler.py'\nsrc = open(path).read()\n\nold_init = \"        self.klass_info = None\\n        self.ordering_parts = re.compile(r'(.*)\\\\s(ASC|DESC)(.*)')\\n        self._meta_ordering = None\\n\"\nnew_init = \"        self.klass_info = None\\n        self._meta_ordering = None\\n\"\nassert src.count(old_init) == 1, \"init block not found\"\nsrc = src.replace(old_init, new_init)\n\nold_get_order_by = \"\"\"            without_ordering = self.ordering_parts.search(sql).group(1)\n            params_hash = make_hashable(params)\"\"\"\nnew_get_order_by = \"\"\"            without_ordering = re.sub(r\" (\\\\S+)$\", \"\", sql)\n            params_hash = make_hashable(params)\"\"\"\nassert src.count(old_get_order_by) == 1, \"get_order_by block not found\"\nsrc = src.replace(old_get_order_by, new_get_order_by)\n\nold_extra = \"\"\"                without_ordering = self.ordering_parts.search(sql).group(1)\n                if not is_ref and (without_ordering, params) not in select_sql:\"\"\"\nnew_extra = \"\"\"                without_ordering = re.sub(r\" (\\\\S+)$\", \"\", sql)\n                if not is_ref and (without_ordering, params) not in select_sql:\"\"\"\nassert src.count(old_extra) == 1, \"get_extra_select block not found\"\nsrc = src.replace(old_extra, new_extra)\n\nopen(path, 'w').write(src)\nprint(\"patched\")\nPYEOF\ngit diff",
+   "hit": null,
+   "lat_ms": 163.7
+  },
+  {
+   "cmd": "cd /testbed && python3 repro.py",
+   "hit": null,
+   "lat_ms": 380.2
+  },
+  {
+   "cmd": "cd /testbed && cat > edgecases.py <<'PYEOF'\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n    USE_TZ=True,\n)\ndjango.setup()\n\nfrom django.db import models\nfrom django.db.models.expressions import RawSQL, F\n\n\nclass Thing(models.Model):\n    status = models.CharField(max_length=20)\n    created_at = models.DateTimeField(auto_now_add=True)\n\n    class Meta:\n        app_label = 'auth'\n\n\nok = True\n\ndef check(name, cond):\n    global ok\n    print((\"PASS\" if cond else \"FAIL\"), \"-\", name)\n    if not cond:\n        ok = False\n\n\n# 1. genuine duplicates: identical multi-line RawSQL twice -> deduped to one\nraw = RawSQL('''\n    case when status = 'a'\n            then 1 else 0 end''', [])\nsql = str(Thing.objects.order_by(raw.desc(), raw.desc()).query)\ncheck(\"identical RawSQL deduped to one clause\",\n      sql.lower().count('order by') == 1 and sql.count('case when') == 1)\n\n# 2. distinct multi-line RawSQL with same last line -> both kept\nsql = str(Thing.objects.order_by(\n    RawSQL('''\n        case when status in ('x')\n                then 1\n                else null end''', []).desc(),\n    RawSQL('''\n        case when status not in ('x')\n                then 2\n                else null end''', []).asc(),\n).query)\ncheck(\"distinct multi-line RawSQL both kept\",\n      \"status in ('x')\" in sql and \"status not in ('x')\" in sql\n      and sql.count('end)') == 2)\n\n# 3. plain field dedup still works\nsql = str(Thing.objects.order_by('status', 'status').query)\ncheck(\"duplicate plain field deduped\", sql.count('\"auth_thing\".\"status\"') == 1)\n\n# 4. opposite direction of same field: existing behavior keeps both? verify\nsql = str(Thing.objects.order_by('status', '-status').query)\ncheck(\"asc+desc same field both kept (direction kept in sql)\",\n      '\"auth_thing\".\"status\" ASC' in sql and '\"auth_thing\".\"status\" DESC' in sql)\n\n# 5. random ordering\nsql = str(Thing.objects.order_by('?').query)\ncheck(\"order_by('?') works\", 'random()' in sql.lower() and ' ASC' in sql)\n\n# 6. distinct() with order-by expr not in select -> extra select path\nsql = str(Thing.objects.distinct().order_by('created_at').query)\ncheck(\"distinct + order by\", 'ORDER BY' in sql.upper())\n\n# 7. distinct() with RawSQL order_by not in select (get_extra_select with multiline)\nsql = str(Thing.objects.distinct().order_by(\n    RawSQL('''\n        case when status = 'a'\n                then 1 else 0 end''', []).desc()).query)\ncheck(\"distinct + multiline RawSQL order by\",\n      'ORDER BY' in sql.upper() and 'case when status = ' in sql)\n\n# 8. RawSQL with params + direction, duplicated -> deduped\nraw2 = RawSQL(\"status = %s\", ['a'])\nsql = str(Thing.objects.order_by(raw2.desc(), raw2.desc()).query)\ncheck(\"identical RawSQL with params deduped\", sql.count('status = ') == 1)\n\nprint()\nprint(\"ALL PASS\" if ok else \"SOME FAILED\")\nPYEOF\npython3 edgecases.py",
+   "hit": null,
+   "lat_ms": 378.1
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PYEOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n)\ndjango.setup()\nfrom django.db import models\nclass Thing(models.Model):\n    status = models.CharField(max_length=20)\n    class Meta:\n        app_label = 'auth'\n\nprint(str(Thing.objects.order_by('status', 'status').query))\nprint(str(Thing.objects.order_by('status', '-status').query))\nPYEOF",
+   "hit": null,
+   "lat_ms": 382.8
+  },
+  {
+   "cmd": "cd /testbed && cat > dump_sql.py <<'PYEOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth'],\n)\ndjango.setup()\nfrom django.db import models\nfrom django.db.models import F\nfrom django.db.models.expressions import RawSQL, Value, Case, When\n\nclass Thing(models.Model):\n    status = models.CharField(max_length=20)\n    created_at = models.DateTimeField(auto_now_add=True)\n    n = models.IntegerField(default=0)\n    class Meta:\n        app_label = 'auth'\n\nqs_list = [\n    Thing.objects.order_by('status', 'status'),\n    Thing.objects.order_by('status', '-status'),\n    Thing.objects.order_by('status', 'created_at', 'status'),\n    Thing.objects.order_by('n', 'n', 'n'),\n    Thing.objects.order_by('?'),\n    Thing.objects.order_by('-n', '?'),\n    Thing.objects.order_by(F('status')),\n    Thing.objects.order_by(F('n').asc()),\n    Thing.objects.order_by(F('n').desc()),\n    Thing.objects.order_by(Case(When(status='a', then=Value(1)), default=Value(0)).desc()),\n    Thing.objects.order_by(RawSQL('case when status = \\'a\\' then 1 else 0 end', [])),\n    Thing.objects.order_by(RawSQL('case when status = \\'a\\' then 1 else 0 end', []).desc()),\n    Thing.objects.order_by(RawSQL('status = %s', ['a']).asc()),\n    Thing.objects.distinct().order_by('created_at'),\n    Thing.objects.distinct().order_by('n'),\n    Thing.objects.distinct().order_by(RawSQL('case when status = \\'a\\' then 1 else 0 end', [])),\n    Thing.objects.distinct().order_by('status', 'created_at'),\n    Thing.objects.values('status').order_by('status', '-n'),\n    Thing.objects.annotate(x=F('n')).order_by('x', '-x'),\n]\nfor i, qs in enumerate(qs_list):\n    try:\n        print(\"== query %d ==\" % i)\n        print(str(qs.query))\n    except Exception as e:\n        print(\"== query %d == ERROR: %r\" % (i, e))\nPYEOF\ngit stash -q && python3 dump_sql.py > /tmp/sql_before.txt 2>&1; git stash pop -q && python3 dump_sql.py > /tmp/sql_after.txt 2>&1; diff /tmp/sql_before.txt /tmp/sql_after.txt && echo \"NO DIFFERENCES\"",
+   "hit": null,
+   "lat_ms": 1007.0
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PYEOF'\nsrc = open('dump_sql.py').read()\naddition = \"\"\"\nqs_list += [\n    Thing.objects.order_by(\n        RawSQL('''\n            case when status in ('accepted', 'verification')\n                    then 2 else 1 end''', []).desc(),\n        RawSQL('''\n            case when status in ('accepted', 'verification')\n                    then created_at\n                    else null end''', []).asc(),\n        RawSQL('''\n            case when status not in ('accepted', 'verification')\n                    then created_at\n                    else null end''', []).desc(),\n    ),\n]\n\"\"\"\nsrc = src.replace(\"for i, qs in enumerate(qs_list):\", addition + \"\\nfor i, qs in enumerate(qs_list):\")\nopen('dump_sql.py','w').write(src)\nPYEOF\ngit stash -q && python3 dump_sql.py > /tmp/sql_before2.txt 2>&1; git stash pop -q && python3 dump_sql.py > /tmp/sql_after2.txt 2>&1; diff /tmp/sql_before2.txt /tmp/sql_after2.txt",
+   "hit": null,
+   "lat_ms": 971.2
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py ordering expressions distinct db_functions values custom_raw_sql annotations 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 1407.5
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py ordering expressions distinct db_functions values custom_raw_sql annotations 2>&1 | grep -E \"^(OK|FAILED|ERROR|Ran |System check)\" ",
+   "hit": null,
+   "lat_ms": 1172.2
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py distinct 2>&1 | grep -B2 -A15 \"ERROR: distinct\" | head -40",
+   "hit": null,
+   "lat_ms": 569.8
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | head -30 && echo --- && ls -d tests/ordering tests/expressions tests/distinct tests/values tests/custom_raw_sql 2>&1 && echo --- && python3 tests/runtests.py tests.distinct 2>&1 | grep -E \"^(OK|FAILED|Ran|System)\" ",
+   "hit": null,
+   "lat_ms": 164.5
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | grep -iE \"distinct|value|raw|query\" && echo --- && grep -rln \"distinct\" tests/*/tests.py | head -20",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py ordering expressions distinct_on_fields queries aggregation aggregation_regress extra_regress expressions_window raw_query basic lookup 2>&1 | grep -E \"^(OK|FAILED|ERROR|Ran |System check)\"",
+   "hit": null,
+   "lat_ms": 2171.8
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py ordering.tests -v 2 2>&1 | grep -cE \"\\.\\.\\. (ok|skipped)\" && python3 tests/runtests.py ordering.tests.OrderingTests.test_ordering -v 2 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 972.2
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py ordering.tests.OrderingTests.test_ordering -v 2 2>&1 | grep -A8 \"ERROR\" | head -15; grep -n \"^class\\|def test_ordering\\b\" tests/ordering/tests.py | head",
+   "hit": null,
+   "lat_ms": 571.1
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 tests/runtests.py 2>&1 | tail -30' > /tmp/hermes_bg_proc_e40101e02de9.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_e40101e02de9.exit ) & echo $! > /tmp/hermes_bg_proc_e40101e02de9.pid && cat /tmp/hermes_bg_proc_e40101e02de9.pid",
+   "hit": null,
+   "lat_ms": 2169.9
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"ordering_parts\" django/ tests/ 2>/dev/null; echo \"refs done\" && git diff --stat",
+   "hit": null,
+   "lat_ms": 378.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '340,372p' django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 376.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 778.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 768.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 771.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 771.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 971.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 569.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 568.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 380.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 769.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 376.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 572.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 570.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 570.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 572.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 377.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 376.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 572.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 572.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 572.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 568.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 769.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 379.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 973.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 568.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 770.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 377.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 574.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 247.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 162.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 162.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_e40101e02de9.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_e40101e02de9.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /testbed && python3 tests/runtests.py > /tmp/full_tests.log 2>&1; echo \"EXIT: $?\" >> /tmp/full_tests.log' > /tmp/hermes_bg_proc_99971b19adbf.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_99971b19adbf.exit ) & echo $! > /tmp/hermes_bg_proc_99971b19adbf.pid && cat /tmp/hermes_bg_proc_99971b19adbf.pid",
+   "hit": null,
+   "lat_ms": 2213.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 68.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 77.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 770.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 570.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 379.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 769.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 969.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 971.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 573.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 979.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 768.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 970.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 772.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 1171.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 770.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 771.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 773.0
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 968.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 570.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 769.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 768.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 774.2
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 378.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 971.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 768.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 969.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 569.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 575.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 249.1
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 248.0
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 162.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 163.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 66.9
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 248.2
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_99971b19adbf.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_99971b19adbf.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py --parallel=4 2>&1 | tail -25",
+   "hit": null,
+   "lat_ms": 177494.0
+  },
+  {
+   "cmd": "cd /testbed && git stash -q && python3 tests/runtests.py --parallel=4 > /tmp/before.log 2>&1; git stash pop -q && python3 tests/runtests.py --parallel=4 > /tmp/after.log 2>&1; grep -E \"^(FAIL|ERROR):\" /tmp/before.log | sort > /tmp/before_failures.txt; grep -E \"^(FAIL|ERROR):\" /tmp/after.log | sort > /tmp/after_failures.txt; echo \"=== BEFORE (pristine): $(wc -l < /tmp/before_failures.txt) failing tests ===\"; echo \"=== AFTER (patched): $(wc -l < /tmp/after_failures.txt) failing tests ===\"; echo \"=== diff (only-in-before / only-in-after) ===\"; diff /tmp/before_failures.txt /tmp/after_failures.txt && echo \"IDENTICAL FAILURE SETS\"; grep -E \"^(OK|FAILED)\" /tmp/before.log /tmp/after.log",
+   "hit": null,
+   "lat_ms": 262325.0
+  },
+  {
+   "cmd": "cat /tmp/after_failures.txt",
+   "hit": null,
+   "lat_ms": 70.6
+  },
+  {
+   "cmd": "cd /testbed && rm -f repro.py edgecases.py dump_sql.py && git status --short && echo --- && git diff",
+   "hit": null,
+   "lat_ms": 255.6
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-11001",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 502260.0,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

@@ -1,0 +1,566 @@
+{
+ "calls": 102,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 46840.55757522583,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "python3 --version; pip3 --version; which git; echo \"---\"; python3 -c \"import django; print('Django', django.get_version()); print(django.__file__)\" 2>&1 | head -20",
+   "hit": null,
+   "lat_ms": 381.0
+  },
+  {
+   "cmd": "pwd; ls -la /root 2>/dev/null; echo \"---home---\"; ls -la ~ 2>/dev/null; echo \"---find django checkouts---\"; find / -maxdepth 4 -type d -name \"django\" 2>/dev/null | head; find / -maxdepth 5 -name \"query.py\" -path \"*models/sql*\" 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 376.5
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 2>/dev/null; echo \"--- status ---\"; git status 2>/dev/null | head -20; echo \"--- structure ---\"; ls -la; echo \"--- test dir ---\"; ls tests/ 2>/dev/null | head -40",
+   "hit": null,
+   "lat_ms": 377.7
+  },
+  {
+   "cmd": "cd /testbed/django/db/models && grep -n \"def union\\|def intersection\\|def difference\\|def _combine\\|combined\" query.py | head -40",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /testbed/django/db/models && sed -n '900,970p' query.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && grep -n \"combined_queries\\|def _clone\\|def clone\\|def chain\\|def as_sql\\|COMBINED\" query.py compiler.py | head -40",
+   "hit": null,
+   "lat_ms": 70.0
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && sed -n '280,360p' query.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed/django/db/models && grep -n \"def _chain\\|def _clone\\|def _filter_or_exclude\\|def order_by\\|def values_list\\|def values\\b\" query.py",
+   "hit": null,
+   "lat_ms": 133.6
+  },
+  {
+   "cmd": "cd /testbed && git show 14d026cccb --stat; echo \"=== DIFF ===\"; git show 14d026cccb | head -200",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && sed -n '395,475p' compiler.py",
+   "hit": null,
+   "lat_ms": 107.5
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && ls -la test_qs_combinators.py; echo \"=== models ===\"; grep -n \"class Number\\|class Person\\|class Author\\|models.Model\\|models\\.\" models.py 2>/dev/null | head; echo \"=== models in test dir ===\"; ls; echo \"=== Number model ===\"; grep -rn \"class Number\" models/ 2>/dev/null",
+   "hit": null,
+   "lat_ms": 112.0
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && sed -n '1,60p' test_qs_combinators.py",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && grep -n \"class Number\\|class ReservedName\" -A 15 models.py",
+   "hit": null,
+   "lat_ms": 72.4
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && sed -n '95,135p' test_qs_combinators.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && cat tests/test_sqlite.py 2>/dev/null | head -30; echo \"=== settings ===\"; ls tests/*.py | head; echo \"=== runtests ===\"; ls tests/runtests.py; echo \"=== sqlite availability ===\"; python3 -c \"import sqlite3; print(sqlite3.sqlite_version)\"",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && cat > /tmp/repro_test.py <<'PYEOF'\nfrom django.test import TestCase, skipUnlessDBFeature\nfrom .models import ReservedName\n\n\n@skipUnlessDBFeature('supports_select_union')\nclass ReproTicketTests(TestCase):\n    def test_union_ordering_with_derived_queryset(self):\n        # Mirror the ticket: a union where the 2nd branch has its own ordering.\n        ReservedName.objects.bulk_create(\n            [ReservedName(name=f'n{i}', order=i) for i in range(8)]\n        )\n        qs = ReservedName.objects.filter(pk__in=[1, 2]).union(\n            ReservedName.objects.filter(pk__in=[7, 8]).order_by('order'),\n        )\n        # 1) evaluate original\n        first = [r.pk for r in qs]\n        print(\"FIRST EVAL:\", first)\n        # 2) create + evaluate a derived queryset (order_by() + values_list)\n        derived = qs.order_by().values_list('pk', flat=True)\n        print(\"DERIVED EVAL:\", list(derived))\n        # 3) re-evaluate the original queryset -> must still work\n        second = [r.pk for r in qs]\n        print(\"SECOND EVAL:\", second)\n        self.assertEqual(sorted(first), sorted(second))\nPYEOF\ncp /tmp/repro_test.py test_repro_ticket.py\ncd /testbed && python3 tests/runtests.py queries.test_repro_ticket -v 2 2>&1 | tail -60",
+   "hit": null,
+   "lat_ms": 1170.4
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py queries.test_repro_ticket -v 2 2>&1 | grep -vE \"Creating table|Applying |Running deferred|System check|Migration\" | tail -40",
+   "hit": null,
+   "lat_ms": 971.9
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"supports_slicing_ordering_in_compound\" django/db/backends/*/features.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '476,560p' django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 112.2
+  },
+  {
+   "cmd": "which psql postgres pg_ctl initdb 2>/dev/null; echo \"---\"; ls /usr/lib/postgresql 2>/dev/null; ls /usr/pgsql* 2>/dev/null; echo \"--- docker? ---\"; which docker 2>/dev/null; echo \"--- apt ---\"; which apt-get 2>/dev/null; echo \"--- env pg ---\"; env | grep -i -E \"pg|postgres\" 2>/dev/null; echo \"--- any pg socket ---\"; ls /var/run/postgresql 2>/dev/null; echo done",
+   "hit": null,
+   "lat_ms": 169.1
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport django\nfrom django.conf import settings\nsettings.configure(DATABASES={'default':{'ENGINE':'django.db.backends.postgresql','NAME':'x','USER':'x','PASSWORD':'x','HOST':'localhost'}}, DEBUG=True)\ndjango.setup()\nfrom django.db import connections\ntry:\n    c = connections['default']\n    c.ensure_connection()\n    print('PG CONNECTED', c.connection)\nexcept Exception as e:\n    print('PG not available:', type(e).__name__, str(e)[:200])\n\"",
+   "hit": null,
+   "lat_ms": 381.8
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && grep -n \"def set_values\\|self.order_by\\s*=\\|order_by = \\|self.select\\b\\|def add_ordering\\|def _add_ordering\" query.py | head -40",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && grep -n \"self.order_by\" query.py | head -40; echo \"=== init ===\"; sed -n '200,260p' query.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && sed -n '1826,1960p' query.py",
+   "hit": null,
+   "lat_ms": 68.2
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && sed -n '2030,2110p' query.py",
+   "hit": null,
+   "lat_ms": 110.1
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && grep -n \"def pre_sql_setup\\|def get_order_by\\|def get_select\\|def _get_order_by\" compiler.py",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && sed -n '640,780p' compiler.py",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && sed -n '46,184p' compiler.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && sed -n '254,340p' compiler.py",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && sed -n '340,400p' compiler.py",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cd /testbed/django/db/models && grep -n \"class OrderBy\\|class Col\\|class ResolvedExpression\\|class Reference\\|class Ref\\|def set_source_expressions\\|def get_source_expressions\\|def resolve_expression\\|def copy\\|def relabeled_clone\" expressions.py",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /testbed/django/db/models && sed -n '220,240p' expressions.py; echo \"=== Col 718 ===\"; sed -n '718,830p' expressions.py",
+   "hit": null,
+   "lat_ms": 503.0
+  },
+  {
+   "cmd": "cd /testbed/django/db/models && sed -n '1069,1130p' expressions.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed/django/db/models && sed -n '320,345p' expressions.py; echo \"=== Expression.copy ===\"; sed -n '610,640p' expressions.py; echo \"=== Func copy 958 ===\"; sed -n '955,975p' expressions.py",
+   "hit": null,
+   "lat_ms": 111.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"supports_parentheses_in_compound\\|supports_slicing_ordering_in_compound\" django/db/backends/sqlite3/features.py django/db/backends/base/features.py",
+   "hit": null,
+   "lat_ms": 120.5
+  },
+  {
+   "cmd": "cd /testbed/django/db/models && sed -n '224,262p' expressions.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /testbed/django/db/models && sed -n '140,180p' expressions.py",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && cat > test_repro_ticket.py <<'PYEOF'\nfrom django.db import connections\nfrom django.test import TestCase, skipUnlessDBFeature\nfrom .models import ReservedName\n\n\n@skipUnlessDBFeature('supports_select_union')\nclass ReproTicketTests(TestCase):\n    def test_union_ordering_with_derived_queryset(self):\n        conn = connections['default']\n        # Simulate PostgreSQL: allow ORDER BY inside compound subqueries.\n        conn.features.supports_slicing_ordering_in_compound = True\n\n        ReservedName.objects.bulk_create(\n            [ReservedName(name=f'n{i}', order=i) for i in range(8)]\n        )\n        qs = ReservedName.objects.filter(pk__in=[1, 2]).union(\n            ReservedName.objects.filter(pk__in=[7, 8]).order_by('order'),\n        )\n        C = qs.query\n        b1, b2 = C.combined_queries\n        print(\"=== BEFORE derived ===\")\n        print(\"C id:\", id(C), \"b1 id:\", id(b1), \"b2 id:\", id(b2))\n        print(\"b2.order_by:\", b2.order_by)\n        print(\"b2.select:\", b2.select)\n        print(\"b2.values_select:\", b2.values_select)\n        print(\"original SQL:\", str(C))\n\n        first = [r.pk for r in qs]\n        print(\"FIRST EVAL:\", first)\n\n        derived = qs.order_by().values_list('pk', flat=True)\n        list(derived)\n        print(\"DERIVED EVAL done\")\n\n        print(\"=== AFTER derived ===\")\n        print(\"b2.order_by:\", b2.order_by)\n        print(\"b2.select:\", b2.select)\n        print(\"b2.values_select:\", b2.values_select)\n        print(\"original SQL now:\", str(C))\n        second = [r.pk for r in qs]\n        print(\"SECOND EVAL:\", second)\nPYEOF\ncd /testbed && python3 tests/runtests.py queries.test_repro_ticket -v 2 2>&1 | grep -vE \"Creating table|Applying |Running deferred|System check\" | grep -A 40 \"FIRST EVAL\\|=== BEFORE\\|=== AFTER\\|Error\\|ERROR\\|Traceback\" | head -60",
+   "hit": null,
+   "lat_ms": 970.6
+  },
+  {
+   "cmd": "cd /testbed && python3 -c \"\nimport sqlite3\nc = sqlite3.connect(':memory:')\nc.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT, ord INTEGER)')\nc.executemany('INSERT INTO t VALUES (?,?,?)', [(1,'a',1),(2,'b',2),(7,'c',3),(8,'d',4)])\nsql = '(SELECT id, name, ord FROM t WHERE id IN (1, 2)) UNION (SELECT id, name, ord FROM t WHERE id IN (7, 8) ORDER BY ord ASC)'\ntry:\n    print('ROWS:', c.execute(sql).fetchall())\nexcept Exception as e:\n    print('ERR:', e)\nprint('sqlite', sqlite3.sqlite_version)\n\"",
+   "hit": null,
+   "lat_ms": 111.4
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && cat > test_repro_ticket.py <<'PYEOF'\nfrom django.db import connections\nfrom django.test import TestCase, skipUnlessDBFeature\nfrom .models import ReservedName\n\n\ndef snap(label, C, b1, b2):\n    print(label)\n    print(\"  C id=%d comb=%r order_by=%r default_ordering=%r values_select=%r\" % (\n        id(C), C.combinator, C.order_by, C.default_ordering, C.values_select))\n    print(\"  b2 id=%d order_by=%r select=%r values_select=%r default_ordering=%r\" % (\n        id(b2), b2.order_by, b2.select, b2.values_select, b2.default_ordering))\n\n\n@skipUnlessDBFeature('supports_select_union')\nclass ReproTicketTests(TestCase):\n    def test_compile_only(self):\n        conn = connections['default']\n        ReservedName.objects.bulk_create(\n            [ReservedName(name=f'n{i}', order=i) for i in range(8)]\n        )\n        qs = ReservedName.objects.filter(pk__in=[1, 2]).union(\n            ReservedName.objects.filter(pk__in=[7, 8]).order_by('order'),\n        )\n        C = qs.query\n        b1, b2 = C.combined_queries\n\n        # Compile original (SQL generation only, no execution)\n        orig_sql, _ = C.get_compiler('default', conn).as_sql()\n        snap(\"=== AFTER compiling ORIGINAL ===\", C, b1, b2)\n        print(\"  orig SQL:\", orig_sql)\n\n        derived = qs.order_by().values_list('pk', flat=True)\n        D = derived.query\n        print(\"  D id=%d comb=%r order_by=%r values_select=%r combined_queries is C.combined_queries? %s\" % (\n            id(D), D.combinator, D.order_by, D.values_select, D.combined_queries is C.combined_queries))\n\n        # Compile derived (SQL generation only, no execution)\n        der_sql, _ = D.get_compiler('default', conn).as_sql()\n        snap(\"=== AFTER compiling DERIVED ===\", C, b1, b2)\n        print(\"  der SQL:\", der_sql)\n\n        # Compile original again\n        orig_sql2, _ = C.get_compiler('default', conn).as_sql()\n        snap(\"=== AFTER recompiling ORIGINAL ===\", C, b1, b2)\n        print(\"  orig SQL (2nd):\", orig_sql2)\nPYEOF\ncd /testbed && python3 tests/runtests.py queries.test_repro_ticket -v 1 2>&1 | grep -vE \"Creating table|Applying |Running deferred|System check|Creating test|Destroying\" | head -60",
+   "hit": null,
+   "lat_ms": 970.3
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && cat > test_repro_ticket.py <<'PYEOF'\nfrom django.db import connections\nfrom django.test import TestCase, skipUnlessDBFeature\nfrom .models import ReservedName\n\n\ndef snap(label, C, b2):\n    print(label)\n    print(\"  C id=%d comb=%r order_by=%r def_ord=%r values=%r\" % (\n        id(C), C.combinator, C.order_by, C.default_ordering, C.values_select))\n    print(\"  b2 id=%d order_by=%r select=%r values=%r def_ord=%r\" % (\n        id(b2), b2.order_by, b2.select, b2.values_select, b2.default_ordering))\n\n\n@skipUnlessDBFeature('supports_select_union')\nclass ReproTicketTests(TestCase):\n    def test_compile_only(self):\n        conn = connections['default']\n        conn.features.supports_slicing_ordering_in_compound = True  # simulate PG\n\n        ReservedName.objects.bulk_create(\n            [ReservedName(name=f'n{i}', order=i) for i in range(8)]\n        )\n        qs = ReservedName.objects.filter(pk__in=[1, 2]).union(\n            ReservedName.objects.filter(pk__in=[7, 8]).order_by('order'),\n        )\n        C = qs.query\n        b1, b2 = C.combined_queries\n\n        orig_sql, _ = C.get_compiler('default', conn).as_sql()\n        snap(\"=== AFTER compiling ORIGINAL ===\", C, b2)\n        print(\"  orig SQL:\", orig_sql)\n\n        derived = qs.order_by().values_list('pk', flat=True)\n        D = derived.query\n        print(\"  D id=%d comb=%r order_by=%r values=%r shared_combined=%s\" % (\n            id(D), D.combinator, D.order_by, D.values_select, D.combined_queries is C.combined_queries))\n\n        der_sql, _ = D.get_compiler('default', conn).as_sql()\n        snap(\"=== AFTER compiling DERIVED ===\", C, b2)\n        print(\"  der SQL:\", der_sql)\n\n        orig_sql2, _ = C.get_compiler('default', conn).as_sql()\n        snap(\"=== AFTER recompiling ORIGINAL ===\", C, b2)\n        print(\"  orig SQL (2nd):\", orig_sql2)\n        self.assertIn('ORDER BY', orig_sql2)\nPYEOF\ncd /testbed && python3 tests/runtests.py queries.test_repro_ticket -v 1 2>&1 | grep -vE \"Creating table|Applying |Running deferred|System check|Creating test|Destroying\" | head -60",
+   "hit": null,
+   "lat_ms": 970.5
+  },
+  {
+   "cmd": "cd /testbed && timeout 15 python3 -c \"import urllib.request; print(urllib.request.urlopen('https://docs.djangoproject.com', timeout=10).status)\" 2>&1 | head -5; echo \"--- pip index ---\"; timeout 20 pip3 download --no-deps --dest /tmp/dl django==3.0 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 8177.2
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && grep -n \"def setup_query\\|self.select =\" compiler.py | head; echo \"=== setup_query body ===\"; sed -n '1445,1520p' compiler.py",
+   "hit": null,
+   "lat_ms": 106.8
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && sed -n '28,46p' compiler.py; echo \"=== get_select 184 ===\"; sed -n '184,254p' compiler.py",
+   "hit": null,
+   "lat_ms": 68.1
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && grep -n \"def add_fields\\|def clear_select_fields\\|def add_immediate_loading\\|def setup_joins\\|def name_to_col\" query.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && awk 'NR>=1560 && NR<=1700' query.py",
+   "hit": null,
+   "lat_ms": 765.2
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && sed -n '1768,1826p' query.py",
+   "hit": null,
+   "lat_ms": 102.9
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && cat > test_repro_ticket.py <<'PYEOF'\nfrom django.db import connections\nfrom django.test import TestCase, skipUnlessDBFeature\nfrom .models import Number, ReservedName\n\n\ndef sql_of(query, conn):\n    try:\n        s, _ = query.get_compiler('default', conn).as_sql()\n        return s\n    except Exception as e:\n        return \"EXC: %s: %s\" % (type(e).__name__, e)\n\n\n@skipUnlessDBFeature('supports_select_union')\nclass ReproTests(TestCase):\n    def setUp(self):\n        self.conn = connections['default']\n        # simulate PG: allow ordering/slicing in compound\n        self.conn.features.supports_slicing_ordering_in_compound = True\n        Number.objects.bulk_create(Number(num=i) for i in range(10))\n\n    def check(self, label, build_orig, build_derived):\n        orig = build_orig()\n        o1 = sql_of(orig.query, self.conn)\n        o_state = (orig.query.order_by, orig.query.values_select)\n        branch_states = [\n            (b.order_by, b.select, b.values_select)\n            for b in orig.query.combined_queries\n        ]\n        derived = build_derived(orig)\n        sql_of(derived.query, self.conn)  # compile derived (the \"evaluation\")\n        o2 = sql_of(orig.query, self.conn)\n        o_state2 = (orig.query.order_by, orig.query.values_select)\n        branch_states2 = [\n            (b.order_by, b.select, b.values_select)\n            for b in orig.query.combined_queries\n        ]\n        changed = (o1 != o2) or (o_state != o_state2) or (branch_states != branch_states2)\n        print(\"### %s => MUTATED=%s\" % (label, changed))\n        if changed:\n            print(\"   orig SQL before:\", o1)\n            print(\"   orig SQL after :\", o2)\n            print(\"   orig state before:\", o_state, \"after:\", o_state2)\n            print(\"   branches before:\", branch_states)\n            print(\"   branches after :\", branch_states2)\n        else:\n            print(\"   (no change) orig SQL:\", o1[:90])\n\n    def test_scenarios(self):\n        # A: order_by on branch (ticket scenario), derived = order_by()+values_list\n        self.check(\"A: branch order_by; derived .order_by().values_list(pk)\",\n            lambda: Number.objects.filter(num__lte=1).union(\n                Number.objects.filter(num__gte=8).order_by('num')),\n            lambda o: o.order_by().values_list('pk', flat=True))\n        # B: order_by on branch, derived = values_list only\n        self.check(\"B: branch order_by; derived .values_list(pk)\",\n            lambda: Number.objects.filter(num__lte=1).union(\n                Number.objects.filter(num__gte=8).order_by('num')),\n            lambda o: o.values_list('pk', flat=True))\n        # C: no branch order_by, derived = order_by()+values_list\n        self.check(\"C: no branch order; derived .order_by(num).values_list(pk)\",\n            lambda: Number.objects.filter(num__lte=1).union(\n                Number.objects.filter(num__gte=8)),\n            lambda o: o.order_by('num').values_list('pk', flat=True))\n        # D: no branch order, derived = values_list only\n        self.check(\"D: no branch order; derived .values_list(pk)\",\n            lambda: Number.objects.filter(num__lte=1).union(\n                Number.objects.filter(num__gte=8)),\n            lambda o: o.values_list('pk', flat=True))\n        # E: combined order_by, derived = values_list only\n        self.check(\"E: combined order_by; derived .values_list(pk)\",\n            lambda: Number.objects.filter(num__lte=1).union(\n                Number.objects.filter(num__gte=8)).order_by('num'),\n            lambda o: o.values_list('pk', flat=True))\n        print(\"DONE\")\nPYEOF\ncd /testbed && python3 tests/runtests.py queries.test_repro_ticket -v 1 2>&1 | grep -vE \"Creating table|Applying |Running deferred|System check|Creating test|Destroying\" | head -60",
+   "hit": null,
+   "lat_ms": 971.5
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && sed -n '560,640p' compiler.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /testbed/django/db/models && grep -n \"default_ordering\" query.py sql/query.py",
+   "hit": null,
+   "lat_ms": 142.1
+  },
+  {
+   "cmd": "cd /testbed/django/db/models && grep -rn \"default_ordering\" sql/ | grep -v \"def \\|#\"; echo \"=== where default_ordering set to True ===\"; grep -rn \"default_ordering = True\\|default_ordering=True\" sql/",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && git show 4948fbe849 --stat | head -40; echo \"=== full diff of SWE-bench commit (if small) ===\"; git show 4948fbe849 | head -100",
+   "hit": null,
+   "lat_ms": 125.1
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && cat > test_repro_ticket.py <<'PYEOF'\nfrom django.db import connections\nfrom django.test import TestCase, skipUnlessDBFeature\nfrom .models import Number\n\n\ndef sql_of(query, conn):\n    try:\n        s, _ = query.get_compiler('default', conn).as_sql()\n        return s\n    except Exception as e:\n        return \"EXC: %s: %s\" % (type(e).__name__, e)\n\n\n@skipUnlessDBFeature('supports_select_union')\nclass ReproTests(TestCase):\n    def setUp(self):\n        self.conn = connections['default']\n\n    def check(self, label, build_orig, build_derived):\n        orig = build_orig()\n        o1 = sql_of(orig.query, self.conn)\n        dstate1 = (orig.query.order_by, orig.query.values_select,\n                   orig.query.default_ordering, orig.query.combinator)\n        derived = build_derived(orig)\n        sql_of(derived.query, self.conn)\n        o2 = sql_of(orig.query, self.conn)\n        dstate2 = (orig.query.order_by, orig.query.values_select,\n                   orig.query.default_ordering, orig.query.combinator)\n        b1 = [ (b.order_by, b.values_select) for b in orig.query.combined_queries ]\n        changed = (o1 != o2) or (dstate1 != dstate2)\n        print(\"### %-55s MUTATED=%s\" % (label, changed))\n        if changed:\n            print(\"   before:\", o1)\n            print(\"   after :\", o2)\n            print(\"   dstate before:\", dstate1, \"after:\", dstate2)\n        return changed\n\n    def test_scenarios(self):\n        N = Number.objects\n        base = lambda: N.filter(num__lte=1).union(N.filter(num__gte=8))\n        any_mut = False\n        any_mut |= self.check(\"orig=union(); derived=.order_by(num)\",\n            base, lambda o: o.order_by('num'))\n        any_mut |= self.check(\"orig=union(); derived=.order_by()\",\n            base, lambda o: o.order_by())\n        any_mut |= self.check(\"orig=union().order_by(num); derived=.values_list(num,pk)\",\n            lambda: base().order_by('num'), lambda o: o.values_list('num', 'pk'))\n        any_mut |= self.check(\"orig=union().order_by(num); derived=.values_list(pk)\",\n            lambda: base().order_by('num'), lambda o: o.values_list('pk'))\n        any_mut |= self.check(\"orig=union().order_by(num); derived=.order_by()\",\n            lambda: base().order_by('num'), lambda o: o.order_by())\n        any_mut |= self.check(\"orig=union().order_by(num); derived=.filter(num__lt=9)\",\n            lambda: base().order_by('num'), lambda o: o.filter(num__lt=9))\n        any_mut |= self.check(\"orig=union(); derived=.values_list(num,pk).order_by(num)\",\n            base, lambda o: o.values_list('num', 'pk').order_by('num'))\n        any_mut |= self.check(\"orig=union().order_by(num); derived=.values_list(num).order_by()\",\n            lambda: base().order_by('num'), lambda o: o.values_list('num').order_by())\n        any_mut |= self.check(\"orig=union(); derived=.order_by(num).values_list(num,pk)\",\n            base, lambda o: o.order_by('num').values_list('num', 'pk'))\n        any_mut |= self.check(\"orig=union(); derived=.values_list(num,pk).order_by(num)\",\n            base, lambda o: o.values_list('num', 'pk').order_by('num'))\n        print(\"ANY_MUTATION =\", any_mut)\nPYEOF\ncd /testbed && python3 tests/runtests.py queries.test_repro_ticket -v 1 2>&1 | grep -vE \"Creating table|Applying |Running deferred|System check|Creating test|Destroying\" | head -50",
+   "hit": null,
+   "lat_ms": 971.3
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && cat > test_repro_ticket.py <<'PYEOF'\nfrom django.db import connections\nfrom django.test import TestCase, skipUnlessDBFeature\nfrom .models import Number\n\n\ndef sql_of(query, conn):\n    try:\n        s, _ = query.get_compiler('default', conn).as_sql()\n        return s\n    except Exception as e:\n        return \"EXC: %s: %s\" % (type(e).__name__, e)\n\n\n@skipUnlessDBFeature('supports_select_union')\nclass ReproExec(TestCase):\n    def setUp(self):\n        self.conn = connections['default']\n        Number.objects.bulk_create(Number(num=i) for i in range(10))\n\n    def check(self, label, build_orig, build_derived):\n        orig = build_orig()\n        o1 = sql_of(orig.query, self.conn)\n        r1 = sorted(orig.values_list('num', flat=True))   # execute original\n        derived = build_derived(orig)\n        r_derived = list(derived)                          # execute derived\n        o2 = sql_of(orig.query, self.conn)\n        r2 = sorted(orig.values_list('num', flat=True))    # re-execute original\n        changed = (o1 != o2) or (r1 != r2)\n        print(\"### %-52s MUTATED=%s derived=%s\" % (label, changed, r_derived[:6]))\n        if changed:\n            print(\"   SQL before:\", o1)\n            print(\"   SQL after :\", o2)\n            print(\"   rows before:\", r1, \"rows after:\", r2)\n        return changed\n\n    def test_exec_scenarios(self):\n        N = Number.objects\n        base = lambda: N.filter(num__lte=1).union(N.filter(num__gte=8))\n        any_mut = False\n        any_mut |= self.check(\"union().order_by(num) | derived .values_list(num,pk)\",\n            lambda: base().order_by('num'), lambda o: o.values_list('num', 'pk'))\n        any_mut |= self.check(\"union().order_by(num) | derived .values_list(num)\",\n            lambda: base().order_by('num'), lambda o: o.values_list('num'))\n        any_mut |= self.check(\"union().order_by(num) | derived .order_by()\",\n            lambda: base().order_by('num'), lambda o: o.order_by())\n        any_mut |= self.check(\"union().order_by(num) | derived .values_list(pk)\",\n            lambda: base().order_by('num'), lambda o: o.values_list('pk', flat=True))\n        any_mut |= self.check(\"union() | derived .order_by(num).values_list(num,pk)\",\n            base, lambda o: o.order_by('num').values_list('num', 'pk'))\n        print(\"ANY_MUTATION =\", any_mut)\nPYEOF\ncd /testbed && python3 tests/runtests.py queries.test_repro_ticket -v 1 2>&1 | grep -vE \"Creating table|Applying |Running deferred|System check|Creating test|Destroying\" | head -40",
+   "hit": null,
+   "lat_ms": 970.0
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && sed -n '135,320p' test_qs_combinators.py",
+   "hit": null,
+   "lat_ms": 602.9
+  },
+  {
+   "cmd": "cd /testbed/django/db/models && sed -n '1212,1240p' query.py; echo \"=== _clone ===\"; sed -n '1360,1385p' query.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && sed -n '292,337p' query.py",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cd /testbed/django && grep -rn \"combined_queries\" db/ | grep -v \".pyc\"",
+   "hit": null,
+   "lat_ms": 146.3
+  },
+  {
+   "cmd": "cd /testbed/django/db/models/sql && python3 - <<'PYEOF'\nimport re\nsrc = open('query.py').read()\nanchor = \"        obj._filtered_relations = self._filtered_relations.copy()\\n        # Clear the cached_property\"\nassert anchor in src, \"anchor not found\"\nfix = (\n\"        obj._filtered_relations = self._filtered_relations.copy()\\n\"\n\"        if self.combined_queries:\\n\"\n\"            # Combined querysets share their subqueries, so clone them to\\n\"\n\"            # prevent modifications from being made to the original\\n\"\n\"            # queryset when the cloned queryset is modified.\\n\"\n\"            obj.combined_queries = tuple(q.clone() for q in self.combined_queries)\\n\"\n\"        # Clear the cached_property\"\n)\nsrc = src.replace(anchor, fix, 1)\nopen('query.py','w').write(src)\nprint(\"patched clone()\")\nPYEOF\nsed -n '325,340p' query.py",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && cat > test_repro_ticket.py <<'PYEOF'\nfrom django.db import connections\nfrom django.test import TestCase, skipUnlessDBFeature\nfrom .models import Number\n\n\ndef sql_of(query, conn):\n    try:\n        s, _ = query.get_compiler('default', conn).as_sql()\n        return s\n    except Exception as e:\n        return \"EXC: %s: %s\" % (type(e).__name__, e)\n\n\n@skipUnlessDBFeature('supports_select_union')\nclass ReproTicket(TestCase):\n    \"\"\"Ticket: union with branch ordering, derived order_by().values_list() corrupts original.\"\"\"\n    def setUp(self):\n        self.conn = connections['default']\n        # Allow branch ordering in compounds (like PostgreSQL) so we can\n        # exercise the code path; SQLite would normally reject it.\n        self._old = self.conn.features.supports_slicing_ordering_in_compound\n        self.conn.features.supports_slicing_ordering_in_compound = True\n\n    def tearDown(self):\n        self.conn.features.supports_slicing_ordering_in_compound = self._old\n\n    def test_ticket_scenario(self):\n        # branch 1: num in (0,1); branch 2: num in (8,9) ordered by num\n        qs = (Number.objects.filter(num__in=[0, 1])\n              .union(Number.objects.filter(num__in=[8, 9]).order_by('num')))\n        o1 = sql_of(qs.query, self.conn)\n        print(\"\\n=== ORIGINAL before derived ===\")\n        print(o1)\n        # Create + evaluate the derived queryset (the \"this causes...\" step)\n        derived = qs.order_by().values_list('pk', flat=True)\n        d = sql_of(derived.query, self.conn)\n        print(\"=== DERIVED ===\")\n        print(d)\n        o2 = sql_of(qs.query, self.conn)\n        print(\"=== ORIGINAL after derived ===\")\n        print(o2)\n        print(\"MUTATED =\", o1 != o2)\n        if o1 != o2:\n            print(\"--- DIFF ---\")\n            import difflib\n            for line in difflib.unified_diff(o1.split(), o2.split(), lineterm=''):\n                print(line)\n        # state checks\n        print(\"orig order_by:\", qs.query.order_by)\n        print(\"orig values_select:\", qs.query.values_select)\n        for i, b in enumerate(qs.query.combined_queries):\n            print(\"branch %d order_by=%r values_select=%r\" % (i, b.order_by, b.values_select))\nPYEOF\ncd /testbed && python3 tests/runtests.py queries.test_repro_ticket -v 1 2>&1 | grep -vE \"Creating table|Applying |Running deferred|System check|Creating test|Destroying\" | head -50",
+   "hit": null,
+   "lat_ms": 970.2
+  },
+  {
+   "cmd": "cd /testbed && git diff --stat; echo \"=== reverting my clone() patch to test pre-fix behavior ===\"; git stash list; git diff django/db/models/sql/query.py | head -30",
+   "hit": null,
+   "lat_ms": 173.1
+  },
+  {
+   "cmd": "cd /testbed && git stash push django/db/models/sql/query.py -m \"temp revert fix\" && python3 tests/runtests.py queries.test_repro_ticket -v 1 2>&1 | grep -vE \"Creating table|Applying |Running deferred|System check|Creating test|Destroying\" | head -40",
+   "hit": null,
+   "lat_ms": 984.1
+  },
+  {
+   "cmd": "cd /testbed && git stash pop && git diff --stat; echo \"=== reset to pristine for study ===\"; git stash push django/db/models/sql/query.py -m \"fix\" 2>&1; git status --short",
+   "hit": null,
+   "lat_ms": 602.0
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== git log for the 30572 fix ===\"; git log --oneline --all | grep -iE \"30572|combinator|union|set_values|values_select\" | head -20; echo; echo \"=== show the 30572 commit ===\"; git log --oneline -5 -- django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 378.8
+  },
+  {
+   "cmd": "cd /testbed && git show 14d026cccb | head -120",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed && git show 567b9928a3 | head -150",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '280,410p' django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== Query.add_ordering ===\"; sed -n '/def add_ordering/,/def clear_ordering/p' django/db/models/sql/query.py; echo \"=== Query.clear_ordering ===\"; sed -n '/def clear_ordering/,/def add_fields/p' django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== _combinator_query ===\"; sed -n '/def _combinator_query/,/^    def /p' django/db/models/query.py; echo \"=== QuerySet.order_by ===\"; sed -n '/def order_by(self/,/^    def /p' django/db/models/query.py",
+   "hit": null,
+   "lat_ms": 106.5
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== full get_combinator_sql (pristine) ===\"; sed -n '/def get_combinator_sql/,/^    def /p' django/db/models/sql/compiler.py; echo; echo \"=== pg availability ===\"; which psql pg_ctl postgres 2>&1; ls /usr/lib/postgresql/*/bin/ 2>&1 | head; python3 -c \"import psycopg2\" 2>&1 | head -2",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== pre_sql_setup ===\"; sed -n '/def pre_sql_setup/,/def get_order_by/p' django/db/models/sql/compiler.py; echo \"=== setup_query ===\"; sed -n '/def setup_query/,/def get_select/p' django/db/models/sql/compiler.py; echo \"=== get_select ===\"; sed -n '/def get_select/,/def get_default_columns/p' django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== as_sql combinator section ===\"; awk '/def as_sql\\(self, with_limits/,/def get_default_columns/' django/db/models/sql/compiler.py | grep -n \"combinator\\|get_combinator_sql\\|with_limits\\|limit_offset\\|order_by\\|def \\|result.append\\|return\" | head -60",
+   "hit": null,
+   "lat_ms": 113.4
+  },
+  {
+   "cmd": "cd /testbed/tests/queries && cat > test_repro_ticket.py <<'PYEOF'\nfrom django.db import connections\nfrom django.test import TestCase, skipUnlessDBFeature\nfrom .models import Number\n\n\ndef sql_of(query, conn):\n    try:\n        s, _ = query.get_compiler('default', conn).as_sql()\n        return s\n    except Exception as e:\n        return \"EXC: %s: %s\" % (type(e).__name__, e)\n\n\n@skipUnlessDBFeature('supports_select_union')\nclass ReproTicket(TestCase):\n    def setUp(self):\n        self.conn = connections['default']\n        self._old = self.conn.features.supports_slicing_ordering_in_compound\n        self.conn.features.supports_slicing_ordering_in_compound = True\n\n    def tearDown(self):\n        self.conn.features.supports_slicing_ordering_in_compound = self._old\n\n    def test_ticket_scenario(self):\n        qs = (Number.objects.filter(num__in=[0, 1])\n              .union(Number.objects.filter(num__in=[8, 9]).order_by('num')))\n        o1 = sql_of(qs.query, self.conn)\n        # First evaluation (sliced, like __repr__)\n        list(qs[:3])\n        derived = qs.order_by().values_list('pk', flat=True)\n        list(derived[:3])   # evaluate the derived (sliced)\n        o2 = sql_of(qs.query, self.conn)\n        print(\"\\n=== ORIGINAL before ===\")\n        print(o1)\n        print(\"=== ORIGINAL after ===\")\n        print(o2)\n        print(\"MUTATED =\", o1 != o2)\n        if o1 != o2:\n            import difflib\n            for line in difflib.unified_diff(o1.split(), o2.split(), lineterm=''):\n                print(line)\n        print(\"branch order_bys:\", [b.order_by for b in qs.query.combined_queries])\nPYEOF\ncd /testbed && python3 tests/runtests.py queries.test_repro_ticket -v 1 2>&1 | grep -vE \"Creating table|Applying |Running deferred|System check|Creating test|Destroying\" | head -40",
+   "hit": null,
+   "lat_ms": 975.3
+  },
+  {
+   "cmd": "cd /testbed && git stash pop && git diff --stat",
+   "hit": null,
+   "lat_ms": 381.3
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py queries.test_qs_combinators -v 1 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 970.3
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== env vars ===\"; env | grep -iE \"pg|postgres|django|db|database\" 2>&1; echo \"=== .env / settings ===\"; ls -la /testbed/*.env /testbed/.env /testbed/settings* 2>&1 | head; echo \"=== runtests config ===\"; sed -n '1,40p' tests/runtests.py 2>&1 | grep -iE \"database|postgres|sqlite|DATABASE\" ; echo \"=== check for pg socket/running ===\"; (ss -lntp 2>/dev/null || netstat -lntp 2>/dev/null) | grep -i 5432 ; ls /var/run/postgresql 2>&1; echo \"=== can we reach network? ===\"; timeout 8 python3 -c \"import urllib.request; print(urllib.request.urlopen('http://pypi.org', timeout=5).status)\" 2>&1 | head -3",
+   "hit": null,
+   "lat_ms": 163.1
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== OrderBy class ===\"; sed -n '/^class OrderBy/,/^class /p' django/db/models/expressions.py | head -60; echo \"=== BaseExpression.resolve_expression ===\"; sed -n '/class BaseExpression/,/def get_source_expressions/p' django/db/models/sql/constants.py 2>/dev/null; sed -n '/def resolve_expression/,/return self$/p' django/db/models/expressions.py | head -20",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== Number model ===\"; sed -n '/^class Number/,/^class /p' tests/queries/models.py | head -40; echo \"=== check ordering_parts regex ===\"; grep -n \"ordering_parts\" django/db/models/sql/compiler.py | head",
+   "hit": null,
+   "lat_ms": 78.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '/def set_values/,/def add_fields/p' django/db/models/sql/query.py; echo \"=====\"; sed -n '/def clear_select_fields/,/def add_fields/p' django/db/models/sql/query.py | head -20; echo \"===== add_fields =====\"; sed -n '/def add_fields/,/def set_select/p' django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class \\|ordering\" tests/queries/models.py | grep -iE \"ordering|class (Author|Publisher|Book|Number|NonOptionalBase|Primary|Other|Grand)\" | head -40",
+   "hit": null,
+   "lat_ms": 108.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '82,100p' tests/queries/models.py; echo \"=== test file imports and class ===\"; sed -n '1,40p' tests/queries/test_qs_combinators.py",
+   "hit": null,
+   "lat_ms": 145.4
+  },
+  {
+   "cmd": "cd /testbed && sed -n '/class ReservedName/,/^class /p' tests/queries/models.py | head -20; echo \"=== end of test file ===\"; tail -40 tests/queries/test_qs_combinators.py",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PYEOF'\nsrc = open('tests/queries/test_qs_combinators.py').read()\n\nanchor = \"    @skipUnlessDBFeature('supports_select_difference', 'supports_select_intersection')\\n    def test_qs_with_subcompound_qs(self):\"\nassert anchor in src, \"anchor not found\"\n\ntest = '''    @skipUnlessDBFeature('supports_slicing_ordering_in_compound')\n    def test_union_with_ordering_and_derived_queryset(self):\n        # Regression test for a bug where creating a derived queryset\n        # (with order_by() and values_list) from a union queryset with a\n        # branch that has ordering would corrupt the original queryset.\n        ReservedName.objects.bulk_create([\n            ReservedName(name='a', order=10),\n            ReservedName(name='b', order=11),\n            ReservedName(name='c', order=16),\n            ReservedName(name='d', order=17),\n        ])\n        qs = ReservedName.objects.filter(order__in=[10, 11]).union(\n            ReservedName.objects.filter(order__in=[16, 17]).order_by('order'),\n        )\n        # First evaluation works.\n        self.assertQuerysetEqual(qs, ['a', 'b', 'c', 'd'], lambda r: r.name, ordered=False)\n        # Creating and evaluating a derived queryset should not corrupt qs.\n        self.assertQuerysetEqual(\n            qs.order_by().values_list('pk', flat=True),\n            [1, 2, 3, 4], ordered=False,\n        )\n        # Re-evaluating the original queryset still works.\n        self.assertQuerysetEqual(qs, ['a', 'b', 'c', 'd'], lambda r: r.name, ordered=False)\n\n    @skipUnlessDBFeature('supports_select_difference', 'supports_select_intersection')\n    def test_qs_with_subcompound_qs(self):'''\n\nsrc = src.replace(anchor, test)\nopen('tests/queries/test_qs_combinators.py', 'w').write(src)\nprint(\"test added\")\nPYEOF",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed && python3 - <<'PYEOF'\nsrc = open('tests/queries/test_qs_combinators.py').read()\n\nold = '''        # Creating and evaluating a derived queryset should not corrupt qs.\n        self.assertQuerysetEqual(\n            qs.order_by().values_list('pk', flat=True),\n            [1, 2, 3, 4], ordered=False,\n        )\n        # Re-evaluating the original queryset still works.\n        self.assertQuerysetEqual(qs, ['a', 'b', 'c', 'd'], lambda r: r.name, ordered=False)'''\n\nnew = '''        pks = set(ReservedName.objects.filter(order__in=[10, 11, 16, 17]).values_list('pk', flat=True))\n        # Creating and evaluating a derived queryset should not corrupt qs.\n        self.assertQuerysetEqual(\n            qs.order_by().values_list('pk', flat=True), pks, ordered=False,\n        )\n        # Re-evaluating the original queryset still works.\n        self.assertQuerysetEqual(qs, ['a', 'b', 'c', 'd'], lambda r: r.name, ordered=False)'''\n\nassert old in src, \"old block not found\"\nsrc = src.replace(old, new)\nopen('tests/queries/test_qs_combinators.py', 'w').write(src)\nprint(\"test updated\")\nPYEOF\necho \"=== show the new test ===\"; sed -n '/def test_union_with_ordering_and_derived_queryset/,/def test_qs_with_subcompound_qs/p' tests/queries/test_qs_combinators.py",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== fix in query.py ===\"; git diff django/db/models/sql/query.py; echo \"=== run combinators tests ===\"; python3 tests/runtests.py queries.test_qs_combinators -v 1 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 973.7
+  },
+  {
+   "cmd": "cd /testbed && rm -f tests/queries/test_repro_ticket.py && echo \"removed temp file\"; echo \"=== run broader query test suite ===\"; python3 tests/runtests.py queries.test_qs_combinators queries.test_q, queries.test_expressions 2>/dev/null | tail -8 || python3 tests/runtests.py queries.test_qs_combinators -v 1 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 1172.5
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py queries.test_qs_combinators queries.test_expressions queries.test_explain -v 1 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 970.6
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py queries.test_qs_combinators queries.test_expressions queries.test_explain -v 1 2>&1 | grep -B2 -A25 \"ERROR\\|Error\\b\" | head -60",
+   "hit": null,
+   "lat_ms": 1174.4
+  },
+  {
+   "cmd": "cd /testbed && ls tests/queries/ | grep -E \"^test_.*\\.py$\" | head -40",
+   "hit": null,
+   "lat_ms": 70.4
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py queries model_queries -v 1 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 1770.9
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py queries model_queries -v 1 2>&1 | grep -E \"^(OK|FAILED|Ran |ERROR|FAIL:)\" | head -20",
+   "hit": null,
+   "lat_ms": 1571.3
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py queries -v 1 2>&1 | grep -E \"^(OK|FAILED|Ran |ERROR:|FAIL:)\" | head; echo \"=== find model query test modules ===\"; ls tests/ | grep -iE \"quer|express|lookup|annotate|aggregat\" | head",
+   "hit": null,
+   "lat_ms": 1773.8
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py expressions aggregation lookup ordering annotate -v 1 2>&1 | grep -E \"^(OK|FAILED|Ran |ERROR:|FAIL:)\" | head",
+   "hit": null,
+   "lat_ms": 1173.9
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py expressions aggregation lookup ordering -v 1 2>&1 | grep -E \"^(OK|FAILED|Ran |ERROR:|FAIL:)\" | head",
+   "hit": null,
+   "lat_ms": 974.5
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== FINAL DIFF: query.py ===\"; git diff django/db/models/sql/query.py; echo; echo \"=== FINAL DIFF: test file ===\"; git diff tests/queries/test_qs_combinators.py",
+   "hit": null,
+   "lat_ms": 145.9
+  },
+  {
+   "cmd": "cd /testbed && echo \"=== is_empty ===\"; sed -n '/def is_empty/,/def /p' django/db/models/sql/query.py | head -15; echo \"=== ReservedName model ===\"; sed -n '/class ReservedName/,/def __str__/p' tests/queries/models.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py queries -v 2 2>&1 | grep -E \"test_union_with_ordering_and_derived|^(OK|FAILED|Ran )\" | head",
+   "hit": null,
+   "lat_ms": 1578.9
+  },
+  {
+   "cmd": "cd /testbed && git status --short; echo \"=== confirm no temp files ===\"; ls tests/queries/test_repro_ticket.py 2>&1; echo \"=== final diff summary ===\"; git diff --stat",
+   "hit": null,
+   "lat_ms": 252.0
+  },
+  {
+   "cmd": "cd /testbed && python3 tests/runtests.py queries.test_qs_combinators queries.test_query queries.test_explain queries.test_q queries.test_iterator queries.test_bulk_update -v 1 2>&1 | grep -E \"^(OK|FAILED|Ran |ERROR:|FAIL:)\" | head",
+   "hit": null,
+   "lat_ms": 1374.1
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-10554",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 46840.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

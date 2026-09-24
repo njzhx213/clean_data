@@ -1,0 +1,321 @@
+{
+ "calls": 53,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 41451.31063461304,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "uname -a && whoami && pwd && which python && python --version",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "ls /testbed && pip show matplotlib 2>/dev/null | head -5 && python -c \"import matplotlib; print(matplotlib.__version__, matplotlib.__file__)\"",
+   "hit": null,
+   "lat_ms": 1574.7
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"set_visible\\|get_visible\" lib/matplotlib/axes/_base.py lib/matplotlib/artist.py | head -40",
+   "hit": null,
+   "lat_ms": 69.9
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"def set_visible\\|def draw\\|get_visible\" lib/matplotlib/projections/3d.py | head -30",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && ls lib/matplotlib/projections/",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && find lib -name \"3d.py\" && python -c \"from mpl_toolkits.mplot3d import axes3d; print(axes3d.__file__)\"",
+   "hit": null,
+   "lat_ms": 2972.9
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def draw\\|def set_visible\\|def get_visible\\|def _draw\\|get_visible()\" lib/mpl_toolkits/mplot3d/axes3d.py | head -30",
+   "hit": null,
+   "lat_ms": 69.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '370,430p' lib/mpl_toolkits/mplot3d/axes3d.py",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n '2990,3035p' lib/matplotlib/axes/_base.py",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport matplotlib\nmatplotlib.use('Agg')\nimport matplotlib.pyplot as plt\nfig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': '3d'})\nax1.scatter(1,1,1)\nax2.scatter(1,1,1, c='r')\nax1.set_visible(False)\nfig.savefig('/tmp/repro.png')\nprint('saved')\n\" && python -c \"\nfrom PIL import Image\nimport numpy as np\nim = np.array(Image.open('/tmp/repro.png').convert('RGB'))\nprint(im.shape)\n# left half vs right half mean\nprint('left:', im[:, :im.shape[1]//2].mean(axis=(0,1)))\nprint('right:', im[:, im.shape[1]//2:].mean(axis=(0,1)))\n\"",
+   "hit": null,
+   "lat_ms": 1176.7
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nfrom PIL import Image\nimport numpy as np\nim = np.array(Image.open('/tmp/repro.png').convert('RGB'))\n# count non-white pixels in each half\nleft = (im[:, :im.shape[1]//2] < 250).any(axis=2).sum()\nright = (im[:, im.shape[1]//2:] < 250).any(axis=2).sum()\nprint('nonwhite px left:', left, 'right:', right)\n\"",
+   "hit": null,
+   "lat_ms": 250.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n '430,560p' lib/mpl_toolkits/mplot3d/axes3d.py",
+   "hit": null,
+   "lat_ms": 112.4
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 -- lib/mpl_toolkits/mplot3d/axes3d.py && git status --short | head",
+   "hit": null,
+   "lat_ms": 170.9
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\npath = 'lib/mpl_toolkits/mplot3d/axes3d.py'\nsrc = open(path).read()\nold = \"\"\"    @martist.allow_rasterization\n    def draw(self, renderer):\n        self._unstale_viewLim()\n\"\"\"\nnew = \"\"\"    @martist.allow_rasterization\n    def draw(self, renderer):\n        # docstring inherited\n        if not self.get_visible():\n            return\n\n        self._unstale_viewLim()\n\"\"\"\nassert src.count(old) == 1\nopen(path, 'w').write(src.replace(old, new))\nprint(\"patched\")\nEOF\nsed -n '387,396p' lib/mpl_toolkits/mplot3d/axes3d.py",
+   "hit": null,
+   "lat_ms": 166.8
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport matplotlib\nmatplotlib.use('Agg')\nimport matplotlib.pyplot as plt\nimport numpy as np\nfrom PIL import Image\n\nfig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': '3d'})\nax1.scatter(1,1,1)\nax2.scatter(1,1,1, c='r')\nax1.set_visible(False)\nfig.savefig('/tmp/repro_fixed.png')\nim = np.array(Image.open('/tmp/repro_fixed.png').convert('RGB'))\nleft = (im[:, :im.shape[1]//2] < 250).any(axis=2).sum()\nright = (im[:, im.shape[1]//2:] < 250).any(axis=2).sum()\nprint('nonwhite px left (hidden ax):', left, '| right (visible ax):', right)\n\n# Also check: toggling visibility back on still works\nfig2, ax = plt.subplots(subplot_kw={'projection': '3d'})\nax.scatter([1,2],[1,2],[1,2])\nfig2.savefig('/tmp/vis1.png')\nax.set_visible(False)\nfig2.savefig('/tmp/vis2.png')\nax.set_visible(True)\nfig2.savefig('/tmp/vis3.png')\nfor f in ['/tmp/vis1.png','/tmp/vis2.png','/tmp/vis3.png']:\n    a = np.array(Image.open(f).convert('RGB'))\n    print(f, 'nonwhite:', (a < 250).any(axis=2).sum())\n\"",
+   "hit": null,
+   "lat_ms": 1173.0
+  },
+  {
+   "cmd": "cd /testbed && ls lib/mpl_toolkits/mplot3d/tests/ && grep -rn \"set_visible\\|def test_draw\" lib/mpl_toolkits/mplot3d/tests/test_axes3d.py | head",
+   "hit": null,
+   "lat_ms": 70.9
+  },
+  {
+   "cmd": "cd /testbed && find . -path ./build -prune -o -name \"test_axes3d.py\" -print 2>/dev/null",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /testbed && find lib/mpl_toolkits -type d | head -20 && ls lib/mpl_toolkits/mplot3d/",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && ls lib/mpl_toolkits/tests/ && grep -rn \"set_visible\" lib/mpl_toolkits/tests/test_mplot3d.py 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"renderer\\|^def test\\|^import\\|^from\" lib/mpl_toolkits/tests/test_mplot3d.py | head -30",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"canvas\\|FigureCanvas\" lib/mpl_toolkits/tests/test_mplot3d.py | head",
+   "hit": null,
+   "lat_ms": 71.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"canvas.draw()\" lib/mpl_toolkits/tests/test_mplot3d.py | head -3 && grep -n \"^def test_mixedsubplots\" -A 25 lib/mpl_toolkits/tests/test_mplot3d.py | head -30",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '665,680p' lib/mpl_toolkits/tests/test_mplot3d.py && sed -n '1460,1505p' lib/mpl_toolkits/tests/test_mplot3d.py",
+   "hit": null,
+   "lat_ms": 108.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"get_renderer\\|FigureCanvasAgg\" lib/mpl_toolkits/tests/test_mplot3d.py lib/matplotlib/tests/test_axes.py | head",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n '6350,6375p' lib/matplotlib/tests/test_axes.py",
+   "hit": null,
+   "lat_ms": 97.9
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport matplotlib\nmatplotlib.use('Agg')\nimport matplotlib.pyplot as plt\nfig, ax = plt.subplots(projection='3d')\nax.scatter([1],[2],[3])\nrenderer = fig.canvas.get_renderer()\nprint(type(renderer))\n\"",
+   "hit": null,
+   "lat_ms": 971.4
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport matplotlib\nmatplotlib.use('Agg')\nimport matplotlib.pyplot as plt\nfig, ax = plt.subplots(1, 1, subplot_kw={'projection': '3d'})\nax.scatter([1],[2],[3])\nrenderer = fig.canvas.get_renderer()\nprint(type(renderer))\n\"",
+   "hit": null,
+   "lat_ms": 970.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"^def test_\" lib/mpl_toolkits/tests/test_mplot3d.py | sed -n '1,15p' && sed -n '24,32p' lib/mpl_toolkits/tests/test_mplot3d.py",
+   "hit": null,
+   "lat_ms": 70.3
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'lib/mpl_toolkits/tests/test_mplot3d.py'\nsrc = open(path).read()\nold = \"\"\"def test_aspect_equal_error():\n    fig = plt.figure()\n    ax = fig.add_subplot(projection='3d')\n    with pytest.raises(NotImplementedError):\n        ax.set_aspect('equal')\n\n\"\"\"\nnew = \"\"\"def test_aspect_equal_error():\n    fig = plt.figure()\n    ax = fig.add_subplot(projection='3d')\n    with pytest.raises(NotImplementedError):\n        ax.set_aspect('equal')\n\n\ndef test_set_visible():\n    # A 3D Axes hidden via set_visible(False) should draw nothing.\n    fig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': '3d'})\n    ax1.scatter(1, 1, 1)\n    ax2.scatter(1, 1, 1, c='r')\n    ax1.set_visible(False)\n    renderer = fig.canvas.get_renderer()\n    ax1.draw(renderer)\n    # hidden axes should not draw their background patch\n    assert not ax1.patch.get_window_extent(renderer).frozen()\n    assert not ax1.patch.is_transform_set() or True\n    # simplest check: patch should not have been drawn -> no transform set\n    # on the canvas; use canvas draw + check that nothing is drawn via\n    # the fact that draw() returns early.\n\"\"\"\n# Actually let me write a cleaner test\nnew = \"\"\"def test_aspect_equal_error():\n    fig = plt.figure()\n    ax = fig.add_subplot(projection='3d')\n    with pytest.raises(NotImplementedError):\n        ax.set_aspect('equal')\n\n\ndef test_invisible_axes_do_not_draw():\n    # Regression test: a 3D Axes set invisible via set_visible(False)\n    # must draw nothing (previously the 3D draw method ignored the\n    # visibility flag).\n    fig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': '3d'})\n    ax1.scatter(1, 1, 1)\n    ax2.scatter(1, 1, 1, c='r')\n    ax1.set_visible(False)\n    renderer = fig.canvas.get_renderer()\n    fig.canvas.draw()\n    # the hidden axes' background patch was never drawn, so it has no\n    # window extent; the visible one does.\n    with pytest.raises(RuntimeError):\n        ax1.patch.get_window_extent(renderer)\n    ax2.patch.get_window_extent(renderer)  # should not raise\n\"\"\"\nassert src.count(old) == 1\nopen(path, 'w').write(src.replace(old, new))\nprint(\"test added\")\nEOF",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport matplotlib\nmatplotlib.use('Agg')\nimport matplotlib.pyplot as plt\nimport numpy as np\nfrom PIL import Image\n\nfig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': '3d'})\nax1.scatter(1,1,1)\nax2.scatter(1,1,1, c='r')\nax1.set_visible(False)\nrenderer = fig.canvas.get_renderer()\nfig.canvas.draw()\ntry:\n    bb = ax1.patch.get_window_extent(renderer)\n    print('NO ERROR, bbox:', bb)\nexcept RuntimeError as e:\n    print('RuntimeError:', e)\nprint('ax2 patch bbox ok:', ax2.patch.get_window_extent(renderer))\n\n# also pixel check\nfig.savefig('/tmp/px.png')\nim = np.array(Image.open('/tmp/px.png').convert('RGB'))\nprint('left nonwhite:', (im[:, :im.shape[1]//2] < 250).any(axis=2).sum())\n\"",
+   "hit": null,
+   "lat_ms": 1209.0
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def draw\" lib/mpl_toolkits/mplot3d/axis3d.py lib/mpl_toolkits/mplot3d/art3d.py | head",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'lib/mpl_toolkits/tests/test_mplot3d.py'\nsrc = open(path).read()\nold = \"\"\"def test_invisible_axes_do_not_draw():\n    # Regression test: a 3D Axes set invisible via set_visible(False)\n    # must draw nothing (previously the 3D draw method ignored the\n    # visibility flag).\n    fig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': '3d'})\n    ax1.scatter(1, 1, 1)\n    ax2.scatter(1, 1, 1, c='r')\n    ax1.set_visible(False)\n    renderer = fig.canvas.get_renderer()\n    fig.canvas.draw()\n    # the hidden axes' background patch was never drawn, so it has no\n    # window extent; the visible one does.\n    with pytest.raises(RuntimeError):\n        ax1.patch.get_window_extent(renderer)\n    ax2.patch.get_window_extent(renderer)  # should not raise\n\"\"\"\nnew = \"\"\"def test_set_visible():\n    # Regression test: a 3D Axes set invisible via set_visible(False)\n    # must not draw (previously the 3D draw method ignored visibility).\n    fig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': '3d'})\n    ax1.scatter(1, 1, 1)\n    ax2.scatter(1, 1, 1, c='r')\n    ax1.set_visible(False)\n    renderer = fig.canvas.get_renderer()\n    ax1.draw(renderer)\n    # hidden axes draw nothing: the background patch was never sent to\n    # the renderer, so it has no transform set.\n    assert not ax1.patch.is_transform_set()\n    ax2.draw(renderer)\n    # visible axes still draw their background patch.\n    assert ax2.patch.is_transform_set()\n\"\"\"\nassert src.count(old) == 1\nopen(path, 'w').write(src.replace(old, new))\nprint(\"rewritten\")\nEOF\nsed -n '28,50p' lib/mpl_toolkits/tests/test_mplot3d.py",
+   "hit": null,
+   "lat_ms": 106.3
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'lib/mpl_toolkits/tests/test_mplot3d.py'\nsrc = open(path).read()\nold = \"\"\"    assert ax2.patch.is_transform_set()\n\n@mpl3d_image_comparison(['bar3d.png'])\"\"\"\nnew = \"\"\"    assert ax2.patch.is_transform_set()\n\n\n@mpl3d_image_comparison(['bar3d.png'])\"\"\"\nassert src.count(old) == 1\nopen(path, 'w').write(src.replace(old, new))\nprint(\"ok\")\nEOF",
+   "hit": null,
+   "lat_ms": 110.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest lib/mpl_toolkits/tests/test_mplot3d.py::test_set_visible -xvs 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 1372.0
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"def _draw_if_visible\\|_stale\\|def draw\" lib/matplotlib/patches.py lib/matplotlib/artist.py | head -10 && sed -n '955,975p' lib/matplotlib/artist.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '30,80p' lib/matplotlib/artist.py",
+   "hit": null,
+   "lat_ms": 146.7
+  },
+  {
+   "cmd": "cd /testbed && sed -n '585,600p' lib/matplotlib/patches.py && python -c \"\nimport matplotlib; matplotlib.use('Agg')\nfrom matplotlib.patches import Rectangle\nfrom matplotlib.transforms import IdentityTransform\nimport matplotlib.pyplot as plt\nimport numpy as np\nr = Rectangle((0,0),1,1)\nfig = plt.figure()\n# simulate figure.draw setting transform on children:\nfig.canvas.draw()\n\" ",
+   "hit": null,
+   "lat_ms": 971.1
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def draw\" -A 12 lib/matplotlib/figure.py | sed -n '1,25p' && python -c \"\nimport matplotlib; matplotlib.use('Agg')\nfrom matplotlib.patches import Rectangle\nimport matplotlib.pyplot as plt\nimport numpy as np\nfig, ax = plt.subplots()\np = Rectangle((0,0),1,1, clip_on=False)\nax.add_patch(p)\nfig.canvas.draw()\nprint('transform set after canvas.draw:', p.is_transform_set())\n\"",
+   "hit": null,
+   "lat_ms": 973.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"is_transform_set\" -A 8 lib/matplotlib/transforms.py | head -20 && grep -n \"_set_transform\\|def set_transform\" lib/matplotlib/artist.py | head",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport matplotlib; matplotlib.use('Agg')\nimport matplotlib.pyplot as plt\nimport numpy as np\nfig, ax = plt.subplots()\np = ax.add_patch(plt.Rectangle((0,0),1,1))\nprint('before draw:', p.is_transform_set())\nfig.canvas.draw()\nprint('after draw:', p.is_transform_set())\nprint(p.get_transform())\n\" && grep -n \"is_transform_set\" lib/matplotlib/artist.py",
+   "hit": null,
+   "lat_ms": 775.6
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'lib/mpl_toolkits/tests/test_mplot3d.py'\nsrc = open(path).read()\nold = \"\"\"def test_set_visible():\n    # Regression test: a 3D Axes set invisible via set_visible(False)\n    # must not draw (previously the 3D draw method ignored visibility).\n    fig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': '3d'})\n    ax1.scatter(1, 1, 1)\n    ax2.scatter(1, 1, 1, c='r')\n    ax1.set_visible(False)\n    renderer = fig.canvas.get_renderer()\n    ax1.draw(renderer)\n    # hidden axes draw nothing: the background patch was never sent to\n    # the renderer, so it has no transform set.\n    assert not ax1.patch.is_transform_set()\n    ax2.draw(renderer)\n    # visible axes still draw their background patch.\n    assert ax2.patch.is_transform_set()\n\"\"\"\nnew = \"\"\"def test_set_visible():\n    # Regression test: a 3D Axes set invisible via set_visible(False)\n    # must not draw (previously the 3D draw method ignored visibility).\n    fig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': '3d'})\n    ax1.scatter(1, 1, 1)\n    ax2.scatter(1, 1, 1, c='r')\n    ax1.set_visible(False)\n    fig.canvas.draw()\n    # the hidden axes must not draw anything (neither background, panes\n    # nor artists); the visible one must.\n    width = fig.canvas.get_width_height()[0]\n    renderer = fig.canvas.get_renderer()\n    left = ax1.patch.get_window_extent(renderer)\n    right = ax2.patch.get_window_extent(renderer)\n    # sample the center of each axes: hidden one has the figure's\n    # background color, visible one has drawn content.\n    fig_rgba = fig.canvas.tostring_argb()\n    import numpy as np\n    buf = np.frombuffer(fig_rgba, dtype=np.uint32).reshape(-1, int(width)).T\n    # argb buffer is flipped: row 0 is bottom of figure.\n    cy = int(height := left.y0 + left.height / 2)\n    buf = buf[::-1]  # flip so row 0 is top, as in PIL\n    cx_l = int(left.x0 + left.width / 2)\n    cx_r = int(right.x0 + right.width / 2)\n    # count non-background pixels within each axes bbox\n    def nonbg(x0, y0, x1, y1):\n        region = buf[int(fig.bbox.y1 - y1):int(fig.bbox.y1 - y0),\n                     int(x0):int(x1)]\n        bg = fig.patch.get_facecolor()\n        # argb: byte order in buffer is argb (alpha, red, green, blue)\n        px = np.dstack([\n            (region >> 8) & 0xFF, (region >> 16) & 0xFF, region & 0xFF])\n        target = np.array([int(c * 255) for c in bg][:3])\n        return (np.abs(px.astype(int) - target).sum(axis=2) > 10).any().sum()\n    assert nonbg(*left.bounds) == 0\n    assert nonbg(*right.bounds) > 0\n\"\"\"\nassert src.count(old) == 1\nopen(path, 'w').write(src.replace(old, new))\nprint(\"rewritten\")\nEOF",
+   "hit": null,
+   "lat_ms": 106.6
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'lib/mpl_toolkits/tests/test_mplot3d.py'\nsrc = open(path).read()\nold = \"\"\"def test_set_visible():\n    # Regression test: a 3D Axes set invisible via set_visible(False)\n    # must not draw (previously the 3D draw method ignored visibility).\n    fig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': '3d'})\n    ax1.scatter(1, 1, 1)\n    ax2.scatter(1, 1, 1, c='r')\n    ax1.set_visible(False)\n    fig.canvas.draw()\n    # the hidden axes must not draw anything (neither background, panes\n    # nor artists); the visible one must.\n    width = fig.canvas.get_width_height()[0]\n    renderer = fig.canvas.get_renderer()\n    left = ax1.patch.get_window_extent(renderer)\n    right = ax2.patch.get_window_extent(renderer)\n    # sample the center of each axes: hidden one has the figure's\n    # background color, visible one has drawn content.\n    fig_rgba = fig.canvas.tostring_argb()\n    import numpy as np\n    buf = np.frombuffer(fig_rgba, dtype=np.uint32).reshape(-1, int(width)).T\n    # argb buffer is flipped: row 0 is bottom of figure.\n    cy = int(height := left.y0 + left.height / 2)\n    buf = buf[::-1]  # flip so row 0 is top, as in PIL\n    cx_l = int(left.x0 + left.width / 2)\n    cx_r = int(right.x0 + right.width / 2)\n    # count non-background pixels within each axes bbox\n    def nonbg(x0, y0, x1, y1):\n        region = buf[int(fig.bbox.y1 - y1):int(fig.bbox.y1 - y0),\n                     int(x0):int(x1)]\n        bg = fig.patch.get_facecolor()\n        # argb: byte order in buffer is argb (alpha, red, green, blue)\n        px = np.dstack([\n            (region >> 8) & 0xFF, (region >> 16) & 0xFF, region & 0xFF])\n        target = np.array([int(c * 255) for c in bg][:3])\n        return (np.abs(px.astype(int) - target).sum(axis=2) > 10).any().sum()\n    assert nonbg(*left.bounds) == 0\n    assert nonbg(*right.bounds) > 0\n\"\"\"\nnew = \"\"\"def test_set_visible():\n    # Regression test: a 3D Axes set invisible via set_visible(False)\n    # must not draw (previously the 3D draw method ignored visibility).\n    fig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': '3d'})\n    ax1.scatter(1, 1, 1)\n    ax2.scatter(1, 1, 1, c='r')\n    ax1.set_visible(False)\n    fig.canvas.draw()\n    # the hidden axes must not draw anything, while the visible one does.\n    buf = np.frombuffer(fig.canvas.tostring_rgb(),\n                        dtype=np.uint8).reshape(int(fig.canvas.get_width_height()[1]),\n                                                int(fig.canvas.get_width_height()[0]),\n                                                3)\n    bg = np.array([int(c * 255) for c in fig.patch.get_facecolor()][:3])\n\n    def content(x, y, w, h):\n        return (np.abs(buf[y:y + h, x:x + w].astype(int) - bg)\n                .sum(axis=2) > 10).any()\n\n    renderer = fig.canvas.get_renderer()\n    x0, y0, w, h = ax1.patch.get_window_extent(renderer).bounds\n    assert not content(x0 + 1, y0 + 1, w - 2, h - 2)\n    x0, y0, w, h = ax2.patch.get_window_extent(renderer).bounds\n    assert content(x0 + 1, y0 + 1, w - 2, h - 2)\n\"\"\"\nassert src.count(old) == 1\nopen(path, 'w').write(src.replace(old, new))\nprint(\"rewritten\")\nEOF\npython -m pytest lib/mpl_toolkits/tests/test_mplot3d.py::test_set_visible -xvs 2>&1 | tail -12",
+   "hit": null,
+   "lat_ms": 1370.8
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'lib/mpl_toolkits/tests/test_mplot3d.py'\nsrc = open(path).read()\nold = \"\"\"    renderer = fig.canvas.get_renderer()\n    x0, y0, w, h = ax1.patch.get_window_extent(renderer).bounds\n    assert not content(x0 + 1, y0 + 1, w - 2, h - 2)\n    x0, y0, w, h = ax2.patch.get_window_extent(renderer).bounds\n    assert content(x0 + 1, y0 + 1, w - 2, h - 2)\n\"\"\"\nnew = \"\"\"    renderer = fig.canvas.get_renderer()\n    x0, y0, w, h = ax1.patch.get_window_extent(renderer).bounds\n    assert not content(int(x0) + 1, int(y0) + 1, int(w) - 2, int(h) - 2)\n    x0, y0, w, h = ax2.patch.get_window_extent(renderer).bounds\n    assert content(int(x0) + 1, int(y0) + 1, int(w) - 2, int(h) - 2)\n\"\"\"\nassert src.count(old) == 1\nopen(path, 'w').write(src.replace(old, new))\nprint(\"ok\")\nEOF\npython -m pytest lib/mpl_toolkits/tests/test_mplot3d.py::test_set_visible -xvs 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 1371.3
+  },
+  {
+   "cmd": "cd /testbed && git stash && python -m pytest lib/mpl_toolkits/tests/test_mplot3d.py::test_set_visible -x 2>&1 | tail -4; git stash pop",
+   "hit": null,
+   "lat_ms": 1372.1
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\npath = 'lib/mpl_toolkits/mplot3d/axes3d.py'\nsrc = open(path).read()\nnew = \"\"\"    @martist.allow_rasterization\n    def draw(self, renderer):\n        # docstring inherited\n        if not self.get_visible():\n            return\n\n        self._unstale_viewLim()\n\"\"\"\nold = \"\"\"    @martist.allow_rasterization\n    def draw(self, renderer):\n        self._unstale_viewLim()\n\"\"\"\nassert src.count(new) == 1\nopen(path, 'w').write(src.replace(new, old))\nprint(\"reverted fix temporarily\")\nEOF\npython -m pytest lib/mpl_toolkits/tests/test_mplot3d.py::test_set_visible -x 2>&1 | tail -3\n# restore fix\npython - <<'EOF'\npath = 'lib/mpl_toolkits/mplot3d/axes3d.py'\nsrc = open(path).read()\nold = \"\"\"    @martist.allow_rasterization\n    def draw(self, renderer):\n        self._unstale_viewLim()\n\"\"\"\nnew = \"\"\"    @martist.allow_rasterization\n    def draw(self, renderer):\n        # docstring inherited\n        if not self.get_visible():\n            return\n\n        self._unstale_viewLim()\n\"\"\"\nassert src.count(old) == 1\nopen(path, 'w').write(src.replace(old, new))\nprint(\"fix restored\")\nEOF\npython -m pytest lib/mpl_toolkits/tests/test_mplot3d.py::test_set_visible -x 2>&1 | tail -3",
+   "hit": null,
+   "lat_ms": 2370.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def test_draw\" lib/matplotlib/tests/test_axes.py | head -5 && sed -n \"$(grep -n 'def test_draw' lib/matplotlib/tests/test_axes.py | head -1 | cut -d: -f1),+12p\" lib/matplotlib/tests/test_axes.py",
+   "hit": null,
+   "lat_ms": 108.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def test_draw\" lib/matplotlib/tests/test_axes.py",
+   "hit": null,
+   "lat_ms": 108.4
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest lib/mpl_toolkits/tests/test_mplot3d.py -x -q --timeout=120 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 13812.0
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest lib/matplotlib/tests/test_axes.py -x -q --timeout=300 -k \"visible or hide\" 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 1970.6
+  },
+  {
+   "cmd": "cd /testbed && python -c \"\nimport matplotlib\nmatplotlib.use('Agg')\nimport matplotlib.pyplot as plt\nimport numpy as np\nfrom PIL import Image\n\n# exact code from the bug report\nfig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': '3d'})\nax1.scatter(1,1,1)\nax2.scatter(1,1,1, c='r')\nax1.set_visible(False)\nfig.savefig('/tmp/final.png')\nim = np.array(Image.open('/tmp/final.png').convert('RGB'))\nprint('hidden ax (left) nonwhite px:', (im[:, :im.shape[1]//2] < 250).any(axis=2).sum())\nprint('visible ax (right) nonwhite px:', (im[:, im.shape[1]//2:] < 250).any(axis=2).sum())\n\" && git diff",
+   "hit": null,
+   "lat_ms": 1218.1
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "matplotlib__matplotlib-23314",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 41451.3,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

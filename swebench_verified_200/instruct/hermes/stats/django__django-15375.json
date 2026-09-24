@@ -1,0 +1,386 @@
+{
+ "calls": 66,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 17213.461875915527,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 67.0
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 115.6
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "pip show django 2>/dev/null | head -5; python -c \"import django; print(django.__version__, django.__file__)\" 2>/dev/null || echo \"django not installed here\"",
+   "hit": null,
+   "lat_ms": 376.9
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 && git status --short | head",
+   "hit": null,
+   "lat_ms": 576.7
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"subquery\" django/db/models/aggregates.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"subquery\" django/db/models/expressions.py | head -30",
+   "hit": null,
+   "lat_ms": 106.9
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"Subquery\\|as_sql\" django/db/models/aggregates.py | head -20",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n 1,120p django/db/models/aggregates.py",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class Coalesce\\|class Cast\\|def resolve_expression\" django/db/models/functions/comparison.py django/db/models/expressions.py | head -20",
+   "hit": null,
+   "lat_ms": 113.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n 59,110p django/db/models/functions/comparison.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n 590,640p django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 109.8
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def aggregate\\|def _annotate\\|def get_aggregation\\|def add_annotation\\|def _add_single_annotation\" django/db/models/query.py django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 420,480p django/db/models/sql/query.py && echo ===== && sed -n 1035,1080p django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 108.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n 480,510p django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n 398,425p django/db/models/query.py && grep -n \"is_summary\" django/db/models/sql/query.py | head",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"is_summary\" django/db/models/expressions.py | head -20",
+   "hit": null,
+   "lat_ms": 110.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n 902,960p django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 111.6
+  },
+  {
+   "cmd": "cd /testbed && sed -n 690,710p django/db/models/expressions.py && sed -n 231,260p django/db/models/expressions.py && sed -n 1025,1040p django/db/models/expressions.py",
+   "hit": null,
+   "lat_ms": 107.6
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def rewrite_cols\" django/db/models/sql/query.py && sed -n \"$(grep -n 'def rewrite_cols' django/db/models/sql/query.py | cut -d: -f1),+25p\" django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 110.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n 368,418p django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 70.7
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | head -30 && python -c \"\nimport django\nfrom django.conf import settings\n\" && grep -rn \"def get_queryset\\|class Book\" tests/booktests/models.py 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 291.4
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro.py <<'EOF'\nimport os, sys, django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['__main__'],\n)\nimport types\n# define models via dynamic app\ndjango.setup()\nfrom django.db import models, connection\n\n# create app + models\nsys.modules['__main__'] = sys.modules['__main__']\nclass Book(models.Model):\n    id = models.AutoField(primary_key=True)\n    title = models.CharField(max_length=10)\n    class Meta:\n        app_label = '__main__'\n\nwith connection.schema_editor() as se:\n    se.create_model(Book)\nBook.objects.create(title='a')\nBook.objects.create(title='b')\n\nfrom django.db.models import F, Sum\nfrom django.db.models.functions import Coalesce\n\nqs = Book.objects.annotate(idx=F('id'))\nprint('no default SQL:')\nq = qs.query.chain()\nq.add_annotation(Sum('id'), 'id__sum', is_summary=True)\nprint('  ', q)\nprint(qs.aggregate(Sum('id')))\n\nqs2 = qs\nprint('with default SQL:')\nq2 = qs2.query.chain()\nq2.add_annotation(Sum('id', default=0), 'id__sum', is_summary=True)\nprint('  ', q2)\nprint(qs.aggregate(Sum('id', default=0)))\nEOF\npython /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro2.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['__main__'],\n)\ndjango.setup()\nfrom django.db import models, connection\nclass Book(models.Model):\n    class Meta:\n        app_label = '__main__'\nwith connection.schema_editor() as se:\n    se.create_model(Book)\nBook.objects.create()\n\nfrom django.db.models import F, Sum\nqs = Book.objects.annotate(idx=F('id'))\nq = qs.query.chain()\nq.add_annotation(Sum('id', default=0), 'id__sum', is_summary=True)\nfrom django.db.models.sql.subqueries import AggregateQuery\n# emulate get_aggregation subquery branch\ninner = q.clone()\ninner.subquery = True\nouter = AggregateQuery(Book, inner)\ninner.set_annotation_mask(q.annotation_select)\ninner.clear_ordering(force=False)\ninner.default_cols = False\nrelabels = {t: 'subquery' for t in inner.alias_map}\nrelabels[None] = 'subquery'\ncol_cnt = 0\nfor alias, expression in list(inner.annotation_select.items()):\n    mask = inner.annotation_select_mask\n    if expression.is_summary:\n        expression, col_cnt = inner.rewrite_cols(expression, col_cnt)\n        outer.annotations[alias] = expression.relabeled_clone(relabels)\n        del inner.annotations[alias]\n        mask.remove(alias)\n        inner.set_annotation_mask(inner.annotation_select_mask)\nprint('INNER:', inner)\nprint('outer.annotation_select:', outer.annotation_select)\nsql, params = outer.sql_with_params()\nprint('SQL:', sql)\nEOF\npython /tmp/repro2.py",
+   "hit": null,
+   "lat_ms": 379.5
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/repro3.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['__main__'],\n)\ndjango.setup()\nfrom django.db import models, connection\nclass Book(models.Model):\n    class Meta:\n        app_label = '__main__'\nwith connection.schema_editor() as se:\n    se.create_model(Book)\nBook.objects.create()\n\nfrom django.db.models import F, Sum, Coalesce\nfrom django.db.models.functions import Coalesce as C2\n\n# no default\nqs = Book.objects.annotate(idx=F('id'))\nq = qs.query.chain()\nq.add_annotation(Sum('id'), 'id__sum', is_summary=True)\nann = q.annotations['id__sum']\nprint('no default: class=', type(ann).__name__, 'is_summary=', ann.is_summary, 'contains_agg=', ann.contains_aggregate)\n\n# with default\nq2 = qs.query.chain()\nq2.add_annotation(Sum('id', default=0), 'id__sum', is_summary=True)\nann2 = q2.annotations['id__sum']\nprint('with default: class=', type(ann2).__name__, 'is_summary=', ann2.is_summary, 'contains_agg=', ann2.contains_aggregate)\nfor i, e in enumerate(ann2.get_source_expressions()):\n    print('   src', i, type(e).__name__, getattr(e, 'is_summary', 'n/a'), 'contains_agg=', getattr(e, 'contains_aggregate', 'n/a'))\nEOF\npython /tmp/repro3.py",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed && sed -i 's/^from django.db.models.functions import Coalesce as C2$//' /tmp/repro3.py && python /tmp/repro3.py",
+   "hit": null,
+   "lat_ms": 380.2
+  },
+  {
+   "cmd": "cd /testbed && sed -i 's/from django.db.models import F, Sum, Coalesce/from django.db.models import F, Sum/' /tmp/repro3.py && python /tmp/repro3.py",
+   "hit": null,
+   "lat_ms": 379.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n 400,470p django/db/models/sql/compiler.py",
+   "hit": null,
+   "lat_ms": 106.2
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"class AggregateQuery\" -A 15 django/db/models/sql/subqueries.py",
+   "hit": null,
+   "lat_ms": 135.0
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/trace1.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['__main__'],\n)\ndjango.setup()\nfrom django.db import models, connection\nclass Book(models.Model):\n    class Meta:\n        app_label = '__main__'\nwith connection.schema_editor() as se:\n    se.create_model(Book)\nBook.objects.create()\n\nfrom django.db.models import F, Sum\nimport django.db.models.sql.query as sq\n\norig = sq.Query.rewrite_cols\ndef rw(self, annotation, col_cnt):\n    r = orig(self, annotation, col_cnt)\n    print('rewrite_cols: annotation=%r is_summary=%s' % (annotation, getattr(annotation,'is_summary','?')))\n    print('   -> %r' % (r[0],))\n    return r\nsq.Query.rewrite_cols = rw\n\norig_get = sq.Query.get_aggregation\ndef g(self, using, added):\n    print('annotation_select before:', {a: (e, getattr(e,'is_summary','?')) for a,e in self.annotation_select.items()})\n    r = orig_get(self, using, added)\n    return r\nsq.Query.get_aggregation = g\n\nqs = Book.objects.annotate(idx=F('id'))\ntry:\n    print(qs.aggregate(Sum('id', default=0)))\nexcept Exception as e:\n    print('ERROR:', e)\nEOF\npython /tmp/trace1.py",
+   "hit": null,
+   "lat_ms": 376.9
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"def add_annotation\\|def append_annotation_mask\\|def set_annotation_mask\\|annotation_select\\b\" django/db/models/sql/query.py | sed -n 1,40p",
+   "hit": null,
+   "lat_ms": 112.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n 2170,2195p django/db/models/sql/query.py && sed -n 2240,2255p django/db/models/sql/query.py",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/trace2.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['__main__'],\n)\ndjango.setup()\nfrom django.db import models, connection\nclass Book(models.Model):\n    class Meta:\n        app_label = '__main__'\nwith connection.schema_editor() as se:\n    se.create_model(Book)\nBook.objects.create()\n\nfrom django.db.models import F, Sum\nq = Book.objects.annotate(idx=F('id')).query.chain()\nq.add_annotation(Sum('id', default=0), 'id__sum', is_summary=True)\nann = q.annotations['id__sum']\nprint('stored annotation is_summary =', ann.is_summary)\n# simulate the subquery path mask setting\ninner = q.clone()\ninner.set_annotation_mask(q.annotation_select)\nprint('annotation_select_mask =', inner.annotation_select_mask)\nprint('annotation_select =', {a: type(e).__name__ for a, e in inner.annotation_select.items()})\nfor a, e in inner.annotation_select.items():\n    print('  ', a, 'is_summary =', getattr(e, 'is_summary', None))\nEOF\npython /tmp/trace2.py",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport re\np = 'django/db/models/aggregates.py'\nsrc = open(p).read()\nold = \"\"\"        if hasattr(default, 'resolve_expression'):\n            default = default.resolve_expression(query, allow_joins, reuse, summarize)\n        c.default = None  # Reset the default argument before wrapping.\n        return Coalesce(c, default, output_field=c._output_field_or_none)\"\"\"\nnew = \"\"\"        if hasattr(default, 'resolve_expression'):\n            default = default.resolve_expression(query, allow_joins, reuse, summarize)\n        c.default = None  # Reset the default argument before wrapping.\n        coalesce = Coalesce(c, default, output_field=c._output_field_or_none)\n        # The default argument can be used in a subquery. For example:\n        #     Author.objects.annotate(count=Count('book')).aggregate(\n        #         Max('count', default=0),\n        #     )\n        # In this case, the Coalesce() wrapping the aggregate must be\n        # treated as a summary (is_summary) so that get_aggregation() moves\n        # it from the inner query to the outer AggregateQuery. Without\n        # this, the outer query would have no selected columns and produce\n        # invalid SQL like \"SELECT FROM (...)\".\n        coalesce.is_summary = c.is_summary\n        return coalesce\"\"\"\nassert old in src\nopen(p, 'w').write(src.replace(old, new))\nprint(\"patched\")\nEOF",
+   "hit": null,
+   "lat_ms": 116.4
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\np = 'django/db/models/aggregates.py'\nsrc = open(p).read()\nold = \"\"\"        coalesce = Coalesce(c, default, output_field=c._output_field_or_none)\n        # The default argument can be used in a subquery. For example:\n        #     Author.objects.annotate(count=Count('book')).aggregate(\n        #         Max('count', default=0),\n        #     )\n        # In this case, the Coalesce() wrapping the aggregate must be\n        # treated as a summary (is_summary) so that get_aggregation() moves\n        # it from the inner query to the outer AggregateQuery. Without\n        # this, the outer query would have no selected columns and produce\n        # invalid SQL like \"SELECT FROM (...)\".\n        coalesce.is_summary = c.is_summary\n        return coalesce\"\"\"\nnew = \"\"\"        coalesce = Coalesce(c, default, output_field=c._output_field_or_none)\n        # Propagate the summary state to the Coalesce() wrapper so that\n        # get_aggregation() moves the whole expression from the inner\n        # subquery to the outer AggregateQuery when aggregating on a\n        # queryset with existing annotations.\n        coalesce.is_summary = c.is_summary\n        return coalesce\"\"\"\nassert old in src\nopen(p, 'w').write(src.replace(old, new))\nprint(\"cleaned\")\nEOF\npython /tmp/repro.py",
+   "hit": null,
+   "lat_ms": 377.2
+  },
+  {
+   "cmd": "cd /testbed && cat > /tmp/verify.py <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['__main__'],\n)\ndjango.setup()\nfrom django.db import models, connection\nclass Book(models.Model):\n    class Meta:\n        app_label = '__main__'\nwith connection.schema_editor() as se:\n    se.create_model(Book)\nfor i in range(1, 6):\n    Book.objects.create()\n\nfrom django.db.models import F, Sum, Avg, Count, Max, Min, Variance, StdDev\nfrom django.db.models.functions import Coalesce\n\nqs = Book.objects.annotate(idx=F('id'))\nq = qs.query.chain()\nq.add_annotation(Sum('id', default=0), 'id__sum', is_summary=True)\nprint('SQL:', q.query_sql() if hasattr(q,'query_sql') else q)\nsql, params = q.sql_with_params()\nprint('  sql_with_params:', sql)\n\n# 1. original repro\nprint('1.', qs.aggregate(Sum('id', default=0)))\n# 2. empty result set -> default applied (outer coalesce over empty inner)\nprint('2. empty:', Book.objects.filter(id__gt=100).annotate(idx=F('id')).aggregate(Sum('id', default=0)))\n# 3. without annotate (direct path) still fine\nprint('3.', Book.objects.aggregate(Sum('id', default=0)))\nprint('4.', Book.objects.aggregate(Sum('id')))  # None, unchanged\n# 5. multiple aggregates with defaults after annotate\nprint('5.', qs.aggregate(Sum('id', default=0), Avg('id', default=1), Max('id', default=2), Min('id', default=3)))\n# 6. Count with explicit default (Count has empty_result_set_value=0 -> should raise TypeError)\ntry:\n    qs.aggregate(Count('id', default=0))\nexcept TypeError as e:\n    print('6. TypeError ok:', e)\n# 7. Coalesce long form still works\nprint('7.', qs.aggregate(x=Coalesce(Sum('id'), 0)))\n# 8. sliced queryset (also triggers subquery path)\nprint('8.', Book.objects[:3].annotate(idx=F('id')).aggregate(Sum('id', default=0)))\n# 9. distinct (triggers subquery path)\nprint('9.', Book.objects.distinct().annotate(idx=F('id')).aggregate(Sum('id', default=0)))\n# 10. default as expression\nprint('10.', qs.aggregate(Sum('id', default=99)))\nEOF\npython /tmp/verify.py",
+   "hit": null,
+   "lat_ms": 376.8
+  },
+  {
+   "cmd": "cd /testbed && sed -i \"s/Book.objects\\[:3\\]/Book.objects.all()[:3]/\" /tmp/verify.py && python /tmp/verify.py 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 380.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py aggregation aggregation_regress annotations --parallel=1 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 1172.3
+  },
+  {
+   "cmd": "cd /testbed/tests && grep -rln \"default=\" aggregation/ annotations/ aggregate_regress 2>/dev/null | head; grep -rln \"\\.aggregate(.*default\" . 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 164.3
+  },
+  {
+   "cmd": "cd /testbed/tests && grep -n \"default=\" aggregation/tests.py | head -30",
+   "hit": null,
+   "lat_ms": 146.3
+  },
+  {
+   "cmd": "cd /testbed/tests && grep -n -B3 -A15 \"filter=Q(rating__lt=3.0), default=Avg\" aggregation/tests.py",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "cd /testbed/tests && sed -n 1620,1632p aggregation/tests.py && grep -n \"class AggregationTest\\|^class \" aggregation/tests.py | sed -n 1,15p",
+   "hit": null,
+   "lat_ms": 110.6
+  },
+  {
+   "cmd": "cd /testbed/tests && grep -n \"class AggregateTestCase\\|class .*AggregateTestCase\\|def test_aggregation_default_passed_another_aggregate\" aggregation/tests.py",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed/tests && grep -n \"class \\|def test_aggregation_default_passed_another_aggregate\" aggregation/tests.py | sed -n 1,25p",
+   "hit": null,
+   "lat_ms": 107.1
+  },
+  {
+   "cmd": "cd /testbed/tests && python - <<'EOF'\np = 'aggregation/tests.py'\nsrc = open(p).read()\nold = \"\"\"    def test_aggregation_default_passed_another_aggregate(self):\n        result = Book.objects.aggregate(\n            value=Sum('price', filter=Q(rating__lt=3.0), default=Avg('pages') / 10.0),\n        )\n        self.assertAlmostEqual(result['value'], Decimal('61.72'), places=2)\n\"\"\"\nnew = \"\"\"    def test_aggregation_default_passed_another_aggregate(self):\n        result = Book.objects.aggregate(\n            value=Sum('price', filter=Q(rating__lt=3.0), default=Avg('pages') / 10.0),\n        )\n        self.assertAlmostEqual(result['value'], Decimal('61.72'), places=2)\n\n    def test_aggregation_default_after_annotation(self):\n        # Aggregates with a default argument after annotate() must use a\n        # subquery in which the Coalesce() wrapper is moved to the outer\n        # query, rather than being left in the inner query's SELECT (which\n        # would leave the outer query without any selected columns).\n        qs = Book.objects.annotate(year=F('pubdate__year'))\n        result = qs.aggregate(value=Sum('price', default=0))\n        self.assertEqual(result['value'], Decimal('61.72'))\n        # An empty queryset must produce the default value.\n        result = qs.filter(pk=None).aggregate(value=Sum('price', default=0))\n        self.assertEqual(result['value'], 0)\n\"\"\"\nassert src.count(old) == 1\nopen(p, 'w').write(src.replace(old, new))\nprint('test added')\nEOF",
+   "hit": null,
+   "lat_ms": 109.0
+  },
+  {
+   "cmd": "cd /testbed/tests && grep -n \"^from django.db.models import\\|^from django.db.models.functions\" aggregation/tests.py | head -5",
+   "hit": null,
+   "lat_ms": 109.2
+  },
+  {
+   "cmd": "cd /testbed/tests && sed -n 8,14p aggregation/tests.py && python -c \"\nfrom decimal import Decimal\nimport math\ntotal = Decimal(6172)\nprint(Decimal(6172) == Decimal('61.72')*100)\n\"",
+   "hit": null,
+   "lat_ms": 107.9
+  },
+  {
+   "cmd": "cd /testbed/tests && grep -n \"price\" aggregation/models.py | head && python -c \"\nfrom decimal import Decimal\n# compute expected sum of price for all books\nprint('check: total price sum used in existing test with filter rating<3 is 61.72; need total sum')\n\"",
+   "hit": null,
+   "lat_ms": 167.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python - <<'EOF'\n# Compute the total sum of price from test data\nimport re\nsrc = open('tests.py').read()\nm = re.findall(r\"price=Decimal\\('([^']+)'\\)\", src)\nprint('count:', len(m))\nfrom decimal import Decimal\nprint('total:', sum(Decimal(x) for x in m))\nEOF",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "cd /testbed/tests/aggregation && python - <<'EOF'\nimport re\nfrom decimal import Decimal\nsrc = open('tests.py').read()\nm = re.findall(r\"price=Decimal\\('([^']+)'\\)\", src)\nprint('count:', len(m))\nprint('total:', sum(Decimal(x) for x in m))\nEOF",
+   "hit": null,
+   "lat_ms": 116.1
+  },
+  {
+   "cmd": "cd /testbed/tests/aggregation && python - <<'EOF'\np = 'tests.py'\nsrc = open(p).read()\nold = \"\"\"        result = qs.aggregate(value=Sum('price', default=0))\n        self.assertEqual(result['value'], Decimal('61.72'))\n\"\"\"\nnew = \"\"\"        result = qs.aggregate(value=Sum('price', default=0))\n        self.assertEqual(result['value'], Decimal('314.40'))\n\"\"\"\nassert src.count(old) == 1\nopen(p, 'w').write(src.replace(old, new))\nprint('fixed expected value')\nEOF",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py aggregation.AggregateTestCase.test_aggregation_default_after_annotation 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 390.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py aggregation.AggregateTestCase.test_aggregation_default_after_annotation 2>&1 | grep -A 20 \"ERROR\\|Error\\|assert\" | head -40",
+   "hit": null,
+   "lat_ms": 381.7
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py aggregation.tests.AggregateTestCase.test_aggregation_default_after_annotation 2>&1 | tail -8",
+   "hit": null,
+   "lat_ms": 569.3
+  },
+  {
+   "cmd": "cd /testbed/tests && python - <<'EOF'\nimport django, os, sys\nsys.argv = ['runtests.py', 'aggregation.tests.AggregateTestCase.test_sum_prices']\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'test_sqlite')\nimport runtests\nsys.exit(0)\nEOF\ngrep -rn \"270.27\\|314.40\\|Sum('price')\\|sum.*price\" aggregation/tests.py | head",
+   "hit": null,
+   "lat_ms": 378.7
+  },
+  {
+   "cmd": "cd /testbed/tests/aggregation && sed -i \"s/self.assertEqual(result\\['value'\\], Decimal('314.40'))/self.assertEqual(result['value'], Decimal('270.27'))/\" tests.py && sed -n 1631,1646p tests.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py aggregation.tests.AggregateTestCase.test_aggregation_default_after_annotation 2>&1 | tail -5",
+   "hit": null,
+   "lat_ms": 607.8
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py aggregation aggregation_regress annotations 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 772.3
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py aggregation aggregation_regress annotations 2>&1 | grep -E \"^Ran|^OK|FAILED|errors=|failures=\"",
+   "hit": null,
+   "lat_ms": 771.9
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py querysets lookups 2>&1 | grep -E \"^Ran|^OK|FAILED|errors=|failures=\"",
+   "hit": null,
+   "lat_ms": 382.1
+  },
+  {
+   "cmd": "cd /testbed/tests && ls -d querysets* lookups* 2>/dev/null; python runtests.py querysets.lookups 2>&1 | grep -E \"^Ran|^OK|FAILED\" | head",
+   "hit": null,
+   "lat_ms": 385.1
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py querysets 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 379.0
+  },
+  {
+   "cmd": "cd /testbed/tests && ls -d *query* *func* 2>/dev/null | head",
+   "hit": null,
+   "lat_ms": 111.0
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py db_functions queryset_pickle 2>&1 | grep -E \"^Ran|^OK|FAILED|errors=|failures=\"",
+   "hit": null,
+   "lat_ms": 972.8
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /testbed && python - <<'EOF'\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},\n    INSTALLED_APPS=['__main__'],\n)\ndjango.setup()\nfrom django.db import models, connection\nclass Book(models.Model):\n    class Meta:\n        app_label = '__main__'\nwith connection.schema_editor() as se:\n    se.create_model(Book)\nfor i in range(1, 96):\n    Book.objects.create()\nfrom django.db.models import F, Sum\nfrom django.db.models.functions import Coalesce\n\nprint('Book.objects.count()                       ->', Book.objects.count())\nprint('Book.objects.annotate(idx=F(\"id\")).aggregate(Sum(\"id\"))        ->', Book.objects.annotate(idx=F(\"id\")).aggregate(Sum(\"id\")))\nprint('Book.objects.annotate(idx=F(\"id\")).aggregate(Sum(\"id\", default=0)) ->', Book.objects.annotate(idx=F(\"id\")).aggregate(Sum(\"id\", default=0)))\nprint('Book.objects.annotate(idx=F(\"id\")).aggregate(x=Coalesce(Sum(\"id\"), 0)) ->', Book.objects.annotate(idx=F(\"id\")).aggregate(x=Coalesce(Sum(\"id\"), 0)))\nEOF",
+   "hit": null,
+   "lat_ms": 380.5
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-15375",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 17213.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

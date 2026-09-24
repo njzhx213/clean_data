@@ -1,0 +1,241 @@
+{
+ "calls": 37,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 6197.647571563721,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 120.5
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.0
+  },
+  {
+   "cmd": "cd /opt/miniconda3/envs/testbed/lib/python2.7/site-packages/requests && echo \"=== current prepare_method ===\" && sed -n '305,320p' models.py",
+   "hit": null,
+   "lat_ms": 84.1
+  },
+  {
+   "cmd": "cd /opt/miniconda3/envs/testbed/lib/python2.7/site-packages/requests && cp models.py /tmp/models.py.bak && python2.7 - << 'PYEOF'\np = \"models.py\"\nsrc = open(p, \"rb\").read().decode(\"utf-8\")\nold = \"\"\"    def prepare_method(self, method):\n        \\\"\\\"\\\"Prepares the given HTTP method.\\\"\\\"\\\"\n        self.method = method\n        if self.method is not None:\n            self.method = self.method.upper()\"\"\"\nnew = \"\"\"    def prepare_method(self, method):\n        \\\"\\\"\\\"Prepares the given HTTP method.\\\"\\\"\\\"\n        self.method = method\n        if self.method is not None:\n            self.method = self.method.upper()\n            if is_py2 and isinstance(self.method, unicode):\n                # Coerce a unicode method to native bytes on Python 2 so the\n                # request head stays a byte string (avoids UnicodeDecodeError\n                # when concatenating a non-ASCII binary multipart body).\n                self.method = self.method.encode('ascii')\"\"\"\nassert old in src, \"anchor not found\"\nopen(p, \"wb\").write(src.replace(old, new, 1).encode(\"utf-8\"))\nprint(\"patched models.py\")\nPYEOF\npython2.7 -m py_compile models.py && echo \"compiled OK\"\necho \"--- diff vs original ---\"; diff -u /tmp/models.py.bak models.py",
+   "hit": null,
+   "lat_ms": 106.1
+  },
+  {
+   "cmd": "cd /tmp && cat > server2.py << 'EOF'\n# -*- coding: utf-8 -*-\nfrom BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer\nimport sys\nclass H(BaseHTTPRequestHandler):\n    protocol_version = 'HTTP/1.1'\n    def _handle(self):\n        try:\n            length = int(self.headers.get('Content-Length', 0))\n            body = self.rfile.read(length)\n            sys.stdout.write(\"RAW_REQ: %r | BODY len=%d\\n\" % (self.requestline, len(body)))\n            sys.stdout.flush()\n            data = \"OK\".encode('latin1')\n            self.send_response(200)\n            self.send_header('Content-Length', str(len(data)))\n            self.end_headers()\n            self.wfile.write(data)\n        except Exception as e:\n            sys.stdout.write(\"SERVER EXC: %r\\n\" % e); sys.stdout.flush()\n            try:\n                self.send_response(500); self.end_headers()\n            except Exception: pass\n    do_POST = do_GET = _handle\n    def log_message(self, *a): pass\nHTTPServer(('127.0.0.1', 9999), H).serve_forever()\nEOF\ncat > verify.py << 'EOF'\n# -*- coding: utf-8 -*-\nimport requests, io\nBIN = '\\x00\\x01\\xcf\\xfe\\x02'   # non-ascii byte 0xcf, like an ELF binary\ndef go(label, method, url):\n    try:\n        r = requests.request(method=method, url=url, files={u'file': io.BytesIO(BIN)})\n        print(\"%-34s -> OK status=%d\" % (label, r.status_code))\n    except Exception as e:\n        print(\"%-34s -> %s\" % (label, type(e).__name__))\ngo(\"u'POST' + bytes url   \", u'POST', 'http://127.0.0.1:9999/post')\ngo(\"u'POST' + unicode url \", u'POST', u'http://127.0.0.1:9999/post')\ngo(\"'POST'  + bytes url   \", 'POST',  'http://127.0.0.1:9999/post')\ngo(\"'POST'  + unicode url \", 'POST',  u'http://127.0.0.1:9999/post')\ngo(\"repro u'POST'+files   \", u'POST', u'http://127.0.0.1:9999/post')\ntry:\n    print(\"GET (unicode url)          -> OK status=%d\" % requests.get(u'http://127.0.0.1:9999/get').status_code)\nexcept Exception as e:\n    print(\"GET (unicode url)          -> %s\" % type(e).__name__)\nEOF\necho \"harness ready\"",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "mkdir -p /tmp && ( nohup bash -lc 'cd /tmp && python2.7 server2.py' > /tmp/hermes_bg_proc_1a60be80b70b.log 2>&1; rc=$?; printf '%s\\n' \"$rc\" > /tmp/hermes_bg_proc_1a60be80b70b.exit ) & echo $! > /tmp/hermes_bg_proc_1a60be80b70b.pid && cat /tmp/hermes_bg_proc_1a60be80b70b.pid",
+   "hit": null,
+   "lat_ms": 2185.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 106.4
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cd /tmp && for i in $(seq 1 10); do (echo > /dev/tcp/127.0.0.1/9999) 2>/dev/null && { echo \"server up\"; break; } || sleep 0.4; done\nRQ=/opt/miniconda3/envs/testbed/lib/python2.7/site-packages/requests\necho \"########## BEFORE FIX (original buggy code) ##########\"\ncp /tmp/models.py.bak $RQ/models.py && cd $RQ && rm -f models.pyc && python2.7 -m py_compile models.py\npython2.7 /tmp/verify.py 2>&1 | tail -6\necho \"\"\necho \"########## AFTER FIX (patched code) ##########\"\ncd $RQ && python2.7 - << 'PYEOF'\np=\"models.py\"; src=open(p,\"rb\").read().decode(\"utf-8\")\nold=\"\"\"        if self.method is not None:\n            self.method = self.method.upper()\"\"\"\nnew=\"\"\"        if self.method is not None:\n            self.method = self.method.upper()\n            if is_py2 and isinstance(self.method, unicode):\n                self.method = self.method.encode('ascii')\"\"\"\nassert old in src, \"anchor not found\"\nopen(p,\"wb\").write(src.replace(old,new,1).encode(\"utf-8\")); print(\"re-patched\")\nPYEOF\nrm -f models.pyc && python2.7 -m py_compile models.py\npython2.7 /tmp/verify.py 2>&1 | tail -6",
+   "hit": null,
+   "lat_ms": 378.3
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 67.4
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.8
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.7
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "kill 186 2>/dev/null",
+   "hit": null,
+   "lat_ms": 125.1
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.log 2>/dev/null",
+   "hit": null,
+   "lat_ms": 67.9
+  },
+  {
+   "cmd": "kill -0 \"$(cat /tmp/hermes_bg_proc_1a60be80b70b.pid 2>/dev/null)\" 2>/dev/null; echo $?",
+   "hit": null,
+   "lat_ms": 105.6
+  },
+  {
+   "cmd": "cat /tmp/hermes_bg_proc_1a60be80b70b.exit 2>/dev/null",
+   "hit": null,
+   "lat_ms": 105.4
+  },
+  {
+   "cmd": "cd /opt/miniconda3/envs/testbed/lib/python2.7/site-packages/requests && echo \"=== final code ===\" && sed -n '306,313p' models.py && echo \"\" && echo \"=== final sanity (py2) ===\" && python2.7 -c \"\nfrom requests.models import PreparedRequest\nfor m in ['pOsT', u'pOsT']:\n    p=PreparedRequest(); p.prepare_method(m)\n    print('in=%-8r -> %-8r type=%s' % (m, p.method, type(p.method).__name__))\n\" && ls -la --time-style=+%H:%M:%S models.py models.pyc",
+   "hit": null,
+   "lat_ms": 178.8
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "psf__requests-1724",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 6197.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

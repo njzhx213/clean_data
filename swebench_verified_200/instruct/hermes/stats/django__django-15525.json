@@ -1,0 +1,316 @@
+{
+ "calls": 52,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 29243.55411529541,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 105.5
+  },
+  {
+   "cmd": "git -C /testbed config core.fileMode false",
+   "hit": null,
+   "lat_ms": 163.0
+  },
+  {
+   "cmd": "git -C /testbed update-ref refs/ws/baseline HEAD",
+   "hit": null,
+   "lat_ms": 105.2
+  },
+  {
+   "cmd": "cd /tmp && git clone --quiet https://github.com/django/django.git django-src 2>&1 | tail -2; cd django-src && git log --oneline -1 && python -c \"import django; print(django.get_version())\"",
+   "hit": null,
+   "lat_ms": 127.1
+  },
+  {
+   "cmd": "cd /tmp && git clone --quiet https://github.com/farialima/django-bug.git bugrepo 2>&1 | tail -2; cd bugrepo && ls -la && cat manage.py 2>/dev/null | head -30",
+   "hit": null,
+   "lat_ms": 149.3
+  },
+  {
+   "cmd": "python3 -c \"import django; print(django.__version__, django.__file__)\" 2>&1; which python3 pip3; pip3 list 2>/dev/null | grep -i -E \"django|sqlfluff\" ",
+   "hit": null,
+   "lat_ms": 380.5
+  },
+  {
+   "cmd": "find / -name \"base.py\" -path \"*serializers*\" 2>/dev/null | head -5; find / -name \"django\" -type d 2>/dev/null | grep -v proc | head -10",
+   "hit": null,
+   "lat_ms": 1761.3
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -3 && sed -n '1,120p' django/core/serializers/base.py",
+   "hit": null,
+   "lat_ms": 129.8
+  },
+  {
+   "cmd": "cd /testbed && sed -n '200,420p' django/core/serializers/base.py",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"build_instance\" django/core/serializers/ && grep -n \"DeserializedObject\\|build_instance\\|def Deserializer\" django/core/serializers/python.py | head -20",
+   "hit": null,
+   "lat_ms": 113.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '88,180p' django/core/serializers/python.py",
+   "hit": null,
+   "lat_ms": 112.6
+  },
+  {
+   "cmd": "cd /testbed && ls tests/serializers_tests/ && grep -rn \"natural\" tests/serializers_tests/test_commands.py | head -30",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "cd /testbed && grep -rn \"build_instance\\|natural_key\" tests/serializers_tests/*.py | grep -iv \"def test\" | head -40",
+   "hit": null,
+   "lat_ms": 107.3
+  },
+  {
+   "cmd": "cd /testbed && ls tests/ | grep -i serial; grep -rn \"build_instance\" tests/ --include=\"*.py\" -l",
+   "hit": null,
+   "lat_ms": 166.4
+  },
+  {
+   "cmd": "cd /testbed/tests/serializers && ls && grep -rn \"get_by_natural_key\\|build_instance\" models.py | head -30",
+   "hit": null,
+   "lat_ms": 69.4
+  },
+  {
+   "cmd": "cd /testbed/tests/serializers && ls models/ && grep -rn \"get_by_natural_key\\|natural_key\" models/*.py | head -30",
+   "hit": null,
+   "lat_ms": 110.2
+  },
+  {
+   "cmd": "cd /testbed/tests/serializers && cat models/natural.py",
+   "hit": null,
+   "lat_ms": 109.1
+  },
+  {
+   "cmd": "mkdir -p /tmp/repro/testapp && cd /tmp/repro && cat > testapp/__init__.py <<'EOF'\nEOF\ncat > testapp/apps.py <<'EOF'\nfrom django.apps import AppConfig\n\nclass TestappConfig(AppConfig):\n    name = \"testapp\"\nEOF\ncat > testapp/models.py <<'EOF'\nfrom django.db import models\n\n\nclass AuthorManager(models.Manager):\n    def get_by_natural_key(self, name):\n        return self.get(name=name)\n\n\nclass Author(models.Model):\n    id = models.AutoField(primary_key=True)\n    name = models.CharField(max_length=255, unique=True)\n    objects = AuthorManager()\n\n    def natural_key(self):\n        return (self.name,)\n\n    def __str__(self):\n        return f\"{self.id} {self.name}\"\n\n\nclass BookManager(models.Manager):\n    def get_by_natural_key(self, title, author):\n        return self.get(title=title, author__name=author)\n\n\nclass Book(models.Model):\n    id = models.AutoField(primary_key=True)\n    title = models.CharField(max_length=255)\n    author = models.ForeignKey(Author, models.DO_NOTHING, related_name=\"books\")\n    objects = BookManager()\n\n    def natural_key(self):\n        return (self.title,) + self.author.natural_key()\n\n    natural_key.dependencies = [\"testapp.Author\"]\n\n    class Meta:\n        unique_together = [[\"title\", \"author\"]]\n\n    def __str__(self):\n        return f\"{self.id}: '{self.title}' by {self.author}\"\nEOF\ncat > test_repro.py <<'EOF'\n\"\"\"Reproduce: loaddata fails on non-default database when natural keys use FKs.\"\"\"\nimport sys\nimport django\nfrom django.conf import settings\n\nsettings.configure(\n    DATABASES={\n        \"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_default.sqlite3\"},\n        \"other\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_other.sqlite3\"},\n    },\n    INSTALLED_APPS=[\n        \"django.contrib.contenttypes\",\n        \"django.contrib.auth\",\n        \"testapp\",\n    ],\n    USE_TZ=True,\n)\nsys.path.insert(0, \"/tmp/repro\")\ndjango.setup()\n\nfrom django.core.management import call_command\nfrom io import StringIO\n\nfixture = (\n    '[\\n'\n    '  {\"model\": \"testapp.author\", \"fields\": {\"name\": \"JR Tolkien\"}},\\n'\n    '  {\"model\": \"testapp.book\", \"fields\": {\"title\": \"The Ring\", \"author\": [\"JR Tolkien\"]}}\\n'\n    ']\\n'\n)\n\n\ndef run_case(label, seed_default):\n    from django.db import connections\n    for alias in connections:\n        connections[alias].close()\n    call_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"default\")\n    call_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"other\")\n\n    from testapp.models import Author, Book\n\n    if seed_default:\n        Author.objects.create(name=\"JR Tolkien\")\n        Book.objects.create(title=\"The Ring\", author=Author.objects.get(name=\"JR Tolkien\"))\n\n    out = StringIO()\n    try:\n        call_command(\n            \"loaddata\", StringIO(fixture),\n            database=\"other\", format=\"json\", stdout=out, verbosity=1,\n        )\n        ok = Book.objects.using(\"other\").filter(title=\"The Ring\").exists()\n        print(f\"[{label}] loaddata OK; book on 'other' exists: {ok}\")\n        return ok\n    except Exception as e:\n        print(f\"[{label}] FAILED: {type(e).__name__}: {e}\")\n        return False\n\n\n# clean slate\nfor p in (\"/tmp/repro/db_default.sqlite3\", \"/tmp/repro/db_other.sqlite3\"):\n    try:\n        os.unlink(p)\n    except FileNotFoundError:\n        pass\nimport os\n\nok1 = run_case(\"default DB empty\", seed_default=False)\nok2 = run_case(\"default DB seeded\", seed_default=True)\nsys.exit(0 if (ok1 and ok2) else 1)\nEOF\npython test_repro.py",
+   "hit": null,
+   "lat_ms": 571.1
+  },
+  {
+   "cmd": "cd /tmp/repro && rm -f db_default.sqlite3 db_other.sqlite3 && python - <<'EOF'\nimport sys, os\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={\n        \"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_default.sqlite3\"},\n        \"other\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_other.sqlite3\"},\n    },\n    INSTALLED_APPS=[\"django.contrib.contenttypes\", \"django.contrib.auth\", \"testapp\"],\n    USE_TZ=True,\n)\nsys.path.insert(0, \"/tmp/repro\")\ndjango.setup()\nfrom django.core.management import call_command\nfrom io import StringIO\n\nfixture = (\n    '[\\n'\n    '  {\"model\": \"testapp.author\", \"fields\": {\"name\": \"JR Tolkien\"}},\\n'\n    '  {\"model\": \"testapp.book\", \"fields\": {\"title\": \"The Ring\", \"author\": [\"JR Tolkien\"]}}\\n'\n    ']\\n'\n)\n\ndef run_case(label, seed_default):\n    from django.db import connections\n    for alias in connections:\n        connections[alias].close()\n    call_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"default\")\n    call_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"other\")\n    from testapp.models import Author, Book\n    if seed_default:\n        Author.objects.create(name=\"JR Tolkien\")\n        Book.objects.create(title=\"The Ring\", author=Author.objects.get(name=\"JR Tolkien\"))\n    out = StringIO()\n    try:\n        call_command(\"loaddata\", StringIO(fixture), database=\"other\", format=\"json\", stdout=out, verbosity=1)\n        ok = Book.objects.using(\"other\").filter(title=\"The Ring\").exists()\n        print(f\"[{label}] loaddata OK; book on 'other' exists: {ok}\")\n        return ok\n    except Exception as e:\n        print(f\"[{label}] FAILED: {type(e).__name__}: {e}\")\n        return False\n\nok1 = run_case(\"default DB empty\", seed_default=False)\nok2 = run_case(\"default DB seeded\", seed_default=True)\nsys.exit(0 if (ok1 and ok2) else 1)\nEOF",
+   "hit": null,
+   "lat_ms": 573.1
+  },
+  {
+   "cmd": "cd /tmp/repro && cat > books.json <<'EOF'\n[\n  {\"model\": \"testapp.author\", \"fields\": {\"name\": \"JR Tolkien\"}},\n  {\"model\": \"testapp.book\", \"fields\": {\"title\": \"The Ring\", \"author\": [\"JR Tolkien\"]}}\n]\nEOF\nrm -f db_default.sqlite3 db_other.sqlite3 && python - <<'EOF'\nimport sys, os\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={\n        \"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_default.sqlite3\"},\n        \"other\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_other.sqlite3\"},\n    },\n    INSTALLED_APPS=[\"django.contrib.contenttypes\", \"django.contrib.auth\", \"testapp\"],\n    USE_TZ=True,\n)\nsys.path.insert(0, \"/tmp/repro\")\ndjango.setup()\nfrom django.core.management import call_command\nfrom io import StringIO\n\ndef run_case(label, seed_default):\n    from django.db import connections\n    for alias in connections:\n        connections[alias].close()\n    call_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"default\")\n    call_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"other\")\n    from testapp.models import Author, Book\n    if seed_default:\n        Author.objects.create(name=\"JR Tolkien\")\n        Book.objects.create(title=\"The Ring\", author=Author.objects.get(name=\"JR Tolkien\"))\n    out = StringIO()\n    try:\n        call_command(\"loaddata\", \"books.json\", database=\"other\", format=\"json\", stdout=out, verbosity=1)\n        ok = Book.objects.using(\"other\").filter(title=\"The Ring\").exists()\n        print(f\"[{label}] loaddata OK; book on 'other' exists: {ok}\")\n        return ok\n    except Exception as e:\n        print(f\"[{label}] FAILED: {type(e).__name__}: {e}\")\n        return False\n\nok1 = run_case(\"default DB empty\", seed_default=False)\nok2 = run_case(\"default DB seeded\", seed_default=True)\nsys.exit(0 if (ok1 and ok2) else 1)\nEOF",
+   "hit": null,
+   "lat_ms": 579.7
+  },
+  {
+   "cmd": "cd /tmp/repro && rm -f db_default.sqlite3 db_other.sqlite3 && python - <<'EOF'\nimport sys, os, traceback\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={\n        \"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_default.sqlite3\"},\n        \"other\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_other.sqlite3\"},\n    },\n    INSTALLED_APPS=[\"django.contrib.contenttypes\", \"django.contrib.auth\", \"testapp\"],\n    USE_TZ=True,\n)\nsys.path.insert(0, \"/tmp/repro\")\ndjango.setup()\nfrom django.core.management import call_command\nfrom io import StringIO\nfrom django.db import connections\ncall_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"default\")\ncall_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"other\")\n\nfrom testapp.models import Author, Book\n# Check: is Author in 'other' yet?\nprint(\"authors in default:\", list(Author.objects.values_list(\"name\", flat=True)))\nprint(\"authors in other:  \", list(Author.objects.using(\"other\").values_list(\"name\", flat=True)))\n\nout = StringIO()\ntry:\n    call_command(\"loaddata\", \"books.json\", database=\"other\", format=\"json\", stdout=out, verbosity=1)\nexcept Exception:\n    traceback.print_exc()\nEOF",
+   "hit": null,
+   "lat_ms": 1007.0
+  },
+  {
+   "cmd": "cd /testbed && git log --oneline -5 && git show --stat HEAD | head -30",
+   "hit": null,
+   "lat_ms": 114.5
+  },
+  {
+   "cmd": "cd /testbed && sed -n '325,345p' django/core/serializers/base.py",
+   "hit": null,
+   "lat_ms": 112.1
+  },
+  {
+   "cmd": "cd /testbed && sed -n '200,290p' django/core/management/commands/loaddata.py",
+   "hit": null,
+   "lat_ms": 76.3
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"save_deferred_fields\\|objs_with_deferred_fields\" django/core/management/commands/loaddata.py && sed -n '120,200p' django/core/management/commands/loaddata.py",
+   "hit": null,
+   "lat_ms": 377.9
+  },
+  {
+   "cmd": "cd /testbed && sed -n '320,350p' django/core/serializers/base.py && grep -n \"self.db\" django/core/serializers/xml_serializer.py | head",
+   "hit": null,
+   "lat_ms": 70.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n '150,215p' django/db/models/fields/related_descriptors.py",
+   "hit": null,
+   "lat_ms": 109.3
+  },
+  {
+   "cmd": "cd /testbed && sed -n '100,150p' django/db/models/fields/related_descriptors.py",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "cd /testbed && sed -n '328,345p' django/core/serializers/base.py | cat -A | sed -n '1,20p'",
+   "hit": null,
+   "lat_ms": 69.2
+  },
+  {
+   "cmd": "cd /testbed && python - <<'PYEOF'\nimport re\npath = \"django/core/serializers/base.py\"\nsrc = open(path).read()\nold = '''    if (\n        pk is None\n        and hasattr(default_manager, \"get_by_natural_key\")\n        and hasattr(Model, \"natural_key\")\n    ):\n        natural_key = Model(**data).natural_key()\n        try:\n            data[Model._meta.pk.attname] = Model._meta.pk.to_python(\n                default_manager.db_manager(db).get_by_natural_key(*natural_key).pk\n            )\n        except Model.DoesNotExist:\n            pass'''\nnew = '''    if (\n        pk is None\n        and hasattr(default_manager, \"get_by_natural_key\")\n        and hasattr(Model, \"natural_key\")\n    ):\n        try:\n            natural_key = Model(**data).natural_key()\n            data[Model._meta.pk.attname] = Model._meta.pk.to_python(\n                default_manager.db_manager(db).get_by_natural_key(*natural_key).pk\n            )\n        except ObjectDoesNotExist:\n            # The instance's natural key may depend on a related object that\n            # isn't available in the target database (yet), in which case the\n            # object can't be looked up and is created anew instead.\n            pass'''\nassert old in src, \"pattern not found\"\nsrc = src.replace(old, new, 1)\nopen(path, \"w\").write(src)\nprint(\"patched OK\")\nPYEOF\nsed -n '328,350p' django/core/serializers/base.py",
+   "hit": null,
+   "lat_ms": 107.2
+  },
+  {
+   "cmd": "cd /tmp/repro && rm -f db_default.sqlite3 db_other.sqlite3 && python - <<'EOF'\nimport sys\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={\n        \"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_default.sqlite3\"},\n        \"other\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_other.sqlite3\"},\n    },\n    INSTALLED_APPS=[\"django.contrib.contenttypes\", \"django.contrib.auth\", \"testapp\"],\n    USE_TZ=True,\n)\nsys.path.insert(0, \"/tmp/repro\")\ndjango.setup()\nfrom django.core.management import call_command\nfrom io import StringIO\nfrom django.db import connections\n\ndef run_case(label, seed_default):\n    for alias in connections:\n        connections[alias].close()\n    call_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"default\")\n    call_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"other\")\n    from testapp.models import Author, Book\n    if seed_default:\n        Author.objects.create(name=\"JR Tolkien\")\n        Book.objects.create(title=\"The Ring\", author=Author.objects.get(name=\"JR Tolkien\"))\n    out = StringIO()\n    try:\n        call_command(\"loaddata\", \"books.json\", database=\"other\", format=\"json\", stdout=out, verbosity=1)\n        ok = Book.objects.using(\"other\").filter(title=\"The Ring\").exists()\n        authors_other = list(Author.objects.using(\"other\").values_list(\"name\", flat=True))\n        print(f\"[{label}] loaddata OK; book on 'other' exists: {ok}; authors on 'other': {authors_other}\")\n        return ok\n    except Exception as e:\n        import traceback; traceback.print_exc()\n        print(f\"[{label}] FAILED: {type(e).__name__}: {e}\")\n        return False\n\nok1 = run_case(\"default DB empty\", seed_default=False)\nok2 = run_case(\"default DB seeded\", seed_default=True)\nprint(\"ALL PASS\" if (ok1 and ok2) else \"FAILURES\")\nsys.exit(0 if (ok1 and ok2) else 1)\nEOF",
+   "hit": null,
+   "lat_ms": 570.0
+  },
+  {
+   "cmd": "cd /tmp/repro && rm -f db_default.sqlite3 db_other.sqlite3 && python - <<'EOF'\nimport sys\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={\n        \"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_default.sqlite3\"},\n        \"other\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_other.sqlite3\"},\n    },\n    INSTALLED_APPS=[\"django.contrib.contenttypes\", \"django.contrib.auth\", \"testapp\"],\n    USE_TZ=True,\n)\nsys.path.insert(0, \"/tmp/repro\")\ndjango.setup()\nfrom django.core.management import call_command\nfrom io import StringIO\nfrom django.db import connections\ncall_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"default\")\ncall_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"other\")\nfrom testapp.models import Author, Book\n\n# Load twice into 'other'; second load should dedup via natural keys\ncall_command(\"loaddata\", \"books.json\", database=\"other\", format=\"json\", verbosity=0)\ncall_command(\"loaddata\", \"books.json\", database=\"other\", format=\"json\", verbosity=0)\na = Author.objects.using(\"other\").count()\nb = Book.objects.using(\"other\").count()\nprint(f\"after 2 loads into 'other': authors={a}, books={b}\")\nassert a == 1 and b == 1, \"dedup via natural keys is broken!\"\nprint(\"dedup OK\")\n\n# Also verify default-DB load still works (regression check)\ncall_command(\"loaddata\", \"books.json\", database=\"default\", format=\"json\", verbosity=0)\nprint(f\"default db: authors={Author.objects.count()}, books={Book.objects.count()}\")\nassert Author.objects.count() == 1 and Book.objects.count() == 1\nprint(\"default db OK\")\nEOF",
+   "hit": null,
+   "lat_ms": 576.7
+  },
+  {
+   "cmd": "cd /testbed && git stash && cd /tmp/repro && rm -f db_default.sqlite3 db_other.sqlite3 && python - <<'EOF'\nimport sys\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={\n        \"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_default.sqlite3\"},\n        \"other\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_other.sqlite3\"},\n    },\n    INSTALLED_APPS=[\"django.contrib.contenttypes\", \"django.contrib.auth\", \"testapp\"],\n    USE_TZ=True,\n)\nsys.path.insert(0, \"/tmp/repro\")\ndjango.setup()\nfrom django.core.management import call_command\nfrom io import StringIO\nfrom django.db import connections\ncall_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"default\")\ncall_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"other\")\nfrom testapp.models import Author, Book\n\n# Pre-seed 'other' directly (simulating existing data), then load fixture\nAuthor.objects.using(\"other\").create(name=\"JR Tolkien\")\nBook.objects.using(\"other\").create(title=\"The Ring\", author=Author.objects.using(\"other\").get(name=\"JR Tolkien\"))\n\n# Now load the same fixture into 'other' \u2014 should dedup via natural keys\ntry:\n    call_command(\"loaddata\", \"books.json\", database=\"other\", format=\"json\", verbosity=0)\n    a = Author.objects.using(\"other\").count()\n    b = Book.objects.using(\"other\").count()\n    print(f\"ORIGINAL CODE, pre-seeded 'other': authors={a}, books={b}\")\n    assert a == 1 and b == 1\n    print(\"ORIGINAL: dedup OK\")\nexcept Exception as e:\n    print(f\"ORIGINAL CODE FAILED: {type(e).__name__}: {e}\")\nEOF\ncd /testbed && git stash pop",
+   "hit": null,
+   "lat_ms": 1222.7
+  },
+  {
+   "cmd": "cd /tmp/repro && rm -f db_default.sqlite3 db_other.sqlite3 && python - <<'EOF'\nimport sys\nimport django\nfrom django.conf import settings\nsettings.configure(\n    DATABASES={\n        \"default\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_default.sqlite3\"},\n        \"other\": {\"ENGINE\": \"django.db.backends.sqlite3\", \"NAME\": \"/tmp/repro/db_other.sqlite3\"},\n    },\n    INSTALLED_APPS=[\"django.contrib.contenttypes\", \"django.contrib.auth\", \"testapp\"],\n    USE_TZ=True,\n)\nsys.path.insert(0, \"/tmp/repro\")\ndjango.setup()\nfrom django.core.management import call_command\nfrom io import StringIO\nfrom django.db import connections\ncall_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"default\")\ncall_command(\"migrate\", run_syncdb=True, verbosity=0, database=\"other\")\nfrom testapp.models import Author, Book\n\nAuthor.objects.using(\"other\").create(name=\"JR Tolkien\")\nBook.objects.using(\"other\").create(title=\"The Ring\", author=Author.objects.using(\"other\").get(name=\"JR Tolkien\"))\n\ntry:\n    call_command(\"loaddata\", \"books.json\", database=\"other\", format=\"json\", verbosity=0)\n    a = Author.objects.using(\"other\").count()\n    b = Book.objects.using(\"other\").count()\n    print(f\"FIXED CODE, pre-seeded 'other': authors={a}, books={b}\")\n    assert a == 1 and b == 1, \"dedup broken\"\n    print(\"FIXED: dedup OK \u2014 no duplicates\")\nexcept Exception as e:\n    print(f\"FIXED CODE FAILED: {type(e).__name__}: {e}\")\n    raise\nEOF",
+   "hit": null,
+   "lat_ms": 569.7
+  },
+  {
+   "cmd": "cd /testbed && git log --all --oneline | head -20; git branch -a",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "grep -rn \"natural_key\" /testbed/docs/releases/4.1.txt 2>/dev/null; ls /testbed/docs/releases/ | tail -10",
+   "hit": null,
+   "lat_ms": 109.9
+  },
+  {
+   "cmd": "grep -rn \"loaddata\\|natural\" /testbed/docs/releases/4.1.txt | head -20",
+   "hit": null,
+   "lat_ms": 873.2
+  },
+  {
+   "cmd": "grep -rn \"33171\\|build_instance\\|natural key\" /testbed/docs/releases/*.txt | head -20",
+   "hit": null,
+   "lat_ms": 108.1
+  },
+  {
+   "cmd": "grep -n \"loaddata\" /testbed/docs/releases/4.1.txt | head; grep -n \"Bugfixes\" /testbed/docs/releases/4.1.txt | head -3",
+   "hit": null,
+   "lat_ms": 110.4
+  },
+  {
+   "cmd": "head -60 /testbed/docs/releases/4.1.txt; echo ===; grep -c \"\" /testbed/docs/releases/4.1.txt",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "grep -n \"4.1.1\\|bugfixes\\|Bugfixes\" /testbed/docs/releases/4.1.txt; sed -n '/^Bugfixes/,/^Security/p' /testbed/docs/releases/4.1.txt | head -40",
+   "hit": null,
+   "lat_ms": 108.2
+  },
+  {
+   "cmd": "sed -n '400,534p' /testbed/docs/releases/4.1.txt",
+   "hit": null,
+   "lat_ms": 70.8
+  },
+  {
+   "cmd": "cd /testbed && python -m pytest tests/serializers/ -x -q 2>&1 | tail -15",
+   "hit": null,
+   "lat_ms": 181.6
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py serializers -v 1 2>&1 | tail -20",
+   "hit": null,
+   "lat_ms": 1591.3
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py core.management.commands.test_loaddata -v 1 2>&1 | tail -5; python runtests.py test_sqlite3 multi_db -v 1 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR)\" | head",
+   "hit": null,
+   "lat_ms": 771.3
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py core.management.commands.test_loaddata -v 2 2>&1 | grep -B2 -A20 \"ERROR\\|FAIL\" | head -40",
+   "hit": null,
+   "lat_ms": 377.8
+  },
+  {
+   "cmd": "cd /testbed/tests && find . -name \"*loaddata*\" -o -name \"*load_data*\" | head; ls core/management/commands/ 2>/dev/null | grep -i load; ls core/ 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 108.0
+  },
+  {
+   "cmd": "cd /testbed/tests && grep -rln \"loaddata\" --include=\"*.py\" . | head -10",
+   "hit": null,
+   "lat_ms": 111.3
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py fixtures fixtures_regress multiple_database -v 1 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR:)\" | head",
+   "hit": null,
+   "lat_ms": 1390.4
+  },
+  {
+   "cmd": "cd /testbed/tests && python runtests.py admin_scripts -v 1 2>&1 | grep -E \"^(Ran|OK|FAILED|ERROR:)\" | head",
+   "hit": null,
+   "lat_ms": 12191.9
+  },
+  {
+   "cmd": "cd /testbed && git diff",
+   "hit": null,
+   "lat_ms": 109.5
+  },
+  {
+   "cmd": "cd /testbed && grep -n \"ObjectDoesNotExist\" django/core/serializers/base.py | head -3",
+   "hit": null,
+   "lat_ms": 70.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "django__django-15525",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 29243.6,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}

