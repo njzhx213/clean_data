@@ -60,12 +60,13 @@ Pro matches the 09-07 final table exactly (685 / 1500). Verified/Lite have more 
 
 `explorer/data/opp/.tagcache.jsonl` (81 MB cache) and the run logs are git-ignored.
 
-## Redaction
+## About the "secrets" GitHub flags
 
-The Terminal-Bench-2 task `sanitize-git-repo` plants fake credentials in its repository (the task is to scrub them), and the
-agents echoed them into commands and transcripts. GitHub secret scanning flagged one. In this copy every `hf_…`, `ghp_…` and
-`AKIA…` string in that task's 22 files (tool_calls, transcripts, logs, stats, TAG graphs, all six cells) is replaced by
-`*_REDACTED_BENCHMARK_FIXTURE`; the source tree under `profile_all` is untouched. No other file matched any credential shape.
+The Terminal-Bench-2 task `sanitize-git-repo` plants fake credentials (`hf_…`, `ghp_…`, `AKIA…`) in its repository — the
+task is to scrub them — and the agents echoed them into commands and transcripts, so they appear in that task's tool_calls,
+transcripts, logs, stats and TAG graphs in all six cells. They are the benchmark's own fixtures, not anyone's credentials;
+the data is kept verbatim (a copy that rewrote them would not be the run as recorded). GitHub secret scanning flags one of
+them: dismiss the alert as "used in tests". No other file in this tree matches any credential shape.
 
 ## Known gaps (recorded per run in `MANIFEST.tsv`)
 

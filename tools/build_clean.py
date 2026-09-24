@@ -137,8 +137,15 @@ for ds in want:
                   f"no_parquet={sum(1 for r in vrows if not r[6]):2d}  [{time.time()-t00:.0f}s]", flush=True)
 if not DRY:
     def dump(name, hdr, rows):
+        # a partial build (explicit dataset list) keeps the rows of the datasets it did not rebuild
+        keep = []
+        if want != list(DATASETS) and os.path.exists(f"{OUT}/{name}"):
+            with open(f"{OUT}/{name}") as fh:
+                fh.readline()
+                keep = [l.rstrip("\n") for l in fh if l.split("\t")[0] not in want]
         with open(f"{OUT}/{name}", "w") as fh:
             fh.write(hdr + "\n")
+            for l in keep: fh.write(l + "\n")
             for r in rows: fh.write("\t".join("" if x is None else str(x) for x in r) + "\n")
     dump("MANIFEST.tsv", "dataset\tmode\tframework\tinstance_id\tsource_tree\tverdict\tpatch_bytes\thas_log\thas_tool_calls\thas_llm_parquet\tnote", manifest)
     dump("replaced_runs.tsv", "dataset\tcell\tinstance_id\treplaced_source\treplaced_verdict\tnew_source\tnew_verdict\treason", replaced)
