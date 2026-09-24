@@ -60,6 +60,13 @@ Pro matches the 09-07 final table exactly (685 / 1500). Verified/Lite have more 
 
 `explorer/data/opp/.tagcache.jsonl` (81 MB cache) and the run logs are git-ignored.
 
+## Redaction
+
+The Terminal-Bench-2 task `sanitize-git-repo` plants fake credentials in its repository (the task is to scrub them), and the
+agents echoed them into commands and transcripts. GitHub secret scanning flagged one. In this copy every `hf_…`, `ghp_…` and
+`AKIA…` string in that task's 22 files (tool_calls, transcripts, logs, stats, TAG graphs, all six cells) is replaced by
+`*_REDACTED_BENCHMARK_FIXTURE`; the source tree under `profile_all` is untouched. No other file matched any credential shape.
+
 ## Known gaps (recorded per run in `MANIFEST.tsv`)
 
 - 3 `pro_250/instruct/langgraph` runs (flipt-967855b4, vuls-bff6b755, teleport-8302d467) were hard-killed at the 3 h timeout: log and verdict only, no tool_calls/parquet.
